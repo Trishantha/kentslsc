@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+
+  .dark .glass {
+    @apply bg-black/30 border-white/10;
+  }
+
+  .glass-card {
+    @apply glass rounded-2xl transition-all duration-300;
+  }
+
+  .neon-border {
+    @apply border border-neon-blue/50 shadow-neon;
+  }
+
+  .gold-border {
+    @apply border border-neon-gold/50 shadow-gold;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-neon-blue to-cyan-500 px-6 py-3 font-semibold text-white shadow-neon transition-transform hover:scale-105 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-neon-gold/50 bg-gradient-to-r from-neon-gold/20 to-amber-500/20 px-6 py-3 font-semibold text-amber-700 transition-transform hover:scale-105 active:scale-95 dark:text-neon-gold;
+  }
+
+  .section-title {
+    @apply text-3xl font-bold tracking-tight md:text-4xl;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-neon-blue via-cyan-400 to-neon-gold bg-clip-text text-transparent;
+  }
+}

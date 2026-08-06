@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../dist/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+  BUSINESS_OWNER
+  GUEST
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  phone         String?
+  address       String?
+  role          UserRole  @default(GUEST)
+  refreshToken  String?   @map("refresh_token")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  memberships     Membership[]
+  tickets         Ticket[]
+  businessListings BusinessListing[]
+  forumTopics     ForumTopic[]
+  forumPosts      ForumPost[]
+  donations       Donation[]
+  blogPosts       BlogPost[] @relation("AuthorBlogPosts")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model MembershipType {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  description    String?
+  price          Decimal  @db.Decimal(10, 2)
+  isFree         Boolean  @default(false) @map("is_free")
+  durationMonths Int      @map("duration_months")
+  benefits       String[] @default([])
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  memberships Membership[]
+
+  @@map("membership_types")
+}
+
+model Membership {
+  id                 String           @id @default(uuid())
+  userId             String           @map("user_id")
+  membershipTypeId   String           @map("membership_type_id")
+  startDate          DateTime         @map("start_date")
+  endDate            DateTime         @map("end_date")
+  status             MembershipStatus @default(PENDING)
+  dependantsJson     Json?            @map("dependants_json")
+  membershipId       String           @unique @map("membership_id")
+  membershipCardUrl  String?          @map("membership_card_url")
+  qrCodeValue        String?          @unique @map("qr_code_value")
+  issuedAt           DateTime         @default(now()) @map("issued_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  deletedAt          DateTime?        @map("deleted_at")
+
+  user           User           @relation(fields: [userId], references: [id])
+  membershipType MembershipType @relation(fields: [membershipTypeId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([membershipId])
+  @@map("memberships")
+}
+
+model Event {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  location      String?
+  startDatetime DateTime @map("start_datetime")
+  endDatetime   DateTime @map("end_datetime")
+  ticketPrice   Decimal  @default(0) @map("ticket_price") @db.Decimal(10, 2)
+  maxTickets    Int?     @map("max_tickets")
+  imageUrl      String?  @map("image_url")
+  isPublished   Boolean  @default(false) @map("is_published")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  tickets Ticket[]
+
+  @@index([startDatetime])
+  @@index([isPublished])
+  @@map("events")
+}
+
+model Ticket {
+  id              String      @id @default(uuid())
+  eventId         String      @map("event_id")
+  userId          String      @map("user_id")
+  purchaseDatetime DateTime   @default(now()) @map("purchase_datetime")
+  qrCodeValue     String      @unique @map("qr_code_value")
+  status          TicketStatus @default(VALID)
+  paymentId       String?     @map("payment_id")
+  stripeSessionId String?     @map("stripe_session_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([qrCodeValue])
+  @@index([paymentId])
+  @@map("tickets")
+}
+
+model BusinessListing {
+  id             String    @id @default(uuid())
+  ownerUserId    String    @map("owner_user_id")
+  businessName   String    @map("business_name")
+  logoUrl        String?   @map("logo_url")
+  description    String?
+  servicesText   String?   @map("services_text")
+  websiteUrl     String?   @map("website_url")
+  email          String?
+  phone          String?
+  address        String?
+  category       String?
+  isPaid         Boolean   @default(false) @map("is_paid")
+  isPromoted     Boolean   @default(false) @map("is_promoted")
+  promotedUntil  DateTime? @map("promoted_until")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  owner  User    @relation(fields: [ownerUserId], references: [id])
+  jobAds JobAd[]
+
+  @@index([ownerUserId])
+  @@index([isPromoted])
+  @@index([category])
+  @@map("business_listings")
+}
+
+model JobAd {
+  id                String    @id @default(uuid())
+  businessListingId String?   @map("business_listing_id")
+  title             String
+  description       String?
+  location          String?
+  salaryRange       String?   @map("salary_range")
+  contactEmail      String?   @map("contact_email")
+  closingDate       DateTime? @map("closing_date")
+  isPublished       Boolean   @default(false) @map("is_published")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  businessListing BusinessListing? @relation(fields: [businessListingId], references: [id])
+
+  @@index([businessListingId])
+  @@index([closingDate])
+  @@index([isPublished])
+  @@map("job_ads")
+}
+
+model ForumCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  topics ForumTopic[]
+
+  @@map("forum_categories")
+}
+
+model ForumTopic {
+  id          String   @id @default(uuid())
+  categoryId  String   @map("category_id")
+  userId      String   @map("user_id")
+  title       String
+  content     String
+  aiSummary   String?  @map("ai_summary")
+  tags        String[] @default([])
+  isFlagged   Boolean  @default(false) @map("is_flagged")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  category ForumCategory @relation(fields: [categoryId], references: [id])
+  user     User          @relation(fields: [userId], references: [id])
+  posts    ForumPost[]
+
+  @@index([categoryId])
+  @@index([userId])
+  @@map("forum_topics")
+}
+
+model ForumPost {
+  id        String   @id @default(uuid())
+  topicId   String   @map("topic_id")
+  userId    String   @map("user_id")
+  content   String
+  isFlagged Boolean  @default(false) @map("is_flagged")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  topic ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id])
+
+  @@index([topicId])
+  @@index([userId])
+  @@map("forum_posts")
+}
+
+model Fundraiser {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  targetAmount Decimal  @map("target_amount") @db.Decimal(12, 2)
+  raisedAmount Decimal  @default(0) @map("raised_amount") @db.Decimal(12, 2)
+  imageUrl     String?  @map("image_url")
+  startDate    DateTime @map("start_date")
+  endDate      DateTime @map("end_date")
+  isActive     Boolean  @default(true) @map("is_active")
+  aiSummary    String?  @map("ai_summary")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  donations Donation[]
+
+  @@index([isActive])
+  @@index([endDate])
+  @@map("fundraisers")
+}
+
+model Donation {
+  id          String   @id @default(uuid())
+  fundraiserId String  @map("fundraiser_id")
+  userId      String?  @map("user_id")
+  amount      Decimal  @db.Decimal(12, 2)
+  paymentId   String?  @map("payment_id")
+  message     String?
+  donatedAt   DateTime @default(now()) @map("donated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  fundraiser Fundraiser @relation(fields: [fundraiserId], references: [id])
+  user       User?       @relation(fields: [userId], references: [id])
+
+  @@index([fundraiserId])
+  @@index([userId])
+  @@index([paymentId])
+  @@map("donations")
+}
+
+model BlogPost {
+  id            String    @id @default(uuid())
+  title         String
+  slug          String    @unique
+  content       String
+  authorUserId  String    @map("author_user_id")
+  publishedAt  DateTime? @map("published_at")
+  isPublished   Boolean   @default(false) @map("is_published")
+  imageUrl      String?   @map("image_url")
+  aiTldr        String?   @map("ai_tldr")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  author User @relation(fields: [authorUserId], references: [id], name: "AuthorBlogPosts")
+
+  @@index([slug])
+  @@index([isPublished])
+  @@index([publishedAt])
+  @@map("blog_posts")
+}
+
+model ContactMessage {
+  id             String        @id @default(uuid())
+  name           String
+  email          String
+  phone          String?
+  subject        String
+  message        String
+  handledStatus  ContactStatus @default(NEW) @map("handled_status")
+  aiFaqResponse  String?       @map("ai_faq_response")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  @@index([handledStatus])
+  @@index([email])
+  @@map("contact_messages")
+}
+
+model AiCache {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([key])
+  @@map("ai_cache")
+}
+
+model SearchIndex {
+  id        String   @id @default(uuid())
+  entityType String  @map("entity_type")
+  entityId  String   @map("entity_id")
+  title     String
+  content   String
+  embedding String?  // Stored as JSON string for flexibility
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([entityType, entityId])
+  @@index([entityType])
+  @@map("search_index")
+}
+
+model SitePage {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  title           String
+  isHome          Boolean  @default(false) @map("is_home")
+  metaDescription String?  @map("meta_description")
+  blocks          Json
+  isPublished     Boolean  @default(false) @map("is_published")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@index([isHome])
+  @@index([isPublished])
+  @@map("site_pages")
+}

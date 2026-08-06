@@ -1,0 +1,278 @@
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { TokenPayload } from '@kentslsc/shared';
+import { UserRole } from '@kentslsc/shared';
+import { PrismaService } from '../core/prisma/prisma.service.js';
+import { AiService } from '../ai/ai.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
+import { CreateBusinessListingDto } from './dto/create-business.dto.js';
+import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
+import { CreateJobAdDto } from './dto/create-job.dto.js';
+import { UpdateJobAdDto } from './dto/update-job.dto.js';
+
+const PROMOTION_PRICE_PENCE = 2500; // £25
+const PROMOTION_DAYS = 30;
+
+@Injectable()
+export class DirectoryService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+    private readonly paymentsService: PaymentsService,
+    private readonly configService: ConfigService
+  ) {}
+
+  private isOwnerOrAdmin(recordOwnerId: string, user: TokenPayload) {
+    return user.role === UserRole.ADMIN || recordOwnerId === user.sub;
+  }
+
+  async findBusinesses(search?: string, category?: string, promoted?: boolean) {
+    const now = new Date();
+    const where: {
+      deletedAt: null;
+      category?: string;
+      isPromoted?: boolean;
+      promotedUntil?: { gte: Date };
+      OR?: Array<
+        | { businessName: { contains: string; mode: 'insensitive' } }
+        | { description: { contains: string; mode: 'insensitive' } }
+        | { servicesText: { contains: string; mode: 'insensitive' } }
+      >;
+    } = { deletedAt: null };
+
+    if (category) {
+      where.category = category;
+    }
+
+    if (promoted) {
+      where.isPromoted = true;
+      where.promotedUntil = { gte: now };
+    }
+
+    if (search) {
+      where.OR = [
+        { businessName: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { servicesText: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const listings = await this.prisma.businessListing.findMany({
+      where,
+      include: {
+        _count: { select: { jobAds: { where: { deletedAt: null, isPublished: true } } } }
+      },
+      orderBy: [{ isPromoted: 'desc' }, { promotedUntil: 'desc' }, { createdAt: 'desc' }]
+    });
+
+    return listings.map((listing) => ({
+      ...listing,
+      isPromoted: listing.isPromoted && !!listing.promotedUntil && listing.promotedUntil > now
+    }));
+  }
+
+  async findBusinessById(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        jobAds: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' }
+        },
+        owner: { select: { id: true, name: true, email: true } }
+      }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+    return listing;
+  }
+
+  async createBusiness(user: TokenPayload, dto: CreateBusinessListingDto) {
+    return this.prisma.businessListing.create({
+      data: {
+        ownerUserId: user.sub,
+        businessName: dto.businessName,
+        logoUrl: dto.logoUrl,
+        description: dto.description,
+        servicesText: dto.servicesText,
+        websiteUrl: dto.websiteUrl,
+        email: dto.email,
+        phone: dto.phone,
+        address: dto.address,
+        category: dto.category,
+        isPaid: dto.isPaid ?? false
+      }
+    });
+  }
+
+  async updateBusiness(user: TokenPayload, id: string, dto: UpdateBusinessListingDto) {
+    const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
+    if (!listing) throw new NotFoundException('Business listing not found');
+    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to update this listing');
+    }
+
+    const updated = await this.prisma.businessListing.update({
+      where: { id },
+      data: {
+        businessName: dto.businessName,
+        logoUrl: dto.logoUrl,
+        description: dto.description,
+        servicesText: dto.servicesText,
+        websiteUrl: dto.websiteUrl,
+        email: dto.email,
+        phone: dto.phone,
+        address: dto.address,
+        category: dto.category,
+        isPaid: dto.isPaid
+      }
+    });
+
+    if (dto.description) {
+      this.summariseBusiness(id).catch(() => undefined);
+    }
+
+    return updated;
+  }
+
+  async deleteBusiness(user: TokenPayload, id: string) {
+    const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
+    if (!listing) throw new NotFoundException('Business listing not found');
+    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to delete this listing');
+    }
+    await this.prisma.businessListing.update({ where: { id }, data: { deletedAt: new Date() } });
+    return { success: true };
+  }
+
+  async summariseBusiness(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
+    if (!listing) throw new NotFoundException('Business listing not found');
+
+    const content = [listing.businessName, listing.description, listing.servicesText]
+      .filter(Boolean)
+      .join('\n\n');
+
+    if (!content.trim()) return { aiSummary: null };
+
+    const summary = await this.aiService.summarise(content, 'business listing');
+    await this.prisma.businessListing.update({ where: { id }, data: { description: summary } });
+    return { aiSummary: summary };
+  }
+
+  async createPromotionCheckout(user: TokenPayload, id: string) {
+    const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
+    if (!listing) throw new NotFoundException('Business listing not found');
+    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to promote this listing');
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const session = await this.paymentsService.createCheckoutSession({
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'gbp',
+            unit_amount: PROMOTION_PRICE_PENCE,
+            product_data: { name: `Promote ${listing.businessName} for 30 days` }
+          },
+          quantity: 1
+        }
+      ],
+      success_url: `${frontendUrl}/directory/${id}?promoted=success`,
+      cancel_url: `${frontendUrl}/directory/${id}?promoted=cancel`,
+      metadata: {
+        type: 'directory_promotion',
+        businessListingId: id
+      }
+    });
+
+    return { sessionId: session.id, url: session.url };
+  }
+
+  async findJobs(businessListingId?: string) {
+    const where: { deletedAt: null; isPublished?: boolean; businessListingId?: string } = { deletedAt: null };
+    if (businessListingId) {
+      where.businessListingId = businessListingId;
+    } else {
+      where.isPublished = true;
+    }
+
+    return this.prisma.jobAd.findMany({
+      where,
+      include: { businessListing: { select: { id: true, businessName: true, logoUrl: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async createJob(user: TokenPayload, dto: CreateJobAdDto) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id: dto.businessListingId, deletedAt: null }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to post jobs for this business');
+    }
+
+    return this.prisma.jobAd.create({
+      data: {
+        businessListingId: dto.businessListingId,
+        title: dto.title,
+        description: dto.description,
+        location: dto.location,
+        salaryRange: dto.salaryRange,
+        contactEmail: dto.contactEmail,
+        closingDate: dto.closingDate,
+        isPublished: dto.isPublished ?? false
+      }
+    });
+  }
+
+  async updateJob(user: TokenPayload, id: string, dto: UpdateJobAdDto) {
+    const job = await this.prisma.jobAd.findFirst({
+      where: { id, deletedAt: null },
+      include: { businessListing: true }
+    });
+    if (!job || !job.businessListing) throw new NotFoundException('Job ad not found');
+    if (!this.isOwnerOrAdmin(job.businessListing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to update this job ad');
+    }
+
+    if (dto.businessListingId) {
+      const newListing = await this.prisma.businessListing.findFirst({
+        where: { id: dto.businessListingId, deletedAt: null }
+      });
+      if (!newListing) throw new NotFoundException('Target business listing not found');
+      if (!this.isOwnerOrAdmin(newListing.ownerUserId, user)) {
+        throw new ForbiddenException('You do not have permission to move this job to that business');
+      }
+    }
+
+    return this.prisma.jobAd.update({
+      where: { id },
+      data: {
+        businessListingId: dto.businessListingId,
+        title: dto.title,
+        description: dto.description,
+        location: dto.location,
+        salaryRange: dto.salaryRange,
+        contactEmail: dto.contactEmail,
+        closingDate: dto.closingDate,
+        isPublished: dto.isPublished
+      }
+    });
+  }
+
+  async deleteJob(user: TokenPayload, id: string) {
+    const job = await this.prisma.jobAd.findFirst({
+      where: { id, deletedAt: null },
+      include: { businessListing: true }
+    });
+    if (!job || !job.businessListing) throw new NotFoundException('Job ad not found');
+    if (!this.isOwnerOrAdmin(job.businessListing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to delete this job ad');
+    }
+    await this.prisma.jobAd.update({ where: { id }, data: { deletedAt: new Date() } });
+    return { success: true };
+  }
+}
