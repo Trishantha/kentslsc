@@ -1,27 +1,46 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(EmailService.name);
+  private transporter?: nodemailer.Transporter;
+  private from?: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: configService.getOrThrow<string>('EMAIL_HOST'),
-      port: configService.get<number>('EMAIL_PORT') ?? 587,
-      secure: (configService.get<number>('EMAIL_PORT') ?? 587) === 465,
-      auth: {
-        user: configService.getOrThrow<string>('EMAIL_USER'),
-        pass: configService.getOrThrow<string>('EMAIL_PASS')
-      }
-    });
+    const host = configService.get<string>('EMAIL_HOST');
+    const user = configService.get<string>('EMAIL_USER');
+    const pass = configService.get<string>('EMAIL_PASS');
+    const from = configService.get<string>('EMAIL_FROM');
+
+    if (host && user && pass && from) {
+      this.from = from;
+      this.transporter = nodemailer.createTransport({
+        host,
+        port: configService.get<number>('EMAIL_PORT') ?? 587,
+        secure: (configService.get<number>('EMAIL_PORT') ?? 587) === 465,
+        auth: { user, pass }
+      });
+    } else {
+      this.logger.warn(
+        'Email is not configured (EMAIL_HOST, EMAIL_USER, EMAIL_PASS, EMAIL_FROM). Emails will be logged but not sent.'
+      );
+    }
+  }
+
+  isEnabled(): boolean {
+    return !!this.transporter;
   }
 
   async send(options: Mail.Options) {
+    if (!this.transporter) {
+      this.logger.warn(`Email not sent (no SMTP config): ${options.subject ?? '[no subject]'}`);
+      return { messageId: 'mock-message-id', accepted: [], rejected: [] };
+    }
     return this.transporter.sendMail({
-      from: this.configService.getOrThrow<string>('EMAIL_FROM'),
+      from: this.from,
       ...options
     });
   }

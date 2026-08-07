@@ -118,14 +118,14 @@ export default function AdminMembershipsPage() {
                           <>
                             <button
                               type="button"
-                              onClick={() => statusMutation.mutate({ id: m.id, status: 'active' })}
+                              onClick={() => statusMutation.mutate({ id: m.id, status: 'ACTIVE' })}
                               className="inline-flex items-center gap-1 rounded-lg bg-green-500/10 px-2 py-1 text-xs font-semibold text-green-400 hover:bg-green-500/20"
                             >
                               <CheckCircle className="h-3 w-3" /> Approve
                             </button>
                             <button
                               type="button"
-                              onClick={() => statusMutation.mutate({ id: m.id, status: 'cancelled' })}
+                              onClick={() => statusMutation.mutate({ id: m.id, status: 'CANCELLED' })}
                               className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-500/20"
                             >
                               <XCircle className="h-3 w-3" /> Reject

@@ -1,10 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Ticket } from 'lucide-react';
+import { Loader2, Ticket, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { TicketCard } from '@/components/ui/TicketCard';
 import type { TicketCardProps } from '@/components/ui/TicketCard';
+import { MembershipFeature } from '@kentslsc/shared';
 
 export default function TicketsPage() {
   const { data: tickets, isLoading } = useQuery<TicketCardProps['ticket'][]>({
@@ -18,34 +20,47 @@ export default function TicketsPage() {
   return (
     <div className="px-4 py-12 md:px-6">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-center gap-3">
-          <Ticket className="h-7 w-7 text-neon-blue" />
-          <h1 className="section-title">My Tickets</h1>
-        </div>
-        <p className="mt-2 text-slate-600 dark:text-slate-400">
-          View and manage your event tickets.
-        </p>
-
-        {isLoading && (
-          <div className="mt-10 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+        <FeatureGate
+          feature={MembershipFeature.MEMBER_CARD}
+          fallback={
+            <div className="rounded-2xl border border-neon-gold/20 bg-neon-gold/5 p-10 text-center">
+              <Lock className="mx-auto h-8 w-8 text-neon-gold" />
+              <h2 className="mt-4 text-xl font-bold">Tickets require a full membership</h2>
+              <p className="mt-2 text-slate-600 dark:text-slate-400">
+                Upgrade your membership to purchase and view event tickets.
+              </p>
+            </div>
+          }
+        >
+          <div className="flex items-center gap-3">
+            <Ticket className="h-7 w-7 text-neon-blue" />
+            <h1 className="section-title">My Tickets</h1>
           </div>
-        )}
+          <p className="mt-2 text-slate-600 dark:text-slate-400">
+            View and manage your event tickets.
+          </p>
 
-        <div className="mt-10 space-y-6">
-          {tickets?.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
-          ))}
-        </div>
+          {isLoading && (
+            <div className="mt-10 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+            </div>
+          )}
 
-        {!isLoading && tickets?.length === 0 && (
-          <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center dark:bg-black/20">
-            <p className="text-slate-600 dark:text-slate-400">You do not have any tickets yet.</p>
-            <a href="/events" className="btn-primary mt-4 inline-block">
-              Browse events
-            </a>
+          <div className="mt-10 space-y-6">
+            {tickets?.map((ticket) => (
+              <TicketCard key={ticket.id} ticket={ticket} />
+            ))}
           </div>
-        )}
+
+          {!isLoading && tickets?.length === 0 && (
+            <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center dark:bg-black/20">
+              <p className="text-slate-600 dark:text-slate-400">You do not have any tickets yet.</p>
+              <a href="/events" className="btn-primary mt-4 inline-block">
+                Browse events
+              </a>
+            </div>
+          )}
+        </FeatureGate>
       </div>
     </div>
   );

@@ -19,9 +19,9 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.register(dto);
-    this.setAuthCookies(res, tokens);
-    return { success: true, ...tokens };
+    const result = await this.authService.register(dto);
+    this.setAuthCookies(res, { accessToken: result.accessToken, refreshToken: result.refreshToken });
+    return { success: true, user: result.user, application: result.application };
   }
 
   @Post('login')
@@ -58,14 +58,6 @@ export class AuthController {
     return { success: true };
   }
 
-  @Get('socket-token')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  async socketToken(@CurrentUser() user: TokenPayload) {
-    const token = await this.authService.createSocketToken(user.sub, user.email, user.role as UserRole);
-    return { token };
-  }
-
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -83,6 +75,21 @@ export class AuthController {
       }
     });
     return profile;
+  }
+
+  @Get('features')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async features(@CurrentUser() user: TokenPayload) {
+    return this.authService.getUserFeatures(user.sub);
+  }
+
+  @Get('socket-token')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async socketToken(@CurrentUser() user: TokenPayload) {
+    const token = await this.authService.createSocketToken(user.sub, user.email, user.role as UserRole);
+    return { token };
   }
 
   private setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }) {

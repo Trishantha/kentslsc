@@ -9,8 +9,11 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useForumSocket } from '@/hooks/useForumSocket';
+import { useHasFeature } from '@/hooks/useFeatures';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { ForumPost } from '@/components/ui/ForumPost';
 import { ForumTopicCard } from '@/components/ui/ForumTopicCard';
+import { MembershipFeature } from '@kentslsc/shared';
 
 interface Topic {
   id: string;
@@ -176,24 +179,33 @@ export default function TopicPage() {
           </div>
 
           {user ? (
-            <form onSubmit={handleSubmit} className="mt-6 glass-card p-4">
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Write a reply..."
-                  className="flex-1 rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim()}
-                  className="btn-primary inline-flex disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
-            </form>
+            <FeatureGate
+              feature={MembershipFeature.FORUM_POST}
+              fallback={
+                <div className="mt-6 rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-6 text-center text-sm text-slate-600 dark:text-slate-400">
+                  Your current membership allows you to read the forum. Upgrade to a full membership to reply and start topics.
+                </div>
+              }
+            >
+              <form onSubmit={handleSubmit} className="mt-6 glass-card p-4">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Write a reply..."
+                    className="flex-1 rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim()}
+                    className="btn-primary inline-flex disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </form>
+            </FeatureGate>
           ) : (
             <div className="mt-6 rounded-xl border border-white/20 bg-white/5 p-6 text-center text-sm text-slate-500">
               Please log in to join the conversation.

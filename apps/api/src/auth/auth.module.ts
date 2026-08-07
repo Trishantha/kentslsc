@@ -6,6 +6,8 @@ import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { UsersModule } from '../users/users.module.js';
+import { MembershipsModule } from '../memberships/memberships.module.js';
+import { AuthorizationModule } from '../authorization/authorization.module.js';
 
 @Module({
   imports: [
@@ -19,7 +21,9 @@ import { UsersModule } from '../users/users.module.js';
       }),
       inject: [ConfigService]
     }),
-    UsersModule
+    UsersModule,
+    MembershipsModule,
+    AuthorizationModule
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

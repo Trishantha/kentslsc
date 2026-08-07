@@ -15,9 +15,11 @@ import { ForumService } from './forum.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
+import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
 import { CreateTopicDto } from './dto/create-topic.dto.js';
@@ -74,7 +76,8 @@ export class ForumController {
   }
 
   @Post('categories/:id/topics')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.FORUM_POST)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async createTopic(
     @CurrentUser() user: TokenPayload,
@@ -103,7 +106,8 @@ export class ForumController {
   }
 
   @Post('topics/:id/posts')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.FORUM_POST)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async createPost(
     @CurrentUser() user: TokenPayload,

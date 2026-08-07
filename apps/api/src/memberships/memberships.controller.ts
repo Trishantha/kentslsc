@@ -24,7 +24,9 @@ import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { UserRole, type TokenPayload, MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
+import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
+import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
@@ -39,6 +41,15 @@ export class MembershipsController {
   @Public()
   async getTypes() {
     return this.membershipsService.findTypes();
+  }
+
+  @Get('features')
+  @Public()
+  async getFeatures() {
+    return Object.values(MembershipFeature).map((value) => ({
+      value,
+      ...membershipFeatureLabels[value]
+    }));
   }
 
   @Post('types')
@@ -73,14 +84,16 @@ export class MembershipsController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.DASHBOARD_ACCESS)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async getMyMembership(@CurrentUser() user: TokenPayload) {
     return this.membershipsService.findMyMembership(user.sub);
   }
 
   @Get('card')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.MEMBER_CARD)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async getCard(
     @CurrentUser() user: TokenPayload,

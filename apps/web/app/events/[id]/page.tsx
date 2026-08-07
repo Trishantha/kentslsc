@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Calendar, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
+import { Calendar, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { FeatureGate } from '@/components/ui/FeatureGate';
+import { MembershipFeature } from '@kentslsc/shared';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -185,18 +187,34 @@ export default function EventDetailPage() {
                 </div>
               )}
 
-              <button
-                onClick={handleBuy}
-                disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
-                className="btn-primary w-full"
-              >
-                {purchase.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Ticket className="mr-2 h-4 w-4" />
-                )}
-                {user ? (isFree ? 'Reserve tickets' : `Buy for ${formatCurrency(total)}`) : 'Log in to buy tickets'}
-              </button>
+              {user ? (
+                <FeatureGate
+                  feature={MembershipFeature.TICKETS_PURCHASE}
+                  fallback={
+                    <div className="rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-4 text-center text-sm text-slate-600 dark:text-slate-400">
+                      <Lock className="mx-auto mb-1 h-4 w-4 text-neon-gold" />
+                      Ticket purchases require a full membership.
+                    </div>
+                  }
+                >
+                  <button
+                    onClick={handleBuy}
+                    disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
+                    className="btn-primary w-full"
+                  >
+                    {purchase.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ticket className="mr-2 h-4 w-4" />
+                    )}
+                    {isFree ? 'Reserve tickets' : `Buy for ${formatCurrency(total)}`}
+                  </button>
+                </FeatureGate>
+              ) : (
+                <button onClick={handleBuy} className="btn-primary w-full">
+                  <Ticket className="mr-2 h-4 w-4" /> Log in to buy tickets
+                </button>
+              )}
             </div>
           </div>
         </div>

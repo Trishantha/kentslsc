@@ -18,8 +18,10 @@ import type { TokenPayload } from '@kentslsc/shared';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
+import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole } from '@kentslsc/shared';
+import { UserRole, MembershipFeature } from '@kentslsc/shared';
 import { DirectoryService } from './directory.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { CreateBusinessListingDto } from './dto/create-business.dto.js';
@@ -50,16 +52,16 @@ export class DirectoryController {
   }
 
   @Post('businesses')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   createBusiness(@CurrentUser() user: TokenPayload, @Body() dto: CreateBusinessListingDto) {
     return this.directoryService.createBusiness(user, dto);
   }
 
   @Put('businesses/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   updateBusiness(
     @CurrentUser() user: TokenPayload,
@@ -70,24 +72,24 @@ export class DirectoryController {
   }
 
   @Delete('businesses/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   deleteBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.deleteBusiness(user, id);
   }
 
   @Post('businesses/:id/promote')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_PROMOTE)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   promoteBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.createPromotionCheckout(user, id);
   }
 
   @Post('businesses/:id/summarise')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   summariseBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.summariseBusiness(id);
@@ -99,16 +101,16 @@ export class DirectoryController {
   }
 
   @Post('jobs')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   createJob(@CurrentUser() user: TokenPayload, @Body() dto: CreateJobAdDto) {
     return this.directoryService.createJob(user, dto);
   }
 
   @Put('jobs/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   updateJob(
     @CurrentUser() user: TokenPayload,
@@ -119,8 +121,8 @@ export class DirectoryController {
   }
 
   @Delete('jobs/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.BUSINESS_OWNER, UserRole.ADMIN)
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   deleteJob(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.deleteJob(user, id);

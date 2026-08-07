@@ -12,6 +12,7 @@ dist
 build
 .next
 .turbo
+*.tsbuildinfo
 
 # Logs
 *.log
@@ -29,3 +30,4 @@ Thumbs.db
 cards
 uploads
 public/cards
+public/uploads

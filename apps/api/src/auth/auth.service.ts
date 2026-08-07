@@ -4,7 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { RedisService } from '../core/redis/redis.service.js';
-import { LoginInput, UserRole, TokenPayload } from '@kentslsc/shared';
+import { MembershipsService } from '../memberships/memberships.service.js';
+import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
+import { LoginInput, UserRole, TokenPayload, MembershipFeature } from '@kentslsc/shared';
 import { RegisterDto } from './dto/register.dto.js';
 
 export interface AuthTokens {
@@ -18,7 +20,9 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly membershipsService: MembershipsService,
+    private readonly featuresService: MembershipFeaturesService
   ) {}
 
   async register(data: RegisterDto) {
@@ -26,6 +30,7 @@ export class AuthService {
     if (existing) {
       throw new ConflictException('Email already registered');
     }
+
     const passwordHash = await bcrypt.hash(data.password, 12);
     const user = await this.prisma.user.create({
       data: {
@@ -37,7 +42,37 @@ export class AuthService {
         role: (data.role as UserRole) ?? UserRole.GUEST
       }
     });
-    return this.buildTokens(user.id, user.email, user.role as UserRole);
+
+    let applicationResult:
+      | { paid: true; sessionId: string; url: string }
+      | { paid: false; membership: unknown }
+      | null = null;
+
+    if (data.application) {
+      const app = data.application;
+      applicationResult = (await this.membershipsService.processApplication(user.id, user.email, {
+        membershipTypeId: app.membershipTypeId,
+        fullName: app.fullName,
+        address: app.address,
+        phone: app.phone,
+        dependants: app.dependants ?? []
+      })) as
+        | { paid: true; sessionId: string; url: string }
+        | { paid: false; membership: unknown };
+    }
+
+    const tokens = await this.buildTokens(user.id, user.email, user.role as UserRole);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      },
+      ...tokens,
+      application: applicationResult
+    };
   }
 
   async login(data: LoginInput): Promise<AuthTokens> {
@@ -72,6 +107,10 @@ export class AuthService {
   async logout(userId: string) {
     await this.prisma.user.update({ where: { id: userId }, data: { refreshToken: null } });
     await this.redis.del(`refresh:${userId}`);
+  }
+
+  async getUserFeatures(userId: string): Promise<MembershipFeature[]> {
+    return this.featuresService.userActiveFeatures(userId);
   }
 
   async createSocketToken(userId: string, email: string, role: UserRole): Promise<string> {

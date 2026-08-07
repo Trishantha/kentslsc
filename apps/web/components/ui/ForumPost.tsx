@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
 
 export interface ForumPostProps {
   post: {
@@ -30,7 +31,7 @@ export function ForumPost({ post, isAuthor, onDelete }: ForumPostProps) {
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-sm">{post.user.name}</span>
             <span className="text-xs text-slate-500">
-              {new Date(post.createdAt).toLocaleString('en-GB')}
+              {formatDateTime(post.createdAt)}
             </span>
           </div>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">

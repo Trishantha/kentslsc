@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { MessageSquare, User } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 export interface ForumTopicCardProps {
   topic: {
@@ -56,7 +57,7 @@ export function ForumTopicCard({ topic, href }: ForumTopicCardProps) {
           <MessageSquare className="h-3.5 w-3.5" />
           {postCount} {postCount === 1 ? 'post' : 'posts'}
         </span>
-        <span>{new Date(topic.createdAt).toLocaleDateString('en-GB')}</span>
+        <span>{formatDate(topic.createdAt)}</span>
       </div>
 
       {topic.tags.length > 0 && (

@@ -7,7 +7,10 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: string;
+  phone?: string;
+  address?: string;
+  role: 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
+  createdAt: string;
 }
 
 export function useAuth() {

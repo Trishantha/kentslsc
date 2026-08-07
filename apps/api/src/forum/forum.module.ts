@@ -5,11 +5,13 @@ import { ForumService } from './forum.service.js';
 import { ForumController } from './forum.controller.js';
 import { ForumGateway } from './forum.gateway.js';
 import { AiModule } from '../ai/ai.module.js';
+import { AuthorizationModule } from '../authorization/authorization.module.js';
 
 @Module({
   imports: [
     AiModule,
     ConfigModule,
+    AuthorizationModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

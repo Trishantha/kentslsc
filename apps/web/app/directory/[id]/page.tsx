@@ -7,7 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { businessListingSchema, jobAdSchema } from '@kentslsc/shared';
 import { api } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import { useAuth } from '@/hooks/useAuth';
+import { formatDate } from '@/lib/utils';
 import {
   MapPin,
   Phone,
@@ -309,7 +310,7 @@ export default function BusinessDetailPage() {
                     {job.location && <span>{job.location}</span>}
                     {job.salaryRange && <span>{job.salaryRange}</span>}
                     {job.closingDate && (
-                      <span>Closes {new Date(job.closingDate).toLocaleDateString()}</span>
+                      <span>Closes {formatDate(job.closingDate)}</span>
                     )}
                     {job.contactEmail && (
                       <a href={`mailto:${job.contactEmail}`} className="text-neon-blue hover:underline">

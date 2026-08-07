@@ -7,7 +7,11 @@ export const heroBlockSchema = z.object({
   subtitle: z.string().default(''),
   buttonText: z.string().default(''),
   buttonUrl: z.string().default(''),
-  imageUrl: z.string().default('')
+  mediaType: z.enum(['image', 'video']).default('image'),
+  imageUrl: z.string().default(''),
+  videoUrl: z.string().default(''),
+  overlayStyle: z.enum(['none', 'dots', 'noise', 'scanlines', 'vignette']).default('noise'),
+  overlayOpacity: z.number().min(0).max(100).default(75)
 });
 
 export const textBlockSchema = z.object({

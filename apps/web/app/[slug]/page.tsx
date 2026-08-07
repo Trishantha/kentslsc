@@ -36,6 +36,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function CustomPage({ params }: Props) {
   const page = await fetchPage(params.slug);
   if (!page) notFound();

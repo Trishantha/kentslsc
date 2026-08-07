@@ -75,6 +75,8 @@ model MembershipType {
   isFree         Boolean  @default(false) @map("is_free")
   durationMonths Int      @map("duration_months")
   benefits       String[] @default([])
+  features       String[] @default([])
+  autoActivate   Boolean  @default(false) @map("auto_activate")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
@@ -380,4 +382,17 @@ model SitePage {
   @@index([isHome])
   @@index([isPublished])
   @@map("site_pages")
+}
+
+model HeroConfig {
+  id             String   @id @default(uuid())
+  mediaType      String   @default("video") @map("media_type")
+  imageUrl       String?  @map("image_url")
+  videoUrl       String?  @map("video_url")
+  overlayStyle   String   @default("noise") @map("overlay_style")
+  overlayOpacity Int      @default(75) @map("overlay_opacity")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("hero_config")
 }

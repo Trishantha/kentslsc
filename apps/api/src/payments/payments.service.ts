@@ -7,31 +7,47 @@ const PROMOTION_DAYS = 30;
 
 @Injectable()
 export class PaymentsService {
-  private stripe: Stripe;
+  private stripe?: Stripe;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService
   ) {
-    this.stripe = new Stripe(configService.getOrThrow<string>('STRIPE_SECRET_KEY'), {
-      apiVersion: '2024-04-10'
-    });
+    const secretKey = configService.get<string>('STRIPE_SECRET_KEY');
+    if (secretKey) {
+      this.stripe = new Stripe(secretKey, {
+        apiVersion: '2024-04-10'
+      });
+    }
+  }
+
+  private ensureEnabled() {
+    if (!this.stripe) {
+      throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY to enable payments.');
+    }
   }
 
   getClient() {
-    return this.stripe;
+    this.ensureEnabled();
+    return this.stripe!;
+  }
+
+  isEnabled(): boolean {
+    return !!this.stripe;
   }
 
   async createCheckoutSession(params: Stripe.Checkout.SessionCreateParams) {
-    return this.stripe.checkout.sessions.create(params);
+    this.ensureEnabled();
+    return this.stripe!.checkout.sessions.create(params);
   }
 
   async constructEvent(payload: Buffer | string, signature: string) {
-    return this.stripe.webhooks.constructEvent(
-      payload,
-      signature,
-      this.configService.getOrThrow<string>('STRIPE_WEBHOOK_SECRET')
-    );
+    this.ensureEnabled();
+    const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
+    if (!webhookSecret) {
+      throw new Error('Stripe webhook secret is not configured.');
+    }
+    return this.stripe!.webhooks.constructEvent(payload, signature, webhookSecret);
   }
 
   async handleDirectoryPromotion(session: Stripe.Checkout.Session) {

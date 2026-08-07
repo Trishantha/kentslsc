@@ -40,7 +40,7 @@ body {
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-neon-blue to-cyan-500 px-6 py-3 font-semibold text-white shadow-neon transition-transform hover:scale-105 active:scale-95;
+    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-neon-blue to-emerald-600 px-6 py-3 font-semibold text-white shadow-neon transition-transform hover:scale-105 active:scale-95;
   }
 
   .btn-secondary {
@@ -52,6 +52,6 @@ body {
   }
 
   .gradient-text {
-    @apply bg-gradient-to-r from-neon-blue via-cyan-400 to-neon-gold bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-neon-blue via-emerald-400 to-neon-gold bg-clip-text text-transparent;
   }
 }

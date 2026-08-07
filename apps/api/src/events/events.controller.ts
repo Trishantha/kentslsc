@@ -22,9 +22,11 @@ import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto }
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
+import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
 
 @ApiTags('Events')
 @Controller('events')
@@ -95,7 +97,8 @@ export class EventsController {
   }
 
   @Post(':id/tickets/purchase')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.TICKETS_PURCHASE)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   purchase(
     @Param('id') eventId: string,
@@ -131,14 +134,16 @@ export class TicketsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.MEMBER_CARD)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   list(@CurrentUser() user: TokenPayload) {
     return this.eventsService.getUserTickets(user.sub);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @RequiresFeature(MembershipFeature.MEMBER_CARD)
+  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async findOne(@Param('id') id: string, @CurrentUser() user: TokenPayload) {
     const ticket = await this.eventsService.getTicketForUser(id, user.sub);

@@ -10,7 +10,7 @@ module.exports = {
     extend: {
       colors: {
         neon: {
-          blue: '#00f3ff',
+          blue: '#00b894',
           purple: '#bc13fe',
           gold: '#ffd700'
         },
@@ -20,7 +20,7 @@ module.exports = {
         }
       },
       boxShadow: {
-        neon: '0 0 20px rgba(0, 243, 255, 0.35)',
+        neon: '0 0 20px rgba(0, 184, 148, 0.35)',
         gold: '0 0 20px rgba(255, 215, 0, 0.35)'
       },
       fontFamily: {
@@ -36,8 +36,8 @@ module.exports = {
           '50%': { transform: 'translateY(-10px)' }
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 10px rgba(0, 243, 255, 0.2)' },
-          '50%': { boxShadow: '0 0 25px rgba(0, 243, 255, 0.5)' }
+          '0%, 100%': { boxShadow: '0 0 10px rgba(0, 184, 148, 0.2)' },
+          '50%': { boxShadow: '0 0 25px rgba(0, 184, 148, 0.5)' }
         }
       }
     }

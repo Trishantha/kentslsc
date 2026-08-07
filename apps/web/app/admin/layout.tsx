@@ -25,8 +25,10 @@ import { useState } from 'react';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/hero', label: 'Hero', icon: FileText },
   { href: '/admin/pages', label: 'Pages', icon: FileText },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
   { href: '/admin/memberships', label: 'Memberships', icon: CreditCard },
   { href: '/admin/events', label: 'Events', icon: Calendar },
   { href: '/admin/directory', label: 'Directory', icon: Building2 },
@@ -63,7 +65,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="sticky top-0 z-30 w-full border-b border-white/10 bg-slate-900/80 backdrop-blur-lg md:fixed md:h-screen md:w-64 md:border-b-0 md:border-r">
+      <aside className="sticky top-[68px] z-30 w-full border-b border-white/10 bg-slate-900/80 backdrop-blur-lg md:fixed md:top-[68px] md:h-[calc(100vh-68px)] md:w-64 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between px-4 py-4 md:p-6">
           <Link href="/admin" className="text-xl font-extrabold gradient-text">
             Admin

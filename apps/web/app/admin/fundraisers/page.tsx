@@ -80,10 +80,15 @@ export default function AdminFundraisersPage() {
   });
 
   const onSubmit = (values: FundraiserForm) => {
+    const payload = {
+      ...values,
+      description: values.description || undefined,
+      imageUrl: values.imageUrl || undefined
+    };
     if (editing) {
-      updateMutation.mutate({ id: editing.id, values });
+      updateMutation.mutate({ id: editing.id, values: payload });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(payload);
     }
   };
 

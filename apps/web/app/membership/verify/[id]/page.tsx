@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, XCircle, Calendar, Users, Shield } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 interface VerifyPageProps {
   params: { id: string };
@@ -81,8 +82,7 @@ export default async function VerifyPage({ params }: VerifyPageProps) {
           <div className="flex justify-between border-b border-white/10 pb-3">
             <Calendar className="h-4 w-4 text-slate-500" />
             <span className="text-sm text-slate-600 dark:text-slate-400">
-              {new Date(result.startDate).toLocaleDateString('en-GB')} –{' '}
-              {new Date(result.endDate).toLocaleDateString('en-GB')}
+              {formatDate(result.startDate)} – {formatDate(result.endDate)}
             </span>
           </div>
           <div className="flex justify-between">

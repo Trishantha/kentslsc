@@ -9,8 +9,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { businessListingSchema, jobAdSchema } from '@kentslsc/shared';
 import { api } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { Search, MapPin, Briefcase, Plus, Crown, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useHasFeature } from '@/hooks/useFeatures';
+import { formatDate } from '@/lib/utils';
+import { Search, MapPin, Briefcase, Plus, Crown, Loader2, Lock } from 'lucide-react';
+import { FeatureGate } from '@/components/ui/FeatureGate';
+import { MembershipFeature } from '@kentslsc/shared';
 
 const createBusinessSchema = businessListingSchema;
 const createJobSchema = jobAdSchema.extend({
@@ -49,7 +53,7 @@ export default function DirectoryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: user } = useAuth();
-  const isBusinessOwner = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN';
+  const canListDirectory = useHasFeature(MembershipFeature.DIRECTORY_LISTING);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -220,7 +224,7 @@ export default function DirectoryPage() {
                       {job.location && <span>{job.location}</span>}
                       {job.salaryRange && <span>{job.salaryRange}</span>}
                       {job.closingDate && (
-                        <span>Closes {new Date(job.closingDate).toLocaleDateString()}</span>
+                        <span>Closes {formatDate(job.closingDate)}</span>
                       )}
                     </div>
                   </div>
@@ -230,9 +234,21 @@ export default function DirectoryPage() {
           )}
         </div>
 
-        {isBusinessOwner && (
-          <div className="mt-16 grid gap-8 lg:grid-cols-2">
-            <div className="glass-card p-6">
+        {user && (
+          <FeatureGate
+            feature={MembershipFeature.DIRECTORY_LISTING}
+            fallback={
+              <div className="mt-16 rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-6 text-center">
+                <Lock className="mx-auto h-6 w-6 text-neon-gold" />
+                <h3 className="mt-2 font-semibold">Listings require a business membership</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Upgrade your membership to add your business and post jobs.
+                </p>
+              </div>
+            }
+          >
+            <div className="mt-16 grid gap-8 lg:grid-cols-2">
+              <div className="glass-card p-6">
               <h3 className="flex items-center gap-2 text-xl font-bold">
                 <Plus className="h-5 w-5" /> List your business
               </h3>
@@ -363,6 +379,7 @@ export default function DirectoryPage() {
               </form>
             </div>
           </div>
+          </FeatureGate>
         )}
       </div>
     </div>

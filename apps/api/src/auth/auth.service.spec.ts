@@ -6,6 +6,8 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { RedisService } from '../core/redis/redis.service.js';
+import { MembershipsService } from '../memberships/memberships.service.js';
+import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
 import { UserRole } from '@kentslsc/shared';
 
 const mockUser = {
@@ -55,6 +57,18 @@ describe('AuthService', () => {
             set: jest.fn() as any,
             del: jest.fn() as any,
             get: jest.fn() as any
+          } as any
+        },
+        {
+          provide: MembershipsService,
+          useValue: {
+            processApplication: jest.fn() as any
+          } as any
+        },
+        {
+          provide: MembershipFeaturesService,
+          useValue: {
+            userActiveFeatures: jest.fn() as any
           } as any
         }
       ]

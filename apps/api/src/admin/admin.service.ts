@@ -77,11 +77,8 @@ export class AdminService {
 
   listMemberships(page: number, limit: number, status?: string) {
     const where: { deletedAt: null; status?: DbMembershipStatus } = { deletedAt: null };
-    if (status) {
-      const upper = status.toUpperCase();
-      if (Object.values(DbMembershipStatus).includes(upper as DbMembershipStatus)) {
-        where.status = upper as DbMembershipStatus;
-      }
+    if (status && Object.values(DbMembershipStatus).includes(status as DbMembershipStatus)) {
+      where.status = status as DbMembershipStatus;
     }
 
     const skip = (page - 1) * limit;
@@ -101,7 +98,7 @@ export class AdminService {
   }
 
   updateMembershipStatus(id: string, status: MembershipStatusDto) {
-    return this.membershipsService.updateStatus(id, status.toUpperCase() as DbMembershipStatus);
+    return this.membershipsService.updateStatus(id, status as DbMembershipStatus);
   }
 
   regenerateMembershipCard(membershipId: string) {
@@ -230,7 +227,7 @@ export class AdminService {
     if (!message) throw new NotFoundException('Contact message not found');
     return this.prisma.contactMessage.update({
       where: { id },
-      data: { handledStatus: status.toUpperCase() as DbContactStatus }
+      data: { handledStatus: status as DbContactStatus }
     });
   }
 }

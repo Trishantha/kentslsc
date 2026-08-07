@@ -1,21 +1,20 @@
-/** @type {import('jest').Config} */
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
-    '^.+\\.ts$': ['ts-jest', {
-      tsconfig: '<rootDir>/../tsconfig.json',
-      useESM: true,
-      diagnostics: { ignoreCodes: ['TS151001'] }
-    }]
+    '^.+\\.(t|j)s$': 'ts-jest'
   },
-  extensionsToTreatAsEsm: ['.ts'],
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
-    '^(\\.{1,2}/.*)\\.js$': '$1'
-  }
+    '^@kentslsc/database$': '<rootDir>/../../../packages/database/src/index.ts',
+    '^@kentslsc/shared$': '<rootDir>/../../../packages/shared/src/index.ts',
+    '^nanoid$': '<rootDir>/../test/mocks/nanoid.mock.ts',
+    '^(.*)\\.js$': '$1'
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(nanoid|@kentslsc)/)'
+  ]
 };

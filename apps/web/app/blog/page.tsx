@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 
 interface BlogPost {
   id: string;
@@ -56,8 +57,8 @@ export default function BlogPage() {
                   ) : null}
                   <span className="mt-4 inline-block text-xs text-slate-500">
                     {post.publishedAt
-                      ? new Date(post.publishedAt).toLocaleDateString()
-                      : new Date(post.createdAt).toLocaleDateString()}
+                      ? formatDate(post.publishedAt)
+                      : formatDate(post.createdAt)}
                   </span>
                 </div>
               </article>

@@ -1,12 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ElementType } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, QrCode, CreditCard, Loader2, X, Calendar, Users } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
+import {
+  Download,
+  QrCode,
+  CreditCard,
+  Loader2,
+  X,
+  Calendar,
+  Users,
+  MessageSquare,
+  Ticket,
+  Vote,
+  Store,
+  Sparkles,
+  ArrowRight
+} from 'lucide-react';
 import { api } from '@/lib/api';
+import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 
 interface MembershipResponse {
   id: string;
@@ -18,7 +34,79 @@ interface MembershipResponse {
   qr: string | null;
   dependantsCount: number;
   dependants: { name: string; relationship: string }[];
-  membershipType: { name: string; description?: string | null; benefits: string[] };
+  membershipType: {
+    name: string;
+    description?: string | null;
+    benefits: string[];
+    features: MembershipFeature[];
+    isFree: boolean;
+    price: number;
+  };
+}
+
+interface UpsellOption {
+  feature: MembershipFeature;
+  icon: ElementType;
+}
+
+const upsellOptions: UpsellOption[] = [
+  { feature: MembershipFeature.FORUM_POST, icon: MessageSquare },
+  { feature: MembershipFeature.TICKETS_PURCHASE, icon: Ticket },
+  { feature: MembershipFeature.MEMBER_CARD, icon: CreditCard },
+  { feature: MembershipFeature.VOTING_RIGHTS, icon: Vote },
+  { feature: MembershipFeature.DIRECTORY_LISTING, icon: Store },
+  { feature: MembershipFeature.DEPENDANTS, icon: Users }
+];
+
+function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
+  const missing = upsellOptions.filter(
+    (option) => !membership.membershipType.features.includes(option.feature)
+  );
+
+  if (missing.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+      className="mt-10"
+    >
+      <h2 className="section-title text-2xl">Unlock more benefits</h2>
+      <p className="mt-2 text-slate-600 dark:text-slate-400">
+        Your current plan does not include these features. Upgrade to get the full member experience.
+      </p>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {missing.map((option) => {
+          const def = membershipFeatureLabels[option.feature];
+          const Icon = option.icon;
+          return (
+            <div
+              key={option.feature}
+              className="glass-card flex flex-col p-5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neon-gold/10 text-neon-gold">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-semibold">{def?.label ?? option.feature}</h3>
+              </div>
+              <p className="mt-3 flex-1 text-sm text-slate-600 dark:text-slate-400">
+                {def?.description ?? ''}
+              </p>
+              <Link
+                href="/membership"
+                className="mt-4 inline-flex items-center text-sm font-medium text-neon-blue hover:underline"
+              >
+                Upgrade <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
 }
 
 export default function DashboardPage() {
@@ -33,7 +121,8 @@ export default function DashboardPage() {
     queryFn: async () => {
       const res = await api.get('/membership/me');
       return res.data;
-    }
+    },
+    retry: false
   });
 
   if (isLoading) {
@@ -44,15 +133,17 @@ export default function DashboardPage() {
     );
   }
 
-  if (!membership) {
+  if (!membership || error) {
     return (
       <div className="px-4 py-16 md:px-6">
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="section-title">Member Dashboard</h1>
           <p className="mt-4 text-slate-600 dark:text-slate-400">
-            You do not have an active membership yet.
+            {error
+              ? 'Your current membership does not include dashboard access.'
+              : 'You do not have an active membership yet.'}
           </p>
-          <Link href="/membership" className="btn-primary mt-8 inline-block">
+          <Link href="/auth/register" className="btn-primary mt-8 inline-block">
             Become a Member
           </Link>
         </div>
@@ -101,11 +192,19 @@ export default function DashboardPage() {
                 <span className="font-mono font-semibold">{membership.membershipId}</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-3">
-                <Calendar className="h-4 w-4 text-slate-500" />
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  {new Date(membership.startDate).toLocaleDateString('en-GB')} –{' '}
-                  {new Date(membership.endDate).toLocaleDateString('en-GB')}
-                </span>
+                {membership.membershipType.isFree ? (
+                  <>
+                    <Sparkles className="h-4 w-4 text-neon-gold" />
+                    <span className="text-sm font-semibold text-neon-gold">Lifetime membership</span>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="h-4 w-4 text-slate-500" />
+                    <span className="text-sm text-slate-600 dark:text-slate-400">
+                      {formatDate(membership.startDate)} – {formatDate(membership.endDate)}
+                    </span>
+                  </>
+                )}
               </div>
               <div className="flex justify-between">
                 <Users className="h-4 w-4 text-slate-500" />
@@ -183,6 +282,8 @@ export default function DashboardPage() {
             </ul>
           </motion.div>
         )}
+
+        <UpgradePrompt membership={membership} />
       </div>
 
       {showQr && membership.qr && (

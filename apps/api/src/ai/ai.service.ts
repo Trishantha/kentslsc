@@ -19,21 +19,31 @@ export interface SearchParams {
 
 @Injectable()
 export class AiService {
-  private client: OpenAI;
+  private client?: OpenAI;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly redis: RedisService,
     private readonly prisma: PrismaService
   ) {
-    this.client = new OpenAI({ apiKey: configService.getOrThrow<string>('OPENAI_API_KEY') });
+    const apiKey = configService.get<string>('OPENAI_API_KEY');
+    if (apiKey) {
+      this.client = new OpenAI({ apiKey });
+    }
+  }
+
+  private isEnabled(): boolean {
+    return !!this.client;
   }
 
   async summarise(content: string, type: string, maxLength = 150): Promise<string> {
+    if (!this.isEnabled()) {
+      return content.slice(0, maxLength).trim();
+    }
     const cacheKey = `ai:summary:${type}:${Buffer.from(content).toString('base64').slice(0, 32)}`;
     const cached = await this.redis.get<string>(cacheKey);
     if (cached) return cached;
-    const completion = await this.client.chat.completions.create({
+    const completion = await this.client!.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: `Summarise this ${type} in ${maxLength} characters or fewer.` },
@@ -47,13 +57,19 @@ export class AiService {
   }
 
   async moderate(content: string): Promise<{ flagged: boolean; reason?: string }> {
-    const result = await this.client.moderations.create({ input: content });
+    if (!this.isEnabled()) {
+      return { flagged: false };
+    }
+    const result = await this.client!.moderations.create({ input: content });
     const flagged = result.results[0]?.flagged ?? false;
     return { flagged, reason: flagged ? 'OpenAI moderation flagged this content.' : undefined };
   }
 
   async welcome(name: string): Promise<string> {
-    const completion = await this.client.chat.completions.create({
+    if (!this.isEnabled()) {
+      return `Welcome to Kent SLSC, ${name}! We're glad to have you in our community.`;
+    }
+    const completion = await this.client!.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: 'Write a warm, personalised welcome message for a new member of the Kent Sri Lankan Social Club.' },
@@ -65,11 +81,14 @@ export class AiService {
   }
 
   async answerFaq(message: string): Promise<string | null> {
+    if (!this.isEnabled()) {
+      return null;
+    }
     const cacheKey = `ai:faq:${Buffer.from(message).toString('base64').slice(0, 32)}`;
     const cached = await this.redis.get<string>(cacheKey);
     if (cached) return cached;
 
-    const completion = await this.client.chat.completions.create({
+    const completion = await this.client!.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {

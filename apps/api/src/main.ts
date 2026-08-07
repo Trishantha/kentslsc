@@ -30,6 +30,7 @@ async function bootstrap() {
   );
   app.setGlobalPrefix('api');
   app.use('/cards', express.static(join(process.cwd(), 'public', 'cards')));
+  app.use('/uploads', express.static(join(process.cwd(), 'public', 'uploads')));
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Kent SLSC API')

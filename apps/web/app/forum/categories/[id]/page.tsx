@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Loader2, ArrowLeft } from 'lucide-react';
+import { Plus, Loader2, ArrowLeft, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { FeatureGate } from '@/components/ui/FeatureGate';
 import { ForumTopicCard } from '@/components/ui/ForumTopicCard';
+import { MembershipFeature } from '@kentslsc/shared';
 
 interface Category {
   id: string;
@@ -89,14 +91,24 @@ export default function CategoryPage() {
             )}
           </div>
           {user && (
-            <button
-              type="button"
-              onClick={() => setShowForm((s) => !s)}
-              className="btn-secondary inline-flex"
+            <FeatureGate
+              feature={MembershipFeature.FORUM_POST}
+              fallback={
+                <div className="rounded-xl border border-neon-gold/20 bg-neon-gold/5 px-4 py-2 text-sm text-slate-600 dark:text-slate-400">
+                  <Lock className="mr-1 inline h-3 w-3 text-neon-gold" />
+                  Posting requires a full membership
+                </div>
+              }
             >
-              <Plus className="mr-2 h-4 w-4" />
-              {showForm ? 'Cancel' : 'New Topic'}
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowForm((s) => !s)}
+                className="btn-secondary inline-flex"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {showForm ? 'Cancel' : 'New Topic'}
+              </button>
+            </FeatureGate>
           )}
         </div>
 

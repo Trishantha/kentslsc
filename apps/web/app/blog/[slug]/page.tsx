@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 
 interface Author {
   id: string;
@@ -53,7 +54,7 @@ export default function BlogPostPage() {
           <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
             <span>By {post.author?.name ?? 'Kent SLSC'}</span>
             <span>•</span>
-            <span>{new Date(post.publishedAt ?? post.createdAt).toLocaleDateString()}</span>
+            <span>{formatDate(post.publishedAt ?? post.createdAt)}</span>
           </div>
 
           {post.aiTldr && (

@@ -5,7 +5,7 @@ import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { MembershipStatus, MembershipType, Membership, Prisma } from '@kentslsc/database';
-import { UserRole, TokenPayload, DependantInput } from '@kentslsc/shared';
+import { UserRole, TokenPayload, DependantInput, MembershipFeature } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
 import { generateCardBuffer, saveCard } from './helpers/card-generator.js';
@@ -22,6 +22,7 @@ interface CreateMembershipData {
   dependants?: DependantInput[];
   membershipType: MembershipType;
   overrideEmail?: string;
+  status?: MembershipStatus;
 }
 
 @Injectable()
@@ -48,11 +49,30 @@ export class MembershipsService {
     return `MEM-${nanoid(8).toUpperCase()}`;
   }
 
+  private computeEndDate(membershipType: MembershipType, startDate: Date): Date {
+    const endDate = new Date(startDate);
+    if (membershipType.isFree) {
+      // Free memberships are lifetime; set a far-future expiry.
+      endDate.setFullYear(startDate.getFullYear() + 100);
+    } else {
+      endDate.setMonth(startDate.getMonth() + membershipType.durationMonths);
+    }
+    return endDate;
+  }
+
+  private serializeMembershipType(type: MembershipType) {
+    return {
+      ...type,
+      price: Number(type.price)
+    };
+  }
+
   async findTypes() {
-    return this.prisma.membershipType.findMany({
+    const types = await this.prisma.membershipType.findMany({
       where: { deletedAt: null },
       orderBy: { price: 'asc' }
     });
+    return types.map((type) => this.serializeMembershipType(type));
   }
 
   async findTypeById(id: string) {
@@ -69,7 +89,9 @@ export class MembershipsService {
         price: new Prisma.Decimal(dto.price),
         isFree: dto.isFree,
         durationMonths: dto.durationMonths,
-        benefits: dto.benefits ?? []
+        benefits: dto.benefits ?? [],
+        features: dto.features ?? [],
+        autoActivate: dto.autoActivate ?? false
       }
     });
   }
@@ -84,7 +106,9 @@ export class MembershipsService {
         price: dto.price !== undefined ? new Prisma.Decimal(dto.price) : undefined,
         isFree: dto.isFree,
         durationMonths: dto.durationMonths,
-        benefits: dto.benefits
+        benefits: dto.benefits,
+        features: dto.features,
+        autoActivate: dto.autoActivate
       }
     });
   }
@@ -95,10 +119,19 @@ export class MembershipsService {
   }
 
   async apply(user: TokenPayload, dto: ApplyMembershipDto) {
+    return this.processApplication(user.sub, user.email, dto);
+  }
+
+  async processApplication(userId: string, email: string, dto: ApplyMembershipDto) {
     const type = await this.findTypeById(dto.membershipTypeId);
 
+    const dependants = dto.dependants ?? [];
+    if (dependants.length > 0 && !type.features.includes(MembershipFeature.DEPENDANTS)) {
+      throw new BadRequestException('This membership type does not include dependants');
+    }
+
     await this.prisma.user.update({
-      where: { id: user.sub },
+      where: { id: userId },
       data: {
         name: dto.fullName,
         address: dto.address ?? undefined,
@@ -108,14 +141,14 @@ export class MembershipsService {
 
     if (type.isFree || Number(type.price) === 0) {
       const membership = await this.createMembership({
-        userId: user.sub,
+        userId,
         membershipTypeId: type.id,
         fullName: dto.fullName,
         address: dto.address,
         phone: dto.phone,
-        dependants: dto.dependants ?? [],
+        dependants,
         membershipType: type,
-        overrideEmail: user.email
+        overrideEmail: email
       });
       return { membership, paid: false };
     }
@@ -136,17 +169,17 @@ export class MembershipsService {
         }
       ],
       mode: 'payment',
-      customer_email: user.email,
+      customer_email: email,
       success_url: `${this.frontendUrl}/dashboard?membership=success`,
       cancel_url: `${this.frontendUrl}/membership?canceled=1`,
       metadata: {
         source: 'membership',
-        userId: user.sub,
+        userId,
         membershipTypeId: type.id,
         fullName: dto.fullName,
         address: dto.address ?? '',
         phone: dto.phone ?? '',
-        dependants: JSON.stringify(dto.dependants ?? [])
+        dependants: JSON.stringify(dependants)
       }
     });
 
@@ -155,13 +188,13 @@ export class MembershipsService {
 
   private async createMembership(data: CreateMembershipData): Promise<Membership> {
     const startDate = new Date();
-    const endDate = new Date();
-    endDate.setMonth(startDate.getMonth() + data.membershipType.durationMonths);
+    const endDate = this.computeEndDate(data.membershipType, startDate);
 
     const membershipPublicId = this.generateMembershipId();
     const qrValue = `${this.frontendUrl}/membership/verify/${membershipPublicId}`;
 
     const dependants = data.dependants ?? [];
+    const status = data.status ?? (data.membershipType.autoActivate ? MembershipStatus.ACTIVE : MembershipStatus.PENDING);
 
     let membership = await this.prisma.membership.create({
       data: {
@@ -169,7 +202,7 @@ export class MembershipsService {
         membershipTypeId: data.membershipTypeId,
         startDate,
         endDate,
-        status: MembershipStatus.ACTIVE,
+        status,
         dependantsJson: dependants as unknown as Prisma.InputJsonValue,
         membershipId: membershipPublicId,
         qrCodeValue: qrValue,
@@ -178,44 +211,58 @@ export class MembershipsService {
       include: { membershipType: true }
     });
 
+    if (status === MembershipStatus.ACTIVE) {
+      membership = await this.generateAndAttachCard(membership, data.fullName, dependants);
+      await this.sendWelcomeEmail(data.userId, data.fullName, data.overrideEmail, membership.membershipCardUrl);
+    }
+
+    return membership;
+  }
+
+  private async generateAndAttachCard(
+    membership: Membership & { membershipType: MembershipType },
+    memberName: string,
+    dependants: DependantInput[]
+  ): Promise<Membership & { membershipType: MembershipType }> {
     const cardBuffer = await generateCardBuffer({
-      membershipId: membershipPublicId,
-      memberName: data.fullName,
-      membershipTypeName: data.membershipType.name,
-      startDate,
-      endDate,
+      membershipId: membership.membershipId,
+      memberName,
+      membershipTypeName: membership.membershipType.name,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
       dependantsCount: dependants.length,
-      qrValue
+      qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
     });
 
-    const cardPath = await saveCard(membershipPublicId, cardBuffer);
+    const cardPath = await saveCard(membership.membershipId, cardBuffer);
 
-    membership = await this.prisma.membership.update({
+    return this.prisma.membership.update({
       where: { id: membership.id },
       data: { membershipCardUrl: cardPath },
       include: { membershipType: true }
     });
+  }
 
+  private async sendWelcomeEmail(userId: string, fullName: string, overrideEmail: string | undefined, cardUrl: string | null) {
     const user = await this.prisma.user.findUnique({
-      where: { id: data.userId },
+      where: { id: userId },
       select: { email: true }
     });
 
-    const email = data.overrideEmail ?? user?.email;
-    if (email) {
-      try {
-        const welcome = await this.aiService.welcome(data.fullName);
-        await this.emailService.send({
-          to: email,
-          subject: 'Welcome to Kent SLSC',
-          html: `<p>${welcome}</p><p><a href="${this.apiUrl}${cardPath}">Download your membership card</a></p>`
-        });
-      } catch (err) {
-        this.logger.warn('Failed to send membership email', (err as Error).message);
-      }
-    }
+    const email = overrideEmail ?? user?.email;
+    if (!email) return;
 
-    return membership;
+    try {
+      const welcome = await this.aiService.welcome(fullName);
+      const cardLink = cardUrl ? `<p><a href="${this.apiUrl}${cardUrl}">Download your membership card</a></p>` : '';
+      await this.emailService.send({
+        to: email,
+        subject: 'Welcome to Kent SLSC',
+        html: `<p>${welcome}</p>${cardLink}`
+      });
+    } catch (err) {
+      this.logger.warn('Failed to send membership email', (err as Error).message);
+    }
   }
 
   async findMyMembership(userId: string) {
@@ -229,10 +276,11 @@ export class MembershipsService {
       return null;
     }
 
-    const dependants = (membership.dependantsJson as { name: string; relationship: string }[]) ?? [];
+    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
 
     return {
       ...membership,
+      membershipType: this.serializeMembershipType(membership.membershipType),
       cardUrl: membership.membershipCardUrl ? `${this.apiUrl}${membership.membershipCardUrl}` : null,
       qr: membership.qrCodeValue,
       dependantsCount: dependants.length,
@@ -254,27 +302,12 @@ export class MembershipsService {
       return membership.membershipCardUrl;
     }
 
-    const dependants = (membership.dependantsJson as { name: string; relationship: string }[]) ?? [];
+    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
     const user = await this.prisma.user.findUnique({ where: { id: membership.userId }, select: { name: true } });
 
-    const buffer = await generateCardBuffer({
-      membershipId: membership.membershipId,
-      memberName: user?.name ?? 'Member',
-      membershipTypeName: membership.membershipType.name,
-      startDate: membership.startDate,
-      endDate: membership.endDate,
-      dependantsCount: dependants.length,
-      qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
-    });
+    const updated = await this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
 
-    const cardPath = await saveCard(membership.membershipId, buffer);
-
-    await this.prisma.membership.update({
-      where: { id: membership.id },
-      data: { membershipCardUrl: cardPath }
-    });
-
-    return cardPath;
+    return updated.membershipCardUrl!;
   }
 
   async verifyMembership(membershipPublicId: string) {
@@ -311,49 +344,40 @@ export class MembershipsService {
       throw new NotFoundException('Membership not found');
     }
 
-    const dependants = (membership.dependantsJson as { name: string; relationship: string }[]) ?? [];
+    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
     const user = await this.prisma.user.findUnique({ where: { id: membership.userId }, select: { name: true } });
 
-    const buffer = await generateCardBuffer({
-      membershipId: membership.membershipId,
-      memberName: user?.name ?? 'Member',
-      membershipTypeName: membership.membershipType.name,
-      startDate: membership.startDate,
-      endDate: membership.endDate,
-      dependantsCount: dependants.length,
-      qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
-    });
-
-    const cardPath = await saveCard(membership.membershipId, buffer);
-
-    return this.prisma.membership.update({
-      where: { id: membership.id },
-      data: { membershipCardUrl: cardPath },
-      include: { membershipType: true }
-    });
+    return this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
   }
 
   async updateStatus(id: string, status: MembershipStatus) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, deletedAt: null },
-      include: { membershipType: true }
+      include: { membershipType: true, user: { select: { email: true, name: true } } }
     });
     if (!membership) throw new NotFoundException('Membership not found');
 
     const data: Prisma.MembershipUpdateInput = { status };
     if (status === MembershipStatus.ACTIVE) {
       const startDate = membership.startDate ?? new Date();
-      const endDate = new Date(startDate);
-      endDate.setMonth(startDate.getMonth() + membership.membershipType.durationMonths);
+      const endDate = this.computeEndDate(membership.membershipType, startDate);
       data.startDate = startDate;
       data.endDate = endDate;
     }
 
-    return this.prisma.membership.update({
+    const updated = await this.prisma.membership.update({
       where: { id },
       data,
       include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
     });
+
+    if (status === MembershipStatus.ACTIVE && !updated.membershipCardUrl) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const withCard = await this.generateAndAttachCard(updated, updated.user.name, dependants);
+      await this.sendWelcomeEmail(updated.userId, updated.user.name, updated.user.email, withCard.membershipCardUrl);
+    }
+
+    return updated;
   }
 
   async handleWebhook(rawBody: Buffer | string, signature: string) {
@@ -380,6 +404,10 @@ export class MembershipsService {
         dependants = JSON.parse(md.dependants || '[]');
       } catch {
         dependants = [];
+      }
+
+      if (dependants.length > 0 && !membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
+        throw new BadRequestException('This membership type does not include dependants');
       }
 
       const membership = await this.createMembership({

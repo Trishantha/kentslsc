@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -20,7 +20,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, Plus, Loader2, Eye, Settings, X } from 'lucide-react';
+import { GripVertical, Trash2, Plus, Loader2, Eye, Settings, X, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { PageBlock, SitePageInput } from '@kentslsc/shared';
@@ -55,7 +55,7 @@ function createBlock(type: PageBlock['type']): PageBlock {
   const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   switch (type) {
     case 'hero':
-      return { type, id, title: 'Welcome', subtitle: '', buttonText: '', buttonUrl: '', imageUrl: '' };
+      return { type, id, title: 'Welcome', subtitle: '', buttonText: '', buttonUrl: '', mediaType: 'video', imageUrl: '', videoUrl: '/videos/kslsc-hero.webm', overlayStyle: 'noise', overlayOpacity: 75 };
     case 'text':
       return { type, id, title: '', content: '', align: 'left' };
     case 'image':
@@ -459,7 +459,75 @@ function BlockConfig({
           </select>
         </div>
       )}
-      {'imageUrl' in block && (
+      {block.type === 'hero' && (
+        <div>
+          <label className={labelClass}>Media type</label>
+          <select
+            value={block.mediaType}
+            onChange={(e) => onChange({ mediaType: e.target.value as 'image' | 'video' } as Partial<PageBlock>)}
+            className={inputClass}
+          >
+            <option value="image">Image</option>
+            <option value="video">Video</option>
+          </select>
+        </div>
+      )}
+      {block.type === 'hero' && block.mediaType === 'image' && (
+        <div>
+          <label className={labelClass}>Image URL</label>
+          <div className="flex gap-2">
+            <input
+              value={block.imageUrl}
+              onChange={(e) => onChange({ imageUrl: e.target.value } as Partial<PageBlock>)}
+              className={inputClass}
+            />
+            <UploadButton accept="image/*" onUploaded={(url) => onChange({ imageUrl: url } as Partial<PageBlock>)} />
+          </div>
+        </div>
+      )}
+      {block.type === 'hero' && block.mediaType === 'video' && (
+        <div>
+          <label className={labelClass}>Video URL</label>
+          <div className="flex gap-2">
+            <input
+              value={block.videoUrl}
+              onChange={(e) => onChange({ videoUrl: e.target.value } as Partial<PageBlock>)}
+              className={inputClass}
+            />
+            <UploadButton accept="video/*" onUploaded={(url) => onChange({ videoUrl: url } as Partial<PageBlock>)} />
+          </div>
+        </div>
+      )}
+      {block.type === 'hero' && block.mediaType === 'video' && (
+        <div>
+          <label className={labelClass}>Overlay style</label>
+          <select
+            value={block.overlayStyle}
+            onChange={(e) => onChange({ overlayStyle: e.target.value as any } as Partial<PageBlock>)}
+            className={inputClass}
+          >
+            <option value="none">None</option>
+            <option value="dots">Dots</option>
+            <option value="noise">Noise / grain</option>
+            <option value="scanlines">Scanlines</option>
+            <option value="vignette">Vignette</option>
+          </select>
+        </div>
+      )}
+      {block.type === 'hero' && block.mediaType === 'video' && block.overlayStyle !== 'none' && (
+        <div>
+          <label className={labelClass}>Overlay opacity ({block.overlayOpacity}%)</label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={block.overlayOpacity}
+            onChange={(e) => onChange({ overlayOpacity: Number(e.target.value) } as Partial<PageBlock>)}
+            className={inputClass}
+          />
+        </div>
+      )}
+      {'imageUrl' in block && block.type !== 'hero' && (
         <div>
           <label className={labelClass}>Image URL</label>
           <input
@@ -566,5 +634,53 @@ function BlockConfig({
         </div>
       )}
     </div>
+  );
+}
+
+function UploadButton({ accept, onUploaded }: { accept: string; onUploaded: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await api.post('/api/uploads', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      onUploaded(data.url);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10 disabled:opacity-50"
+      >
+        {uploading ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Upload className="h-3 w-3" />
+        )}
+        Upload
+      </button>
+    </>
   );
 }

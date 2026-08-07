@@ -1,5 +1,19 @@
 import { z } from 'zod';
 import { UserRole } from '../enums.js';
+import { dependantSchema } from './memberships.js';
+
+export const registerApplicationSchema = z.object({
+  membershipTypeId: z.string().uuid(),
+  fullName: z.string().min(2),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+  interests: z.array(z.string()).default([]),
+  dependants: z.array(dependantSchema).default([]),
+  acceptedTerms: z.boolean()
+});
 
 export const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -7,7 +21,8 @@ export const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   phone: z.string().optional(),
   address: z.string().optional(),
-  role: z.nativeEnum(UserRole).default(UserRole.GUEST)
+  role: z.nativeEnum(UserRole).default(UserRole.GUEST),
+  application: registerApplicationSchema.optional()
 });
 
 export const loginSchema = z.object({
@@ -27,6 +42,7 @@ export const tokenPayloadSchema = z.object({
   exp: z.number().optional()
 });
 
+export type RegisterApplicationInput = z.infer<typeof registerApplicationSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type TokenPayload = z.infer<typeof tokenPayloadSchema>;

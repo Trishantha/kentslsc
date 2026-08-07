@@ -7,6 +7,9 @@
     "tailwind-preset.js",
     "tsconfig.base.json"
   ],
+  "scripts": {
+    "clean": "rm -rf .turbo"
+  },
   "devDependencies": {
     "tailwindcss": "^3.4.0"
   }

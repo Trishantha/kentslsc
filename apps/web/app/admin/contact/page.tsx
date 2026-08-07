@@ -17,7 +17,7 @@ interface ContactMessage {
   createdAt: string;
 }
 
-const statuses = ['new', 'in_progress', 'resolved'];
+const statuses = ['NEW', 'IN_PROGRESS', 'RESOLVED'];
 
 export default function AdminContactPage() {
   const [selected, setSelected] = useState<ContactMessage | null>(null);
@@ -72,9 +72,9 @@ export default function AdminContactPage() {
                   <div className="mt-2 flex items-center gap-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        msg.handledStatus === 'resolved'
+                        msg.handledStatus === 'RESOLVED'
                           ? 'bg-green-500/10 text-green-400'
-                          : msg.handledStatus === 'in_progress'
+                          : msg.handledStatus === 'IN_PROGRESS'
                             ? 'bg-yellow-500/10 text-yellow-400'
                             : 'bg-slate-500/10 text-slate-400'
                       }`}
@@ -101,9 +101,9 @@ export default function AdminContactPage() {
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    selected.handledStatus === 'resolved'
+                    selected.handledStatus === 'RESOLVED'
                       ? 'bg-green-500/10 text-green-400'
-                      : selected.handledStatus === 'in_progress'
+                      : selected.handledStatus === 'IN_PROGRESS'
                         ? 'bg-yellow-500/10 text-yellow-400'
                         : 'bg-slate-500/10 text-slate-400'
                   }`}

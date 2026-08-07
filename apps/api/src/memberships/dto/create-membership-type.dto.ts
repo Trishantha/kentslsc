@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MinLength, Min, ArrayMinSize } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MinLength, Min, IsEnum } from 'class-validator';
+import { MembershipFeature } from '@kentslsc/shared';
 
 export class CreateMembershipTypeDto {
   @IsString()
@@ -24,4 +25,13 @@ export class CreateMembershipTypeDto {
   @IsString({ each: true })
   @IsArray()
   declare benefits?: string[];
+
+  @IsOptional()
+  @IsEnum(MembershipFeature, { each: true })
+  @IsArray()
+  declare features?: MembershipFeature[];
+
+  @IsOptional()
+  @IsBoolean()
+  declare autoActivate?: boolean;
 }

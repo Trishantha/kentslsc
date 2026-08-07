@@ -19,6 +19,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
+import VideoOverlay from '@/components/ui/VideoOverlay';
 import type { PageBlock } from '@kentslsc/shared';
 
 interface EventItem {
@@ -69,8 +70,11 @@ interface ForumTopicItem {
   _count?: { posts: number };
 }
 
-function formatDate(date: string | Date) {
-  return new Date(date).toLocaleDateString('en-GB', {
+function formatDate(date: string | Date | null | undefined) {
+  if (!date) return 'TBC';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return 'Invalid date';
+  return d.toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -78,9 +82,10 @@ function formatDate(date: string | Date) {
   });
 }
 
-function formatCurrency(value: number | string) {
+function formatCurrency(value: number | string | null | undefined) {
   const num = typeof value === 'string' ? Number(value) : value;
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(num ?? 0);
+  if (num == null || Number.isNaN(num)) return '£0.00';
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(num);
 }
 
 const container = {
@@ -96,8 +101,34 @@ const item = {
   show: { opacity: 1, y: 0 }
 };
 
+interface HeroConfig {
+  mediaType: 'image' | 'video';
+  imageUrl: string | null;
+  videoUrl: string | null;
+  overlayStyle: 'none' | 'dots' | 'noise' | 'scanlines' | 'vignette';
+  overlayOpacity: number;
+}
+
+const DEFAULT_HERO: HeroConfig = {
+  mediaType: 'video',
+  imageUrl: '',
+  videoUrl: '/videos/kslsc-hero.webm',
+  overlayStyle: 'noise',
+  overlayOpacity: 75
+};
+
 function HomePageContent() {
   const { data: user } = useAuth();
+
+  const { data: heroConfig } = useQuery<HeroConfig>({
+    queryKey: ['hero-config'],
+    queryFn: async () => {
+      const { data } = await api.get('/api/hero-config');
+      return data;
+    },
+    retry: false
+  });
+  const hero = heroConfig ?? DEFAULT_HERO;
 
   const { data: recommendedEvents = [], isLoading: eventsLoading } = useQuery<EventItem[]>({
     queryKey: ['ai', 'recommend', 'events', user?.id ?? 'anonymous'],
@@ -177,6 +208,35 @@ function HomePageContent() {
       </div>
 
       <section className="relative px-4 pb-20 pt-24 md:px-6 md:pt-36">
+        {hero.mediaType === 'video' && hero.videoUrl && (
+          <>
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
+              style={{ backgroundColor: 'transparent' }}
+            >
+              {hero.videoUrl.endsWith('.webm') && <source src={hero.videoUrl} type="video/webm" />}
+              {hero.videoUrl.endsWith('.mp4') && <source src={hero.videoUrl} type="video/mp4" />}
+              {hero.videoUrl.endsWith('.webm') && (
+                <source src={hero.videoUrl.replace(/\.webm$/, '.mp4')} type="video/mp4" />
+              )}
+            </video>
+            <VideoOverlay style={hero.overlayStyle as import('@/components/ui/VideoOverlay').OverlayStyle} opacity={hero.overlayOpacity} />
+          </>
+        )}
+        {hero.mediaType === 'image' && hero.imageUrl && (
+          <>
+            <div
+              className="pointer-events-none absolute inset-0 -z-10 bg-cover bg-center"
+              style={{ backgroundImage: `url(${hero.imageUrl})` }}
+            />
+            <VideoOverlay style={hero.overlayStyle as import('@/components/ui/VideoOverlay').OverlayStyle} opacity={hero.overlayOpacity} />
+          </>
+        )}
         <div className="mx-auto max-w-5xl text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
