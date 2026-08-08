@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, XCircle, Calendar, Users, Shield } from 'lucide-react';
+import { fetchWithRetry } from '@/lib/server-fetch';
 import { formatDate } from '@/lib/utils';
 
 interface VerifyPageProps {
@@ -19,16 +20,13 @@ interface VerificationResult {
 }
 
 async function verifyMembership(id: string): Promise<VerificationResult | null> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
-    const res = await fetch(`${baseUrl}/membership/verify/${encodeURIComponent(id)}`, {
-      next: { revalidate: 0 }
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as VerificationResult;
-  } catch {
-    return null;
-  }
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+  const res = await fetchWithRetry(
+    `${baseUrl}/membership/verify/${encodeURIComponent(id)}`,
+    { next: { revalidate: 0 } }
+  );
+  if (!res || !res.ok) return null;
+  return (await res.json()) as VerificationResult;
 }
 
 export async function generateMetadata({ params }: VerifyPageProps): Promise<Metadata> {

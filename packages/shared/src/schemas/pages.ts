@@ -107,6 +107,7 @@ export const sitePageSchema = z.object({
   title: z.string().min(1),
   isHome: z.boolean().default(false),
   metaDescription: z.string().optional(),
+  ogImageUrl: z.string().optional(),
   blocks: pageBlocksSchema,
   isPublished: z.boolean().default(false)
 });

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -39,7 +40,7 @@ interface Event {
 export default function AdminEventsPage() {
   const [editing, setEditing] = useState<Event | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<EventForm>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<EventForm>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
       ticketPrice: 0,
@@ -170,10 +171,12 @@ export default function AdminEventsPage() {
                 <input type="number" {...register('maxTickets')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
               </div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Image URL</label>
-              <input {...register('imageUrl')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-            </div>
+            <ImageUpload
+              label="Image"
+              value={watch('imageUrl')}
+              onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
+              hideUrlInput
+            />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" {...register('isPublished')} className="rounded border-white/10 bg-white/5" />
               Published

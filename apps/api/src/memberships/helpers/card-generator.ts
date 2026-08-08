@@ -1,5 +1,4 @@
-import { mkdir, writeFile, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
@@ -105,14 +104,4 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
 </svg>`;
 
   return sharp(Buffer.from(svg), { density: 144 }).png().toBuffer();
-}
-
-export async function saveCard(membershipId: string, buffer: Buffer): Promise<string> {
-  const dir = join(process.cwd(), 'public', 'cards');
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-  const filePath = join(dir, `${membershipId}.png`);
-  await writeFile(filePath, buffer);
-  return `/cards/${membershipId}.png`;
 }

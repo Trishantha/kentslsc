@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
+import { fetchWithRetry } from '@/lib/server-fetch';
 import type { PageBlock } from '@kentslsc/shared';
 
 interface Props {
@@ -12,31 +13,54 @@ interface SitePage {
   slug: string;
   title: string;
   metaDescription: string | null;
+  ogImageUrl: string | null;
   blocks: PageBlock[];
   isPublished: boolean;
 }
 
-async function fetchPage(slug: string): Promise<SitePage | null> {
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-    const res = await fetch(`${apiUrl}/api/pages/${slug}`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
+function findFirstImage(blocks: PageBlock[]): string | undefined {
+  for (const block of blocks) {
+    if (block.type === 'hero' && block.mediaType === 'image' && block.imageUrl) {
+      return block.imageUrl;
+    }
+    if (block.type === 'image' && block.imageUrl) {
+      return block.imageUrl;
+    }
   }
+  return undefined;
+}
+
+async function fetchPage(slug: string): Promise<SitePage | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const res = await fetchWithRetry(`${apiUrl}/api/pages/${slug}`, { next: { revalidate: 60 } });
+  if (!res || !res.ok) return null;
+  return res.json();
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await fetchPage(params.slug);
   if (!page) return {};
+  const description = page.metaDescription ?? undefined;
+  const ogImage = page.ogImageUrl ?? findFirstImage(page.blocks) ?? '/opengraph-image.png';
   return {
     title: page.title,
-    description: page.metaDescription ?? undefined
+    description,
+    openGraph: {
+      title: page.title,
+      description,
+      images: [ogImage]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: page.title,
+      description,
+      images: [ogImage]
+    },
+    alternates: {
+      canonical: `/${page.slug}`
+    }
   };
 }
-
-export const dynamic = 'force-dynamic';
 
 export default async function CustomPage({ params }: Props) {
   const page = await fetchPage(params.slug);

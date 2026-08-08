@@ -1,67 +1,78 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Russo_One } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { Navbar } from '@/components/layout/Navbar';
-import { Footer } from '@/components/layout/Footer';
-import dynamic from 'next/dynamic';
-
-const AiChatWidget = dynamic(
-  () => import('@/components/ui/AiChatWidget').then((mod) => ({ default: mod.AiChatWidget })),
-  { ssr: false }
-);
+import { MobileNavShell } from '@/components/layout/MobileNavShell';
+import { ConditionalFooter } from '@/components/layout/ConditionalFooter';
+import JsonLd from '@/components/JsonLd';
+import { DebugHydration } from '@/components/DebugHydration';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const russoOne = Russo_One({ weight: '400', subsets: ['latin'], variable: '--font-futuristic' });
+
+const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
 
 export const metadata: Metadata = {
-  title: 'Kent Sri Lankan Social Club',
+  metadataBase: new URL(baseUrl),
+  title: {
+    default: 'Kent Sri Lankan Social Club',
+    template: '%s | Kent Sri Lankan Social Club'
+  },
   description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
   icons: {
     icon: '/logo.png',
     apple: '/logo.png'
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_GB',
+    siteName: 'Kent Sri Lankan Social Club',
+    title: 'Kent Sri Lankan Social Club',
+    description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+    images: ['/opengraph-image.png']
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Kent Sri Lankan Social Club',
+    description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+    images: ['/opengraph-image.png']
+  },
+  alternates: {
+    canonical: './'
   }
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover'
+};
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Kent Sri Lankan Social Club',
+  url: baseUrl,
+  logo: `${baseUrl}/logo.png`,
+  description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+  sameAs: []
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                const extensionAttrs = [
-                  '__processed_f0105fef-cfce-4318-bb2b-80a35087d7e0__',
-                  'data-new-gr-c-s-check-loaded',
-                  'data-gr-ext-installed'
-                ];
-                function clean() {
-                  [document.documentElement, document.body].forEach((el) => {
-                    if (!el) return;
-                    extensionAttrs.forEach((attr) => el.removeAttribute(attr));
-                  });
-                  document.querySelectorAll('[fdprocessedid]').forEach((el) => {
-                    el.removeAttribute('fdprocessedid');
-                  });
-                }
-                if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', clean);
-                } else {
-                  clean();
-                }
-              })();
-            `
-          }}
-        />
+        <JsonLd data={organizationSchema} />
       </head>
-      <body className={`${inter.variable} font-sans`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${russoOne.variable} font-sans`} suppressHydrationWarning>
         <Providers>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <AiChatWidget />
-          </div>
+          {process.env.NODE_ENV === 'development' && <DebugHydration />}
+          <MobileNavShell>
+            <div className="flex min-h-screen flex-col">
+              <main className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+              <ConditionalFooter />
+            </div>
+          </MobileNavShell>
         </Providers>
       </body>
     </html>

@@ -2,7 +2,9 @@ import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { Prisma } from '@kentslsc/database';
 import { RedisService } from '../core/redis/redis.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
 import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
@@ -32,14 +34,17 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(data.password, 12);
+    const fullName = `${data.firstName} ${data.lastName}`.trim();
     const user = await this.prisma.user.create({
       data: {
-        name: data.name,
+        name: fullName,
+        firstName: data.firstName,
+        lastName: data.lastName,
         email: data.email,
         phone: data.phone,
-        address: data.address,
+        address: data.address ? (data.address as unknown as Prisma.InputJsonValue) : undefined,
         passwordHash,
-        role: (data.role as UserRole) ?? UserRole.GUEST
+        role: UserRole.GUEST
       }
     });
 
@@ -67,6 +72,8 @@ export class AuthService {
       user: {
         id: user.id,
         name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: user.role
       },
@@ -84,9 +91,7 @@ export class AuthService {
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const tokens = await this.buildTokens(user.id, user.email, user.role as UserRole);
-    await this.prisma.user.update({ where: { id: user.id }, data: { refreshToken: tokens.refreshToken } });
-    return tokens;
+    return this.buildTokens(user.id, user.email, user.role as UserRole);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokens> {
@@ -94,7 +99,10 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET')
       });
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub, refreshToken } });
+      const refreshHash = this.hashToken(refreshToken);
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub, refreshToken: refreshHash }
+      });
       if (!user || user.deletedAt) {
         throw new UnauthorizedException('Invalid refresh token');
       }
@@ -133,7 +141,16 @@ export class AuthService {
         expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRY') ?? '7d'
       })
     ]);
-    await this.redis.set(`refresh:${userId}`, refreshToken, 7 * 24 * 60 * 60);
+    const refreshHash = this.hashToken(refreshToken);
+    const refreshTtl = 7 * 24 * 60 * 60;
+    await Promise.all([
+      this.prisma.user.update({ where: { id: userId }, data: { refreshToken: refreshHash } }),
+      this.redis.set(`refresh:${userId}`, refreshHash, refreshTtl)
+    ]);
     return { accessToken, refreshToken };
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }

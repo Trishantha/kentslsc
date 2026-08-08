@@ -14,7 +14,9 @@ import { UnauthorizedException, Logger } from '@nestjs/common';
 import { ForumService } from './forum.service.js';
 import type { TokenPayload } from '@kentslsc/shared';
 
-@WebSocketGateway({ namespace: 'forum', cors: { origin: '*' } })
+const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+
+@WebSocketGateway({ namespace: 'forum', cors: { origin: frontendUrl, credentials: true } })
 export class ForumGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ForumGateway.name);
 

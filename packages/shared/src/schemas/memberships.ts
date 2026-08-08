@@ -7,6 +7,13 @@ export const dependantSchema = z.object({
   relationship: z.enum(['spouse', 'child'])
 });
 
+export const structuredAddressSchema = z.object({
+  buildingStreet: z.string().min(1, 'Building and street is required'),
+  locality: z.string().optional(),
+  townCity: z.string().min(1, 'Town/City is required'),
+  postcode: z.string().min(1, 'Postcode is required')
+});
+
 export const membershipTypeSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -21,19 +28,20 @@ export const membershipTypeSchema = z.object({
 export const membershipApplySchema = z.object({
   membershipTypeId: z.string().uuid(),
   fullName: z.string().min(2),
-  address: z.string().optional(),
+  address: structuredAddressSchema.optional(),
   phone: z.string().optional(),
   dependants: z.array(dependantSchema).default([])
 });
 
 export const registrationWizardSchema = z
   .object({
-    name: z.string().min(2, 'Name must be at least 2 characters'),
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
     email: z.string().email('Invalid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
     phone: z.string().optional(),
-    address: z.string().optional(),
+    address: structuredAddressSchema,
     dateOfBirth: z.string().optional(),
     emergencyContactName: z.string().optional(),
     emergencyContactPhone: z.string().optional(),

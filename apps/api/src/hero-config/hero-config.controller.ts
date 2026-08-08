@@ -28,6 +28,8 @@ export class HeroConfigController {
     videoUrl?: string;
     overlayStyle?: string;
     overlayOpacity?: number;
+    videoOverlayOpacity?: number;
+    videoPlaybackRate?: number;
   }) {
     return this.heroConfigService.update(dto);
   }

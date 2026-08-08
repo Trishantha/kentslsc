@@ -26,7 +26,7 @@ export default function TextBlockComponent({ block }: Props) {
       >
         {title && <h2 className="section-title">{title}</h2>}
         {content && (
-          <div className="mt-6 whitespace-pre-wrap text-slate-600 dark:text-slate-300">
+          <div className="mt-6 whitespace-pre-wrap text-slate-700 dark:text-slate-300">
             {content}
           </div>
         )}

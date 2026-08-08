@@ -10,7 +10,7 @@ const PageEditor = dynamic(() => import('@/components/admin/PageEditor'), { ssr:
 
 export default function EditPage() {
   const params = useParams();
-  const id = params.id as string;
+  const id = (params?.id ?? '') as string;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'pages', id],

@@ -13,7 +13,9 @@ export class HeroConfigService {
           mediaType: 'video',
           videoUrl: '/videos/kslsc-hero.webm',
           overlayStyle: 'noise',
-          overlayOpacity: 75
+          overlayOpacity: 75,
+          videoOverlayOpacity: 75,
+          videoPlaybackRate: 1
         }
       });
     }
@@ -26,6 +28,8 @@ export class HeroConfigService {
     videoUrl?: string;
     overlayStyle?: string;
     overlayOpacity?: number;
+    videoOverlayOpacity?: number;
+    videoPlaybackRate?: number;
   }) {
     const existing = await this.get();
     return this.prisma.heroConfig.update({
@@ -35,7 +39,9 @@ export class HeroConfigService {
         ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl || null }),
         ...(data.videoUrl !== undefined && { videoUrl: data.videoUrl || null }),
         ...(data.overlayStyle !== undefined && { overlayStyle: data.overlayStyle }),
-        ...(data.overlayOpacity !== undefined && { overlayOpacity: data.overlayOpacity })
+        ...(data.overlayOpacity !== undefined && { overlayOpacity: data.overlayOpacity }),
+        ...(data.videoOverlayOpacity !== undefined && { videoOverlayOpacity: data.videoOverlayOpacity }),
+        ...(data.videoPlaybackRate !== undefined && { videoPlaybackRate: data.videoPlaybackRate })
       }
     });
   }

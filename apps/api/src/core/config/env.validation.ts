@@ -21,8 +21,12 @@ export const envValidationSchema = z.object({
   EMAIL_PASS: z.string().optional(),
   EMAIL_FROM: z.string().email().optional().or(z.literal('')),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
-  CARD_STORAGE_PATH: z.string().default('./cards'),
-  ADMIN_SECRET: z.string().optional()
+  ADMIN_SECRET: z.string().optional(),
+  // Optional Supabase Storage configuration. When provided, uploads are stored
+  // in the configured bucket instead of the local filesystem.
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_KEY: z.string().optional(),
+  SUPABASE_BUCKET: z.string().default('KentSLSC')
 });
 
 export type EnvConfig = z.infer<typeof envValidationSchema>;

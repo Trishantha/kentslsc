@@ -22,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Plus, Loader2, Eye, Settings, X, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { PageBlock, SitePageInput } from '@kentslsc/shared';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ interface Props {
     title: string;
     isHome: boolean;
     metaDescription: string | null;
+    ogImageUrl: string | null;
     blocks: PageBlock[];
     isPublished: boolean;
   };
@@ -141,6 +143,7 @@ export default function PageEditor({ initialData }: Props) {
   const [slug, setSlug] = useState(initialData?.slug ?? '');
   const [isHome, setIsHome] = useState(initialData?.isHome ?? false);
   const [metaDescription, setMetaDescription] = useState(initialData?.metaDescription ?? '');
+  const [ogImageUrl, setOgImageUrl] = useState(initialData?.ogImageUrl ?? '');
   const [isPublished, setIsPublished] = useState(initialData?.isPublished ?? false);
   const [blocks, setBlocks] = useState<PageBlock[]>(initialData?.blocks ?? []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -201,6 +204,7 @@ export default function PageEditor({ initialData }: Props) {
       slug,
       isHome,
       metaDescription: metaDescription || undefined,
+      ogImageUrl: ogImageUrl || undefined,
       blocks,
       isPublished
     });
@@ -268,6 +272,18 @@ export default function PageEditor({ initialData }: Props) {
                 rows={2}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Open Graph image URL</label>
+              <div className="flex gap-2">
+                <input
+                  value={ogImageUrl}
+                  onChange={(e) => setOgImageUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
+                />
+                <UploadButton accept="image/*" onUploaded={(url) => setOgImageUrl(url)} />
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -528,14 +544,12 @@ function BlockConfig({
         </div>
       )}
       {'imageUrl' in block && block.type !== 'hero' && (
-        <div>
-          <label className={labelClass}>Image URL</label>
-          <input
-            value={block.imageUrl}
-            onChange={(e) => onChange({ imageUrl: e.target.value } as Partial<PageBlock>)}
-            className={inputClass}
-          />
-        </div>
+        <ImageUpload
+          label="Image"
+          value={block.imageUrl}
+          onChange={(url) => onChange({ imageUrl: url } as Partial<PageBlock>)}
+          hideUrlInput
+        />
       )}
       {'alt' in block && (
         <div>
@@ -649,7 +663,7 @@ function UploadButton({ accept, onUploaded }: { accept: string; onUploaded: (url
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await api.post('/api/uploads', formData, {
+      const { data } = await api.post('/uploads', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       onUploaded(data.url);

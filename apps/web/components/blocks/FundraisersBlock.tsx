@@ -49,7 +49,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
             ))}
           </div>
         ) : fundraisers.length === 0 ? (
-          <p className="text-slate-500">No active fundraisers right now.</p>
+          <p className="text-slate-600 dark:text-slate-400">No active fundraisers right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {fundraisers.slice(0, limit).map((f, index) => {
@@ -67,10 +67,10 @@ export default function FundraisersBlockComponent({ block }: Props) {
                       {f.imageUrl ? (
                         <img src={f.imageUrl} alt={f.title} className="mb-4 h-40 w-full rounded-xl object-cover" />
                       ) : (
-                        <div className="mb-4 h-40 w-full rounded-xl bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
+                        <div className="mb-4 h-40 w-full rounded-xl bg-gradient-to-br from-neon-blue/40 to-neon-gold/40" />
                       )}
                       <h3 className="text-xl font-bold">{f.title}</h3>
-                      <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-700 dark:text-slate-400">
                         {f.aiSummary ?? f.description ?? ''}
                       </p>
                       <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">

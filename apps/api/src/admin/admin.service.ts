@@ -13,8 +13,7 @@ import {
 } from '@kentslsc/shared';
 import {
   MembershipStatus as DbMembershipStatus,
-  ContactStatus as DbContactStatus,
-  Prisma
+  ContactStatus as DbContactStatus
 } from '@kentslsc/database';
 
 @Injectable()
@@ -72,7 +71,7 @@ export class AdminService {
   }
 
   findUserById(id: string) {
-    return this.usersService.findById(id);
+    return this.usersService.findByIdWithDetails(id);
   }
 
   listMemberships(page: number, limit: number, status?: string) {

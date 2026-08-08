@@ -6,7 +6,7 @@ export class UpdateBusinessListingDto {
   declare businessName?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   declare logoUrl?: string;
 
   @IsOptional()
@@ -18,7 +18,7 @@ export class UpdateBusinessListingDto {
   declare servicesText?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   declare websiteUrl?: string;
 
   @IsOptional()

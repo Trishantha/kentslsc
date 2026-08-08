@@ -44,10 +44,12 @@ enum ContactStatus {
 model User {
   id            String    @id @default(uuid())
   name          String
+  firstName     String?   @map("first_name")
+  lastName      String?   @map("last_name")
   email         String    @unique
   passwordHash  String    @map("password_hash")
   phone         String?
-  address       String?
+  address       Json?     @db.JsonB
   role          UserRole  @default(GUEST)
   refreshToken  String?   @map("refresh_token")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -373,6 +375,7 @@ model SitePage {
   title           String
   isHome          Boolean  @default(false) @map("is_home")
   metaDescription String?  @map("meta_description")
+  ogImageUrl      String?  @map("og_image_url")
   blocks          Json
   isPublished     Boolean  @default(false) @map("is_published")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -385,14 +388,16 @@ model SitePage {
 }
 
 model HeroConfig {
-  id             String   @id @default(uuid())
-  mediaType      String   @default("video") @map("media_type")
-  imageUrl       String?  @map("image_url")
-  videoUrl       String?  @map("video_url")
-  overlayStyle   String   @default("noise") @map("overlay_style")
-  overlayOpacity Int      @default(75) @map("overlay_opacity")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid())
+  mediaType           String   @default("video") @map("media_type")
+  imageUrl            String?  @map("image_url")
+  videoUrl            String?  @map("video_url")
+  overlayStyle        String   @default("noise") @map("overlay_style")
+  overlayOpacity      Int      @default(75) @map("overlay_opacity")
+  videoOverlayOpacity Int      @default(75) @map("video_overlay_opacity")
+  videoPlaybackRate   Float    @default(1) @map("video_playback_rate")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("hero_config")
 }

@@ -1,11 +1,21 @@
 import { z } from 'zod';
 
+export const optionalUrl = (message = 'Enter a valid URL') =>
+  z.preprocess(
+    (val) => {
+      if (typeof val !== 'string' || val.trim() === '') return undefined;
+      const v = val.trim();
+      return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+    },
+    z.string().url({ message }).optional()
+  );
+
 export const businessListingSchema = z.object({
   businessName: z.string().min(1),
   logoUrl: z.string().url().optional(),
   description: z.string().optional(),
   servicesText: z.string().optional(),
-  websiteUrl: z.string().url().optional(),
+  websiteUrl: optionalUrl('Enter a valid website URL, e.g. example.com'),
   email: z.string().email().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),

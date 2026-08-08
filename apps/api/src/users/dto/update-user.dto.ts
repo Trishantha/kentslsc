@@ -1,16 +1,24 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { StructuredAddressDto } from '../../auth/dto/address.dto.js';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  declare name?: string;
+  @MinLength(1)
+  declare firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  declare lastName?: string;
 
   @IsOptional()
   @IsString()
   declare phone?: string;
 
   @IsOptional()
-  @IsString()
-  declare address?: string;
+  @ValidateNested()
+  @Type(() => StructuredAddressDto)
+  declare address?: StructuredAddressDto;
 }

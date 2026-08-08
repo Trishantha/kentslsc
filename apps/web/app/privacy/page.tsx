@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           <section className="glass-card p-6 md:p-8">
             <h2 className="text-xl font-bold">1. Introduction</h2>
             <p className="mt-3 text-slate-600 dark:text-slate-400">
-              Kent Sri Lankan Social Club ("we", "us", or "our") is committed to protecting your
+              Kent Sri Lankan Social Club (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) is committed to protecting your
               privacy. This policy explains how we collect, use, store, and protect your personal data
               when you use our website and services.
             </p>

@@ -1,10 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Upload, Save } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import VideoOverlay from '@/components/ui/VideoOverlay';
+import VideoPlayer from '@/components/ui/VideoPlayer';
 
 interface HeroConfig {
   id: string;
@@ -13,6 +15,8 @@ interface HeroConfig {
   videoUrl: string | null;
   overlayStyle: 'none' | 'dots' | 'noise' | 'scanlines' | 'vignette';
   overlayOpacity: number;
+  videoOverlayOpacity: number;
+  videoPlaybackRate: number;
 }
 
 const inputClass =
@@ -30,7 +34,7 @@ function UploadButton({ accept, onUploaded }: { accept: string; onUploaded: (url
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await api.post('/api/uploads', formData, {
+      const { data } = await api.post('/uploads', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       onUploaded(data.url);
@@ -61,7 +65,7 @@ export default function AdminHeroPage() {
   const { data, isLoading } = useQuery<HeroConfig>({
     queryKey: ['hero-config'],
     queryFn: async () => {
-      const { data } = await api.get('/api/hero-config');
+      const { data } = await api.get('/hero-config');
       return data;
     }
   });
@@ -71,20 +75,24 @@ export default function AdminHeroPage() {
   const [videoUrl, setVideoUrl] = useState('');
   const [overlayStyle, setOverlayStyle] = useState<HeroConfig['overlayStyle']>('noise');
   const [overlayOpacity, setOverlayOpacity] = useState(75);
+  const [videoOverlayOpacity, setVideoOverlayOpacity] = useState(75);
+  const [videoPlaybackRate, setVideoPlaybackRate] = useState(1);
 
-  useState(() => {
+  useEffect(() => {
     if (data) {
       setMediaType(data.mediaType);
       setImageUrl(data.imageUrl ?? '');
       setVideoUrl(data.videoUrl ?? '');
       setOverlayStyle(data.overlayStyle);
       setOverlayOpacity(data.overlayOpacity);
+      setVideoOverlayOpacity(data.videoOverlayOpacity ?? data.overlayOpacity);
+      setVideoPlaybackRate(data.videoPlaybackRate ?? 1);
     }
-  });
+  }, [data]);
 
   const mutation = useMutation({
     mutationFn: async (payload: Partial<HeroConfig>) => {
-      const { data } = await api.put('/api/hero-config', payload);
+      const { data } = await api.put('/hero-config', payload);
       return data;
     },
     onSuccess: () => {
@@ -106,7 +114,9 @@ export default function AdminHeroPage() {
       imageUrl,
       videoUrl,
       overlayStyle,
-      overlayOpacity
+      overlayOpacity,
+      videoOverlayOpacity,
+      videoPlaybackRate
     });
   };
 
@@ -176,15 +186,44 @@ export default function AdminHeroPage() {
             </select>
           </div>
 
-          {overlayStyle !== 'none' && (
+          {overlayStyle !== 'none' && mediaType === 'image' && (
             <div>
-              <label className={labelClass}>Overlay opacity ({overlayOpacity}%)</label>
+              <label className={labelClass}>Image overlay opacity ({overlayOpacity}%)</label>
               <input
                 type="range"
                 min={0}
                 max={100}
                 value={overlayOpacity}
                 onChange={(e) => setOverlayOpacity(Number(e.target.value))}
+                className={cn(inputClass, 'py-1')}
+              />
+            </div>
+          )}
+
+          {overlayStyle !== 'none' && mediaType === 'video' && (
+            <div>
+              <label className={labelClass}>Video overlay opacity ({videoOverlayOpacity}%)</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={videoOverlayOpacity}
+                onChange={(e) => setVideoOverlayOpacity(Number(e.target.value))}
+                className={cn(inputClass, 'py-1')}
+              />
+            </div>
+          )}
+
+          {mediaType === 'video' && (
+            <div>
+              <label className={labelClass}>Video playback speed ({videoPlaybackRate.toFixed(2)}×)</label>
+              <input
+                type="range"
+                min={0.25}
+                max={2}
+                step={0.05}
+                value={videoPlaybackRate}
+                onChange={(e) => setVideoPlaybackRate(Number(e.target.value))}
                 className={cn(inputClass, 'py-1')}
               />
             </div>
@@ -205,16 +244,22 @@ export default function AdminHeroPage() {
           <h3 className="text-sm font-semibold">Preview</h3>
           <div className="relative mt-4 aspect-video overflow-hidden rounded-xl border border-white/10">
             {mediaType === 'video' && videoUrl ? (
-              <video autoPlay muted loop playsInline className="h-full w-full object-cover">
+              <VideoPlayer autoPlay muted loop playsInline playbackRate={videoPlaybackRate} className="h-full w-full object-cover">
                 <source src={videoUrl} type="video/webm" />
                 <source src={videoUrl.replace(/\.webm$/, '.mp4')} type="video/mp4" />
-              </video>
+              </VideoPlayer>
             ) : mediaType === 'image' && imageUrl ? (
               <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${imageUrl})` }} />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-slate-500">
                 No media selected
               </div>
+            )}
+            {mediaType === 'video' && overlayStyle !== 'none' && (
+              <VideoOverlay style={overlayStyle} opacity={videoOverlayOpacity} />
+            )}
+            {mediaType === 'image' && overlayStyle !== 'none' && (
+              <VideoOverlay style={overlayStyle} opacity={overlayOpacity} />
             )}
           </div>
         </div>

@@ -19,6 +19,10 @@ export class CreatePageDto {
   declare metaDescription?: string;
 
   @IsOptional()
+  @IsString()
+  declare ogImageUrl?: string;
+
+  @IsOptional()
   declare blocks?: any;
 
   @IsOptional()

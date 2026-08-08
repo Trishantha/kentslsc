@@ -1,14 +1,22 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 export interface AuthUser {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone?: string;
-  address?: string;
+  address?: {
+    buildingStreet: string;
+    locality?: string;
+    townCity: string;
+    postcode: string;
+  };
   role: 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
   createdAt: string;
 }
@@ -26,5 +34,22 @@ export function useAuth() {
     },
     retry: false,
     staleTime: 5 * 60 * 1000
+  });
+}
+
+export function useSignOut() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: async () => {
+      await api.post('/auth/logout');
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['auth', 'me'], null);
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      router.push('/');
+      router.refresh();
+    }
   });
 }

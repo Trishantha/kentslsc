@@ -5,7 +5,7 @@ export class CreateBusinessListingDto {
   declare businessName: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   declare logoUrl?: string;
 
   @IsOptional()
@@ -17,7 +17,7 @@ export class CreateBusinessListingDto {
   declare servicesText?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   declare websiteUrl?: string;
 
   @IsOptional()

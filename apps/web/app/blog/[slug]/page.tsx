@@ -1,78 +1,79 @@
-'use client';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { fetchWithRetry } from '@/lib/server-fetch';
+import JsonLd from '@/components/JsonLd';
+import BlogPostContent, { type BlogPost } from './BlogPostContent';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { api } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
-
-interface Author {
-  id: string;
-  name: string;
+interface Props {
+  params: { slug: string };
 }
 
-interface BlogPost {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  imageUrl?: string;
-  aiTldr?: string;
-  publishedAt: string;
-  createdAt: string;
-  author: Author;
+async function fetchPost(slug: string): Promise<BlogPost | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const res = await fetchWithRetry(`${apiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
+  if (!res || !res.ok) return null;
+  return res.json();
 }
 
-export default function BlogPostPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const post = await fetchPost(params.slug);
+  if (!post) return {};
+  const description = post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' ') ?? undefined;
+  const image = post.imageUrl ?? '/opengraph-image.png';
+  return {
+    title: post.title,
+    description,
+    openGraph: {
+      title: post.title,
+      description,
+      type: 'article',
+      publishedTime: post.publishedAt ?? post.createdAt,
+      authors: post.author?.name ? [post.author.name] : undefined,
+      images: [image]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description,
+      images: [image]
+    },
+    alternates: {
+      canonical: `/blog/${post.slug}`
+    }
+  };
+}
 
-  useEffect(() => {
-    api
-      .get(`/blog/${slug}`)
-      .then((res) => setPost(res.data))
-      .catch(() => setError('Failed to load blog post'))
-      .finally(() => setLoading(false));
-  }, [slug]);
+export default async function BlogPostPage({ params }: Props) {
+  const post = await fetchPost(params.slug);
+  if (!post) notFound();
 
-  if (loading) return <p className="px-4 py-16 text-slate-500">Loading...</p>;
-  if (error) return <p className="px-4 py-16 text-red-500">{error}</p>;
-  if (!post) return null;
+  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' '),
+    image: post.imageUrl ?? `${baseUrl}/opengraph-image.png`,
+    datePublished: post.publishedAt ?? post.createdAt,
+    dateModified: post.updatedAt ?? post.createdAt,
+    author: post.author?.name
+      ? { '@type': 'Person', name: post.author.name }
+      : { '@type': 'Organization', name: 'Kent Sri Lankan Social Club' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Kent Sri Lankan Social Club',
+      logo: { '@type': 'ImageObject', url: `${baseUrl}/logo.png` }
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${baseUrl}/blog/${post.slug}`
+    }
+  };
 
   return (
-    <div className="px-4 py-16 md:px-6">
-      <div className="mx-auto max-w-3xl">
-        <article className="glass-card p-8 md:p-12">
-          {post.imageUrl ? (
-            <img src={post.imageUrl} alt={post.title} className="mb-8 h-64 w-full rounded-xl object-cover" />
-          ) : (
-            <div className="mb-8 h-64 w-full rounded-xl bg-gradient-to-br from-neon-purple/30 to-neon-blue/30" />
-          )}
-          <h1 className="section-title">{post.title}</h1>
-          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-            <span>By {post.author?.name ?? 'Kent SLSC'}</span>
-            <span>•</span>
-            <span>{formatDate(post.publishedAt ?? post.createdAt)}</span>
-          </div>
-
-          {post.aiTldr && (
-            <div className="mt-6 rounded-xl border border-neon-blue/20 bg-neon-blue/5 p-4 dark:bg-neon-blue/10">
-              <p className="text-sm font-semibold text-neon-blue">AI TL;DR</p>
-              <p className="mt-1 text-slate-700 dark:text-slate-300">{post.aiTldr}</p>
-            </div>
-          )}
-
-          <div className="prose prose-slate mt-8 max-w-none dark:prose-invert">
-            {post.content.split('\n').map((paragraph, i) => (
-              <p key={i} className="mb-4 text-slate-700 dark:text-slate-300">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-        </article>
-      </div>
-    </div>
+    <>
+      <JsonLd data={articleSchema} />
+      <BlogPostContent post={post} />
+    </>
   );
 }

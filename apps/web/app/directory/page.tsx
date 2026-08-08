@@ -8,12 +8,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { businessListingSchema, jobAdSchema } from '@kentslsc/shared';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useHasFeature } from '@/hooks/useFeatures';
 import { formatDate } from '@/lib/utils';
 import { Search, MapPin, Briefcase, Plus, Crown, Loader2, Lock } from 'lucide-react';
 import { FeatureGate } from '@/components/ui/FeatureGate';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { MembershipFeature } from '@kentslsc/shared';
 
 const createBusinessSchema = businessListingSchema;
@@ -81,6 +82,8 @@ export default function DirectoryPage() {
   const businessForm = useForm<CreateBusinessInput>({
     resolver: zodResolver(createBusinessSchema)
   });
+  const { setValue: setBusinessValue, watch: watchBusiness } = businessForm;
+  const businessErrors = businessForm.formState.errors;
 
   const jobForm = useForm<CreateJobInput>({
     resolver: zodResolver(createJobSchema)
@@ -259,10 +262,8 @@ export default function DirectoryPage() {
                 <div>
                   <label className="text-sm font-medium">Business name</label>
                   <input {...businessForm.register('businessName')} className={inputClass} />
-                  {businessForm.formState.errors.businessName && (
-                    <p className="mt-1 text-xs text-red-500">
-                      {businessForm.formState.errors.businessName.message}
-                    </p>
+                  {businessErrors.businessName && (
+                    <p className="mt-1 text-xs text-red-500">{businessErrors.businessName.message}</p>
                   )}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -273,12 +274,18 @@ export default function DirectoryPage() {
                   <div>
                     <label className="text-sm font-medium">Website</label>
                     <input {...businessForm.register('websiteUrl')} className={inputClass} />
+                    {businessErrors.websiteUrl && (
+                      <p className="mt-1 text-xs text-red-500">{businessErrors.websiteUrl.message}</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <input {...businessForm.register('email')} className={inputClass} />
+                    {businessErrors.email && (
+                      <p className="mt-1 text-xs text-red-500">{businessErrors.email.message}</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-sm font-medium">Phone</label>
@@ -297,6 +304,20 @@ export default function DirectoryPage() {
                     className={`${inputClass} resize-none`}
                   />
                 </div>
+                <div>
+                  <ImageUpload
+                    label="Logo"
+                    value={watchBusiness('logoUrl')}
+                    onChange={(url) => setBusinessValue('logoUrl', url, { shouldValidate: true })}
+                    hideUrlInput
+                  />
+                  {businessErrors.logoUrl && (
+                    <p className="mt-1 text-xs text-red-500">{businessErrors.logoUrl.message}</p>
+                  )}
+                </div>
+                {createBusiness.error && (
+                  <p className="text-sm text-red-500">{getApiErrorMessage(createBusiness.error)}</p>
+                )}
                 <button
                   type="submit"
                   disabled={createBusiness.isPending}

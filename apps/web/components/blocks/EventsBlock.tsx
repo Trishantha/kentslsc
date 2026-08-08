@@ -52,7 +52,7 @@ export default function EventsBlockComponent({ block }: Props) {
             ))}
           </div>
         ) : events.length === 0 ? (
-          <p className="text-slate-500">No upcoming events right now.</p>
+          <p className="text-slate-600 dark:text-slate-400">No upcoming events right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             {events.slice(0, limit).map((event, index) => (
@@ -68,13 +68,13 @@ export default function EventsBlockComponent({ block }: Props) {
                     <div
                       className={cn(
                         'h-40 bg-gradient-to-br',
-                        event.imageUrl ? 'bg-cover bg-center' : 'from-neon-blue/30 to-neon-gold/30'
+                        event.imageUrl ? 'bg-cover bg-center' : 'from-neon-blue/40 to-neon-gold/40'
                       )}
                       style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
                     />
                     <div className="p-5">
                       <h3 className="text-lg font-bold group-hover:text-neon-blue">{event.title}</h3>
-                      <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-400">
+                      <div className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-400">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-neon-blue" />
                           {formatDate(event.startDatetime)}

@@ -37,7 +37,7 @@ export default function CategoryPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
-  const categoryId = params.id;
+  const categoryId = params?.id;
 
   const { data: category, isLoading: categoryLoading } = useQuery<Category>({
     queryKey: ['forum', 'category', categoryId],

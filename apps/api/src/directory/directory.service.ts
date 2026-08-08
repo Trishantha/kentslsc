@@ -11,7 +11,6 @@ import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
 
 const PROMOTION_PRICE_PENCE = 2500; // £25
-const PROMOTION_DAYS = 30;
 
 @Injectable()
 export class DirectoryService {

@@ -18,7 +18,7 @@ export class PagesService {
   async listPublished() {
     return this.prisma.sitePage.findMany({
       where: { isPublished: true },
-      select: { id: true, slug: true, title: true, isHome: true, metaDescription: true, updatedAt: true }
+      select: { id: true, slug: true, title: true, isHome: true, metaDescription: true, ogImageUrl: true, updatedAt: true }
     });
   }
 
@@ -70,6 +70,7 @@ export class PagesService {
         title: data.title,
         isHome: data.isHome ?? false,
         metaDescription: data.metaDescription,
+        ogImageUrl: data.ogImageUrl,
         blocks: blocks as any,
         isPublished: data.isPublished ?? false
       }
@@ -97,6 +98,7 @@ export class PagesService {
         ...(data.slug !== undefined && { slug: data.slug }),
         ...(data.isHome !== undefined && { isHome: data.isHome }),
         ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
+        ...(data.ogImageUrl !== undefined && { ogImageUrl: data.ogImageUrl }),
         ...(blocks !== undefined && { blocks: blocks as any }),
         ...(data.isPublished !== undefined && { isPublished: data.isPublished })
       }

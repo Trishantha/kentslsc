@@ -1,5 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AiService } from './ai.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
@@ -25,12 +26,14 @@ export class AiController {
 
   @Post('recommend')
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60 } })
   async recommend(@Body() dto: AiRecommendDto) {
     return { items: await this.aiService.recommend(dto) };
   }
 
   @Post('search')
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60 } })
   async search(@Body() dto: AiSearchDto) {
     return { results: await this.aiService.search(dto) };
   }

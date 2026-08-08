@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,10 +18,9 @@ import {
   Mail,
   FileText,
   Menu,
-  X,
   Loader2
 } from 'lucide-react';
-import { useState } from 'react';
+import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -43,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data: user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== 'ADMIN')) {
@@ -72,26 +71,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
           <button
             type="button"
-            onClick={() => setMobileOpen(!mobileOpen)}
+            onClick={() => setMobileMenuOpen(true)}
             className="rounded-lg p-2 text-slate-300 hover:bg-white/10 md:hidden"
+            aria-label="Open admin menu"
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <Menu className="h-5 w-5" />
           </button>
         </div>
-        <nav
-          className={cn(
-            'flex-col gap-1 px-4 pb-4 md:flex md:pb-0',
-            mobileOpen ? 'flex' : 'hidden'
-          )}
-        >
+        <nav className="hidden flex-col gap-1 px-4 pb-4 md:flex md:pb-0">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
                 className={cn(
                   'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors',
                   active
@@ -109,6 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="flex-1 p-4 pt-20 md:ml-64 md:p-8 md:pt-8">
         {children}
       </main>
+      <AdminMobileMenu isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
     </div>
   );
 }

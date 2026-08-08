@@ -1,6 +1,7 @@
 import { IsString, IsOptional, IsArray, ValidateNested, MinLength, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DependantDto } from './dependant.dto.js';
+import { StructuredAddressDto } from '../../auth/dto/address.dto.js';
 
 export class ApplyMembershipDto {
   @IsUUID()
@@ -11,8 +12,9 @@ export class ApplyMembershipDto {
   declare fullName: string;
 
   @IsOptional()
-  @IsString()
-  declare address?: string;
+  @ValidateNested()
+  @Type(() => StructuredAddressDto)
+  declare address?: StructuredAddressDto;
 
   @IsOptional()
   @IsString()

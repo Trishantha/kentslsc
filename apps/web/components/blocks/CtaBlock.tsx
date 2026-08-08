@@ -17,7 +17,7 @@ export default function CtaBlockComponent({ block }: Props) {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="mx-auto max-w-4xl rounded-3xl bg-gradient-to-r from-neon-blue/20 to-neon-gold/20 p-8 text-center md:p-12"
+        className="mx-auto max-w-4xl rounded-3xl bg-gradient-to-r from-neon-blue/30 to-neon-gold/30 p-8 text-center md:p-12"
       >
         {title && <h2 className="text-3xl font-bold md:text-4xl">{title}</h2>}
         {content && <p className="mx-auto mt-4 max-w-2xl text-slate-700 dark:text-slate-300">{content}</p>}

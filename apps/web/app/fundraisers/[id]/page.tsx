@@ -1,121 +1,81 @@
-'use client';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { fetchWithRetry } from '@/lib/server-fetch';
+import JsonLd from '@/components/JsonLd';
+import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
 
-import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
-
-interface Fundraiser {
-  id: string;
-  title: string;
-  description?: string;
-  targetAmount: number;
-  raisedAmount: number;
-  imageUrl?: string;
-  aiSummary?: string;
-  endDate: string;
+interface Props {
+  params: { id: string };
 }
 
-export default function FundraiserDetailPage() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const id = params.id as string;
-  const [fundraiser, setFundraiser] = useState<Fundraiser | null>(null);
-  const [amount, setAmount] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const success = searchParams.get('success');
-  const canceled = searchParams.get('canceled');
+async function fetchFundraiser(id: string): Promise<Fundraiser | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const res = await fetchWithRetry(`${apiUrl}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
+  if (!res || !res.ok) return null;
+  return res.json();
+}
 
-  useEffect(() => {
-    api
-      .get(`/fundraisers/${id}`)
-      .then((res) => setFundraiser(res.data))
-      .catch(() => setError('Failed to load fundraiser'))
-      .finally(() => setLoading(false));
-  }, [id]);
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const fundraiser = await fetchFundraiser(params.id);
+  if (!fundraiser) return {};
+  const description = fundraiser.aiSummary ?? fundraiser.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Support ${fundraiser.title}`;
+  const image = fundraiser.imageUrl ?? '/opengraph-image.png';
+  return {
+    title: fundraiser.title,
+    description,
+    openGraph: {
+      title: fundraiser.title,
+      description,
+      type: 'website',
+      images: [image]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: fundraiser.title,
+      description,
+      images: [image]
+    },
+    alternates: {
+      canonical: `/fundraisers/${fundraiser.id}`
+    }
+  };
+}
 
-  const handleDonate = async () => {
-    const value = Number(amount);
-    if (!value || value < 1) return;
-    try {
-      const res = await api.post(`/fundraisers/${id}/donate`, { fundraiserId: id, amount: value });
-      if (res.data.url) {
-        window.location.href = res.data.url;
-      }
-    } catch {
-      setError('Could not start donation. Please log in first.');
+export default async function FundraiserDetailPage({ params }: Props) {
+  const fundraiser = await fetchFundraiser(params.id);
+  if (!fundraiser) notFound();
+
+  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const fundraiserSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FundraiserCampaign',
+    name: fundraiser.title,
+    description: fundraiser.aiSummary ?? fundraiser.description ?? `Support ${fundraiser.title}`,
+    image: fundraiser.imageUrl ?? `${baseUrl}/opengraph-image.png`,
+    url: `${baseUrl}/fundraisers/${fundraiser.id}`,
+    startDate: fundraiser.startDate,
+    endDate: fundraiser.endDate,
+    goal: {
+      '@type': 'MonetaryAmount',
+      currency: 'GBP',
+      value: Number(fundraiser.targetAmount)
+    },
+    raised: {
+      '@type': 'MonetaryAmount',
+      currency: 'GBP',
+      value: Number(fundraiser.raisedAmount)
+    },
+    organizer: {
+      '@type': 'Organization',
+      name: 'Kent Sri Lankan Social Club',
+      url: baseUrl
     }
   };
 
-  if (loading) return <p className="px-4 py-16 text-slate-500">Loading...</p>;
-  if (error) return <p className="px-4 py-16 text-red-500">{error}</p>;
-  if (!fundraiser) return null;
-
-  const progress =
-    fundraiser.targetAmount > 0
-      ? Math.min((fundraiser.raisedAmount / fundraiser.targetAmount) * 100, 100)
-      : 0;
-
   return (
-    <div className="px-4 py-16 md:px-6">
-      <div className="mx-auto max-w-3xl">
-        {success && (
-          <div className="mb-6 rounded-xl bg-green-100 p-4 text-green-800 dark:bg-green-900/30 dark:text-green-200">
-            Thank you for your donation!
-          </div>
-        )}
-        {canceled && (
-          <div className="mb-6 rounded-xl bg-amber-100 p-4 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-            Donation canceled.
-          </div>
-        )}
-
-        <div className="glass-card p-8">
-          {fundraiser.imageUrl ? (
-            <img
-              src={fundraiser.imageUrl}
-              alt={fundraiser.title}
-              className="mb-6 h-64 w-full rounded-xl object-cover"
-            />
-          ) : (
-            <div className="mb-6 h-64 w-full rounded-xl bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
-          )}
-          <h1 className="section-title">{fundraiser.title}</h1>
-          {fundraiser.aiSummary ? (
-            <p className="mt-4 text-slate-600 dark:text-slate-300">{fundraiser.aiSummary}</p>
-          ) : (
-            <p className="mt-4 text-slate-600 dark:text-slate-300">{fundraiser.description}</p>
-          )}
-
-          <div className="mt-8">
-            <div className="h-4 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-neon-blue to-neon-gold"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className="mt-2 flex justify-between text-sm">
-              <span>£{fundraiser.raisedAmount.toLocaleString()} raised</span>
-              <span>Goal: £{fundraiser.targetAmount.toLocaleString()}</span>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Amount (£)"
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-neon-blue dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            />
-            <button onClick={handleDonate} className="btn-primary px-8">
-              Donate
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <>
+      <JsonLd data={fundraiserSchema} />
+      <FundraiserDetailContent fundraiser={fundraiser} />
+    </>
   );
 }

@@ -48,8 +48,8 @@ interface FeatureDefinition {
 }
 
 const steps = [
-  { id: 1, title: 'Account', icon: User, fields: ['name', 'email', 'password', 'confirmPassword'] as const },
-  { id: 2, title: 'Profile', icon: MapPin, fields: ['phone', 'address', 'dateOfBirth', 'emergencyContactName', 'emergencyContactPhone'] as const },
+  { id: 1, title: 'Account', icon: User, fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword'] as const },
+  { id: 2, title: 'Profile', icon: MapPin, fields: ['phone', 'address.buildingStreet', 'address.locality', 'address.townCity', 'address.postcode', 'dateOfBirth', 'emergencyContactName', 'emergencyContactPhone'] as const },
   { id: 3, title: 'Interests', icon: Heart, fields: ['interests'] as const },
   { id: 4, title: 'Plan', icon: CreditCard, fields: ['membershipTypeId'] as const },
   { id: 5, title: 'Dependants', icon: Users, fields: ['dependants'] as const },
@@ -107,12 +107,18 @@ export function RegistrationWizard() {
   } = useForm<RegistrationWizardInput>({
     resolver: zodResolver(registrationWizardSchema),
     defaultValues: {
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
       password: '',
       confirmPassword: '',
       phone: '',
-      address: '',
+      address: {
+        buildingStreet: '',
+        locality: '',
+        townCity: '',
+        postcode: ''
+      },
       dateOfBirth: '',
       emergencyContactName: '',
       emergencyContactPhone: '',
@@ -163,15 +169,17 @@ export function RegistrationWizard() {
     setIsSubmitting(true);
 
     try {
+      const fullName = `${data.firstName} ${data.lastName}`.trim();
       const res = await api.post('/auth/register', {
-        name: data.name,
+        firstName: data.firstName,
+        lastName: data.lastName,
         email: data.email,
         password: data.password,
         phone: data.phone,
         address: data.address,
         application: {
           membershipTypeId: data.membershipTypeId,
-          fullName: data.name,
+          fullName,
           phone: data.phone,
           address: data.address,
           dateOfBirth: data.dateOfBirth,
@@ -209,25 +217,32 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Create your account</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Start with your login details.</p>
-            <div>
-              <label className="text-sm font-medium">Full Name</label>
-              <input {...register('name')} autoComplete="name" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
-              {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
+            <p className="text-sm text-slate-700 dark:text-slate-400">Start with your login details.</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">First Name</label>
+                <input {...register('firstName')} autoComplete="given-name" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
+                {errors.firstName && <p className="mt-1 text-xs text-red-500">{errors.firstName.message}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <input {...register('lastName')} autoComplete="family-name" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
+                {errors.lastName && <p className="mt-1 text-xs text-red-500">{errors.lastName.message}</p>}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium">Email</label>
-              <input {...register('email')} type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+              <input {...register('email')} type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
             </div>
             <div>
               <label className="text-sm font-medium">Password</label>
-              <input {...register('password')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+              <input {...register('password')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
             </div>
             <div>
               <label className="text-sm font-medium">Confirm Password</label>
-              <input {...register('confirmPassword')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+              <input {...register('confirmPassword')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.confirmPassword && <p className="mt-1 text-xs text-red-500">{errors.confirmPassword.message}</p>}
             </div>
           </div>
@@ -237,29 +252,72 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Personal details</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Help us keep our member records up to date.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Help us keep our member records up to date.</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium">Phone</label>
-                <input {...register('phone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                <input {...register('phone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
               <div>
                 <label className="text-sm font-medium">Date of Birth</label>
-                <input {...register('dateOfBirth')} type="date" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                <input {...register('dateOfBirth')} type="date" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">Address</label>
-              <input {...register('address')} autoComplete="street-address" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">Building & Street</label>
+                <input
+                  {...register('address.buildingStreet')}
+                  autoComplete="address-line1"
+                  placeholder="House number or flat name and street name"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
+                />
+                {errors.address?.buildingStreet && <p className="mt-1 text-xs text-red-500">{errors.address.buildingStreet.message}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Locality <span className="text-slate-600 dark:text-slate-400">(optional)</span></label>
+                <input
+                  {...register('address.locality')}
+                  autoComplete="address-line2"
+                  placeholder="Suburb or village name"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
+                />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium">Town/City</label>
+                  <input
+                    {...register('address.townCity', {
+                      onChange: (e) => setValue('address.townCity', e.target.value.toUpperCase(), { shouldValidate: true })
+                    })}
+                    autoComplete="address-level2"
+                    placeholder="POST TOWN"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
+                  />
+                  {errors.address?.townCity && <p className="mt-1 text-xs text-red-500">{errors.address.townCity.message}</p>}
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Postcode</label>
+                  <input
+                    {...register('address.postcode', {
+                      onChange: (e) => setValue('address.postcode', e.target.value.toUpperCase(), { shouldValidate: true })
+                    })}
+                    autoComplete="postal-code"
+                    placeholder="POSTCODE"
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
+                  />
+                  {errors.address?.postcode && <p className="mt-1 text-xs text-red-500">{errors.address.postcode.message}</p>}
+                </div>
+              </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium">Emergency Contact Name</label>
-                <input {...register('emergencyContactName')} className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                <input {...register('emergencyContactName')} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
               <div>
                 <label className="text-sm font-medium">Emergency Contact Phone</label>
-                <input {...register('emergencyContactPhone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                <input {...register('emergencyContactPhone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
             </div>
           </div>
@@ -269,7 +327,7 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Your interests</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Select what matters to you so we can personalise your experience.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Select what matters to you so we can personalise your experience.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {interestOptions.map((interest) => {
                 const checked = watchInterests.includes(interest);
@@ -282,7 +340,7 @@ export function RegistrationWizard() {
                       setValue('interests', next, { shouldValidate: true });
                     }}
                     className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
-                      checked ? 'border-neon-blue bg-neon-blue/10' : 'border-white/10 bg-white/5'
+                      checked ? 'border-neon-blue bg-neon-blue/10' : 'border-slate-300 bg-slate-200 dark:border-white/10 dark:bg-white/5'
                     }`}
                   >
                     <span className="text-sm font-medium">{interest}</span>
@@ -298,7 +356,7 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Choose your membership</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Compare plans and pick the one that fits you.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Compare plans and pick the one that fits you.</p>
             {typesLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
@@ -317,8 +375,8 @@ export function RegistrationWizard() {
                 </button>
               </div>
             ) : types.length === 0 ? (
-              <div className="rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-6 text-center">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+              <div className="rounded-xl border border-neon-gold/30 bg-neon-gold/10 p-6 text-center dark:border-neon-gold/20 dark:bg-neon-gold/5">
+                <p className="text-sm text-slate-700 dark:text-slate-400">
                   No membership plans are available yet. Please contact the administrator.
                 </p>
               </div>
@@ -340,11 +398,11 @@ export function RegistrationWizard() {
                         {selected && <Check className="h-5 w-5 text-neon-blue" />}
                       </div>
                       <p className="mt-2 text-2xl font-bold gradient-text">{formatPrice(type)}</p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {type.isFree ? 'Lifetime membership' : `${type.durationMonths} months`}
                       </p>
-                      {type.description && <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{type.description}</p>}
-                      <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                      {type.description && <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{type.description}</p>}
+                      <ul className="mt-3 space-y-1 text-xs text-slate-700 dark:text-slate-400">
                         {featureDefinitions.map((feature) => (
                           <li key={feature.value} className="flex items-center gap-2">
                             {hasFeature(type, feature.value) ? (
@@ -369,7 +427,7 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Dependants</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Add family members covered by your plan.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Add family members covered by your plan.</p>
 
             {spouseIndex === -1 && (
               <button
@@ -398,12 +456,12 @@ export function RegistrationWizard() {
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
                       <label className="text-sm font-medium">Name</label>
-                      <input {...register(`dependants.${spouseIndex}.name` as const)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                      <input {...register(`dependants.${spouseIndex}.name` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                       {errors.dependants?.[spouseIndex]?.name && <p className="mt-1 text-xs text-red-500">{errors.dependants[spouseIndex]?.name?.message}</p>}
                     </div>
                     <div>
                       <label className="text-sm font-medium">Age</label>
-                      <input type="number" {...register(`dependants.${spouseIndex}.age` as const)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                      <input type="number" {...register(`dependants.${spouseIndex}.age` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                       {errors.dependants?.[spouseIndex]?.age && <p className="mt-1 text-xs text-red-500">{errors.dependants[spouseIndex]?.age?.message}</p>}
                     </div>
                   </div>
@@ -435,12 +493,12 @@ export function RegistrationWizard() {
                     <div className="mt-3 grid gap-4 md:grid-cols-2">
                       <div>
                         <label className="text-sm font-medium">Name</label>
-                        <input {...register(`dependants.${index}.name` as const)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                        <input {...register(`dependants.${index}.name` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                         {errors.dependants?.[index]?.name && <p className="mt-1 text-xs text-red-500">{errors.dependants[index]?.name?.message}</p>}
                       </div>
                       <div>
                         <label className="text-sm font-medium">Age</label>
-                        <input type="number" {...register(`dependants.${index}.age` as const)} className="mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-3 outline-none" />
+                        <input type="number" {...register(`dependants.${index}.age` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                         {errors.dependants?.[index]?.age && <p className="mt-1 text-xs text-red-500">{errors.dependants[index]?.age?.message}</p>}
                       </div>
                     </div>
@@ -455,36 +513,45 @@ export function RegistrationWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Review and confirm</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Check your details and accept the terms.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-400">Check your details and accept the terms.</p>
             <div className="glass-card space-y-3 p-5 text-sm">
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-500">Name</span>
-                <span className="font-medium">{watch('name')}</span>
+                <span className="text-slate-600 dark:text-slate-400">Name</span>
+                <span className="font-medium">{watch('firstName')} {watch('lastName')}</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-500">Email</span>
+                <span className="text-slate-600 dark:text-slate-400">Email</span>
                 <span className="font-medium">{watch('email')}</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-500">Plan</span>
+                <span className="text-slate-600 dark:text-slate-400">Address</span>
+                <span className="text-right font-medium">
+                  {watch('address.buildingStreet')}<br />
+                  {watch('address.locality') ? <>{watch('address.locality')}<br /></> : null}
+                  {watch('address.townCity')}<br />
+                  {watch('address.postcode')}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-white/10 pb-2">
+                <span className="text-slate-600 dark:text-slate-400">Plan</span>
                 <span className="font-medium">{selectedType ? `${selectedType.name} (${formatPrice(selectedType)})` : '-'}</span>
               </div>
               {dependants.length > 0 && (
                 <div className="flex justify-between border-b border-white/10 pb-2">
-                  <span className="text-slate-500">Dependants</span>
+                  <span className="text-slate-600 dark:text-slate-400">Dependants</span>
                   <span className="font-medium">{dependants.length}</span>
                 </div>
               )}
             </div>
             <label className="flex items-start gap-3">
-              <input type="checkbox" {...register('acceptedTerms')} className="mt-1 h-4 w-4 rounded border-white/10 bg-white/10 text-neon-blue" />
-              <span className="text-sm text-slate-600 dark:text-slate-400">
+              <input type="checkbox" {...register('acceptedTerms')} className="mt-1 h-4 w-4 rounded border-slate-300 bg-white text-neon-blue dark:border-white/10 dark:bg-white/10" />
+              <span className="text-sm text-slate-700 dark:text-slate-400">
                 I agree to the terms and conditions and privacy policy.
               </span>
             </label>
             {errors.acceptedTerms && <p className="text-sm text-red-500">{errors.acceptedTerms.message}</p>}
             {selectedType && !selectedType.isFree && (
-              <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-center text-sm text-slate-700 dark:text-slate-400">
                 You will be redirected to Stripe Checkout to pay {formatPrice(selectedType)}.
               </p>
             )}
@@ -513,12 +580,12 @@ export function RegistrationWizard() {
                 {idx > 0 && <div className={`mb-2 h-0.5 w-full ${completed ? 'bg-neon-blue' : 'bg-white/10'}`} />}
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${
-                    active ? 'border-neon-blue bg-neon-blue/10 text-neon-blue' : completed ? 'border-neon-blue bg-neon-blue text-slate-950' : 'border-white/10 bg-white/5 text-slate-500'
+                    active ? 'border-neon-blue bg-neon-blue/10 text-neon-blue' : completed ? 'border-neon-blue bg-neon-blue text-slate-950' : 'border-slate-300 bg-slate-200 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className={`hidden text-xs sm:block ${active ? 'text-neon-blue' : 'text-slate-500'}`}>{s.title}</span>
+                <span className={`hidden text-xs sm:block ${active ? 'text-neon-blue' : 'text-slate-600 dark:text-slate-400'}`}>{s.title}</span>
               </div>
             </div>
           );
@@ -545,7 +612,7 @@ export function RegistrationWizard() {
             type="button"
             onClick={prevStep}
             disabled={step === 1 || isSubmitting}
-            className="inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white/5 disabled:opacity-0 dark:text-slate-400"
+            className="inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-0 dark:hover:bg-white/5 dark:text-slate-400"
           >
             <ChevronLeft className="mr-1 h-4 w-4" /> Back
           </button>

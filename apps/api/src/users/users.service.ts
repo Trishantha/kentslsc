@@ -1,6 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UpdateUserInput, UserRole } from '@kentslsc/shared';
+import { Prisma } from '@kentslsc/database';
+
+function buildName(firstName: string | null | undefined, lastName: string | null | undefined, fallback: string) {
+  const name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
+  return name || fallback;
+}
 
 @Injectable()
 export class UsersService {
@@ -12,6 +18,8 @@ export class UsersService {
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phone: true,
         address: true,
@@ -24,17 +32,98 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, data: UpdateUserInput) {
-    return this.prisma.user.update({
-      where: { id },
-      data: {
-        name: data.name,
-        phone: data.phone,
-        address: data.address
-      },
+  async findByIdWithDetails(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        address: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const [memberships, tickets, listings, donations, topics, posts] = await Promise.all([
+      this.prisma.membership.findMany({
+        where: { userId: id, deletedAt: null },
+        include: { membershipType: true },
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.ticket.findMany({
+        where: { userId: id, deletedAt: null },
+        include: { event: true },
+        orderBy: { purchaseDatetime: 'desc' }
+      }),
+      this.prisma.businessListing.findMany({
+        where: { ownerUserId: id, deletedAt: null },
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.donation.findMany({
+        where: { userId: id, deletedAt: null },
+        include: { fundraiser: true },
+        orderBy: { donatedAt: 'desc' }
+      }),
+      this.prisma.forumTopic.findMany({
+        where: { userId: id, deletedAt: null },
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.forumPost.findMany({
+        where: { userId: id, deletedAt: null },
+        orderBy: { createdAt: 'desc' }
+      })
+    ]);
+
+    return {
+      ...user,
+      name: buildName(user.firstName, user.lastName, user.name),
+      memberships: memberships.map((m) => ({
+        ...m,
+        price: Number(m.membershipType.price)
+      })),
+      tickets,
+      listings,
+      donations: donations.map((d) => ({
+        ...d,
+        amount: Number(d.amount)
+      })),
+      topics,
+      posts
+    };
+  }
+
+  async update(id: string, data: UpdateUserInput) {
+    const updateData: Prisma.UserUpdateInput = {
+      phone: data.phone,
+      address: data.address ? (data.address as unknown as Prisma.InputJsonValue) : undefined
+    };
+    if (data.firstName || data.lastName) {
+      if (data.firstName) updateData.firstName = data.firstName;
+      if (data.lastName) updateData.lastName = data.lastName;
+      const current = await this.prisma.user.findUnique({
+        where: { id },
+        select: { firstName: true, lastName: true, name: true }
+      });
+      const firstName = data.firstName ?? current?.firstName ?? '';
+      const lastName = data.lastName ?? current?.lastName ?? '';
+      const fallback = current?.name ?? '';
+      updateData.name = buildName(firstName, lastName, fallback);
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phone: true,
         address: true,
@@ -53,7 +142,22 @@ export class UsersService {
 
   async exportData(id: string) {
     const [user, memberships, tickets, listings, donations, topics, posts] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id } }),
+      this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          address: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true
+        }
+      }),
       this.prisma.membership.findMany({ where: { userId: id } }),
       this.prisma.ticket.findMany({ where: { userId: id } }),
       this.prisma.businessListing.findMany({ where: { ownerUserId: id } }),
@@ -74,10 +178,26 @@ export class UsersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, email: true, role: true, createdAt: true }
+        select: {
+          id: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          role: true,
+          createdAt: true
+        }
       }),
       this.prisma.user.count({ where })
     ]);
-    return { items, total, page, limit };
+    return {
+      items: items.map((u) => ({
+        ...u,
+        name: buildName(u.firstName, u.lastName, u.name)
+      })),
+      total,
+      page,
+      limit
+    };
   }
 }

@@ -54,20 +54,24 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
    pnpm db:seed
    ```
 
-5. **Run dev servers**
+5. **Run dev servers (recommended)**
 
-   ```bash
-   # In one terminal
-   cd apps/api && pnpm dev
-
-   # In another terminal
-   cd apps/web && pnpm dev
-   ```
-
-   Or use Turbo:
+   From the project root, use Turbo to start both servers and build workspace packages first:
 
    ```bash
    pnpm dev
+   ```
+
+   This starts the API on port `4000` and the Next.js frontend on port `3000`, and rebuilds `@kentslsc/shared` / `@kentslsc/database` automatically when they change.
+
+   If you prefer separate terminals, the dev scripts pin the required URLs/ports automatically, so any `PORT` or `NEXT_PUBLIC_API_URL` set in your shell is ignored:
+
+   ```bash
+   # In one terminal
+   cd apps/api && pnpm dev   # API pinned to http://localhost:4000
+
+   # In another terminal
+   cd apps/web && pnpm dev   # Frontend proxies to http://localhost:4000
    ```
 
 6. **Open**
@@ -88,6 +92,7 @@ See `.env.example` for the full list. Key variables:
 - `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` – SMTP settings
 - `FRONTEND_URL` – URL of the Next.js app
 - `NEXT_PUBLIC_API_URL` – URL of the NestJS API
+- `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` – optional Supabase Storage bucket for file uploads
 
 ## Available Scripts
 

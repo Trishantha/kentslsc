@@ -49,7 +49,7 @@ export default function BlogBlockComponent({ block }: Props) {
             ))}
           </div>
         ) : posts.length === 0 ? (
-          <p className="text-slate-500">No blog posts yet.</p>
+          <p className="text-slate-600 dark:text-slate-400">No blog posts yet.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             {posts.slice(0, limit).map((post, index) => (
@@ -68,11 +68,11 @@ export default function BlogBlockComponent({ block }: Props) {
                     />
                     <div className="p-6">
                       <h3 className="text-lg font-bold group-hover:text-neon-blue">{post.title}</h3>
-                      <p className="mt-2 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">
+                      <p className="mt-2 line-clamp-3 text-sm text-slate-700 dark:text-slate-400">
                         {post.aiTldr ?? 'Read the latest from our community.'}
                       </p>
                       {post.publishedAt && (
-                        <p className="mt-4 text-xs text-slate-500">{formatDate(post.publishedAt)}</p>
+                        <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
                       )}
                     </div>
                   </div>

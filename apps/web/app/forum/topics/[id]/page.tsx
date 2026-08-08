@@ -37,7 +37,7 @@ interface Post {
 
 export default function TopicPage() {
   const params = useParams<{ id: string }>();
-  const topicId = params.id;
+  const topicId = params?.id ?? '';
   const { data: user } = useAuth();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 

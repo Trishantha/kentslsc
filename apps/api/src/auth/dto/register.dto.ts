@@ -3,15 +3,14 @@ import {
   IsString,
   MinLength,
   IsOptional,
-  IsEnum,
   IsUUID,
   IsArray,
   IsBoolean,
   ValidateNested
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { UserRole } from '@kentslsc/shared';
 import { DependantDto } from '../../memberships/dto/dependant.dto.js';
+import { StructuredAddressDto } from './address.dto.js';
 
 export class RegisterApplicationDto {
   @IsUUID()
@@ -22,8 +21,9 @@ export class RegisterApplicationDto {
   declare fullName: string;
 
   @IsOptional()
-  @IsString()
-  declare address?: string;
+  @ValidateNested()
+  @Type(() => StructuredAddressDto)
+  declare address?: StructuredAddressDto;
 
   @IsOptional()
   @IsString()
@@ -58,8 +58,12 @@ export class RegisterApplicationDto {
 
 export class RegisterDto {
   @IsString()
-  @MinLength(2)
-  declare name: string;
+  @MinLength(1)
+  declare firstName: string;
+
+  @IsString()
+  @MinLength(1)
+  declare lastName: string;
 
   @IsEmail()
   declare email: string;
@@ -73,12 +77,9 @@ export class RegisterDto {
   declare phone?: string;
 
   @IsOptional()
-  @IsString()
-  declare address?: string;
-
-  @IsOptional()
-  @IsEnum(UserRole)
-  declare role?: UserRole;
+  @ValidateNested()
+  @Type(() => StructuredAddressDto)
+  declare address?: StructuredAddressDto;
 
   @IsOptional()
   @ValidateNested()

@@ -15,7 +15,9 @@
   },
   "scripts": {
     "build": "turbo run build --concurrency=1",
+    "build:clean": "pnpm clean && pnpm build",
     "dev": "turbo run dev",
+    "dev:clean": "pnpm clean && pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
@@ -27,7 +29,7 @@
     "db:studio": "pnpm --filter database studio"
   },
   "devDependencies": {
-    "turbo": "^2.0.0"
+    "turbo": "^2.10.9"
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {

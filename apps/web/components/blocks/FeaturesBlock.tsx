@@ -37,7 +37,7 @@ export default function FeaturesBlockComponent({ block }: Props) {
               >
                 <Icon className="h-8 w-8 text-neon-blue" />
                 <h3 className="mt-4 text-xl font-bold">{feature.title}</h3>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{feature.description}</p>
+                <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{feature.description}</p>
               </motion.div>
             );
           })}

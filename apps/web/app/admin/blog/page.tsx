@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X, Newspaper } from 'lucide-react';
 import { api } from '@/lib/api';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 const blogSchema = z.object({
   title: z.string().min(1),
@@ -34,7 +35,7 @@ interface BlogPost {
 export default function AdminBlogPage() {
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<BlogForm>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BlogForm>({
     resolver: zodResolver(blogSchema)
   });
 
@@ -138,10 +139,12 @@ export default function AdminBlogPage() {
               <textarea {...register('content')} rows={6} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
               {errors.content && <p className="mt-1 text-xs text-red-400">{errors.content.message}</p>}
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Image URL</label>
-              <input {...register('imageUrl')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-            </div>
+            <ImageUpload
+              label="Image"
+              value={watch('imageUrl')}
+              onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
+              hideUrlInput
+            />
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Published at</label>
               <input type="datetime-local" {...register('publishedAt')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />

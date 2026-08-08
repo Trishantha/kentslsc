@@ -48,7 +48,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
             ))}
           </div>
         ) : businesses.length === 0 ? (
-          <p className="text-slate-500">No businesses right now.</p>
+          <p className="text-slate-600 dark:text-slate-400">No businesses right now.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             {businesses.slice(0, limit).map((business, index) => (
@@ -67,13 +67,13 @@ export default function DirectoryBlockComponent({ block }: Props) {
                         style={business.logoUrl ? { backgroundImage: `url(${business.logoUrl})`, backgroundSize: 'cover' } : undefined}
                       />
                       {business.isPromoted && (
-                        <span className="rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-neon-gold">
+                        <span className="rounded-full bg-neon-gold/20 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-neon-gold/10 dark:text-neon-gold">
                           Promoted
                         </span>
                       )}
                     </div>
                     <h3 className="mt-4 text-lg font-bold">{business.businessName}</h3>
-                    <p className="mt-1 line-clamp-2 flex-1 text-sm text-slate-600 dark:text-slate-400">
+                    <p className="mt-1 line-clamp-2 flex-1 text-sm text-slate-700 dark:text-slate-400">
                       {business.description ?? business.category ?? 'Sri Lankan business in Kent'}
                     </p>
                   </div>

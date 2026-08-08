@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { RedisService } from './redis.service.js';
+import { RedisThrottlerStorage } from '../throttler/redis-throttler.storage.js';
 
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
@@ -15,7 +16,7 @@ const redisFactory = {
 
 @Global()
 @Module({
-  providers: [redisFactory, RedisService],
-  exports: [redisFactory, RedisService]
+  providers: [redisFactory, RedisService, RedisThrottlerStorage],
+  exports: [redisFactory, RedisService, RedisThrottlerStorage]
 })
 export class RedisModule {}

@@ -5,19 +5,21 @@ import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { MembershipStatus, MembershipType, Membership, Prisma } from '@kentslsc/database';
-import { UserRole, TokenPayload, DependantInput, MembershipFeature } from '@kentslsc/shared';
+import { TokenPayload, DependantInput, MembershipFeature } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
-import { generateCardBuffer, saveCard } from './helpers/card-generator.js';
+import { generateCardBuffer } from './helpers/card-generator.js';
+import { SupabaseStorageService } from '../core/supabase/supabase.service.js';
 import type { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import type { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
+import type { StructuredAddressDto } from '../auth/dto/address.dto.js';
 
 interface CreateMembershipData {
   userId: string;
   membershipTypeId: string;
   fullName: string;
-  address?: string;
+  address?: StructuredAddressDto;
   phone?: string;
   dependants?: DependantInput[];
   membershipType: MembershipType;
@@ -34,7 +36,8 @@ export class MembershipsService {
     private readonly paymentsService: PaymentsService,
     private readonly emailService: EmailService,
     private readonly aiService: AiService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly supabaseStorage: SupabaseStorageService
   ) {}
 
   private get frontendUrl(): string {
@@ -134,7 +137,7 @@ export class MembershipsService {
       where: { id: userId },
       data: {
         name: dto.fullName,
-        address: dto.address ?? undefined,
+        address: dto.address ? (dto.address as unknown as Prisma.InputJsonValue) : undefined,
         phone: dto.phone ?? undefined
       }
     });
@@ -177,7 +180,7 @@ export class MembershipsService {
         userId,
         membershipTypeId: type.id,
         fullName: dto.fullName,
-        address: dto.address ?? '',
+        address: dto.address ? JSON.stringify(dto.address) : '',
         phone: dto.phone ?? '',
         dependants: JSON.stringify(dependants)
       }
@@ -234,11 +237,16 @@ export class MembershipsService {
       qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
     });
 
-    const cardPath = await saveCard(membership.membershipId, cardBuffer);
+    const { url: cardUrl } = await this.supabaseStorage.uploadBuffer({
+      buffer: cardBuffer,
+      path: `cards/${membership.membershipId}.png`,
+      contentType: 'image/png',
+      upsert: true
+    });
 
     return this.prisma.membership.update({
       where: { id: membership.id },
-      data: { membershipCardUrl: cardPath },
+      data: { membershipCardUrl: cardUrl },
       include: { membershipType: true }
     });
   }
@@ -281,7 +289,11 @@ export class MembershipsService {
     return {
       ...membership,
       membershipType: this.serializeMembershipType(membership.membershipType),
-      cardUrl: membership.membershipCardUrl ? `${this.apiUrl}${membership.membershipCardUrl}` : null,
+      cardUrl: membership.membershipCardUrl
+        ? membership.membershipCardUrl.startsWith('http')
+          ? membership.membershipCardUrl
+          : `${this.apiUrl}${membership.membershipCardUrl}`
+        : null,
       qr: membership.qrCodeValue,
       dependantsCount: dependants.length,
       dependants
@@ -298,7 +310,7 @@ export class MembershipsService {
       throw new NotFoundException('Membership not found');
     }
 
-    if (membership.membershipCardUrl) {
+    if (membership.membershipCardUrl?.startsWith('http')) {
       return membership.membershipCardUrl;
     }
 
@@ -410,11 +422,18 @@ export class MembershipsService {
         throw new BadRequestException('This membership type does not include dependants');
       }
 
+      let address: StructuredAddressDto | undefined;
+      try {
+        address = md.address ? JSON.parse(md.address) : undefined;
+      } catch {
+        address = undefined;
+      }
+
       const membership = await this.createMembership({
         userId: md.userId!,
         membershipTypeId: membershipType.id,
         fullName: md.fullName!,
-        address: md.address || undefined,
+        address,
         phone: md.phone || undefined,
         dependants,
         membershipType,

@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { UserRole } from '../enums.js';
-import { dependantSchema } from './memberships.js';
+import { dependantSchema, structuredAddressSchema } from './memberships.js';
 
 export const registerApplicationSchema = z.object({
   membershipTypeId: z.string().uuid(),
   fullName: z.string().min(2),
-  address: z.string().optional(),
+  address: structuredAddressSchema.optional(),
   phone: z.string().optional(),
   dateOfBirth: z.string().optional(),
   emergencyContactName: z.string().optional(),
@@ -16,11 +16,12 @@ export const registerApplicationSchema = z.object({
 });
 
 export const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   phone: z.string().optional(),
-  address: z.string().optional(),
+  address: structuredAddressSchema.optional(),
   role: z.nativeEnum(UserRole).default(UserRole.GUEST),
   application: registerApplicationSchema.optional()
 });

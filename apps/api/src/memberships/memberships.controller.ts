@@ -12,11 +12,10 @@ import {
   Headers,
   RawBody,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  NotFoundException
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MembershipsService } from './memberships.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
@@ -84,8 +83,7 @@ export class MembershipsController {
   }
 
   @Get('me')
-  @RequiresFeature(MembershipFeature.DASHBOARD_ACCESS)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   async getMyMembership(@CurrentUser() user: TokenPayload) {
     return this.membershipsService.findMyMembership(user.sub);
@@ -107,11 +105,12 @@ export class MembershipsController {
       publicId = membership.membershipId;
     }
     const cardPath = await this.membershipsService.getCardImage(publicId!);
-    const filePath = join(process.cwd(), 'public', cardPath);
-    const buffer = readFileSync(filePath);
-    res.set('Content-Type', 'image/png');
-    res.set('Cache-Control', 'public, max-age=300');
-    res.send(buffer);
+
+    if (cardPath.startsWith('http')) {
+      return res.redirect(cardPath);
+    }
+
+    throw new NotFoundException('Membership card is not available in storage');
   }
 
   @Get('verify/:membershipId')

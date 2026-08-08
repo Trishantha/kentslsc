@@ -5,16 +5,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { optionalUrl } from '@kentslsc/shared';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X, Building2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 const businessSchema = z.object({
   businessName: z.string().min(1),
   logoUrl: z.string().url().optional().or(z.literal('')),
   description: z.string().optional(),
   servicesText: z.string().optional(),
-  websiteUrl: z.string().url().optional().or(z.literal('')),
+  websiteUrl: optionalUrl('Enter a valid website URL, e.g. example.com').or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   address: z.string().optional(),
@@ -41,7 +43,7 @@ interface Business {
 export default function AdminDirectoryPage() {
   const [editing, setEditing] = useState<Business | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<BusinessForm>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BusinessForm>({
     resolver: zodResolver(businessSchema)
   });
 
@@ -158,6 +160,7 @@ export default function AdminDirectoryPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Email</label>
                 <input {...register('email')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+                {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Phone</label>
@@ -172,16 +175,25 @@ export default function AdminDirectoryPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Website</label>
                 <input {...register('websiteUrl')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+                {errors.websiteUrl && <p className="mt-1 text-xs text-red-400">{errors.websiteUrl.message}</p>}
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Logo URL</label>
-                <input {...register('logoUrl')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-              </div>
+              <ImageUpload
+                label="Logo"
+                value={watch('logoUrl')}
+                onChange={(url) => setValue('logoUrl', url, { shouldValidate: true })}
+                hideUrlInput
+              />
+              {errors.logoUrl && <p className="mt-1 text-xs text-red-400">{errors.logoUrl.message}</p>}
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" {...register('isPaid')} className="rounded border-white/10 bg-white/5" />
               Paid listing
             </label>
+            {(createMutation.error || updateMutation.error) && (
+              <p className="text-sm text-red-400">
+                {getApiErrorMessage(createMutation.error ?? updateMutation.error)}
+              </p>
+            )}
             <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary w-full">
               {createMutation.isPending || updateMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

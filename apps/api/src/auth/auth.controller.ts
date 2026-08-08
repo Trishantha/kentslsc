@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -11,6 +12,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 
 @ApiTags('Auth')
 @Controller('auth')
+@Throttle({ default: { limit: 5, ttl: 15 } })
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -29,7 +31,7 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const tokens = await this.authService.login(dto);
     this.setAuthCookies(res, tokens);
-    return { success: true, ...tokens };
+    return { success: true };
   }
 
   @Post('refresh')
@@ -45,7 +47,7 @@ export class AuthController {
     }
     const tokens = await this.authService.refresh(refreshToken);
     this.setAuthCookies(res, tokens);
-    return { success: true, ...tokens };
+    return { success: true };
   }
 
   @Post('logout')
@@ -67,6 +69,8 @@ export class AuthController {
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phone: true,
         address: true,
@@ -93,16 +97,19 @@ export class AuthController {
   }
 
   private setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }) {
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('accessToken', tokens.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
       maxAge: 15 * 60 * 1000 // 15 minutes
     });
     res.cookie('refreshToken', tokens.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
   }

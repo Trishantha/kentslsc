@@ -16,7 +16,7 @@ export class PaymentsService {
     const secretKey = configService.get<string>('STRIPE_SECRET_KEY');
     if (secretKey) {
       this.stripe = new Stripe(secretKey, {
-        apiVersion: '2024-04-10'
+        apiVersion: '2026-07-29.dahlia'
       });
     }
   }
