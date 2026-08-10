@@ -62,22 +62,22 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
    pnpm dev
    ```
 
-   This starts the API on port `4000` and the Next.js frontend on port `3000`, and rebuilds `@kentslsc/shared` / `@kentslsc/database` automatically when they change.
+   This starts the API on port `3001` and the Next.js frontend on port `3000`, and rebuilds `@kentslsc/shared` / `@kentslsc/database` automatically when they change.
 
    If you prefer separate terminals, the dev scripts pin the required URLs/ports automatically, so any `PORT` or `NEXT_PUBLIC_API_URL` set in your shell is ignored:
 
    ```bash
    # In one terminal
-   cd apps/api && pnpm dev   # API pinned to http://localhost:4000
+   cd apps/api && pnpm dev   # API pinned to http://localhost:3001
 
    # In another terminal
-   cd apps/web && pnpm dev   # Frontend proxies to http://localhost:4000
+   cd apps/web && pnpm dev   # Frontend proxies to http://localhost:3001
    ```
 
 6. **Open**
 
    - Frontend: http://localhost:3000
-   - API docs: http://localhost:4000/api/docs
+   - API docs: http://localhost:3001/api/docs
    - Admin login: `admin@kentslsc.org` / `admin123`
 
 ## Environment Variables
@@ -91,6 +91,7 @@ See `.env.example` for the full list. Key variables:
 - `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` – Stripe credentials
 - `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` – SMTP settings
 - `FRONTEND_URL` – URL of the Next.js app
+- `API_URL` – absolute URL of the NestJS app
 - `NEXT_PUBLIC_API_URL` – URL of the NestJS API
 - `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` – optional Supabase Storage bucket for file uploads
 

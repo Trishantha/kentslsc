@@ -9,7 +9,7 @@ interface Props {
 }
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   const res = await fetchWithRetry(`${apiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();

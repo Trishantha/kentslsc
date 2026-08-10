@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { fetchWithRetry } from '@/lib/server-fetch';
 
 const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 interface SitePage {
   slug: string;
