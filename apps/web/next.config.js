@@ -10,7 +10,7 @@ function hostnameFromEnvUrl(envVar) {
   }
 }
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const apiHostname = hostnameFromEnvUrl('NEXT_PUBLIC_API_URL') ?? 'localhost';
 const apiProtocol = (() => {
   try {
@@ -23,7 +23,7 @@ const apiPort = (() => {
   try {
     return new URL(apiUrl).port || (apiProtocol === 'https' ? '443' : '80');
   } catch {
-    return '4000';
+    return '3001';
   }
 })();
 const isDev = process.env.NODE_ENV === 'development';

@@ -20,7 +20,7 @@ interface VerificationResult {
 }
 
 async function verifyMembership(id: string): Promise<VerificationResult | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
   const res = await fetchWithRetry(
     `${baseUrl}/membership/verify/${encodeURIComponent(id)}`,
     { next: { revalidate: 0 } }

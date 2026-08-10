@@ -45,7 +45,7 @@ export class MembershipsService {
   }
 
   private get apiUrl(): string {
-    return this.configService.get<string>('API_URL') ?? 'http://localhost:4000';
+    return this.configService.get<string>('API_URL') ?? 'http://localhost:3001';
   }
 
   private generateMembershipId(): string {

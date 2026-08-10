@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:4000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:3001';
 
 export function useForumSocket(topicId: string, onNewPost: (post: unknown) => void) {
   const socketRef = useRef<Socket | null>(null);
