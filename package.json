@@ -2,21 +2,10 @@
   "name": "kentslsc",
   "version": "0.1.0",
   "private": true,
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@nestjs/core",
-      "@prisma/client",
-      "@prisma/engines",
-      "bcrypt",
-      "esbuild",
-      "prisma",
-      "sharp"
-    ]
-  },
   "scripts": {
     "build": "turbo run build --concurrency=1",
-    "deploy:hostinger:frontend": "corepack enable && corepack prepare pnpm@10.32.1 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/web build",
-    "deploy:hostinger:backend": "corepack enable && corepack prepare pnpm@10.32.1 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/api build",
+    "deploy:hostinger:frontend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/web build",
+    "deploy:hostinger:backend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/api build",
     "build:clean": "pnpm clean && pnpm build",
     "start": "node server.js",
       "dev": "node server.js",
@@ -34,7 +23,7 @@
   "devDependencies": {
     "turbo": "^2.10.9"
   },
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=20"
   }

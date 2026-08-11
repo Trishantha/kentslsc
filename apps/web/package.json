@@ -2,7 +2,7 @@
   "name": "@kentslsc/web",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@11.21.0",
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=2560' PORT=${PORT:-3000} next dev",
     "dev:clean": "rm -rf .next && NODE_OPTIONS='--max-old-space-size=2560' PORT=${PORT:-3000} next dev",
