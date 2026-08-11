@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/api build && pnpm --filter @kentslsc/web build",
+    "build": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/api build && pnpm --filter @kentslsc/web build",
     "deploy:hostinger:frontend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/web build",
     "deploy:hostinger:backend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/api build",
     "build:clean": "pnpm clean && pnpm build",
