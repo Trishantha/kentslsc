@@ -43,6 +43,14 @@ async function fetchJson<T>(path: string): Promise<T | null> {
   return res.json();
 }
 
+function asArray<T>(value: T[] | { data?: T[] } | null | undefined): T[] {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object' && 'data' in value && Array.isArray((value as { data?: T[] }).data)) {
+    return (value as { data?: T[] }).data ?? [];
+  }
+  return [];
+}
+
 export const revalidate = 86400;
 
 function withLocales(path: string): string[] {
@@ -82,55 +90,61 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const now = new Date();
 
+  const pageItems = asArray(pages);
+  const blogItems = asArray(blogPosts);
+  const eventItems = asArray(eventsResult);
+  const businessItems = asArray(businesses);
+  const fundraiserItems = asArray(fundraisers);
+
   const pageRoutes: MetadataRoute.Sitemap =
-    pages?.filter((p) => !p.isHome).flatMap((p) =>
-      withLocales(`/${p.slug}`).map((url) => ({
+    pageItems.filter((p) => !('isHome' in p && p.isHome)).flatMap((p) =>
+      withLocales(`/${(p as SitePage).slug}`).map((url) => ({
         url,
-        lastModified: new Date(p.updatedAt),
+        lastModified: new Date((p as SitePage).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.7
       }))
-    ) ?? [];
+    );
 
   const blogRoutes: MetadataRoute.Sitemap =
-    blogPosts?.flatMap((p) =>
-      withLocales(`/blog/${p.slug}`).map((url) => ({
+    blogItems.flatMap((p) =>
+      withLocales(`/blog/${(p as BlogPost).slug}`).map((url) => ({
         url,
-        lastModified: new Date(p.updatedAt),
+        lastModified: new Date((p as BlogPost).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.7
       }))
-    ) ?? [];
+    );
 
   const eventRoutes: MetadataRoute.Sitemap =
-    eventsResult?.data.flatMap((e) =>
-      withLocales(`/events/${e.id}`).map((url) => ({
+    eventItems.flatMap((e) =>
+      withLocales(`/events/${(e as Event).id}`).map((url) => ({
         url,
-        lastModified: new Date(e.updatedAt),
+        lastModified: new Date((e as Event).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.8
       }))
-    ) ?? [];
+    );
 
   const directoryRoutes: MetadataRoute.Sitemap =
-    businesses?.flatMap((b) =>
-      withLocales(`/directory/${b.id}`).map((url) => ({
+    businessItems.flatMap((b) =>
+      withLocales(`/directory/${(b as Business).id}`).map((url) => ({
         url,
-        lastModified: new Date(b.updatedAt),
+        lastModified: new Date((b as Business).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.7
       }))
-    ) ?? [];
+    );
 
   const fundraiserRoutes: MetadataRoute.Sitemap =
-    fundraisers?.flatMap((f) =>
-      withLocales(`/fundraisers/${f.id}`).map((url) => ({
+    fundraiserItems.flatMap((f) =>
+      withLocales(`/fundraisers/${(f as Fundraiser).id}`).map((url) => ({
         url,
-        lastModified: new Date(f.updatedAt),
+        lastModified: new Date((f as Fundraiser).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.8
       }))
-    ) ?? [];
+    );
 
   return [
     ...staticRoutes,

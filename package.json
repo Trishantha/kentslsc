@@ -16,7 +16,8 @@
   "scripts": {
     "build": "turbo run build --concurrency=1",
     "build:clean": "pnpm clean && pnpm build",
-    "dev": "turbo run dev",
+    "start": "node server.js",
+      "dev": "node server.js",
     "dev:clean": "pnpm clean && pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
