@@ -195,7 +195,7 @@ export default function HomePageContent() {
     { icon: Calendar, title: t('eventsCardTitle'), desc: t('eventsCardDesc'), href: '/events' },
     { icon: Heart, title: t('fundraisingCardTitle'), desc: t('fundraisingCardDesc'), href: '/fundraisers' },
     { icon: Briefcase, title: t('directoryCardTitle'), desc: t('directoryCardDesc'), href: '/directory' },
-    { icon: Users, title: t('membershipCardTitle'), desc: t('membershipCardDesc'), href: '/auth/register' }
+    { icon: Users, title: t('membershipCardTitle'), desc: t('membershipCardDesc'), href: '/membership' }
   ];
 
   return (
@@ -285,7 +285,7 @@ export default function HomePageContent() {
           >
             {!user && (
               <Link
-                href="/auth/register"
+                href="/membership"
                 className="btn-primary h-12 w-44 whitespace-nowrap px-4 py-2.5 text-center text-sm sm:w-48"
               >
                 {t('becomeMember')}

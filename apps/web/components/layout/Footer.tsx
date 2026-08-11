@@ -22,7 +22,7 @@ export function Footer() {
             <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-400">
               <li><Link href="/events">{nav('events')}</Link></li>
               <li><Link href="/directory">{nav('directory')}</Link></li>
-              <li><Link href="/auth/register">{nav('membership')}</Link></li>
+              <li><Link href="/membership">{nav('membership')}</Link></li>
               <li><Link href="/contact">{nav('contact')}</Link></li>
               <li><Link href="/privacy">{nav('privacy')}</Link></li>
             </ul>

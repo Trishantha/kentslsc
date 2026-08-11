@@ -70,12 +70,48 @@ export class MembershipsService {
     };
   }
 
+  private async assertTypeCapacity(type: MembershipType) {
+    if (type.maxIssuances === null || type.maxIssuances === undefined) {
+      return;
+    }
+
+    const issued = await this.prisma.membership.count({
+      where: {
+        membershipTypeId: type.id,
+        deletedAt: null
+      }
+    });
+
+    if (issued >= type.maxIssuances) {
+      throw new BadRequestException(`${type.name} membership has reached its issuance limit`);
+    }
+  }
+
   async findTypes() {
     const types = await this.prisma.membershipType.findMany({
       where: { deletedAt: null },
       orderBy: { price: 'asc' }
     });
-    return types.map((type) => this.serializeMembershipType(type));
+
+    const issuedCounts = await this.prisma.membership.groupBy({
+      by: ['membershipTypeId'],
+      where: { deletedAt: null },
+      _count: { _all: true }
+    });
+    const countMap = new Map<string, number>(
+      issuedCounts.map((row) => [row.membershipTypeId, row._count._all])
+    );
+
+    return types.map((type) => {
+      const issuedCount = countMap.get(type.id) ?? 0;
+      return {
+        ...this.serializeMembershipType(type),
+        issuedCount,
+        hasCapacity: type.maxIssuances === null || type.maxIssuances === undefined
+          ? true
+          : issuedCount < type.maxIssuances
+      };
+    });
   }
 
   async findTypeById(id: string) {
@@ -92,6 +128,7 @@ export class MembershipsService {
         price: new Prisma.Decimal(dto.price),
         isFree: dto.isFree,
         durationMonths: dto.durationMonths,
+        maxIssuances: dto.maxIssuances,
         benefits: dto.benefits ?? [],
         features: dto.features ?? [],
         autoActivate: dto.autoActivate ?? false
@@ -109,6 +146,7 @@ export class MembershipsService {
         price: dto.price !== undefined ? new Prisma.Decimal(dto.price) : undefined,
         isFree: dto.isFree,
         durationMonths: dto.durationMonths,
+        maxIssuances: dto.maxIssuances,
         benefits: dto.benefits,
         features: dto.features,
         autoActivate: dto.autoActivate
@@ -132,6 +170,7 @@ export class MembershipsService {
     if (dependants.length > 0 && !type.features.includes(MembershipFeature.DEPENDANTS)) {
       throw new BadRequestException('This membership type does not include dependants');
     }
+    await this.assertTypeCapacity(type);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -458,6 +497,7 @@ export class MembershipsService {
     if (dependants.length > 0 && !membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
       throw new BadRequestException('This membership type does not include dependants');
     }
+    await this.assertTypeCapacity(membershipType);
 
     let address: StructuredAddressDto | undefined;
     try {

@@ -52,11 +52,12 @@ function LoginForm() {
       const { data: result } = await api.post('/auth/login', data);
       // Unverified users may sign in, but land on the verification gate rather
       // than a portal page they'd immediately be bounced out of.
-      const destination = !result?.emailVerified
-        ? '/verify-email'
-        : result?.role === 'ADMIN'
-          ? '/admin'
-          : redirect;
+      let destination = redirect;
+      if (!result?.emailVerified) {
+        destination = '/verify-email';
+      } else if (result?.role === 'ADMIN' && redirect === '/dashboard') {
+        destination = '/admin';
+      }
       window.location.href = destination;
     } catch (error) {
       if (!isAxiosError(error) || !error.response) {

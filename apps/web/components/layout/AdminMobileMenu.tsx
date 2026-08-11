@@ -37,6 +37,7 @@ const adminMenuItems = [
   { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
   { href: '/admin/memberships', label: 'Memberships', icon: CreditCard },
   { href: '/admin/events', label: 'Events', icon: Calendar },
+  { href: '/admin/committee', label: 'Committee', icon: Users },
   { href: '/admin/directory', label: 'Directory', icon: Building2 },
   { href: '/admin/jobs', label: 'Jobs', icon: Briefcase },
   { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake },

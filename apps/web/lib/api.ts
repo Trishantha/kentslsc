@@ -68,7 +68,9 @@ api.interceptors.response.use(
         // rather than being dumped on the dashboard.
         const here = `${window.location.pathname}${window.location.search}`;
         const target = safeRedirect(here, '/dashboard');
-        window.location.href = `/auth/login?redirect=${encodeURIComponent(target)}`;
+        const localeMatch = window.location.pathname.match(/^\/(en|si|ta)(?:\/|$)/);
+        const localePrefix = localeMatch ? `/${localeMatch[1]}` : '';
+        window.location.href = `${localePrefix}/auth/login?redirect=${encodeURIComponent(target)}`;
       }
     }
     return Promise.reject(error);

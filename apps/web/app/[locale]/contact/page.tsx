@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 
@@ -29,7 +30,11 @@ const contactDetails = [
 export default function ContactPage() {
   const t = useTranslations('contact');
   const auth = useTranslations('auth');
+  const searchParams = useSearchParams();
   const [aiResponse, setAiResponse] = useState<string | null>(null);
+
+  const defaultSubject = searchParams?.get('subject') ?? '';
+  const defaultMessage = searchParams?.get('message') ?? '';
 
   const {
     register,
@@ -37,7 +42,14 @@ export default function ContactPage() {
     reset,
     formState: { errors }
   } = useForm<ContactMessageInput>({
-    resolver: zodResolver(contactMessageSchema)
+    resolver: zodResolver(contactMessageSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      subject: defaultSubject,
+      message: defaultMessage
+    }
   });
 
   const mutation = useMutation<ContactResponse, Error, ContactMessageInput>({

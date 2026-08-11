@@ -201,6 +201,7 @@ model MembershipType {
   price          Decimal  @db.Decimal(10, 2)
   isFree         Boolean  @default(false) @map("is_free")
   durationMonths Int      @map("duration_months")
+  maxIssuances   Int?     @map("max_issuances")
   benefits       String[] @default([])
   features       String[] @default([])
   autoActivate   Boolean  @default(false) @map("auto_activate")

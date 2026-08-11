@@ -115,7 +115,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
             </NextLink>
           </FeatureGate>
           <Link
-            href="/auth/register"
+            href="/membership"
             className={cn(
               'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
               compact

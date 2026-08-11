@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MinLength, Min, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, MinLength, Min, IsEnum, IsInt } from 'class-validator';
 import { MembershipFeature } from '@kentslsc/shared';
 
 export class UpdateMembershipTypeDto {
@@ -24,6 +24,11 @@ export class UpdateMembershipTypeDto {
   @IsNumber()
   @Min(1)
   declare durationMonths?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  declare maxIssuances?: number;
 
   @IsOptional()
   @IsString({ each: true })

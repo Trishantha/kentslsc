@@ -14,6 +14,9 @@ interface MembershipType {
   price: number;
   isFree: boolean;
   durationMonths: number;
+  maxIssuances?: number | null;
+  issuedCount?: number;
+  hasCapacity?: boolean;
   benefits: string[];
   features: MembershipFeature[];
   autoActivate: boolean;
@@ -31,6 +34,7 @@ const emptyForm = {
   price: '',
   isFree: false,
   durationMonths: '12',
+  maxIssuances: '',
   benefits: '',
   features: [] as MembershipFeature[],
   autoActivate: false
@@ -95,6 +99,7 @@ export default function AdminMembershipTypesPage() {
       price: String(type.price),
       isFree: type.isFree,
       durationMonths: String(type.durationMonths),
+      maxIssuances: type.maxIssuances ? String(type.maxIssuances) : '',
       benefits: type.benefits.join('\n'),
       features: type.features,
       autoActivate: type.autoActivate
@@ -124,6 +129,7 @@ export default function AdminMembershipTypesPage() {
       price: Number(form.price),
       isFree: form.isFree,
       durationMonths: Number(form.durationMonths),
+      maxIssuances: form.maxIssuances.trim().length ? Number(form.maxIssuances) : null,
       benefits: form.benefits.split('\n').map((b) => b.trim()).filter(Boolean),
       features: form.features,
       autoActivate: form.autoActivate
@@ -153,6 +159,8 @@ export default function AdminMembershipTypesPage() {
                   <th className="py-3 font-medium">Name</th>
                   <th className="py-3 font-medium">Price</th>
                   <th className="py-3 font-medium">Duration</th>
+                  <th className="py-3 font-medium">Limit</th>
+                  <th className="py-3 font-medium">Issued</th>
                   <th className="py-3 font-medium">Features</th>
                   <th className="py-3 font-medium">Auto-activate</th>
                   <th className="py-3 font-medium">Actions</th>
@@ -168,6 +176,12 @@ export default function AdminMembershipTypesPage() {
                     <td className="py-3">{type.isFree || type.price === 0 ? 'Free' : `£${type.price}`}</td>
                     <td className="py-3">
                       {type.isFree ? 'Lifetime' : `${type.durationMonths} months`}
+                    </td>
+                    <td className="py-3">{type.maxIssuances ?? 'Unlimited'}</td>
+                    <td className="py-3">
+                      <span className={type.hasCapacity === false ? 'text-red-400' : ''}>
+                        {type.issuedCount ?? 0}
+                      </span>
                     </td>
                     <td className="py-3">
                       <div className="flex max-w-xs flex-wrap gap-1">
@@ -247,6 +261,10 @@ export default function AdminMembershipTypesPage() {
                   <div>
                     <label className="text-sm font-medium">Price (£)</label>
                     <input type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 outline-none" required />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Maximum issuances</label>
+                    <input type="number" min="1" value={form.maxIssuances} onChange={(e) => setForm({ ...form, maxIssuances: e.target.value })} className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 outline-none" placeholder="Leave blank for unlimited" />
                   </div>
                   <div className="flex items-center gap-4 pt-6">
                     <label className="flex items-center gap-2">

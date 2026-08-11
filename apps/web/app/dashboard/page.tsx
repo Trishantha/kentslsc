@@ -16,6 +16,7 @@ import {
   X,
   Calendar,
   Users,
+  Briefcase,
   MessageSquare,
   Ticket,
   Vote,
@@ -68,6 +69,33 @@ const upsellOptions: UpsellOption[] = [
   { feature: MembershipFeature.DIRECTORY_LISTING, icon: Store },
   { feature: MembershipFeature.DEPENDANTS, icon: Users }
 ];
+
+const quickActions = [
+  {
+    href: '/directory',
+    title: 'Post a job',
+    description: 'Publish opportunities from your business profile.',
+    icon: Briefcase
+  },
+  {
+    href: '/events',
+    title: 'Buy tickets',
+    description: 'Reserve seats for upcoming events and activities.',
+    icon: Ticket
+  },
+  {
+    href: '/directory',
+    title: 'Promote business',
+    description: 'Boost visibility for your business listing.',
+    icon: Store
+  },
+  {
+    href: '/forum',
+    title: 'Join the forum',
+    description: 'Ask questions and connect with other members.',
+    icon: MessageSquare
+  }
+] as const;
 
 function ProfileCard() {
   const queryClient = useQueryClient();
@@ -295,7 +323,7 @@ function BecomeMemberCTA() {
       <p className="mt-2 text-slate-700 dark:text-slate-400">
         You do not have an active membership yet. Join today to unlock member benefits.
       </p>
-      <Link href="/auth/register" className="btn-primary mt-6 inline-block">
+      <Link href="/membership" className="btn-primary mt-6 inline-block">
         View Membership Plans
       </Link>
     </motion.div>
@@ -340,7 +368,7 @@ function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
                 {def?.description ?? ''}
               </p>
               <Link
-                href="/auth/register"
+                href="/membership"
                 className="mt-4 inline-flex items-center text-sm font-medium text-neon-blue hover:underline"
               >
                 Upgrade <ArrowRight className="ml-1 h-4 w-4" />
@@ -377,6 +405,13 @@ export default function DashboardPage() {
     );
   }
 
+  const hasCardFeature = Boolean(
+    membership?.membershipType.features.includes(MembershipFeature.MEMBER_CARD)
+  );
+  const cardAssetUrl = membership
+    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
+    : null;
+
   return (
     <div className="px-4 py-16 md:px-6">
       <div className="mx-auto max-w-5xl">
@@ -390,6 +425,31 @@ export default function DashboardPage() {
             We could not load your membership details right now. You can still update your profile below.
           </div>
         )}
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {quickActions.map((action, index) => {
+            const Icon = action.icon;
+            return (
+              <motion.div
+                key={action.title}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.03 * index }}
+              >
+                <Link
+                  href={action.href}
+                  className="glass-card block h-full p-5 transition-transform hover:-translate-y-1"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neon-blue/15 text-neon-blue">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">{action.title}</h3>
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{action.description}</p>
+                </Link>
+              </motion.div>
+            );
+          })}
+        </div>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
           <ProfileCard />
@@ -464,19 +524,19 @@ export default function DashboardPage() {
                   <h2 className="text-xl font-bold">Membership Card</h2>
                 </div>
 
-                {membership.cardUrl ? (
+                {hasCardFeature && cardAssetUrl ? (
                   <div className="mt-6 flex flex-col items-center gap-6">
                     <div className="relative overflow-hidden rounded-2xl border border-slate-300 shadow-xl dark:border-white/10">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={membership.cardUrl}
+                        src={cardAssetUrl}
                         alt="Membership card"
                         className="max-h-72 w-auto object-contain"
                       />
                     </div>
                     <div className="flex flex-wrap justify-center gap-3">
                       <a
-                        href={membership.cardUrl}
+                        href={cardAssetUrl}
                         download={`kent-slsc-card-${membership.membershipId}.png`}
                         className="btn-primary inline-flex"
                       >
@@ -493,7 +553,11 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="mt-6 rounded-2xl border border-slate-300 bg-slate-200/50 p-8 text-center dark:border-white/10 dark:bg-white/5">
-                    <p className="text-slate-700 dark:text-slate-400">Your card is being generated.</p>
+                    <p className="text-slate-700 dark:text-slate-400">
+                      {hasCardFeature
+                        ? 'Your card is being generated.'
+                        : 'Your current membership does not include a digital membership card.'}
+                    </p>
                   </div>
                 )}
               </motion.div>

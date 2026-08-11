@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
 import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
@@ -38,6 +39,9 @@ interface MembershipType {
   price: number;
   isFree: boolean;
   durationMonths: number;
+  maxIssuances?: number | null;
+  issuedCount?: number;
+  hasCapacity?: boolean;
   benefits: string[];
   features: MembershipFeature[];
   autoActivate: boolean;
@@ -80,7 +84,7 @@ export function RegistrationWizard() {
     if (type.isFree || type.price === 0) return tCommon('free');
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
   }
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: currentUser } = useAuth();
   const signOut = useSignOut();
   const [step, setStep] = useState(1);
@@ -149,8 +153,20 @@ export function RegistrationWizard() {
   const selectedTypeId = watch('membershipTypeId');
   const selectedType = types.find((t) => t.id === selectedTypeId);
   const watchInterests = watch('interests') ?? [];
+  const preferredTypeId = searchParams?.get('type') ?? '';
+  const preferredType = types.find((type) => type.id === preferredTypeId);
 
   const spouseIndex = dependants.findIndex((d) => d.relationship === 'spouse');
+
+  useEffect(() => {
+    if (!preferredTypeId || types.length === 0 || selectedTypeId) {
+      return;
+    }
+
+    if (preferredType && preferredType.hasCapacity !== false) {
+      setValue('membershipTypeId', preferredType.id, { shouldValidate: true });
+    }
+  }, [preferredTypeId, selectedTypeId, setValue, types, preferredType]);
 
   const validateStep = async (): Promise<boolean> => {
     const current = steps.find((s) => s.id === step);
@@ -165,6 +181,11 @@ export function RegistrationWizard() {
 
     if (step === 4 && selectedType && !selectedType.features.includes(MembershipFeature.DEPENDANTS)) {
       setStep(6);
+      return;
+    }
+
+    if (step === 4 && preferredTypeId && selectedTypeId === preferredTypeId && preferredType) {
+      setStep(5);
       return;
     }
 
@@ -444,28 +465,73 @@ export function RegistrationWizard() {
                   {t('plan.noPlans')}
                 </p>
               </div>
+            ) : preferredTypeId && selectedTypeId === preferredTypeId && preferredType ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-neon-blue/30 bg-neon-blue/10 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-neon-blue">Preselected plan</p>
+                      <h3 className="mt-1 text-lg font-bold">{preferredType.name}</h3>
+                    </div>
+                    <span className="rounded-full bg-neon-blue/20 px-3 py-1 text-xs font-semibold uppercase text-neon-blue">
+                      Selected
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">This plan was chosen from the membership page and is already selected for you.</p>
+                  <div className="mt-3 text-sm text-slate-700 dark:text-slate-400">
+                    <p className="font-semibold">{formatPrice(preferredType)}</p>
+                    {preferredType.description ? <p className="mt-1">{preferredType.description}</p> : null}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {types.map((type) => {
                   const selected = selectedTypeId === type.id;
+                  const atCapacity = type.hasCapacity === false;
+                  const issuedCount = type.issuedCount ?? 0;
                   return (
                     <button
                       key={type.id}
                       type="button"
+                      disabled={atCapacity}
                       onClick={() => setValue('membershipTypeId', type.id, { shouldValidate: true })}
                       className={`glass-card p-5 text-left transition-all ${
                         selected ? 'neon-border ring-1 ring-neon-blue' : ''
+                      } ${
+                        atCapacity ? 'cursor-not-allowed opacity-60' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <h3 className="text-lg font-bold">{type.name}</h3>
-                        {selected && <Check className="h-5 w-5 text-neon-blue" />}
+                        {atCapacity ? (
+                          <span className="rounded-full bg-red-500/20 px-2 py-1 text-[10px] font-semibold uppercase text-red-500">
+                            Full
+                          </span>
+                        ) : (
+                          selected && <Check className="h-5 w-5 text-neon-blue" />
+                        )}
                       </div>
                       <p className="mt-2 text-2xl font-bold gradient-text">{formatPrice(type)}</p>
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                         {type.isFree ? t('plan.freeLabel') : t('plan.durationLabel', { duration: type.durationMonths })}
                       </p>
+                      {type.maxIssuances ? (
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                          {issuedCount}/{type.maxIssuances} issued
+                        </p>
+                      ) : null}
                       {type.description && <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{type.description}</p>}
+
+                      {atCapacity ? (
+                        <Link
+                          href={`/contact?subject=${encodeURIComponent(`Membership waitlist: ${type.name}`)}&message=${encodeURIComponent(`Please add me to the waitlist for ${type.name}.`)}`}
+                          className="mt-3 inline-flex items-center text-xs font-semibold text-neon-gold hover:underline"
+                        >
+                          Join waitlist
+                        </Link>
+                      ) : null}
+
                       <ul className="mt-3 space-y-1 text-xs text-slate-700 dark:text-slate-400">
                         {featureDefinitions.map((feature) => (
                           <li key={feature.value} className="flex items-center gap-2">

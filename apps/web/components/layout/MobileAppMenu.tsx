@@ -108,7 +108,7 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
       external: true
     },
     {
-      href: '/auth/register',
+      href: '/membership',
       label: nav('membership'),
       description: t('membershipDescription'),
       icon: CreditCard
@@ -227,7 +227,7 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
                       {t('login')}
                     </Link>
                     <Link
-                      href="/auth/register"
+                      href="/membership"
                       onClick={onClose}
                       className="rounded-xl border border-amber-600/50 px-4 py-2 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-600/20 dark:text-amber-300"
                     >

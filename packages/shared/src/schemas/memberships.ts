@@ -21,6 +21,7 @@ export const membershipTypeSchema = z.object({
   price: z.number().min(0),
   isFree: z.boolean().default(false),
   durationMonths: z.number().int().min(1),
+  maxIssuances: z.number().int().min(1).nullable().optional(),
   benefits: z.array(z.string()).default([]),
   features: z.array(z.nativeEnum(MembershipFeature)).default([]),
   autoActivate: z.boolean().default(false)
