@@ -11,9 +11,13 @@ export const envValidationSchema = z.object({
   // Optional third-party service keys. The API will start without them and
   // degrade gracefully (e.g. skip AI summaries, queue emails, skip payments).
   OPENAI_API_KEY: z.string().optional(),
+  DEFAULT_PAYMENT_PROVIDER: z.enum(['stripe', 'paypal']).optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  PAYPAL_CLIENT_ID: z.string().optional(),
+  PAYPAL_CLIENT_SECRET: z.string().optional(),
+  PAYPAL_API_BASE_URL: z.string().url().optional().default('https://api-m.sandbox.paypal.com'),
   EMAIL_HOST: z.string().optional(),
   EMAIL_PORT: z.coerce.number().default(587),
   EMAIL_USER: z.string().optional(),

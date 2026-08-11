@@ -46,8 +46,7 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: true }
+      transform: true
     })
   );
   app.setGlobalPrefix('api');
@@ -81,5 +80,14 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   logger.error('Failed to start API', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error(`Unhandled rejection: ${String(reason)}`);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', error.stack ?? String(error));
   process.exit(1);
 });

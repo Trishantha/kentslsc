@@ -89,8 +89,6 @@ export class ForumService {
     await this.findCategoryById(dto.categoryId);
 
     const moderation = await this.aiService.moderate(`${dto.title} ${dto.content}`);
-    const summary = await this.aiService.summarise(dto.content, 'forum topic', 200);
-    const tags = await this.suggestTags(dto.title, dto.content);
 
     const topic = await this.prisma.forumTopic.create({
       data: {
@@ -99,13 +97,17 @@ export class ForumService {
         title: dto.title,
         content: dto.content,
         isFlagged: moderation.flagged,
-        aiSummary: summary,
-        tags
+        aiSummary: null,
+        tags: []
       },
       include: {
         user: { select: { id: true, name: true } },
         _count: { select: { posts: { where: { deletedAt: null } } } }
       }
+    });
+
+    this.enrichTopicMetadata(topic.id, dto.title, dto.content).catch((err) => {
+      this.logger.warn(`Failed to enrich forum topic metadata: ${(err as Error).message}`);
     });
 
     return { ...topic, moderation: moderation.flagged ? moderation : undefined };
@@ -183,6 +185,21 @@ export class ForumService {
       this.logger.warn('Failed to suggest tags', (err as Error).message);
       return [];
     }
+  }
+
+  private async enrichTopicMetadata(topicId: string, title: string, content: string): Promise<void> {
+    const [summary, tags] = await Promise.all([
+      this.aiService.summarise(content, 'forum topic', 200),
+      this.suggestTags(title, content)
+    ]);
+
+    await this.prisma.forumTopic.update({
+      where: { id: topicId },
+      data: {
+        aiSummary: summary || null,
+        tags
+      }
+    });
   }
 
   async findRelatedTopics(topicId: string, limit = 5) {

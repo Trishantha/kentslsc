@@ -33,6 +33,7 @@ const navItems = [
   { href: '/admin/directory', label: 'Directory', icon: Building2 },
   { href: '/admin/jobs', label: 'Jobs', icon: Briefcase },
   { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake },
+  { href: '/admin/payments', label: 'Payments', icon: CreditCard },
   { href: '/admin/blog', label: 'Blog', icon: Newspaper },
   { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning },
   { href: '/admin/contact', label: 'Contact Messages', icon: Mail }

@@ -31,6 +31,7 @@ import { CreateFundraiserDto } from '../fundraising/dto/create-fundraiser.dto.js
 import { UpdateFundraiserDto } from '../fundraising/dto/update-fundraiser.dto.js';
 import { RejectFundraiserDto } from '../fundraising/dto/reject-fundraiser.dto.js';
 import { RecordOfflineDonationDto } from '../fundraising/dto/record-offline-donation.dto.js';
+import { CreateFundraiserUpdateDto } from '../fundraising/dto/create-fundraiser-update.dto.js';
 import { CreateBlogPostDto } from '../blog/dto/create-blog-post.dto.js';
 import { UpdateBlogPostDto } from '../blog/dto/update-blog-post.dto.js';
 
@@ -259,6 +260,16 @@ export class AdminController {
   @ApiBearerAuth()
   recordOfflineDonation(@Param('id') id: string, @Body() dto: RecordOfflineDonationDto) {
     return this.adminService.recordOfflineDonation(id, dto);
+  }
+
+  @Post('fundraisers/:id/updates')
+  @ApiBearerAuth()
+  addFundraiserUpdate(
+    @Param('id') id: string,
+    @Body() dto: CreateFundraiserUpdateDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.adminService.addFundraiserUpdate(id, user.sub, dto);
   }
 
   @Delete('fundraisers/:id')

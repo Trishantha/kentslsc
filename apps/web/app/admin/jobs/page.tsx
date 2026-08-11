@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X, Briefcase } from 'lucide-react';
 import { api } from '@/lib/api';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 const jobSchema = z.object({
   businessListingId: z.string().uuid(),
@@ -42,7 +43,7 @@ interface Job {
 export default function AdminJobsPage() {
   const [editing, setEditing] = useState<Job | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<JobForm>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<JobForm>({
     resolver: zodResolver(jobSchema)
   });
 
@@ -159,7 +160,18 @@ export default function AdminJobsPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Description</label>
-              <textarea {...register('description')} rows={3} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Describe responsibilities, requirements, and benefits"
+                    minHeightClassName="min-h-[160px]"
+                  />
+                )}
+              />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>

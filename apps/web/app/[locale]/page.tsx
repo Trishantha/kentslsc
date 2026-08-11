@@ -1,16 +1,7 @@
-import dynamic from 'next/dynamic';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { HeroBlock, PageBlock } from '@kentslsc/shared';
 import { serverApiUrl } from '@/lib/api-base';
-
-const HomePageContent = dynamic(() => import('./HomePageContent'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-96 items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-neon-blue" />
-    </div>
-  )
-});
+import HomePageContent from './HomePageContent';
 
 export const revalidate = 60;
 

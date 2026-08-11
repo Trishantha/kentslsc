@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { formatDate } from '@/lib/utils';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 interface Author {
   id: string;
@@ -61,13 +62,7 @@ export default function BlogPostContent({ post }: Props) {
             </div>
           )}
 
-          <div className="prose prose-slate mt-8 max-w-none dark:prose-invert">
-            {post.content.split('\n').map((paragraph, i) => (
-              <p key={i} className="mb-4 text-slate-700 dark:text-slate-300">
-                {paragraph}
-              </p>
-            ))}
-          </div>
+          <RichTextContent html={post.content} className="mt-8" />
         </article>
       </div>
     </div>

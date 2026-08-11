@@ -13,8 +13,51 @@ const SOCKET_URL = (
   'http://localhost:3001'
 ).replace(/\/api\/?$/, '');
 
+let sharedSocket: Socket | null = null;
+let sharedTokenPromise: Promise<string> | null = null;
+let activeConsumers = 0;
+
+async function getSocketToken(): Promise<string> {
+  if (!sharedTokenPromise) {
+    sharedTokenPromise = api
+      .get<{ token: string }>('/auth/socket-token')
+      .then((res) => res.data.token)
+      .catch((error) => {
+        sharedTokenPromise = null;
+        throw error;
+      });
+  }
+  return sharedTokenPromise;
+}
+
+async function getSharedSocket(): Promise<Socket> {
+  if (sharedSocket) {
+    return sharedSocket;
+  }
+
+  const token = await getSocketToken();
+  sharedSocket = io(`${SOCKET_URL}/forum`, {
+    auth: { token },
+    transports: ['websocket'],
+    withCredentials: true
+  });
+
+  return sharedSocket;
+}
+
+function releaseSharedSocket(): void {
+  if (activeConsumers > 0) {
+    return;
+  }
+  if (sharedSocket) {
+    sharedSocket.disconnect();
+    sharedSocket = null;
+  }
+  sharedTokenPromise = null;
+}
+
 export function useForumSocket(topicId: string, onNewPost: (post: unknown) => void) {
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(sharedSocket);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const onNewPostRef = useRef(onNewPost);
@@ -25,19 +68,20 @@ export function useForumSocket(topicId: string, onNewPost: (post: unknown) => vo
 
   useEffect(() => {
     let active = true;
+    activeConsumers += 1;
 
     async function connect() {
       try {
-        const { data } = await api.get<{ token: string }>('/auth/socket-token');
+        const socket = await getSharedSocket();
         if (!active) return;
 
-        const socket = io(`${SOCKET_URL}/forum`, {
-          auth: { token: data.token },
-          transports: ['websocket'],
-          withCredentials: true
-        });
-
         socketRef.current = socket;
+
+        if (socket.connected) {
+          setConnected(true);
+          setError(null);
+          socket.emit('join-topic', topicId);
+        }
 
         socket.on('connect', () => {
           setConnected(true);
@@ -70,11 +114,19 @@ export function useForumSocket(topicId: string, onNewPost: (post: unknown) => vo
 
     return () => {
       active = false;
+      activeConsumers = Math.max(0, activeConsumers - 1);
+
       if (socketRef.current) {
         socketRef.current.emit('leave-topic', topicId);
-        socketRef.current.disconnect();
+        socketRef.current.off('connect');
+        socketRef.current.off('disconnect');
+        socketRef.current.off('connect_error');
+        socketRef.current.off('post');
+        socketRef.current.off('post-error');
         socketRef.current = null;
       }
+
+      releaseSharedSocket();
     };
   }, [topicId]);
 

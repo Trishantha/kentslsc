@@ -11,6 +11,7 @@ import { FeatureGate } from '@/components/ui/FeatureGate';
 import { MembershipFeature } from '@kentslsc/shared';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 export interface Event {
   id: string;
@@ -146,9 +147,7 @@ export default function EventDetailContent({ event: initialEvent }: Props) {
             </div>
 
             {event.description && (
-              <p className="mt-6 whitespace-pre-line text-slate-700 dark:text-slate-300">
-                {event.description}
-              </p>
+              <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
             )}
 
             <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">

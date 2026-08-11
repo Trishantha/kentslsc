@@ -120,16 +120,26 @@ export class FundraisingController {
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
+    @Body() body: any,
     @Res() res: Response
   ) {
     try {
-      const event = await this.paymentsService.constructEvent(rawBody, signature);
-      if (event.type === 'checkout.session.completed') {
-        await this.fundraisingService.handleCheckoutCompleted(
-          event.data.object as Stripe.Checkout.Session
-        );
+      if (signature) {
+        const event = await this.paymentsService.constructEvent(rawBody, signature);
+        if (event.type === 'checkout.session.completed') {
+          await this.fundraisingService.handleCheckoutCompleted(
+            event.data.object as Stripe.Checkout.Session
+          );
+        }
+        return res.json({ received: true });
       }
-      return res.json({ received: true });
+
+      if (body?.event_type) {
+        await this.fundraisingService.handlePayPalCompleted(body);
+        return res.json({ received: true });
+      }
+
+      return res.status(400).send('Webhook payload not recognised');
     } catch (err) {
       return res.status(400).send(`Webhook error: ${(err as Error).message}`);
     }

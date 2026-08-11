@@ -168,29 +168,21 @@ export class EventsService {
       return { free: true, tickets };
     }
 
-    const session = await this.paymentsService.createCheckoutSession({
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            product_data: { name: event.title },
-            unit_amount: unitAmount
-          },
-          quantity: dto.quantity
-        }
-      ],
+    const checkout = await this.paymentsService.createCheckout({
+      amount: totalAmount,
+      currency: 'gbp',
+      description: event.title,
+      successUrl: `${origin}/dashboard/tickets?success=1`,
+      cancelUrl: `${origin}/events/${dto.eventId}?canceled=1`,
       metadata: {
         eventId: dto.eventId,
         userId,
         quantity: String(dto.quantity),
         type: 'event_ticket'
-      },
-      success_url: `${origin}/dashboard/tickets?success=1`,
-      cancel_url: `${origin}/events/${dto.eventId}?canceled=1`
+      }
     });
 
-    return { free: false, sessionId: session.id, url: session.url };
+    return { free: false, sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
   }
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {

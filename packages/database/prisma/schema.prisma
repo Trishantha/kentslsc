@@ -563,6 +563,21 @@ model HeroConfig {
   @@map("hero_config")
 }
 
+model PaymentSettings {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider            String   @default("stripe")
+  stripeSecretKey     String?  @map("stripe_secret_key")
+  stripeWebhookSecret String?  @map("stripe_webhook_secret")
+  stripePublishableKey String?  @map("stripe_publishable_key")
+  paypalClientId      String?  @map("paypal_client_id")
+  paypalClientSecret  String?  @map("paypal_client_secret")
+  paypalApiBaseUrl    String?  @map("paypal_api_base_url")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("payment_settings")
+}
+
 model CommitteeMember {
   id           String    @id @default(uuid())
   name         String

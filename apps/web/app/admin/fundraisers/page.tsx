@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { hasRichTextContent } from '@/lib/rich-text';
 
 const CATEGORIES = [
   { value: 'CHARITY', label: 'Charity' },
@@ -40,8 +42,14 @@ const offlineDonationSchema = z.object({
   message: z.string().optional()
 });
 
+const fundraiserUpdateSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().refine((value) => hasRichTextContent(value), 'Update content is required')
+});
+
 type FundraiserForm = z.infer<typeof fundraiserSchema>;
 type OfflineDonationForm = z.infer<typeof offlineDonationSchema>;
+type FundraiserUpdateForm = z.infer<typeof fundraiserUpdateSchema>;
 
 interface Fundraiser {
   id: string;
@@ -74,10 +82,11 @@ export default function AdminFundraisersPage() {
   const [tab, setTab] = useState<'all' | 'pending'>('all');
   const [editing, setEditing] = useState<Fundraiser | null>(null);
   const [offlineFundraiser, setOfflineFundraiser] = useState<Fundraiser | null>(null);
+  const [updateTarget, setUpdateTarget] = useState<Fundraiser | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; reason: string } | null>(null);
   const queryClient = useQueryClient();
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FundraiserForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FundraiserForm>({
     resolver: zodResolver(fundraiserSchema),
     defaultValues: { targetAmount: 0, isActive: true, category: 'CHARITY' }
   });
@@ -85,6 +94,11 @@ export default function AdminFundraisersPage() {
   const offlineForm = useForm<OfflineDonationForm>({
     resolver: zodResolver(offlineDonationSchema),
     defaultValues: { amount: 0 }
+  });
+
+  const updateForm = useForm<FundraiserUpdateForm>({
+    resolver: zodResolver(fundraiserUpdateSchema),
+    defaultValues: { title: '', content: '' }
   });
 
   const { data: stats } = useQuery<Stats>({
@@ -131,6 +145,16 @@ export default function AdminFundraisersPage() {
     mutationFn: async ({ id, dto }: { id: string; dto: OfflineDonationForm }) =>
       (await api.post(`/admin/fundraisers/${id}/offline-donation`, dto)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin', 'fundraisers'] }); setOfflineFundraiser(null); offlineForm.reset(); }
+  });
+
+  const addUpdateMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: FundraiserUpdateForm }) =>
+      (await api.post(`/admin/fundraisers/${id}/updates`, dto)).data,
+    onSuccess: () => {
+      setUpdateTarget(null);
+      updateForm.reset();
+      queryClient.invalidateQueries({ queryKey: ['admin', 'fundraisers'] });
+    }
   });
 
   const onSubmit = (values: FundraiserForm) => {
@@ -200,7 +224,18 @@ export default function AdminFundraisersPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Description</label>
-              <textarea {...register('description')} rows={3} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Describe the campaign with formatted content"
+                    minHeightClassName="min-h-[160px]"
+                  />
+                )}
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
@@ -305,6 +340,9 @@ export default function AdminFundraisersPage() {
                           <button onClick={() => setOfflineFundraiser(f)} className="rounded-lg bg-amber-500/10 p-2 text-amber-400 hover:bg-amber-500/20" title="Record offline donation">
                             <WifiOff className="h-4 w-4" />
                           </button>
+                          <button onClick={() => setUpdateTarget(f)} className="rounded-lg bg-sky-500/10 p-2 text-sky-400 hover:bg-sky-500/20" title="Post campaign update">
+                            <Plus className="h-4 w-4" />
+                          </button>
                           <button onClick={() => startEdit(f)} className="rounded-lg bg-neon-blue/10 p-2 text-neon-blue hover:bg-neon-blue/20" title="Edit">
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -372,6 +410,67 @@ export default function AdminFundraisersPage() {
                 <button type="button" onClick={() => { setOfflineFundraiser(null); offlineForm.reset(); }} className="btn-secondary flex-1">Cancel</button>
                 <button type="submit" disabled={offlineMutation.isPending} className="btn-primary flex-1">
                   {offlineMutation.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Record'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fundraiser update modal */}
+      {updateTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="glass-card w-full max-w-2xl p-6">
+            <h3 className="mb-1 text-lg font-bold">Post Campaign Update</h3>
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Campaign: {updateTarget.title}</p>
+
+            <form
+              onSubmit={updateForm.handleSubmit((dto) => addUpdateMutation.mutate({ id: updateTarget.id, dto }))}
+              className="space-y-4"
+            >
+              <div>
+                <label className="mb-1 block text-sm">Update title *</label>
+                <input
+                  {...updateForm.register('title')}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+                />
+                {updateForm.formState.errors.title && (
+                  <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.title.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm">Update content *</label>
+                <Controller
+                  name="content"
+                  control={updateForm.control}
+                  render={({ field }) => (
+                    <RichTextEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Share campaign progress, milestones, or thank-you notes"
+                      minHeightClassName="min-h-[180px]"
+                    />
+                  )}
+                />
+                {updateForm.formState.errors.content && (
+                  <p className="mt-1 text-xs text-red-400">{updateForm.formState.errors.content.message}</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUpdateTarget(null);
+                    updateForm.reset();
+                  }}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={addUpdateMutation.isPending} className="btn-primary flex-1">
+                  {addUpdateMutation.isPending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Post Update'}
                 </button>
               </div>
             </form>

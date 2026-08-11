@@ -117,10 +117,14 @@ export class MembershipsController {
   @HttpCode(HttpStatus.OK)
   async webhook(
     @Headers('stripe-signature') signature: string,
-    @RawBody() rawBody: Buffer
+    @RawBody() rawBody: Buffer,
+    @Body() body: any
   ) {
     try {
-      return await this.membershipsService.handleWebhook(rawBody, signature);
+      if (signature) {
+        return await this.membershipsService.handleWebhook(rawBody, signature);
+      }
+      return await this.membershipsService.handlePayPalWebhook(body);
     } catch (error) {
       // A bad or missing signature is a client error, not a server fault. Left
       // as a 500 it looks like an outage and Stripe's retries mask the real

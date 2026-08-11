@@ -2,18 +2,20 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X, Newspaper } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { hasRichTextContent } from '@/lib/rich-text';
 
 const blogSchema = z.object({
   title: z.string().min(1),
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and hyphens only'),
-  content: z.string().min(1),
+  content: z.string().refine((value) => hasRichTextContent(value), 'Content is required'),
   imageUrl: z.string().url().optional().or(z.literal('')),
   publishedAt: z.string().optional(),
   isPublished: z.boolean().default(false)
@@ -35,7 +37,7 @@ interface BlogPost {
 export default function AdminBlogPage() {
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BlogForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BlogForm>({
     resolver: zodResolver(blogSchema)
   });
 
@@ -136,7 +138,18 @@ export default function AdminBlogPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Content</label>
-              <textarea {...register('content')} rows={6} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+              <Controller
+                name="content"
+                control={control}
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Write blog content with headings, lists, and links"
+                    minHeightClassName="min-h-[260px]"
+                  />
+                )}
+              />
               {errors.content && <p className="mt-1 text-xs text-red-400">{errors.content.message}</p>}
             </div>
             <ImageUpload

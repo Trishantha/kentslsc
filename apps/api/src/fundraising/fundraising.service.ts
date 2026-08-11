@@ -110,9 +110,6 @@ export class FundraisingService {
   }
 
   async create(data: CreateFundraiserDto, organizerId?: string) {
-    const aiSummary = data.description
-      ? await this.ai.summarise(data.description, 'fundraiser', 200)
-      : null;
     // Admins get ACTIVE immediately; member-created campaigns start as PENDING_APPROVAL
     const status = organizerId ? FundraiserStatus.PENDING_APPROVAL : FundraiserStatus.ACTIVE;
     const item = await this.prisma.fundraiser.create({
@@ -128,19 +125,22 @@ export class FundraisingService {
         isActive: data.isActive ?? true,
         status,
         organizerId: organizerId ?? null,
-        aiSummary
+        aiSummary: null
       },
       include: { organizer: { select: ORGANIZER_SELECT } }
     });
+
+    if (data.description?.trim()) {
+      this.refreshAiSummary(item.id, data.description).catch((error) => {
+        this.logger.warn(`Failed to generate fundraiser summary: ${(error as Error).message}`);
+      });
+    }
+
     return this.toResponse(item);
   }
 
   async update(id: string, data: Partial<CreateFundraiserDto>) {
     const existing = await this.findById(id);
-    const aiSummary =
-      data.description !== undefined
-        ? await this.ai.summarise(data.description ?? '', 'fundraiser', 200)
-        : undefined;
 
     // Delete old Supabase object when image is replaced
     if (data.imagePath !== undefined && existing.imagePath && existing.imagePath !== data.imagePath) {
@@ -160,12 +160,29 @@ export class FundraisingService {
         ...(data.category !== undefined && { category: data.category }),
         ...(data.startDate !== undefined && { startDate: data.startDate }),
         ...(data.endDate !== undefined && { endDate: data.endDate }),
-        ...(data.isActive !== undefined && { isActive: data.isActive }),
-        ...(aiSummary !== undefined && { aiSummary })
+        ...(data.isActive !== undefined && { isActive: data.isActive })
       },
       include: { organizer: { select: ORGANIZER_SELECT } }
     });
+
+    if (data.description !== undefined) {
+      this.refreshAiSummary(id, data.description ?? '').catch((error) => {
+        this.logger.warn(`Failed to refresh fundraiser summary: ${(error as Error).message}`);
+      });
+    }
+
     return this.toResponse(item);
+  }
+
+  private async refreshAiSummary(fundraiserId: string, description: string): Promise<void> {
+    const summary = description.trim()
+      ? await this.ai.summarise(description, 'fundraiser', 200)
+      : null;
+
+    await this.prisma.fundraiser.update({
+      where: { id: fundraiserId },
+      data: { aiSummary: summary }
+    });
   }
 
   async remove(id: string) {
@@ -239,10 +256,18 @@ export class FundraisingService {
 
   async addUpdate(fundraiserId: string, authorId: string, dto: CreateFundraiserUpdateDto) {
     const fundraiser = await this.findById(fundraiserId);
-    // Only organizer or admin can post updates
+    // Member route: only the campaign organizer can post updates.
     if (fundraiser.organizerId && fundraiser.organizerId !== authorId) {
       throw new ForbiddenException('Only the organiser can post updates');
     }
+    return this.prisma.fundraiserUpdate.create({
+      data: { fundraiserId, authorId, title: dto.title, content: dto.content },
+      include: { author: { select: ORGANIZER_SELECT } }
+    });
+  }
+
+  async addUpdateAsAdmin(fundraiserId: string, authorId: string, dto: CreateFundraiserUpdateDto) {
+    await this.findById(fundraiserId);
     return this.prisma.fundraiserUpdate.create({
       data: { fundraiserId, authorId, title: dto.title, content: dto.content },
       include: { author: { select: ORGANIZER_SELECT } }
@@ -288,31 +313,23 @@ export class FundraisingService {
     const baseUrl = this.configService.get('FRONTEND_URL') ?? 'http://localhost:3000';
     // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
     const metaMessage = dto.message?.slice(0, 490);
-    const session = await this.payments.createCheckoutSession({
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            product_data: { name: `Donation to ${fundraiser.title}` },
-            unit_amount: Math.round(dto.amount * 100)
-          },
-          quantity: 1
-        }
-      ],
-      success_url: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
-      cancel_url: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
+    const checkout = await this.payments.createCheckout({
+      amount: Math.round(dto.amount * 100),
+      currency: 'gbp',
+      description: `Donation to ${fundraiser.title}`,
+      successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
+      cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
       metadata: {
         type: 'donation',
         fundraiserId,
+        amount: String(Math.round(dto.amount * 100)),
         ...(userId && { userId }),
         ...(dto.displayName && { displayName: dto.displayName }),
         ...(metaMessage && { message: metaMessage }),
         isAnonymous: String(dto.isAnonymous ?? false)
       }
     });
-    return { sessionId: session.id, url: session.url };
+    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
   }
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
@@ -328,6 +345,49 @@ export class FundraisingService {
     const isAnonymous = session.metadata?.isAnonymous === 'true';
     const donorEmail = session.customer_details?.email ?? null;
 
+    await this.recordDonation({
+      fundraiserId,
+      amount,
+      userId,
+      displayName,
+      message,
+      isAnonymous,
+      donorEmail,
+      paymentId: session.payment_intent as string | null
+    });
+  }
+
+  async handlePayPalCompleted(payload: any) {
+    const metadata = this.payments.extractPayPalMetadata(payload);
+    if (!metadata.fundraiserId || metadata.type !== 'donation') return null;
+
+    const amount = Number(metadata.amount || '0') / 100;
+    if (amount <= 0) return null;
+
+    return this.recordDonation({
+      fundraiserId: metadata.fundraiserId,
+      amount,
+      userId: metadata.userId ?? null,
+      displayName: metadata.displayName ?? null,
+      message: metadata.message ?? null,
+      isAnonymous: metadata.isAnonymous === 'true',
+      donorEmail: payload?.resource?.payer?.email_address ?? null,
+      paymentId: this.payments.extractPayPalPaymentId(payload)
+    });
+  }
+
+  private async recordDonation(input: {
+    fundraiserId: string;
+    amount: number;
+    userId: string | null;
+    displayName: string | null;
+    message: string | null;
+    isAnonymous: boolean;
+    donorEmail: string | null;
+    paymentId: string | null;
+  }) {
+    const { fundraiserId, amount, userId, displayName, message, isAnonymous, donorEmail, paymentId } = input;
+
     let prevRaised = 0;
     let targetAmount = 0;
 
@@ -337,7 +397,7 @@ export class FundraisingService {
           fundraiserId,
           userId,
           amount,
-          paymentId: session.payment_intent as string | null,
+          paymentId,
           displayName,
           message,
           isAnonymous,

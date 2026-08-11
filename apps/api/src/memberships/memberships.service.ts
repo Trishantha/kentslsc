@@ -156,25 +156,13 @@ export class MembershipsService {
       return { membership, paid: false };
     }
 
-    const session = await this.paymentsService.createCheckoutSession({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            product_data: {
-              name: type.name,
-              description: type.description ?? undefined
-            },
-            unit_amount: Math.round(Number(type.price) * 100)
-          },
-          quantity: 1
-        }
-      ],
-      mode: 'payment',
-      customer_email: email,
-      success_url: `${this.frontendUrl}/dashboard?membership=success`,
-      cancel_url: `${this.frontendUrl}/membership?canceled=1`,
+    const checkout = await this.paymentsService.createCheckout({
+      amount: Math.round(Number(type.price) * 100),
+      currency: 'gbp',
+      description: type.name,
+      customerEmail: email,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
+      cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
       metadata: {
         source: 'membership',
         userId,
@@ -186,7 +174,7 @@ export class MembershipsService {
       }
     });
 
-    return { sessionId: session.id, url: session.url, paid: true };
+    return { sessionId: checkout.id, url: checkout.url, paid: true, provider: checkout.provider };
   }
 
   private async createMembership(data: CreateMembershipData): Promise<Membership> {
@@ -429,52 +417,66 @@ export class MembershipsService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      const md = session.metadata ?? {};
-
-      if (md.source !== 'membership') return null;
-
-      const membershipType = await this.prisma.membershipType.findUnique({
-        where: { id: md.membershipTypeId }
-      });
-      if (!membershipType || membershipType.deletedAt) {
-        throw new BadRequestException('Membership type not found');
-      }
-      if (!md.userId || !md.fullName) {
-        throw new BadRequestException('Missing membership metadata');
-      }
-
-      let dependants: DependantInput[] = [];
-      try {
-        dependants = JSON.parse(md.dependants || '[]');
-      } catch {
-        dependants = [];
-      }
-
-      if (dependants.length > 0 && !membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
-        throw new BadRequestException('This membership type does not include dependants');
-      }
-
-      let address: StructuredAddressDto | undefined;
-      try {
-        address = md.address ? JSON.parse(md.address) : undefined;
-      } catch {
-        address = undefined;
-      }
-
-      const membership = await this.createMembership({
-        userId: md.userId!,
-        membershipTypeId: membershipType.id,
-        fullName: md.fullName!,
-        address,
-        phone: md.phone || undefined,
-        dependants,
-        membershipType,
-        overrideEmail: session.customer_email ?? undefined
-      });
-
-      return { received: true, membershipId: membership.membershipId };
+      return this.handleMembershipCheckoutCompleted(session.metadata ?? {}, session.customer_email ?? undefined);
     }
 
     return { received: true, membershipId: null };
+  }
+
+  async handlePayPalWebhook(payload: any) {
+    const metadata = this.paymentsService.extractPayPalMetadata(payload);
+    if (!metadata.source || metadata.source !== 'membership') {
+      return { received: true, membershipId: null };
+    }
+
+    return this.handleMembershipCheckoutCompleted(metadata, payload?.resource?.payer?.email_address ?? undefined);
+  }
+
+  private async handleMembershipCheckoutCompleted(
+    metadata: Record<string, string>,
+    customerEmail?: string
+  ) {
+    if (metadata.source !== 'membership') return { received: true, membershipId: null };
+
+    const membershipType = await this.prisma.membershipType.findUnique({
+      where: { id: metadata.membershipTypeId }
+    });
+    if (!membershipType || membershipType.deletedAt) {
+      throw new BadRequestException('Membership type not found');
+    }
+    if (!metadata.userId || !metadata.fullName) {
+      throw new BadRequestException('Missing membership metadata');
+    }
+
+    let dependants: DependantInput[] = [];
+    try {
+      dependants = JSON.parse(metadata.dependants || '[]');
+    } catch {
+      dependants = [];
+    }
+
+    if (dependants.length > 0 && !membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
+      throw new BadRequestException('This membership type does not include dependants');
+    }
+
+    let address: StructuredAddressDto | undefined;
+    try {
+      address = metadata.address ? JSON.parse(metadata.address) : undefined;
+    } catch {
+      address = undefined;
+    }
+
+    const membership = await this.createMembership({
+      userId: metadata.userId,
+      membershipTypeId: membershipType.id,
+      fullName: metadata.fullName,
+      address,
+      phone: metadata.phone || undefined,
+      dependants,
+      membershipType,
+      overrideEmail: customerEmail
+    });
+
+    return { received: true, membershipId: membership.membershipId };
   }
 }

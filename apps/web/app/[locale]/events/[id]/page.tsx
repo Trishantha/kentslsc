@@ -4,6 +4,7 @@ import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import EventDetailContent, { type Event } from './EventDetailContent';
 import { serverApiUrl } from '@/lib/api-base';
+import { summarizeRichText, stripRichText } from '@/lib/rich-text';
 
 interface Props {
   params: { id: string };
@@ -18,7 +19,7 @@ async function fetchEvent(id: string): Promise<Event | null> {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await fetchEvent(params.id);
   if (!event) return {};
-  const description = event.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Join us for ${event.title}`;
+  const description = summarizeRichText(event.description, 160) || `Join us for ${event.title}`;
   const image = event.imageUrl ?? '/opengraph-image.png';
   return {
     title: event.title,
@@ -50,7 +51,7 @@ export default async function EventDetailPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: event.title,
-    description: event.description ?? `Join us for ${event.title}`,
+    description: stripRichText(event.description) || `Join us for ${event.title}`,
     image: event.imageUrl ?? `${baseUrl}/opengraph-image.png`,
     startDate: event.startDatetime,
     endDate: event.endDatetime,

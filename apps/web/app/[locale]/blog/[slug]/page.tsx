@@ -4,6 +4,7 @@ import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
 import { serverApiUrl } from '@/lib/api-base';
+import { summarizeRichText } from '@/lib/rich-text';
 
 interface Props {
   params: { slug: string };
@@ -18,7 +19,8 @@ async function fetchPost(slug: string): Promise<BlogPost | null> {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await fetchPost(params.slug);
   if (!post) return {};
-  const description = post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' ') ?? undefined;
+  const fallback = summarizeRichText(post.content, 160);
+  const description = (post.aiTldr ?? fallback) || undefined;
   const image = post.imageUrl ?? '/opengraph-image.png';
   return {
     title: post.title,
@@ -52,7 +54,7 @@ export default async function BlogPostPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: post.title,
-    description: post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' '),
+    description: post.aiTldr ?? summarizeRichText(post.content, 160),
     image: post.imageUrl ?? `${baseUrl}/opengraph-image.png`,
     datePublished: post.publishedAt ?? post.createdAt,
     dateModified: post.updatedAt ?? post.createdAt,

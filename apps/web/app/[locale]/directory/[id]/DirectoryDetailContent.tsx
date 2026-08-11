@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 const updateBusinessSchema = businessListingSchema.partial();
 const createJobSchema = jobAdSchema.extend({
@@ -344,7 +345,10 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
                     )}
                   </div>
                   {job.description && (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{job.description}</p>
+                    <RichTextContent
+                      html={job.description}
+                      className="mt-2 text-sm text-slate-600 dark:text-slate-400"
+                    />
                   )}
                 </div>
                 {canManage && (

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
@@ -18,12 +18,15 @@ export interface SearchParams {
 
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
   private client?: OpenAI;
+  private readonly requestTimeoutMs: number;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService
   ) {
+    this.requestTimeoutMs = Number(configService.get<string>('OPENAI_TIMEOUT_MS') ?? '5000');
     const apiKey = configService.get<string>('OPENAI_API_KEY');
     if (apiKey) {
       this.client = new OpenAI({ apiKey });
@@ -34,43 +37,89 @@ export class AiService {
     return !!this.client;
   }
 
+  private async withTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+    let timeoutId: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`${operation} timed out after ${this.requestTimeoutMs}ms`));
+          }, this.requestTimeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  }
+
   async summarise(content: string, type: string, maxLength = 150): Promise<string> {
     if (!this.isEnabled()) {
       return content.slice(0, maxLength).trim();
     }
-    const completion = await this.client!.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: `Summarise this ${type} in ${maxLength} characters or fewer.` },
-        { role: 'user', content }
-      ],
-      max_tokens: Math.ceil(maxLength / 2) + 20
-    });
-    return completion.choices[0]?.message?.content?.trim() ?? '';
+    try {
+      const completion = await this.withTimeout(
+        this.client!.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: `Summarise this ${type} in ${maxLength} characters or fewer.` },
+            { role: 'user', content }
+          ],
+          max_tokens: Math.ceil(maxLength / 2) + 20
+        }),
+        'summarise'
+      );
+      return completion.choices[0]?.message?.content?.trim() ?? '';
+    } catch (error) {
+      this.logger.warn(`AI summarise failed (${type}), using fallback: ${(error as Error).message}`);
+      return content.slice(0, maxLength).trim();
+    }
   }
 
   async moderate(content: string): Promise<{ flagged: boolean; reason?: string }> {
     if (!this.isEnabled()) {
       return { flagged: false };
     }
-    const result = await this.client!.moderations.create({ input: content });
-    const flagged = result.results[0]?.flagged ?? false;
-    return { flagged, reason: flagged ? 'OpenAI moderation flagged this content.' : undefined };
+    try {
+      const result = await this.withTimeout(
+        this.client!.moderations.create({ input: content }),
+        'moderate'
+      );
+      const flagged = result.results[0]?.flagged ?? false;
+      return { flagged, reason: flagged ? 'OpenAI moderation flagged this content.' : undefined };
+    } catch (error) {
+      this.logger.warn(`AI moderation failed, defaulting to not flagged: ${(error as Error).message}`);
+      return { flagged: false };
+    }
   }
 
   async welcome(name: string): Promise<string> {
     if (!this.isEnabled()) {
       return `Welcome to Kent SLSC, ${name}! We're glad to have you in our community.`;
     }
-    const completion = await this.client!.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'Write a warm, personalised welcome message for a new member of the Kent Sri Lankan Social Club.' },
-        { role: 'user', content: `Name: ${name}` }
-      ],
-      max_tokens: 200
-    });
-    return completion.choices[0]?.message?.content?.trim() ?? `Welcome, ${name}!`;
+    try {
+      const completion = await this.withTimeout(
+        this.client!.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Write a warm, personalised welcome message for a new member of the Kent Sri Lankan Social Club.'
+            },
+            { role: 'user', content: `Name: ${name}` }
+          ],
+          max_tokens: 200
+        }),
+        'welcome'
+      );
+      return completion.choices[0]?.message?.content?.trim() ?? `Welcome, ${name}!`;
+    } catch (error) {
+      this.logger.warn(`AI welcome generation failed, using fallback: ${(error as Error).message}`);
+      return `Welcome to Kent SLSC, ${name}! We're glad to have you in our community.`;
+    }
   }
 
   async answerFaq(message: string): Promise<string | null> {
@@ -78,20 +127,28 @@ export class AiService {
       return null;
     }
 
-    const completion = await this.client!.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a helpful assistant for the Kent Sri Lankan Social Club. Answer the question briefly and warmly in 1-2 sentences. If you do not know, say you will pass it to the committee.'
-        },
-        { role: 'user', content: message }
-      ],
-      max_tokens: 150
-    });
+    try {
+      const completion = await this.withTimeout(
+        this.client!.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are a helpful assistant for the Kent Sri Lankan Social Club. Answer the question briefly and warmly in 1-2 sentences. If you do not know, say you will pass it to the committee.'
+            },
+            { role: 'user', content: message }
+          ],
+          max_tokens: 150
+        }),
+        'answerFaq'
+      );
 
-    return completion.choices[0]?.message?.content?.trim() ?? null;
+      return completion.choices[0]?.message?.content?.trim() ?? null;
+    } catch (error) {
+      this.logger.warn(`AI FAQ answer failed: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   async recommend({ type, userId, limit = 5 }: RecommendParams) {

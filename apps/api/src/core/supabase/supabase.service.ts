@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createReadStream } from 'fs';
 import { nanoid } from 'nanoid';
 import { extname } from 'path';
 import { SUPABASE_CLIENT } from './supabase.constants.js';
@@ -61,7 +62,9 @@ export class SupabaseStorageService implements OnModuleInit {
     const ext = extname(file.originalname).toLowerCase() || '';
     const path = `${unique}${ext}`;
 
-    const { error } = await this.supabase.storage.from(this.bucketName).upload(path, file.buffer, {
+    const body = file.buffer?.length ? file.buffer : createReadStream(file.path);
+
+    const { error } = await this.supabase.storage.from(this.bucketName).upload(path, body, {
       contentType: file.mimetype,
       upsert: false
     });

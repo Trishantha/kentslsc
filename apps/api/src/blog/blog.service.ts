@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import type { BlogPostInput } from '@kentslsc/shared';
 
 @Injectable()
 export class BlogService {
+  private readonly logger = new Logger(BlogService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService
@@ -57,10 +59,6 @@ export class BlogService {
 
   async create(authorUserId: string, data: BlogPostInput) {
     const publishedAt = data.isPublished ? (data.publishedAt ?? new Date()) : null;
-    const aiTldr =
-      data.isPublished && data.content
-        ? await this.ai.summarise(data.content, 'blog post', 200)
-        : null;
     const item = await this.prisma.blogPost.create({
       data: {
         title: data.title,
@@ -70,10 +68,17 @@ export class BlogService {
         authorUserId,
         isPublished: data.isPublished ?? false,
         publishedAt,
-        aiTldr
+        aiTldr: null
       },
       include: { author: { select: { id: true, name: true } } }
     });
+
+    if (data.isPublished && data.content?.trim()) {
+      this.refreshAiTldr(item.id, data.content).catch((error) => {
+        this.logger.warn(`Failed to generate blog TLDR: ${(error as Error).message}`);
+      });
+    }
+
     return item;
   }
 
@@ -84,14 +89,6 @@ export class BlogService {
       (existing.isPublished === false &&
         data.isPublished === undefined &&
         data.publishedAt !== undefined);
-
-    let aiTldr: string | undefined;
-    if (willPublish || data.isPublished === true) {
-      const content = data.content ?? existing.content;
-      if (content) {
-        aiTldr = await this.ai.summarise(content, 'blog post', 200);
-      }
-    }
 
     const publishedAt =
       data.isPublished === true
@@ -106,12 +103,29 @@ export class BlogService {
         ...(data.content !== undefined && { content: data.content }),
         ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
         ...(data.isPublished !== undefined && { isPublished: data.isPublished }),
-        ...(publishedAt !== undefined && { publishedAt }),
-        ...(aiTldr !== undefined && { aiTldr })
+        ...(publishedAt !== undefined && { publishedAt })
       },
       include: { author: { select: { id: true, name: true } } }
     });
+
+    if (willPublish || data.isPublished === true) {
+      const content = data.content ?? existing.content;
+      if (content?.trim()) {
+        this.refreshAiTldr(id, content).catch((error) => {
+          this.logger.warn(`Failed to refresh blog TLDR: ${(error as Error).message}`);
+        });
+      }
+    }
+
     return item;
+  }
+
+  private async refreshAiTldr(postId: string, content: string): Promise<void> {
+    const aiTldr = await this.ai.summarise(content, 'blog post', 200);
+    await this.prisma.blogPost.update({
+      where: { id: postId },
+      data: { aiTldr: aiTldr || null }
+    });
   }
 
   async remove(id: string) {

@@ -101,6 +101,13 @@ export class DirectoryController {
     return this.directoryService.createJob(user, dto);
   }
 
+  @Post('jobs/:id/publish')
+  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
+  @ApiBearerAuth()
+  publishJob(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.directoryService.createJobPublishCheckout(user, id);
+  }
+
   @Put('jobs/:id')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
   @ApiBearerAuth()
@@ -124,14 +131,30 @@ export class DirectoryController {
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
+    @Body() body: any,
     @Res() res: Response
   ) {
     try {
-      const event = await this.paymentsService.constructEvent(rawBody, signature);
-      if (event.type === 'checkout.session.completed') {
-        await this.paymentsService.handleDirectoryPromotion(event.data.object as any);
+      if (signature) {
+        const event = await this.paymentsService.constructEvent(rawBody, signature);
+        if (event.type === 'checkout.session.completed') {
+          await this.paymentsService.handleDirectoryPromotion(event.data.object as any);
+        }
+        return res.json({ received: true });
       }
-      return res.json({ received: true });
+
+      if (body?.event_type) {
+        const metadata = this.paymentsService.extractPayPalMetadata(body);
+        if (metadata.type === 'directory_promotion') {
+          await this.directoryService.handlePromotionCompleted(metadata);
+        }
+        if (metadata.type === 'job_publish') {
+          await this.directoryService.handleJobPublishCompleted(metadata);
+        }
+        return res.json({ received: true });
+      }
+
+      return res.status(400).send('Webhook payload not recognised');
     } catch (err) {
       return res.status(400).send(`Webhook error: ${(err as Error).message}`);
     }

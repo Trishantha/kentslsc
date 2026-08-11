@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -42,7 +43,7 @@ interface Event {
 export default function AdminEventsPage() {
   const [editing, setEditing] = useState<Event | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<EventForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<EventForm>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
       ticketPrice: 0,
@@ -151,7 +152,18 @@ export default function AdminEventsPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Description</label>
-              <textarea {...register('description')} rows={3} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    placeholder="Write a full event description with formatting"
+                    minHeightClassName="min-h-[150px]"
+                  />
+                )}
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Location</label>

@@ -185,6 +185,14 @@ export class AdminService {
     return this.fundraisingService.recordOfflineDonation(fundraiserId, dto);
   }
 
+  addFundraiserUpdate(
+    fundraiserId: string,
+    authorId: string,
+    dto: Parameters<FundraisingService['addUpdateAsAdmin']>[2]
+  ) {
+    return this.fundraisingService.addUpdateAsAdmin(fundraiserId, authorId, dto);
+  }
+
   getFundraisingStats() {
     return this.fundraisingService.getStats();
   }

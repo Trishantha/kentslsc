@@ -1,8 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { NextIntlClientProvider, useTranslations } from 'next-intl';
 import enMessages from '../messages/en.json';
+import siMessages from '../messages/si.json';
+import taMessages from '../messages/ta.json';
+
+const LOCALES = ['en', 'si', 'ta'] as const;
+type SupportedLocale = (typeof LOCALES)[number];
+
+const MESSAGES: Record<SupportedLocale, typeof enMessages> = {
+  en: enMessages,
+  si: siMessages,
+  ta: taMessages
+};
+
+function getLocaleFromPath(pathname: string): SupportedLocale {
+  const segment = pathname.split('/').filter(Boolean)[0];
+  return LOCALES.includes(segment as SupportedLocale) ? (segment as SupportedLocale) : 'en';
+}
 
 function GlobalErrorInner({
   error,
@@ -44,8 +61,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname ?? '/en');
+
   return (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <NextIntlClientProvider locale={locale} messages={MESSAGES[locale]}>
       <GlobalErrorInner error={error} reset={reset} />
     </NextIntlClientProvider>
   );

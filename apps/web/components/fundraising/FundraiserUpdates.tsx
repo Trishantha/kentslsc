@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Megaphone } from 'lucide-react';
 import { api } from '@/lib/api';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 
 interface Update {
   id: string;
@@ -56,7 +57,7 @@ export function FundraiserUpdates({ fundraiserId }: Props) {
               </p>
             </div>
           </div>
-          <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">{u.content}</p>
+          <RichTextContent html={u.content} className="text-sm text-slate-600 dark:text-slate-400" />
         </li>
       ))}
     </ul>

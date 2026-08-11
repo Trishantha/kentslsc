@@ -166,27 +166,19 @@ export class DirectoryService {
     }
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-    const session = await this.paymentsService.createCheckoutSession({
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            unit_amount: PROMOTION_PRICE_PENCE,
-            product_data: { name: `Promote ${listing.businessName} for 30 days` }
-          },
-          quantity: 1
-        }
-      ],
-      success_url: `${frontendUrl}/directory/${id}?promoted=success`,
-      cancel_url: `${frontendUrl}/directory/${id}?promoted=cancel`,
+    const checkout = await this.paymentsService.createCheckout({
+      amount: PROMOTION_PRICE_PENCE,
+      currency: 'gbp',
+      description: `Promote ${listing.businessName} for 30 days`,
+      successUrl: `${frontendUrl}/directory/${id}?promoted=success`,
+      cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
       metadata: {
         type: 'directory_promotion',
         businessListingId: id
       }
     });
 
-    return { sessionId: session.id, url: session.url };
+    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
   }
 
   async findJobs(businessListingId?: string) {
@@ -273,5 +265,58 @@ export class DirectoryService {
     }
     await this.prisma.jobAd.update({ where: { id }, data: { deletedAt: new Date() } });
     return { success: true };
+  }
+
+  async createJobPublishCheckout(user: TokenPayload, id: string) {
+    const job = await this.prisma.jobAd.findFirst({
+      where: { id, deletedAt: null },
+      include: { businessListing: true }
+    });
+    if (!job || !job.businessListing) throw new NotFoundException('Job ad not found');
+    if (!this.isOwnerOrAdmin(job.businessListing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to publish this job ad');
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const checkout = await this.paymentsService.createCheckout({
+      amount: 5000,
+      currency: 'gbp',
+      description: `Publish job ad: ${job.title}`,
+      successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success`,
+      cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
+      metadata: {
+        type: 'job_publish',
+        jobAdId: id
+      }
+    });
+
+    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+  }
+
+  async handlePromotionCompleted(metadata: Record<string, string>) {
+    const businessListingId = metadata.businessListingId;
+    if (!businessListingId || metadata.type !== 'directory_promotion') return null;
+
+    const promotedUntil = new Date();
+    promotedUntil.setDate(promotedUntil.getDate() + 30);
+
+    await this.prisma.businessListing.updateMany({
+      where: { id: businessListingId, deletedAt: null },
+      data: { isPromoted: true, promotedUntil }
+    });
+
+    return { received: true };
+  }
+
+  async handleJobPublishCompleted(metadata: Record<string, string>) {
+    const jobAdId = metadata.jobAdId;
+    if (!jobAdId || metadata.type !== 'job_publish') return null;
+
+    await this.prisma.jobAd.updateMany({
+      where: { id: jobAdId, deletedAt: null },
+      data: { isPublished: true }
+    });
+
+    return { received: true };
   }
 }
