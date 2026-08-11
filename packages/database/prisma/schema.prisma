@@ -41,6 +41,38 @@ enum ContactStatus {
   RESOLVED
 }
 
+enum FundraiserStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  COMPLETED
+  REJECTED
+}
+
+enum FundraiserCategory {
+  CHARITY
+  SPORTS
+  COMMUNITY
+  MEMORIAL
+  MEDICAL
+  OTHER
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOCKOUT
+  LOCKOUT_CLEARED
+  LOGOUT
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_CHANGED
+  EMAIL_VERIFICATION_SENT
+  EMAIL_VERIFIED
+  SESSION_REVOKED
+  REFRESH_REUSE_DETECTED
+  ADMIN_USER_CREATED
+  ROLE_CHANGED
+}
+
 model User {
   id            String    @id @default(uuid())
   name          String
@@ -52,21 +84,114 @@ model User {
   address       Json?     @db.JsonB
   role          UserRole  @default(GUEST)
   refreshToken  String?   @map("refresh_token")
+  // Timestamp only, deliberately no parallel boolean: two sources of truth for
+  // the same fact drift. Callers derive `emailVerified` from this being non-null.
+  emailVerifiedAt   DateTime? @map("email_verified_at")
+  passwordChangedAt DateTime? @map("password_changed_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
-  memberships     Membership[]
-  tickets         Ticket[]
-  businessListings BusinessListing[]
-  forumTopics     ForumTopic[]
-  forumPosts      ForumPost[]
-  donations       Donation[]
-  blogPosts       BlogPost[] @relation("AuthorBlogPosts")
+  memberships           Membership[]
+  tickets               Ticket[]
+  businessListings      BusinessListing[]
+  forumTopics           ForumTopic[]
+  forumPosts            ForumPost[]
+  donations             Donation[]
+  blogPosts             BlogPost[]            @relation("AuthorBlogPosts")
+  organizedFundraisers  Fundraiser[]          @relation("FundraiserOrganizer")
+  fundraiserUpdates     FundraiserUpdate[]
+
+  sessions                Session[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  authEvents              AuthEvent[]
 
   @@index([email])
   @@index([role])
   @@map("users")
+}
+
+/// One row per signed-in device. Replaces the single `users.refresh_token`
+/// slot, which meant signing in anywhere silently killed every other session.
+///
+/// Rotation mutates this row in place and shifts the previous hash into
+/// `prevRefreshTokenHash`; a token that matches *that* is a replay, which means
+/// either the user or an attacker is using a stolen copy, so the whole session
+/// is revoked. `id` doubles as the `sid` JWT claim and is stable across
+/// rotations, which is what lets us revoke access tokens per device.
+model Session {
+  id                   String    @id @default(uuid())
+  userId               String    @map("user_id")
+  refreshTokenHash     String    @unique @map("refresh_token_hash")
+  prevRefreshTokenHash String?   @unique @map("prev_refresh_token_hash")
+  userAgent            String?   @map("user_agent")
+  ipHash               String?   @map("ip_hash")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  lastUsedAt           DateTime  @default(now()) @map("last_used_at")
+  expiresAt            DateTime  @map("expires_at")
+  revokedAt            DateTime? @map("revoked_at")
+  revokedReason        String?   @map("revoked_reason")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Only the sha256 of the emailed token is stored, so a database read never
+/// yields a usable credential.
+model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  email      String
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  ipHash     String?   @map("ip_hash")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+/// Security audit trail. Records outcomes, never counters — per-attempt
+/// counters live in Redis so a login spray can't serialise writes against the
+/// users table (the pool runs at connection_limit=1).
+model AuthEvent {
+  id        String        @id @default(uuid())
+  userId    String?       @map("user_id")
+  email     String?
+  type      AuthEventType
+  ipHash    String?       @map("ip_hash")
+  userAgent String?       @map("user_agent")
+  metadata  Json?         @db.JsonB
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@map("auth_events")
 }
 
 model MembershipType {
@@ -121,6 +246,7 @@ model Event {
   startDatetime DateTime @map("start_datetime")
   endDatetime   DateTime @map("end_datetime")
   ticketPrice   Decimal  @default(0) @map("ticket_price") @db.Decimal(10, 2)
+  isFree        Boolean  @default(false) @map("is_free")
   maxTickets    Int?     @map("max_tickets")
   imageUrl      String?  @map("image_url")
   isPublished   Boolean  @default(false) @map("is_published")
@@ -262,46 +388,78 @@ model ForumPost {
 }
 
 model Fundraiser {
-  id           String   @id @default(uuid())
-  title        String
-  description  String?
-  targetAmount Decimal  @map("target_amount") @db.Decimal(12, 2)
-  raisedAmount Decimal  @default(0) @map("raised_amount") @db.Decimal(12, 2)
-  imageUrl     String?  @map("image_url")
-  startDate    DateTime @map("start_date")
-  endDate      DateTime @map("end_date")
-  isActive     Boolean  @default(true) @map("is_active")
-  aiSummary    String?  @map("ai_summary")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+  id               String              @id @default(uuid())
+  title            String
+  description      String?
+  targetAmount     Decimal             @map("target_amount") @db.Decimal(12, 2)
+  raisedAmount     Decimal             @default(0) @map("raised_amount") @db.Decimal(12, 2)
+  totalDonors      Int                 @default(0) @map("total_donors")
+  imageUrl         String?             @map("image_url")
+  imagePath        String?             @map("image_path")
+  startDate        DateTime            @map("start_date")
+  endDate          DateTime            @map("end_date")
+  isActive         Boolean             @default(true) @map("is_active")
+  status           FundraiserStatus    @default(PENDING_APPROVAL)
+  category         FundraiserCategory  @default(CHARITY)
+  organizerId      String?             @map("organizer_id")
+  rejectionReason  String?             @map("rejection_reason")
+  approvedAt       DateTime?           @map("approved_at")
+  aiSummary        String?             @map("ai_summary")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  deletedAt        DateTime?           @map("deleted_at")
 
-  donations Donation[]
+  donations  Donation[]
+  updates    FundraiserUpdate[]
+  organizer  User?               @relation("FundraiserOrganizer", fields: [organizerId], references: [id])
 
+  @@index([status])
   @@index([isActive])
   @@index([endDate])
+  @@index([organizerId])
   @@map("fundraisers")
 }
 
 model Donation {
-  id          String   @id @default(uuid())
-  fundraiserId String  @map("fundraiser_id")
-  userId      String?  @map("user_id")
-  amount      Decimal  @db.Decimal(12, 2)
-  paymentId   String?  @map("payment_id")
-  message     String?
-  donatedAt   DateTime @default(now()) @map("donated_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id            String    @id @default(uuid())
+  fundraiserId  String    @map("fundraiser_id")
+  userId        String?   @map("user_id")
+  amount        Decimal   @db.Decimal(12, 2)
+  paymentId     String?   @map("payment_id")
+  message       String?
+  displayName   String?   @map("display_name")
+  isAnonymous   Boolean   @default(false) @map("is_anonymous")
+  isOffline     Boolean   @default(false) @map("is_offline")
+  donorEmail    String?   @map("donor_email")
+  isVerified    Boolean   @default(false) @map("is_verified")
+  donatedAt     DateTime  @default(now()) @map("donated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
 
-  fundraiser Fundraiser @relation(fields: [fundraiserId], references: [id])
-  user       User?       @relation(fields: [userId], references: [id])
+  fundraiser  Fundraiser  @relation(fields: [fundraiserId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id])
 
   @@index([fundraiserId])
   @@index([userId])
   @@index([paymentId])
   @@map("donations")
+}
+
+model FundraiserUpdate {
+  id           String    @id @default(uuid())
+  fundraiserId String    @map("fundraiser_id")
+  authorId     String    @map("author_id")
+  title        String
+  content      String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  fundraiser  Fundraiser  @relation(fields: [fundraiserId], references: [id], onDelete: Cascade)
+  author      User        @relation(fields: [authorId], references: [id])
+
+  @@index([fundraiserId])
+  @@map("fundraiser_updates")
 }
 
 model BlogPost {
@@ -388,7 +546,10 @@ model SitePage {
 }
 
 model HeroConfig {
-  id                  String   @id @default(uuid())
+  // The live column is a real `uuid`, not `text`. Declaring @db.Uuid aligns the
+  // schema to the database so Prisma stops trying to rewrite this primary key;
+  // the alternative (rewriting the column) would be a destructive no-op.
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   mediaType           String   @default("video") @map("media_type")
   imageUrl            String?  @map("image_url")
   videoUrl            String?  @map("video_url")
@@ -400,4 +561,20 @@ model HeroConfig {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("hero_config")
+}
+
+model CommitteeMember {
+  id           String    @id @default(uuid())
+  name         String
+  position     String
+  roleKey      String    @unique @map("role_key")
+  photoUrl     String?   @map("photo_url")
+  photoPath    String?   @map("photo_path")
+  displayOrder Int       @default(0) @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  @@index([displayOrder])
+  @@map("committee_members")
 }

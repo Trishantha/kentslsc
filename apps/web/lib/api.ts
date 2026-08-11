@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { safeRedirect } from './safe-redirect';
 
 const envUrl = process.env.NEXT_PUBLIC_API_URL;
 export const baseURL = envUrl ? `${envUrl.replace(/\/$/, '')}/api` : '/api';
@@ -33,6 +34,19 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // The API gates the portal behind email confirmation. Send the user to the
+    // screen that can actually resolve it rather than showing a bare 403.
+    if (
+      error.response?.status === 403 &&
+      error.response.data?.code === 'EMAIL_NOT_VERIFIED' &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/verify-email')
+    ) {
+      window.location.href = '/verify-email';
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       const isOptionalAuth = optionalAuthEndpoints.some((url) =>
         originalRequest.url?.includes(url)
@@ -50,7 +64,11 @@ api.interceptors.response.use(
         );
         return api(originalRequest);
       } catch {
-        window.location.href = '/auth/login';
+        // Preserve where the user was so they land back there after logging in,
+        // rather than being dumped on the dashboard.
+        const here = `${window.location.pathname}${window.location.search}`;
+        const target = safeRedirect(here, '/dashboard');
+        window.location.href = `/auth/login?redirect=${encodeURIComponent(target)}`;
       }
     }
     return Promise.reject(error);

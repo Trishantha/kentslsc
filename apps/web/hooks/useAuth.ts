@@ -18,11 +18,12 @@ export interface AuthUser {
     postcode: string;
   };
   role: 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
+  emailVerified: boolean;
   createdAt: string;
 }
 
 export function useAuth() {
-  return useQuery<AuthUser | null>({
+  const query = useQuery<AuthUser | null>({
     queryKey: ['auth', 'me'],
     queryFn: async () => {
       try {
@@ -35,6 +36,12 @@ export function useAuth() {
     retry: false,
     staleTime: 5 * 60 * 1000
   });
+
+  return {
+    ...query,
+    user: query.data ?? null,
+    loading: query.isLoading
+  };
 }
 
 export function useSignOut() {

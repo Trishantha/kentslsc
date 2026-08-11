@@ -7,6 +7,7 @@ export const eventSchema = z.object({
   startDatetime: z.coerce.date(),
   endDatetime: z.coerce.date(),
   ticketPrice: z.number().min(0).default(0),
+  isFree: z.boolean().default(false),
   maxTickets: z.number().int().min(1).optional(),
   imageUrl: z.string().url().optional(),
   isPublished: z.boolean().default(false)

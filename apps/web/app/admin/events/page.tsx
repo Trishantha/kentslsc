@@ -17,6 +17,7 @@ const eventSchema = z.object({
   startDatetime: z.string().min(1),
   endDatetime: z.string().min(1),
   ticketPrice: z.coerce.number().min(0).default(0),
+  isFree: z.boolean().default(false),
   maxTickets: z.coerce.number().int().min(1).optional(),
   imageUrl: z.string().url().optional().or(z.literal('')),
   isPublished: z.boolean().default(false)
@@ -32,6 +33,7 @@ interface Event {
   startDatetime: string;
   endDatetime: string;
   ticketPrice: number;
+  isFree: boolean;
   maxTickets: number | null;
   imageUrl: string | null;
   isPublished: boolean;
@@ -44,9 +46,11 @@ export default function AdminEventsPage() {
     resolver: zodResolver(eventSchema),
     defaultValues: {
       ticketPrice: 0,
+      isFree: false,
       isPublished: false
     }
   });
+  const isFree = watch('isFree');
 
   const { data, isLoading } = useQuery<{ data: Event[] }>({
     queryKey: ['admin', 'events'],
@@ -102,7 +106,8 @@ export default function AdminEventsPage() {
       location: event.location ?? '',
       startDatetime: new Date(event.startDatetime).toISOString().slice(0, 16),
       endDatetime: new Date(event.endDatetime).toISOString().slice(0, 16),
-      ticketPrice: event.ticketPrice,
+      ticketPrice: event.isFree ? 0 : event.ticketPrice,
+      isFree: event.isFree,
       maxTickets: event.maxTickets ?? undefined,
       imageUrl: event.imageUrl ?? '',
       isPublished: event.isPublished
@@ -118,6 +123,7 @@ export default function AdminEventsPage() {
       startDatetime: '',
       endDatetime: '',
       ticketPrice: 0,
+      isFree: false,
       maxTickets: undefined,
       imageUrl: '',
       isPublished: false
@@ -161,10 +167,30 @@ export default function AdminEventsPage() {
                 <input type="datetime-local" {...register('endDatetime')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
               </div>
             </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                {...register('isFree', {
+                  onChange: (e) => {
+                    if (e.target.checked) {
+                      setValue('ticketPrice', 0);
+                    }
+                  }
+                })}
+                className="rounded border-white/10 bg-white/5"
+              />
+              Free event
+            </label>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Ticket price (£)</label>
-                <input type="number" step="0.01" {...register('ticketPrice')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+                <input
+                  type="number"
+                  step="0.01"
+                  disabled={isFree}
+                  {...register('ticketPrice')}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
+                />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Max tickets</label>
@@ -225,7 +251,7 @@ export default function AdminEventsPage() {
                       <td className="py-3 text-slate-600 dark:text-slate-400">
                         {new Date(event.startDatetime).toLocaleString('en-GB')}
                       </td>
-                      <td className="py-3">£{Number(event.ticketPrice).toFixed(2)}</td>
+                      <td className="py-3">{event.isFree || Number(event.ticketPrice) === 0 ? 'Free' : `£${Number(event.ticketPrice).toFixed(2)}`}</td>
                       <td className="py-3">
                         <span className={`rounded-full px-2 py-1 text-xs font-semibold ${event.isPublished ? 'bg-green-500/10 text-green-400' : 'bg-slate-500/10 text-slate-400'}`}>
                           {event.isPublished ? 'Yes' : 'No'}

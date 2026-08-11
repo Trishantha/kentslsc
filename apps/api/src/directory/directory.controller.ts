@@ -9,15 +9,12 @@ import {
   Put,
   Query,
   RawBody,
-  Res,
-  UseGuards
+  Res
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type { TokenPayload } from '@kentslsc/shared';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
-import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { MembershipFeature } from '@kentslsc/shared';
 import { DirectoryService } from './directory.service.js';
@@ -26,6 +23,7 @@ import { CreateBusinessListingDto } from './dto/create-business.dto.js';
 import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
 import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
+import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('Directory')
 @Controller('directory')
@@ -36,6 +34,7 @@ export class DirectoryController {
   ) {}
 
   @Get('businesses')
+  @Public()
   listBusinesses(
     @Query('search') search?: string,
     @Query('category') category?: string,
@@ -45,13 +44,13 @@ export class DirectoryController {
   }
 
   @Get('businesses/:id')
+  @Public()
   getBusiness(@Param('id') id: string) {
     return this.directoryService.findBusinessById(id);
   }
 
   @Post('businesses')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   createBusiness(@CurrentUser() user: TokenPayload, @Body() dto: CreateBusinessListingDto) {
     return this.directoryService.createBusiness(user, dto);
@@ -59,7 +58,6 @@ export class DirectoryController {
 
   @Put('businesses/:id')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   updateBusiness(
     @CurrentUser() user: TokenPayload,
@@ -71,7 +69,6 @@ export class DirectoryController {
 
   @Delete('businesses/:id')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   deleteBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.deleteBusiness(user, id);
@@ -79,7 +76,6 @@ export class DirectoryController {
 
   @Post('businesses/:id/promote')
   @RequiresFeature(MembershipFeature.DIRECTORY_PROMOTE)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   promoteBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.createPromotionCheckout(user, id);
@@ -87,20 +83,19 @@ export class DirectoryController {
 
   @Post('businesses/:id/summarise')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   summariseBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.summariseBusiness(id);
   }
 
   @Get('jobs')
+  @Public()
   listJobs(@Query('businessListingId') businessListingId?: string) {
     return this.directoryService.findJobs(businessListingId);
   }
 
   @Post('jobs')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   createJob(@CurrentUser() user: TokenPayload, @Body() dto: CreateJobAdDto) {
     return this.directoryService.createJob(user, dto);
@@ -108,7 +103,6 @@ export class DirectoryController {
 
   @Put('jobs/:id')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   updateJob(
     @CurrentUser() user: TokenPayload,
@@ -120,13 +114,13 @@ export class DirectoryController {
 
   @Delete('jobs/:id')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   deleteJob(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.deleteJob(user, id);
   }
 
   @Post('webhook')
+  @Public()
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,

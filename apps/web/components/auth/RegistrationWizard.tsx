@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import {
   membershipFeatureLabels
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
+import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { isAxiosError } from 'axios';
 import {
   Check,
@@ -47,31 +49,44 @@ interface FeatureDefinition {
   description: string;
 }
 
-const steps = [
-  { id: 1, title: 'Account', icon: User, fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword'] as const },
-  { id: 2, title: 'Profile', icon: MapPin, fields: ['phone', 'address.buildingStreet', 'address.locality', 'address.townCity', 'address.postcode', 'dateOfBirth', 'emergencyContactName', 'emergencyContactPhone'] as const },
-  { id: 3, title: 'Interests', icon: Heart, fields: ['interests'] as const },
-  { id: 4, title: 'Plan', icon: CreditCard, fields: ['membershipTypeId'] as const },
-  { id: 5, title: 'Dependants', icon: Users, fields: ['dependants'] as const },
-  { id: 6, title: 'Review', icon: FileText, fields: ['acceptedTerms'] as const }
-];
-
-const interestOptions = ['Events', 'Business', 'Family', 'Sports', 'Culture', 'Volunteering'];
-
-function formatPrice(type: MembershipType) {
-  if (type.isFree || type.price === 0) return 'Free';
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
-}
-
 function hasFeature(type: MembershipType, feature: MembershipFeature) {
   return type.features.includes(feature);
 }
 
 export function RegistrationWizard() {
+  const t = useTranslations('registration');
+  const tAuth = useTranslations('auth');
+  const tCommon = useTranslations('common');
+
+  const steps = [
+    { id: 1, title: t('steps.account'), icon: User, fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword'] as const },
+    { id: 2, title: t('steps.profile'), icon: MapPin, fields: ['phone', 'address.buildingStreet', 'address.locality', 'address.townCity', 'address.postcode', 'dateOfBirth', 'emergencyContactName', 'emergencyContactPhone'] as const },
+    { id: 3, title: t('steps.interests'), icon: Heart, fields: ['interests'] as const },
+    { id: 4, title: t('steps.plan'), icon: CreditCard, fields: ['membershipTypeId'] as const },
+    { id: 5, title: t('steps.dependants'), icon: Users, fields: ['dependants'] as const },
+    { id: 6, title: t('steps.review'), icon: FileText, fields: ['acceptedTerms'] as const }
+  ];
+
+  const interestOptions = [
+    { value: 'Events', label: t('interests.events') },
+    { value: 'Business', label: t('interests.business') },
+    { value: 'Family', label: t('interests.family') },
+    { value: 'Sports', label: t('interests.sports') },
+    { value: 'Culture', label: t('interests.culture') },
+    { value: 'Volunteering', label: t('interests.volunteering') }
+  ];
+
+  function formatPrice(type: MembershipType) {
+    if (type.isFree || type.price === 0) return tCommon('free');
+    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
+  }
   const router = useRouter();
+  const { data: currentUser } = useAuth();
+  const signOut = useSignOut();
   const [step, setStep] = useState(1);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   const {
     data: types = [],
@@ -196,52 +211,101 @@ export function RegistrationWizard() {
         return;
       }
 
-      router.push('/dashboard?registered=1');
+      // Registration deliberately no longer signs the user in, so there is no
+      // session to send to /dashboard. Confirm and point them at their inbox.
+      setRegisteredEmail(data.email);
     } catch (error) {
       setIsSubmitting(false);
       if (!isAxiosError(error) || !error.response) {
-        setSubmitError('Cannot reach the server. Please make sure the API is running.');
+        setSubmitError(tAuth('cannotReachServer'));
         return;
       }
       const message =
         typeof error.response.data === 'object' && 'message' in error.response.data
           ? String(error.response.data.message)
-          : 'Registration failed. Please check your details and try again.';
+          : t('errors.registrationFailed');
       setSubmitError(message);
     }
   };
+
+  // Belt and braces behind the middleware redirect and the API's 409: never let
+  // a signed-in user (an admin, especially) submit this form and end up swapped
+  // into a brand new account.
+  if (currentUser) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-2xl font-bold">You&rsquo;re already signed in</h2>
+        <p className="mt-3 text-slate-700 dark:text-slate-400">
+          You&rsquo;re signed in as{' '}
+          <span className="font-medium text-slate-900 dark:text-white">{currentUser.email}</span>.
+          Sign out first if you want to create a different account.
+        </p>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <a href={currentUser.role === 'ADMIN' ? '/admin' : '/dashboard'} className="btn-primary">
+            Continue to my account
+          </a>
+          <button
+            type="button"
+            onClick={() => signOut.mutate()}
+            className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (registeredEmail) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-neon-blue/10">
+          <Check className="h-7 w-7 text-neon-blue" />
+        </div>
+        <h2 className="mt-6 text-2xl font-bold">Check your inbox</h2>
+        <p className="mt-3 text-slate-700 dark:text-slate-400">
+          Your account has been created. We&rsquo;ve sent a confirmation link to{' '}
+          <span className="font-medium text-slate-900 dark:text-white">{registeredEmail}</span>.
+          Confirm it to unlock the full member portal.
+        </p>
+        <a href="/auth/login" className="btn-primary mt-8 inline-block">
+          Go to sign in
+        </a>
+      </div>
+    );
+  }
 
   const renderStep = () => {
     switch (step) {
       case 1:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Create your account</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Start with your login details.</p>
+            <h2 className="text-xl font-bold">{t('account.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('account.subtitle')}</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-sm font-medium">First Name</label>
+                <label className="text-sm font-medium">{t('account.firstName')}</label>
                 <input {...register('firstName')} autoComplete="given-name" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                 {errors.firstName && <p className="mt-1 text-xs text-red-500">{errors.firstName.message}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium">Last Name</label>
+                <label className="text-sm font-medium">{t('account.lastName')}</label>
                 <input {...register('lastName')} autoComplete="family-name" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                 {errors.lastName && <p className="mt-1 text-xs text-red-500">{errors.lastName.message}</p>}
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{tAuth('email')}</label>
               <input {...register('email')} type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Password</label>
+              <label className="text-sm font-medium">{tAuth('password')}</label>
               <input {...register('password')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Confirm Password</label>
+              <label className="text-sm font-medium">{t('account.confirmPassword')}</label>
               <input {...register('confirmPassword')} type="password" autoComplete="new-password" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               {errors.confirmPassword && <p className="mt-1 text-xs text-red-500">{errors.confirmPassword.message}</p>}
             </div>
@@ -251,59 +315,59 @@ export function RegistrationWizard() {
       case 2:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Personal details</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Help us keep our member records up to date.</p>
+            <h2 className="text-xl font-bold">{t('profile.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('profile.subtitle')}</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-sm font-medium">Phone</label>
+                <label className="text-sm font-medium">{tAuth('phone')}</label>
                 <input {...register('phone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
               <div>
-                <label className="text-sm font-medium">Date of Birth</label>
+                <label className="text-sm font-medium">{t('profile.dateOfBirth')}</label>
                 <input {...register('dateOfBirth')} type="date" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium">Building & Street</label>
+                <label className="text-sm font-medium">{t('profile.buildingStreet')}</label>
                 <input
                   {...register('address.buildingStreet')}
                   autoComplete="address-line1"
-                  placeholder="House number or flat name and street name"
+                  placeholder={t('profile.buildingStreetPlaceholder')}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
                 />
                 {errors.address?.buildingStreet && <p className="mt-1 text-xs text-red-500">{errors.address.buildingStreet.message}</p>}
               </div>
               <div>
-                <label className="text-sm font-medium">Locality <span className="text-slate-600 dark:text-slate-400">(optional)</span></label>
+                <label className="text-sm font-medium">{t('profile.locality')} <span className="text-slate-600 dark:text-slate-400">{t('profile.optional')}</span></label>
                 <input
                   {...register('address.locality')}
                   autoComplete="address-line2"
-                  placeholder="Suburb or village name"
+                  placeholder={t('profile.localityPlaceholder')}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium">Town/City</label>
+                  <label className="text-sm font-medium">{t('profile.townCity')}</label>
                   <input
                     {...register('address.townCity', {
                       onChange: (e) => setValue('address.townCity', e.target.value.toUpperCase(), { shouldValidate: true })
                     })}
                     autoComplete="address-level2"
-                    placeholder="POST TOWN"
+                    placeholder={t('profile.townCityPlaceholder')}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
                   />
                   {errors.address?.townCity && <p className="mt-1 text-xs text-red-500">{errors.address.townCity.message}</p>}
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Postcode</label>
+                  <label className="text-sm font-medium">{t('profile.postcode')}</label>
                   <input
                     {...register('address.postcode', {
                       onChange: (e) => setValue('address.postcode', e.target.value.toUpperCase(), { shouldValidate: true })
                     })}
                     autoComplete="postal-code"
-                    placeholder="POSTCODE"
+                    placeholder={t('profile.postcodePlaceholder')}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10"
                   />
                   {errors.address?.postcode && <p className="mt-1 text-xs text-red-500">{errors.address.postcode.message}</p>}
@@ -312,11 +376,11 @@ export function RegistrationWizard() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-sm font-medium">Emergency Contact Name</label>
+                <label className="text-sm font-medium">{t('profile.emergencyContactName')}</label>
                 <input {...register('emergencyContactName')} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
               <div>
-                <label className="text-sm font-medium">Emergency Contact Phone</label>
+                <label className="text-sm font-medium">{t('profile.emergencyContactPhone')}</label>
                 <input {...register('emergencyContactPhone')} autoComplete="tel" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
               </div>
             </div>
@@ -326,24 +390,24 @@ export function RegistrationWizard() {
       case 3:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Your interests</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Select what matters to you so we can personalise your experience.</p>
+            <h2 className="text-xl font-bold">{t('interests.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('interests.subtitle')}</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {interestOptions.map((interest) => {
-                const checked = watchInterests.includes(interest);
+              {interestOptions.map(({ value, label }) => {
+                const checked = watchInterests.includes(value);
                 return (
                   <button
-                    key={interest}
+                    key={value}
                     type="button"
                     onClick={() => {
-                      const next = checked ? watchInterests.filter((i) => i !== interest) : [...watchInterests, interest];
+                      const next = checked ? watchInterests.filter((i) => i !== value) : [...watchInterests, value];
                       setValue('interests', next, { shouldValidate: true });
                     }}
                     className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
                       checked ? 'border-neon-blue bg-neon-blue/10' : 'border-slate-300 bg-slate-200 dark:border-white/10 dark:bg-white/5'
                     }`}
                   >
-                    <span className="text-sm font-medium">{interest}</span>
+                    <span className="text-sm font-medium">{label}</span>
                     {checked && <Check className="h-4 w-4 text-neon-blue" />}
                   </button>
                 );
@@ -355,8 +419,8 @@ export function RegistrationWizard() {
       case 4:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Choose your membership</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Compare plans and pick the one that fits you.</p>
+            <h2 className="text-xl font-bold">{t('plan.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('plan.subtitle')}</p>
             {typesLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
@@ -364,20 +428,20 @@ export function RegistrationWizard() {
             ) : typesError ? (
               <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center">
                 <p className="text-sm text-red-500">
-                  Could not load membership plans. Please make sure the API server is running.
+                  {t('plan.loadError')}
                 </p>
                 <button
                   type="button"
                   onClick={() => refetchTypes()}
                   className="btn-secondary mt-4 inline-flex text-sm"
                 >
-                  Retry
+                  {t('plan.retry')}
                 </button>
               </div>
             ) : types.length === 0 ? (
               <div className="rounded-xl border border-neon-gold/30 bg-neon-gold/10 p-6 text-center dark:border-neon-gold/20 dark:bg-neon-gold/5">
                 <p className="text-sm text-slate-700 dark:text-slate-400">
-                  No membership plans are available yet. Please contact the administrator.
+                  {t('plan.noPlans')}
                 </p>
               </div>
             ) : (
@@ -399,7 +463,7 @@ export function RegistrationWizard() {
                       </div>
                       <p className="mt-2 text-2xl font-bold gradient-text">{formatPrice(type)}</p>
                       <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                        {type.isFree ? 'Lifetime membership' : `${type.durationMonths} months`}
+                        {type.isFree ? t('plan.freeLabel') : t('plan.durationLabel', { duration: type.durationMonths })}
                       </p>
                       {type.description && <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{type.description}</p>}
                       <ul className="mt-3 space-y-1 text-xs text-slate-700 dark:text-slate-400">
@@ -419,15 +483,15 @@ export function RegistrationWizard() {
                 })}
               </div>
             )}
-            {errors.membershipTypeId && <p className="text-sm text-red-500">Please select a membership plan.</p>}
+            {errors.membershipTypeId && <p className="text-sm text-red-500">{t('plan.selectPlanError')}</p>}
           </div>
         );
 
       case 5:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Dependants</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Add family members covered by your plan.</p>
+            <h2 className="text-xl font-bold">{t('dependants.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('dependants.subtitle')}</p>
 
             {spouseIndex === -1 && (
               <button
@@ -435,7 +499,7 @@ export function RegistrationWizard() {
                 onClick={() => append({ name: '', age: 0, relationship: 'spouse' })}
                 className="btn-secondary inline-flex text-sm"
               >
-                <Plus className="mr-2 h-4 w-4" /> Add Spouse
+                <Plus className="mr-2 h-4 w-4" /> {t('dependants.addSpouse')}
               </button>
             )}
 
@@ -448,19 +512,19 @@ export function RegistrationWizard() {
                   className="mt-4 rounded-xl border border-neon-gold/30 bg-neon-gold/5 p-4"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-neon-gold">Spouse</span>
+                    <span className="text-sm font-semibold text-neon-gold">{t('dependants.spouse')}</span>
                     <button type="button" onClick={() => remove(spouseIndex)} className="text-red-500 hover:text-red-400">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="text-sm font-medium">Name</label>
+                      <label className="text-sm font-medium">{tAuth('name')}</label>
                       <input {...register(`dependants.${spouseIndex}.name` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                       {errors.dependants?.[spouseIndex]?.name && <p className="mt-1 text-xs text-red-500">{errors.dependants[spouseIndex]?.name?.message}</p>}
                     </div>
                     <div>
-                      <label className="text-sm font-medium">Age</label>
+                      <label className="text-sm font-medium">{t('dependants.age')}</label>
                       <input type="number" {...register(`dependants.${spouseIndex}.age` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                       {errors.dependants?.[spouseIndex]?.age && <p className="mt-1 text-xs text-red-500">{errors.dependants[spouseIndex]?.age?.message}</p>}
                     </div>
@@ -471,7 +535,7 @@ export function RegistrationWizard() {
 
             <div className="mt-4">
               <button type="button" onClick={() => append({ name: '', age: 0, relationship: 'child' })} className="btn-secondary inline-flex text-sm">
-                <Plus className="mr-2 h-4 w-4" /> Add Child
+                <Plus className="mr-2 h-4 w-4" /> {t('dependants.addChild')}
               </button>
             </div>
 
@@ -485,19 +549,19 @@ export function RegistrationWizard() {
                     className="rounded-xl border border-neon-blue/30 bg-neon-blue/5 p-4"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-neon-blue">Child</span>
+                      <span className="text-sm font-semibold text-neon-blue">{t('dependants.child')}</span>
                       <button type="button" onClick={() => remove(index)} className="text-red-500 hover:text-red-400">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                     <div className="mt-3 grid gap-4 md:grid-cols-2">
                       <div>
-                        <label className="text-sm font-medium">Name</label>
+                        <label className="text-sm font-medium">{tAuth('name')}</label>
                         <input {...register(`dependants.${index}.name` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                         {errors.dependants?.[index]?.name && <p className="mt-1 text-xs text-red-500">{errors.dependants[index]?.name?.message}</p>}
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Age</label>
+                        <label className="text-sm font-medium">{t('dependants.age')}</label>
                         <input type="number" {...register(`dependants.${index}.age` as const)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" />
                         {errors.dependants?.[index]?.age && <p className="mt-1 text-xs text-red-500">{errors.dependants[index]?.age?.message}</p>}
                       </div>
@@ -512,19 +576,19 @@ export function RegistrationWizard() {
       case 6:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold">Review and confirm</h2>
-            <p className="text-sm text-slate-700 dark:text-slate-400">Check your details and accept the terms.</p>
+            <h2 className="text-xl font-bold">{t('review.title')}</h2>
+            <p className="text-sm text-slate-700 dark:text-slate-400">{t('review.subtitle')}</p>
             <div className="glass-card space-y-3 p-5 text-sm">
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-600 dark:text-slate-400">Name</span>
+                <span className="text-slate-600 dark:text-slate-400">{t('review.name')}</span>
                 <span className="font-medium">{watch('firstName')} {watch('lastName')}</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-600 dark:text-slate-400">Email</span>
+                <span className="text-slate-600 dark:text-slate-400">{tAuth('email')}</span>
                 <span className="font-medium">{watch('email')}</span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-600 dark:text-slate-400">Address</span>
+                <span className="text-slate-600 dark:text-slate-400">{t('review.address')}</span>
                 <span className="text-right font-medium">
                   {watch('address.buildingStreet')}<br />
                   {watch('address.locality') ? <>{watch('address.locality')}<br /></> : null}
@@ -533,12 +597,12 @@ export function RegistrationWizard() {
                 </span>
               </div>
               <div className="flex justify-between border-b border-white/10 pb-2">
-                <span className="text-slate-600 dark:text-slate-400">Plan</span>
+                <span className="text-slate-600 dark:text-slate-400">{t('review.plan')}</span>
                 <span className="font-medium">{selectedType ? `${selectedType.name} (${formatPrice(selectedType)})` : '-'}</span>
               </div>
               {dependants.length > 0 && (
                 <div className="flex justify-between border-b border-white/10 pb-2">
-                  <span className="text-slate-600 dark:text-slate-400">Dependants</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('review.dependants')}</span>
                   <span className="font-medium">{dependants.length}</span>
                 </div>
               )}
@@ -546,13 +610,13 @@ export function RegistrationWizard() {
             <label className="flex items-start gap-3">
               <input type="checkbox" {...register('acceptedTerms')} className="mt-1 h-4 w-4 rounded border-slate-300 bg-white text-neon-blue dark:border-white/10 dark:bg-white/10" />
               <span className="text-sm text-slate-700 dark:text-slate-400">
-                I agree to the terms and conditions and privacy policy.
+                {t('review.termsText')}
               </span>
             </label>
             {errors.acceptedTerms && <p className="text-sm text-red-500">{errors.acceptedTerms.message}</p>}
             {selectedType && !selectedType.isFree && (
               <p className="text-center text-sm text-slate-700 dark:text-slate-400">
-                You will be redirected to Stripe Checkout to pay {formatPrice(selectedType)}.
+                {t('review.paymentRedirect', { price: formatPrice(selectedType) })}
               </p>
             )}
           </div>
@@ -614,7 +678,7 @@ export function RegistrationWizard() {
             disabled={step === 1 || isSubmitting}
             className="inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-0 dark:hover:bg-white/5 dark:text-slate-400"
           >
-            <ChevronLeft className="mr-1 h-4 w-4" /> Back
+            <ChevronLeft className="mr-1 h-4 w-4" /> {tCommon('back')}
           </button>
 
           {step < 6 ? (
@@ -623,7 +687,7 @@ export function RegistrationWizard() {
               onClick={nextStep}
               className="btn-primary inline-flex"
             >
-              Next <ChevronRight className="ml-1 h-4 w-4" />
+              {tCommon('next')} <ChevronRight className="ml-1 h-4 w-4" />
             </button>
           ) : (
             <button
@@ -633,15 +697,15 @@ export function RegistrationWizard() {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('buttons.processing')}
                 </>
               ) : selectedType && !selectedType.isFree ? (
                 <>
-                  Proceed to Payment <ChevronRight className="ml-1 h-4 w-4" />
+                  {t('buttons.proceedToPayment')} <ChevronRight className="ml-1 h-4 w-4" />
                 </>
               ) : (
                 <>
-                  Complete Registration <Check className="ml-1 h-4 w-4" />
+                  {t('buttons.completeRegistration')} <Check className="ml-1 h-4 w-4" />
                 </>
               )}
             </button>

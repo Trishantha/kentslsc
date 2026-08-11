@@ -1,6 +1,6 @@
 FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPN_HOME:$PATH"
+ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 FROM base AS builder

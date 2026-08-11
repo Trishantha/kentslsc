@@ -1,0 +1,523 @@
+{
+  "nav": {
+    "home": "Home",
+    "events": "Events",
+    "directory": "Directory",
+    "fundraising": "Fundraising",
+    "blog": "Blog",
+    "about": "About",
+    "contact": "Contact",
+    "privacy": "Privacy Policy",
+    "forum": "Forum",
+    "membership": "Membership",
+    "dashboard": "Dashboard",
+    "login": "Login",
+    "logout": "Sign out",
+    "loggingOut": "Signing out...",
+    "openMenu": "Open menu",
+    "logoAlt": "Kent Sri Lankan Social Club logo"
+  },
+  "footer": {
+    "title": "Kent Sri Lankan Social Club",
+    "tagline": "Building community, celebrating culture, and creating connections across Kent and in the United Kingdom.",
+    "quickLinks": "Quick Links",
+    "contact": "Contact",
+    "email": "info@kentslsc.org",
+    "location": "Kent, United Kingdom",
+    "copyright": "© {year} Kent Sri Lankan Social Club. All rights reserved."
+  },
+  "mobileMenu": {
+    "title": "Menu",
+    "closeMenu": "Close menu",
+    "mainMenuLabel": "Main menu",
+    "myDashboard": "My Dashboard",
+    "myDashboardDescription": "Profile, membership & settings",
+    "membershipDescription": "Plans, benefits & upgrades",
+    "communityForum": "Community Forum",
+    "communityForumDescription": "Join the conversation",
+    "aboutUs": "About Us",
+    "joinTheClub": "Join the Club",
+    "joinCommunity": "Join the community",
+    "joinCommunityDescription": "Sign in to unlock member features.",
+    "login": "Login",
+    "join": "Join",
+    "memberSince": "Member since {date}",
+    "adminPortal": "Admin Portal",
+    "more": "More"
+  },
+  "mobileBottomNav": {
+    "more": "More"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong. Please try again.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "close": "Close",
+    "open": "Open",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "readMore": "Read more",
+    "learnMore": "Learn more",
+    "viewAll": "View all",
+    "browseAll": "Browse all",
+    "noResults": "No results found.",
+    "free": "Free",
+    "paid": "Paid"
+  },
+  "home": {
+    "subtitle": "Connecting the Sri Lankan community in Kent through events, culture, business, and fellowship. Join us and be part of something extraordinary.",
+    "becomeMember": "Become a Member",
+    "exploreEvents": "Explore Events",
+    "discoverTitle": "Discover What We Offer",
+    "eventsCardTitle": "Events",
+    "eventsCardDesc": "Cultural gatherings, dinners, and family activities.",
+    "fundraisingCardTitle": "Fundraising",
+    "fundraisingCardDesc": "Support causes that matter to our community.",
+    "directoryCardTitle": "Directory",
+    "directoryCardDesc": "Find Sri Lankan businesses and job opportunities.",
+    "membershipCardTitle": "Membership",
+    "membershipCardDesc": "Join as a member and unlock exclusive benefits.",
+    "recommendedEventsTitle": "Recommended Events",
+    "recommendedEventsDesc": "Discover upcoming community events.",
+    "noUpcomingEvents": "No upcoming events right now. Check back soon!",
+    "viewAllEvents": "View all events",
+    "featuredFundraiserTitle": "Featured Fundraiser",
+    "featuredFundraiserDesc": "Help us reach our next goal and make a lasting impact.",
+    "noActiveFundraisers": "No active fundraisers at the moment.",
+    "raised": "{amount} raised",
+    "goal": "Goal: {amount}",
+    "donateNow": "Donate Now",
+    "promotedBusinessesTitle": "Promoted Businesses",
+    "promotedBusinessesDesc": "Support Sri Lankan businesses in Kent.",
+    "previous": "Previous",
+    "next": "Next",
+    "noPromotedBusinesses": "No promoted businesses right now.",
+    "promoted": "Promoted",
+    "businessFallback": "Sri Lankan business in Kent",
+    "viewListing": "View listing",
+    "latestBlogTitle": "Latest Blog Posts",
+    "latestBlogDesc": "Stories, updates, and community voices.",
+    "readAllPosts": "Read all posts",
+    "noBlogPosts": "No blog posts yet.",
+    "blogFallback": "Read the latest from our community.",
+    "liveForumTitle": "Live Forum",
+    "liveForumDesc": "Join the latest community conversations.",
+    "visitForum": "Visit forum",
+    "noForumTopics": "No forum topics yet. Be the first to start a conversation!",
+    "general": "General",
+    "communityMember": "Community member"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "loginToAccount": "Log in to your Kent SLSC account.",
+    "email": "Email",
+    "password": "Password",
+    "loggingIn": "Logging in...",
+    "logIn": "Log In",
+    "noAccount": "Don't have an account?",
+    "register": "Register",
+    "loading": "Loading...",
+    "cannotReachServer": "Cannot reach the server. Please make sure the API is running.",
+    "invalidCredentials": "Invalid email or password",
+    "becomeMember": "Become a member",
+    "registerIntro": "Complete a few steps to join the Kent SLSC community.",
+    "alreadyHaveAccount": "Already have an account?",
+    "name": "Name",
+    "phone": "Phone",
+    "subject": "Subject",
+    "message": "Message",
+    "send": "Send",
+    "sending": "Sending...",
+    "optional": "optional"
+  },
+  "registration": {
+    "steps": {
+      "account": "Account",
+      "profile": "Profile",
+      "interests": "Interests",
+      "plan": "Plan",
+      "dependants": "Dependants",
+      "review": "Review"
+    },
+    "account": {
+      "title": "Create your account",
+      "subtitle": "Start with your login details.",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "confirmPassword": "Confirm Password"
+    },
+    "profile": {
+      "title": "Personal details",
+      "subtitle": "Help us keep our member records up to date.",
+      "dateOfBirth": "Date of Birth",
+      "buildingStreet": "Building & Street",
+      "buildingStreetPlaceholder": "House number or flat name and street name",
+      "locality": "Locality",
+      "optional": "(optional)",
+      "localityPlaceholder": "Suburb or village name",
+      "townCity": "Town/City",
+      "townCityPlaceholder": "POST TOWN",
+      "postcode": "Postcode",
+      "postcodePlaceholder": "POSTCODE",
+      "emergencyContactName": "Emergency Contact Name",
+      "emergencyContactPhone": "Emergency Contact Phone"
+    },
+    "interests": {
+      "title": "Your interests",
+      "subtitle": "Select what matters to you so we can personalise your experience.",
+      "events": "Events",
+      "business": "Business",
+      "family": "Family",
+      "sports": "Sports",
+      "culture": "Culture",
+      "volunteering": "Volunteering"
+    },
+    "plan": {
+      "title": "Choose your membership",
+      "subtitle": "Compare plans and pick the one that fits you.",
+      "loadError": "Could not load membership plans. Please make sure the API server is running.",
+      "retry": "Retry",
+      "noPlans": "No membership plans are available yet. Please contact the administrator.",
+      "selectPlanError": "Please select a membership plan.",
+      "freeLabel": "Lifetime membership",
+      "durationLabel": "{duration} months"
+    },
+    "dependants": {
+      "title": "Dependants",
+      "subtitle": "Add family members covered by your plan.",
+      "addSpouse": "Add Spouse",
+      "spouse": "Spouse",
+      "addChild": "Add Child",
+      "child": "Child",
+      "name": "Name",
+      "age": "Age"
+    },
+    "review": {
+      "title": "Review and confirm",
+      "subtitle": "Check your details and accept the terms.",
+      "name": "Name",
+      "address": "Address",
+      "plan": "Plan",
+      "dependants": "Dependants",
+      "termsText": "I agree to the terms and conditions and privacy policy.",
+      "paymentRedirect": "You will be redirected to Stripe Checkout to pay {price}."
+    },
+    "buttons": {
+      "processing": "Processing...",
+      "proceedToPayment": "Proceed to Payment",
+      "completeRegistration": "Complete Registration"
+    },
+    "errors": {
+      "registrationFailed": "Registration failed. Please check your details and try again."
+    }
+  },
+  "about": {
+    "title": "About Kent Sri Lankan Social Club",
+    "subtitle": "A community-led organisation dedicated to bringing together Sri Lankan families and friends across Kent and in the United Kingdom. We celebrate our heritage, support one another, and build bridges across generations.",
+    "valuesTitle": "Our Values",
+    "valuesSubtitle": "The principles that guide everything we do as a club.",
+    "values": {
+      "heritage": {
+        "title": "Heritage",
+        "description": "Honouring and preserving Sri Lankan traditions for future generations."
+      },
+      "culture": {
+        "title": "Culture",
+        "description": "Celebrating the arts, customs, and spirit that make our community unique."
+      },
+      "unity": {
+        "title": "Unity",
+        "description": "Bringing families and friends together across every background and generation."
+      }
+    },
+    "visionTitle": "Our Vision",
+    "visionText": "To be the leading platform for Sri Lankan cultural preservation and community integration in Kent, enriching lives and strengthening intergenerational bonds for years to come.",
+    "missionTitle": "Our Mission",
+    "missionText": "To foster a vibrant and inclusive community hub for Sri Lankans residing in Kent, promoting social interaction, cultural exchange, and mutual support through regular gatherings and diverse events.",
+    "journeyTitle": "Our Journey",
+    "milestones": {
+      "beginning": {
+        "year": "2025",
+        "title": "The Beginning",
+        "description": "A small group of Sri Lankan families in Kent came together to celebrate culture, share traditions, and plant the seed for a thriving community."
+      },
+      "formed": {
+        "year": "2026",
+        "title": "Officially Formed",
+        "description": "Kent Sri Lankan Social Club was formally established with a mission to preserve heritage, support families, and build lasting friendships across the county."
+      },
+      "digital": {
+        "year": "2026",
+        "title": "Digital Platform Launched",
+        "description": "Launched our digital home to connect members, promote local Sri Lankan businesses, and make events accessible to everyone in Kent."
+      },
+      "ahead": {
+        "year": "2027",
+        "title": "Looking Ahead",
+        "description": "Expanding youth programmes, supporting Sri Lankan entrepreneurs, growing our membership, and creating even more ways to celebrate our heritage together."
+      }
+    },
+    "committeeTitle": "Committee",
+    "committeeSubtitle": "Our volunteer committee works year-round to keep the club running.",
+    "roles": {
+      "president": "President",
+      "vicePresident": "Vice President",
+      "secretary": "Secretary",
+      "treasurer": "Treasurer",
+      "eventsLead": "Events Lead",
+      "youthCoordinator": "Youth Coordinator"
+    }
+  },
+  "contact": {
+    "title": "Contact Us",
+    "subtitle": "Have a question, suggestion, or want to get involved? We would love to hear from you. Fill in the form and our committee will get back to you shortly.",
+    "clubDetailsTitle": "Club Details",
+    "clubDetailsText": "Reach out directly or drop us a message using the form.",
+    "labels": {
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address"
+    },
+    "responseTimesTitle": "Response Times",
+    "responseTimesText": "We aim to reply to all messages within 2 working days. For urgent enquiries, please call the committee number above.",
+    "successTitle": "Message Sent",
+    "successText": "Thank you for contacting Kent SLSC. We have received your message and will be in touch soon.",
+    "suggestedAnswer": "Suggested answer",
+    "sendAnother": "Send another message",
+    "sendMessage": "Send Message",
+    "sending": "Sending...",
+    "formError": "Something went wrong sending your message. Please try again.",
+    "placeholders": {
+      "name": "Your name",
+      "email": "you@example.com",
+      "phone": "Your phone number",
+      "subject": "What is this about?",
+      "message": "Tell us more..."
+    }
+  },
+  "privacy": {
+    "metaTitle": "Privacy Policy | Kent Sri Lankan Social Club",
+    "metaDescription": "How the Kent Sri Lankan Social Club collects, uses, and protects your personal data.",
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated: {date}",
+    "sections": {
+      "intro": {
+        "title": "1. Introduction",
+        "text": "Kent Sri Lankan Social Club (\"we\", \"us\", or \"our\") is committed to protecting your privacy. This policy explains how we collect, use, store, and protect your personal data when you use our website and services."
+      },
+      "dataController": {
+        "title": "2. Data Controller",
+        "text": "The data controller is Kent Sri Lankan Social Club. If you have any questions about this policy or how we handle your data, please contact us at"
+      },
+      "whatWeCollect": {
+        "title": "3. What Data We Collect",
+        "accountData": {
+          "label": "Account data",
+          "text": "name, email address, phone number, and address when you register or become a member."
+        },
+        "membershipData": {
+          "label": "Membership data",
+          "text": "membership type, status, dependants, and payment information handled by our payment processor."
+        },
+        "eventData": {
+          "label": "Event data",
+          "text": "ticket purchases, attendance, and related communications."
+        },
+        "contactData": {
+          "label": "Contact data",
+          "text": "messages you send through our contact form."
+        },
+        "technicalData": {
+          "label": "Technical data",
+          "text": "IP address, browser type, and cookies for analytics and security."
+        }
+      },
+      "howWeUse": {
+        "title": "4. How We Use Your Data",
+        "membership": "To provide membership, events, ticketing, and fundraising services.",
+        "communications": "To communicate with you about club news, events, and updates.",
+        "payments": "To process payments and donations.",
+        "enquiries": "To respond to your enquiries and improve our services.",
+        "legal": "To comply with legal and regulatory obligations."
+      },
+      "legalBasis": {
+        "title": "5. Legal Basis for Processing",
+        "text": "We process your personal data on the basis of your consent, the necessity to perform a contract with you, compliance with legal obligations, or our legitimate interests in operating the club."
+      },
+      "sharing": {
+        "title": "6. Sharing Your Data",
+        "text": "We do not sell your personal data. We may share data with trusted service providers (such as payment processors, email services, and hosting providers) only to the extent necessary to deliver our services."
+      },
+      "retention": {
+        "title": "7. Data Retention",
+        "text": "We keep your data only for as long as necessary to fulfil the purposes for which it was collected, or as required by law. Soft-deleted records are retained for audit purposes and removed in line with our retention schedule."
+      },
+      "yourRights": {
+        "title": "8. Your Rights",
+        "text": "Under the UK GDPR, you have the right to access, correct, erase, restrict, or object to the processing of your personal data, and the right to data portability. To exercise any of these rights, please contact us at"
+      },
+      "cookies": {
+        "title": "9. Cookies",
+        "text": "We use cookies and similar technologies to operate the website, remember your preferences, and analyse traffic. You can manage cookies through your browser settings."
+      },
+      "changes": {
+        "title": "10. Changes to This Policy",
+        "text": "We may update this privacy policy from time to time. Any changes will be posted on this page with an updated effective date."
+      }
+    }
+  },
+  "events": {
+    "title": "Events",
+    "subtitle": "Upcoming gatherings, celebrations, and community activities.",
+    "searchPlaceholder": "Search events...",
+    "upcomingOnly": "Upcoming only",
+    "viewDetails": "View Details",
+    "noEvents": "No events found. Check back soon!"
+  },
+  "directory": {
+    "title": "Business Directory",
+    "subtitle": "Discover Sri Lankan businesses and job opportunities.",
+    "searchPlaceholder": "Search businesses...",
+    "allCategories": "All categories",
+    "promoted": "Promoted",
+    "noDescription": "No description yet.",
+    "jobCount": "{count} jobs",
+    "jobAdsTitle": "Job Ads",
+    "closes": "Closes {date}",
+    "membershipRequiredTitle": "Listings require a business membership",
+    "membershipRequiredText": "Upgrade your membership to add your business and post jobs.",
+    "listBusiness": {
+      "title": "List your business",
+      "businessName": "Business name",
+      "category": "Category",
+      "website": "Website",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "description": "Description / Services",
+      "logo": "Logo",
+      "saving": "Saving...",
+      "submit": "List Business"
+    },
+    "postJob": {
+      "title": "Post a job",
+      "business": "Business",
+      "selectBusiness": "Select a business",
+      "jobTitle": "Job title",
+      "location": "Location",
+      "salaryRange": "Salary range",
+      "contactEmail": "Contact email",
+      "description": "Description",
+      "publishImmediately": "Publish immediately",
+      "saving": "Saving...",
+      "submit": "Post Job"
+    }
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Latest news, stories, and community updates.",
+    "loadError": "Failed to load blog posts"
+  },
+  "fundraisers": {
+    "title": "Fundraising",
+    "subtitle": "Support our community causes and see the impact of your donations.",
+    "loadError": "Failed to load fundraisers",
+    "raised": "£{amount} raised",
+    "goal": "Goal: £{amount}",
+    "donate": "Donate",
+    "startCampaign": "Start a campaign",
+    "myCampaigns": "My campaigns",
+    "create": {
+      "title": "Start a fundraising campaign",
+      "subtitle": "Fill in the details below. Our team will review your campaign before it goes live.",
+      "submit": "Submit for review",
+      "successTitle": "Campaign submitted!",
+      "successMessage": "Your campaign is under review. We'll notify you once it's approved and live on the site."
+    },
+    "status": {
+      "PENDING_APPROVAL": "Pending Review",
+      "ACTIVE": "Active",
+      "REJECTED": "Rejected",
+      "COMPLETED": "Completed"
+    }
+  },
+  "eventDetail": {
+    "backToEvents": "Back to events",
+    "notFoundTitle": "Event not found",
+    "notFoundCta": "Back to Events",
+    "freeTicket": "Free ticket",
+    "priceEach": "{price} each",
+    "remaining": "{count} left",
+    "quantity": "Quantity",
+    "reserveSuccess": "Tickets reserved! Redirecting to your tickets...",
+    "purchaseFailed": "Purchase failed",
+    "membershipRequired": "Ticket purchases require a full membership.",
+    "reserveTickets": "Reserve tickets",
+    "buyFor": "Buy for {amount}",
+    "loginToBuy": "Log in to buy tickets"
+  },
+  "directoryDetail": {
+    "backToDirectory": "Back to directory",
+    "notFound": "Business not found.",
+    "website": "Website",
+    "aiSummarise": "AI Summarise",
+    "aiSummarising": "Summarising...",
+    "promote30Days": "Promote 30 days",
+    "delete": "Delete",
+    "about": "About",
+    "noDescription": "No description available.",
+    "services": "Services",
+    "jobsAt": "Jobs at {name}",
+    "noJobs": "No jobs listed yet.",
+    "remove": "Remove",
+    "editListing": "Edit listing",
+    "updateListing": "Update Listing"
+  },
+  "blogDetail": {
+    "byAuthor": "By {author}",
+    "fallbackAuthor": "Kent SLSC",
+    "aiTldr": "AI TL;DR"
+  },
+  "fundraiserDetail": {
+    "loadError": "Failed to load fundraiser",
+    "loginToDonateError": "Could not start donation. Please try again.",
+    "thankYou": "Thank you so much for your generous donation! Your support makes a real difference.",
+    "canceled": "Donation canceled — you have not been charged.",
+    "amountPlaceholder": "Amount (£)",
+    "makeDonation": "Make a donation"
+  },
+  "membershipVerify": {
+    "metaTitle": "Verify Membership – Kent SLSC",
+    "title": "Membership Verification",
+    "valid": "Valid Membership",
+    "invalid": "Invalid or Expired",
+    "member": "Member",
+    "membershipId": "Membership ID",
+    "type": "Type",
+    "dependants": "{count, plural, one {# dependant} other {# dependants}}",
+    "verifiedBy": "Verified by Kent Sri Lankan Social Club"
+  },
+  "contactBlock": {
+    "namePlaceholder": "Your name",
+    "emailPlaceholder": "Your email",
+    "phonePlaceholder": "Phone (optional)",
+    "subjectPlaceholder": "Subject",
+    "messagePlaceholder": "Your message",
+    "sendMessage": "Send message",
+    "sending": "Sending...",
+    "successMessage": "Thank you for your message. We will get back to you soon."
+  },
+  "globalError": {
+    "title": "Something went wrong",
+    "description": "We’re sorry, but the page failed to load. Please try again or contact us if the problem persists.",
+    "tryAgain": "Try again"
+  },
+  "notFound": {
+    "title": "404",
+    "description": "Page not found.",
+    "goHome": "Go home"
+  }
+}

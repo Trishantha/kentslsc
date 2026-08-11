@@ -20,10 +20,13 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cookieParser());
 
-  const allowedOrigins = new Set([
-    configService.get('FRONTEND_URL') ?? 'http://localhost:3000',
-    'http://localhost:3000'
+  const allowedOrigins = new Set<string>([
+    configService.get('FRONTEND_URL') ?? 'http://localhost:3000'
   ]);
+  // Only trust the dev origin outside production.
+  if (!isProduction) {
+    allowedOrigins.add('http://localhost:3000');
+  }
   const corsOptions: CorsOptions = {
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.has(origin)) {

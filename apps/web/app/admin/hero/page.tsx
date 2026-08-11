@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Upload, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import { MediaUpload } from '@/components/ui/MediaUpload';
 
 interface HeroConfig {
   id: string;
@@ -22,43 +23,6 @@ interface HeroConfig {
 const inputClass =
   'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';
 const labelClass = 'mb-1 block text-xs text-slate-500';
-
-function UploadButton({ accept, onUploaded }: { accept: string; onUploaded: (url: string) => void }) {
-  const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const { data } = await api.post('/uploads', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      onUploaded(data.url);
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  };
-
-  return (
-    <>
-      <input ref={inputRef} type="file" accept={accept} onChange={handleFileChange} className="hidden" />
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium hover:bg-white/10 disabled:opacity-50"
-      >
-        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-        Upload
-      </button>
-    </>
-  );
-}
 
 export default function AdminHeroPage() {
   const queryClient = useQueryClient();
@@ -142,33 +106,23 @@ export default function AdminHeroPage() {
           </div>
 
           {mediaType === 'image' && (
-            <div>
-              <label className={labelClass}>Image URL</label>
-              <div className="flex gap-2">
-                <input
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="/uploads/banner.jpg"
-                  className={inputClass}
-                />
-                <UploadButton accept="image/*" onUploaded={setImageUrl} />
-              </div>
-            </div>
+            <MediaUpload
+              label="Image URL"
+              value={imageUrl}
+              onChange={setImageUrl}
+              accept="image/*"
+              placeholder="/uploads/banner.jpg"
+            />
           )}
 
           {mediaType === 'video' && (
-            <div>
-              <label className={labelClass}>Video URL</label>
-              <div className="flex gap-2">
-                <input
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="/videos/kslsc-hero.webm"
-                  className={inputClass}
-                />
-                <UploadButton accept="video/*" onUploaded={setVideoUrl} />
-              </div>
-            </div>
+            <MediaUpload
+              label="Video URL"
+              value={videoUrl}
+              onChange={setVideoUrl}
+              accept="video/*"
+              placeholder="/videos/kslsc-hero.webm"
+            />
           )}
 
           <div>

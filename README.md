@@ -36,17 +36,11 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
    pnpm install
    ```
 
-2. **Start infrastructure**
-
-   ```bash
-   docker compose up -d
-   ```
-
-3. **Configure environment**
+2. **Configure environment**
 
    Copy `.env.example` to `.env` (root) and `.env.local` in `apps/web/`, then fill in real secrets.
 
-4. **Generate Prisma client & run migrations**
+3. **Generate Prisma client & run migrations**
 
    ```bash
    pnpm db:generate
@@ -54,7 +48,10 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
    pnpm db:seed
    ```
 
-5. **Run dev servers (recommended)**
+   Make sure `DATABASE_URL` points to your Supabase Postgres connection string
+   before running these commands.
+
+4. **Run dev servers (recommended)**
 
    From the project root, use Turbo to start both servers and build workspace packages first:
 
@@ -74,18 +71,17 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
    cd apps/web && pnpm dev   # Frontend proxies to http://localhost:4000
    ```
 
-6. **Open**
+5. **Open**
 
    - Frontend: http://localhost:3000
    - API docs: http://localhost:4000/api/docs
-   - Admin login: `admin@kentslsc.org` / `admin123`
+   - Admin login: `admin@kentslsc.org` / the password from `ADMIN_SEED_PASSWORD` or the seed output
 
 ## Environment Variables
 
 See `.env.example` for the full list. Key variables:
 
 - `DATABASE_URL` – PostgreSQL connection string
-- `REDIS_URL` – Redis connection string
 - `JWT_SECRET` / `JWT_REFRESH_SECRET` – strong random secrets
 - `OPENAI_API_KEY` – OpenAI API key for AI features
 - `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` – Stripe credentials

@@ -11,7 +11,7 @@ import {
   Headers,
   RawBody,
   Res,
-  UseGuards
+  ForbiddenException
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -19,21 +19,20 @@ import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto } from './dto/index.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
-import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
+import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
 
 @ApiTags('Events')
 @Controller('events')
 export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
-    private readonly paymentsService: PaymentsService
+    private readonly paymentsService: PaymentsService,
+    private readonly featuresService: MembershipFeaturesService
   ) {}
 
   @Get()
@@ -51,7 +50,6 @@ export class EventsController {
   }
 
   @Get('admin')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   listAdmin(@Query('page') page: string, @Query('limit') limit: string) {
@@ -65,7 +63,6 @@ export class EventsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   create(@Body() dto: CreateEventDto) {
@@ -73,7 +70,6 @@ export class EventsController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateEventDto) {
@@ -81,7 +77,6 @@ export class EventsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   patch(@Param('id') id: string, @Body() dto: UpdateEventDto) {
@@ -89,7 +84,6 @@ export class EventsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {
@@ -97,20 +91,27 @@ export class EventsController {
   }
 
   @Post(':id/tickets/purchase')
-  @RequiresFeature(MembershipFeature.TICKETS_PURCHASE)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
-  purchase(
+  async purchase(
     @Param('id') eventId: string,
     @Body() dto: PurchaseTicketsDto,
     @CurrentUser() user: TokenPayload
   ) {
+    const event = await this.eventsService.findById(eventId);
+    const isFree = event.isFree || Number(event.ticketPrice) === 0;
+    if (!isFree && user.role !== UserRole.ADMIN) {
+      const hasFeature = await this.featuresService.userHasFeature(user.sub, MembershipFeature.TICKETS_PURCHASE);
+      if (!hasFeature) {
+        throw new ForbiddenException('Your membership does not include ticket purchases');
+      }
+    }
     // Enforce route parameter matches body for consistency
     const body = { ...dto, eventId };
     return this.eventsService.createCheckoutSession(user.sub, body);
   }
 
   @Post('webhook')
+  @Public()
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
@@ -135,7 +136,6 @@ export class TicketsController {
 
   @Get()
   @RequiresFeature(MembershipFeature.MEMBER_CARD)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   list(@CurrentUser() user: TokenPayload) {
     return this.eventsService.getUserTickets(user.sub);
@@ -143,7 +143,6 @@ export class TicketsController {
 
   @Get(':id')
   @RequiresFeature(MembershipFeature.MEMBER_CARD)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async findOne(@Param('id') id: string, @CurrentUser() user: TokenPayload) {
     const ticket = await this.eventsService.getTicketForUser(id, user.sub);
@@ -152,7 +151,6 @@ export class TicketsController {
   }
 
   @Post('validate')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   validate(@Body() dto: ValidateTicketDto) {

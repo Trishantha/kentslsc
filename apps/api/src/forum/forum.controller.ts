@@ -6,17 +6,13 @@ import {
   Delete,
   Body,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ForumService } from './forum.service.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
-import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
@@ -38,7 +34,6 @@ export class ForumController {
   }
 
   @Post('categories')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async createCategory(@Body() dto: CreateCategoryDto) {
@@ -46,7 +41,6 @@ export class ForumController {
   }
 
   @Patch('categories/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
@@ -54,7 +48,6 @@ export class ForumController {
   }
 
   @Delete('categories/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
@@ -77,7 +70,6 @@ export class ForumController {
 
   @Post('categories/:id/topics')
   @RequiresFeature(MembershipFeature.FORUM_POST)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async createTopic(
     @CurrentUser() user: TokenPayload,
@@ -107,7 +99,6 @@ export class ForumController {
 
   @Post('topics/:id/posts')
   @RequiresFeature(MembershipFeature.FORUM_POST)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async createPost(
     @CurrentUser() user: TokenPayload,
@@ -118,7 +109,6 @@ export class ForumController {
   }
 
   @Delete('topics/:id')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async deleteTopic(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -126,7 +116,6 @@ export class ForumController {
   }
 
   @Delete('posts/:id')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async deletePost(@CurrentUser() user: TokenPayload, @Param('id') id: string) {

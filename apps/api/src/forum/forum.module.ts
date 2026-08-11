@@ -6,12 +6,14 @@ import { ForumController } from './forum.controller.js';
 import { ForumGateway } from './forum.gateway.js';
 import { AiModule } from '../ai/ai.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
+import { TokenModule } from '../auth/token.module.js';
 
 @Module({
   imports: [
     AiModule,
     ConfigModule,
     AuthorizationModule,
+    TokenModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

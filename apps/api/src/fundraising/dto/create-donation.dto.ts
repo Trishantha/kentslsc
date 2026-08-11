@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateDonationDto {
   @IsUUID()
@@ -10,5 +10,15 @@ export class CreateDonationDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   declare message?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  declare displayName?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  declare isAnonymous?: boolean;
 }

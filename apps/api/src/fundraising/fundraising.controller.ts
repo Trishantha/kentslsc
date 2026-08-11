@@ -7,23 +7,24 @@ import {
   Param,
   Post,
   Put,
+  Query,
   RawBody,
-  Res,
-  UseGuards
+  Res
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { FundraisingService } from './fundraising.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
 import { UserRole, type TokenPayload } from '@kentslsc/shared';
 import { CreateFundraiserDto } from './dto/create-fundraiser.dto.js';
 import { UpdateFundraiserDto } from './dto/update-fundraiser.dto.js';
 import { CreateDonationDto } from './dto/create-donation.dto.js';
+import { CreateFundraiserUpdateDto } from './dto/create-fundraiser-update.dto.js';
 import type Stripe from 'stripe';
+import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('Fundraising')
 @Controller('fundraisers')
@@ -34,25 +35,62 @@ export class FundraisingController {
   ) {}
 
   @Get()
-  list() {
-    return this.fundraisingService.listActive();
+  @Public()
+  list(
+    @Query('category') category?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.fundraisingService.listActive(category, Number(page) || 1, Number(limit) || 20);
+  }
+
+  @Get('my')
+  @ApiBearerAuth()
+  myCampaigns(@CurrentUser() user: TokenPayload) {
+    return this.fundraisingService.listByOrganizer(user.sub);
   }
 
   @Get(':id')
+  @Public()
   findOne(@Param('id') id: string) {
     return this.fundraisingService.findById(id);
   }
 
+  @Get(':id/donations')
+  @Public()
+  getDonations(
+    @Param('id') id: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    const sortBy = sort === 'top' ? 'top' : 'recent';
+    return this.fundraisingService.getDonations(id, Number(page) || 1, Number(limit) || 20, sortBy);
+  }
+
+  @Get(':id/updates')
+  @Public()
+  getUpdates(@Param('id') id: string) {
+    return this.fundraisingService.getUpdates(id);
+  }
+
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  create(@Body() dto: CreateFundraiserDto) {
-    return this.fundraisingService.create(dto);
+  create(@Body() dto: CreateFundraiserDto, @CurrentUser() user: TokenPayload) {
+    return this.fundraisingService.create(dto, user.sub);
+  }
+
+  @Post(':id/updates')
+  @ApiBearerAuth()
+  addUpdate(
+    @Param('id') id: string,
+    @Body() dto: CreateFundraiserUpdateDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.fundraisingService.addUpdate(id, user.sub, dto);
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateFundraiserDto) {
@@ -60,25 +98,25 @@ export class FundraisingController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.fundraisingService.remove(id);
   }
 
+  /** Public endpoint — Stripe collects email for guest donors */
   @Post(':id/donate')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @Public()
   donate(
     @Param('id') id: string,
     @Body() dto: CreateDonationDto,
-    @CurrentUser() user: TokenPayload
+    @OptionalAuth() user: TokenPayload | null
   ) {
-    return this.fundraisingService.createDonationSession(id, dto.amount, user.sub);
+    return this.fundraisingService.createDonationSession(id, dto, user?.sub);
   }
 
   @Post('webhook')
+  @Public()
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,

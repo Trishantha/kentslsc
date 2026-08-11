@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
@@ -13,6 +14,7 @@ interface Props {
 
 export default function ContactBlockComponent({ block }: Props) {
   const { title, content } = block;
+  const t = useTranslations('contactBlock');
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [sent, setSent] = useState(false);
 
@@ -44,7 +46,7 @@ export default function ContactBlockComponent({ block }: Props) {
 
         {sent ? (
           <div className="mt-8 rounded-2xl bg-green-500/10 p-6 text-center text-green-700 dark:text-green-400">
-            Thank you for your message. We will get back to you soon.
+            {t('successMessage')}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -53,7 +55,7 @@ export default function ContactBlockComponent({ block }: Props) {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Your name"
+                placeholder={t('namePlaceholder')}
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
               />
               <input
@@ -61,28 +63,28 @@ export default function ContactBlockComponent({ block }: Props) {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="Your email"
+                placeholder={t('emailPlaceholder')}
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
               />
             </div>
             <input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Phone (optional)"
+              placeholder={t('phonePlaceholder')}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
             />
             <input
               required
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              placeholder="Subject"
+              placeholder={t('subjectPlaceholder')}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
             />
             <textarea
               required
               value={form.message}
               onChange={(e) => setForm({ ...form, message: e.target.value })}
-              placeholder="Your message"
+              placeholder={t('messagePlaceholder')}
               rows={5}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
             />
@@ -92,7 +94,7 @@ export default function ContactBlockComponent({ block }: Props) {
               className="btn-primary w-full disabled:opacity-60"
             >
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Send message
+              {t('sendMessage')}
             </button>
           </form>
         )}

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../core/redis/redis.service.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 
 export type RecommendType = 'events' | 'fundraisers' | 'topics' | 'businesses';
@@ -23,7 +22,6 @@ export class AiService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly redis: RedisService,
     private readonly prisma: PrismaService
   ) {
     const apiKey = configService.get<string>('OPENAI_API_KEY');
@@ -40,9 +38,6 @@ export class AiService {
     if (!this.isEnabled()) {
       return content.slice(0, maxLength).trim();
     }
-    const cacheKey = `ai:summary:${type}:${Buffer.from(content).toString('base64').slice(0, 32)}`;
-    const cached = await this.redis.get<string>(cacheKey);
-    if (cached) return cached;
     const completion = await this.client!.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -51,9 +46,7 @@ export class AiService {
       ],
       max_tokens: Math.ceil(maxLength / 2) + 20
     });
-    const result = completion.choices[0]?.message?.content?.trim() ?? '';
-    await this.redis.set(cacheKey, result, 24 * 60 * 60);
-    return result;
+    return completion.choices[0]?.message?.content?.trim() ?? '';
   }
 
   async moderate(content: string): Promise<{ flagged: boolean; reason?: string }> {
@@ -84,9 +77,6 @@ export class AiService {
     if (!this.isEnabled()) {
       return null;
     }
-    const cacheKey = `ai:faq:${Buffer.from(message).toString('base64').slice(0, 32)}`;
-    const cached = await this.redis.get<string>(cacheKey);
-    if (cached) return cached;
 
     const completion = await this.client!.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -101,11 +91,7 @@ export class AiService {
       max_tokens: 150
     });
 
-    const result = completion.choices[0]?.message?.content?.trim() ?? null;
-    if (result) {
-      await this.redis.set(cacheKey, result, 24 * 60 * 60);
-    }
-    return result;
+    return completion.choices[0]?.message?.content?.trim() ?? null;
   }
 
   async recommend({ type, userId, limit = 5 }: RecommendParams) {

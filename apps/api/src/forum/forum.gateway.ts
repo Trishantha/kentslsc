@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, Logger } from '@nestjs/common';
 import { ForumService } from './forum.service.js';
 import type { TokenPayload } from '@kentslsc/shared';
+import { TokenValidationService } from '../auth/token-validation.service.js';
 
 const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
@@ -26,7 +27,8 @@ export class ForumGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly forumService: ForumService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly tokenValidation: TokenValidationService
   ) {}
 
   async handleConnection(client: Socket) {
@@ -38,8 +40,13 @@ export class ForumGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = await this.jwtService.verifyAsync<TokenPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET')
       });
-      client.data.user = payload;
-      this.logger.debug(`Client connected: ${client.id} (${payload.sub})`);
+      // Route through the shared validator rather than trusting the payload:
+      // verifying the signature alone skips the deleted-user check and the
+      // revocation denylist, so a logged-out user could still open a socket.
+      // Requiring typ 'ws' also stops an access token being used here.
+      const user = await this.tokenValidation.validate(payload, 'ws');
+      client.data.user = user;
+      this.logger.debug(`Client connected: ${client.id} (${user.sub})`);
     } catch (err) {
       this.logger.warn(`Socket auth failed: ${(err as Error).message}`);
       client.disconnect();

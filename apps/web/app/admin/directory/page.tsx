@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { optionalUrl } from '@kentslsc/shared';
+import {
+  optionalUrl,
+  directoryCategoryGroups,
+  directoryCategoryValues,
+  getDirectoryCategoryLabel
+} from '@kentslsc/shared';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, Pencil, Trash2, X, Building2 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 const businessSchema = z.object({
   businessName: z.string().min(1),
@@ -20,11 +26,22 @@ const businessSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   address: z.string().optional(),
-  category: z.string().optional(),
+  category: z
+    .string()
+    .refine((val) => !val || directoryCategoryValues.includes(val), {
+      message: 'Select a valid category'
+    })
+    .optional(),
   isPaid: z.boolean().default(false)
 });
 
 type BusinessForm = z.infer<typeof businessSchema>;
+
+const categorySelectGroups = directoryCategoryGroups.map((group) => ({
+  name: group.name,
+  emoji: group.emoji,
+  options: group.subcategories.map((sub) => ({ value: sub.name, label: sub.name }))
+}));
 
 interface Business {
   id: string;
@@ -43,7 +60,7 @@ interface Business {
 export default function AdminDirectoryPage() {
   const [editing, setEditing] = useState<Business | null>(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BusinessForm>({
+  const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm<BusinessForm>({
     resolver: zodResolver(businessSchema)
   });
 
@@ -146,7 +163,22 @@ export default function AdminDirectoryPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
-              <input {...register('category')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    groups={categorySelectGroups}
+                    placeholder="All categories"
+                    searchPlaceholder="Search categories..."
+                    className="mt-1"
+                  />
+                )}
+              />
+              {errors.category && <p className="mt-1 text-xs text-red-400">{errors.category.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Description</label>
@@ -246,7 +278,9 @@ export default function AdminDirectoryPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 text-slate-600 dark:text-slate-400">{business.category || '-'}</td>
+                      <td className="py-3 text-slate-600 dark:text-slate-400">
+                        {business.category ? getDirectoryCategoryLabel(business.category) : '-'}
+                      </td>
                       <td className="py-3">
                         <span className={`rounded-full px-2 py-1 text-xs font-semibold ${business.isPaid ? 'bg-green-500/10 text-green-400' : 'bg-slate-500/10 text-slate-400'}`}>
                           {business.isPaid ? 'Yes' : 'No'}

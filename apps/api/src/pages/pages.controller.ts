@@ -1,8 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PagesService } from './pages.service.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { UserRole } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
@@ -33,7 +31,6 @@ export class PagesController {
   }
 
   @Get('admin/all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   listAdmin() {
@@ -41,7 +38,6 @@ export class PagesController {
   }
 
   @Get('admin/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   findAdminOne(@Param('id') id: string) {
@@ -49,7 +45,6 @@ export class PagesController {
   }
 
   @Post('admin')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   create(@Body() dto: CreatePageDto) {
@@ -57,7 +52,6 @@ export class PagesController {
   }
 
   @Put('admin/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdatePageDto) {
@@ -65,7 +59,6 @@ export class PagesController {
   }
 
   @Delete('admin/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {

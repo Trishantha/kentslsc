@@ -7,8 +7,6 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { envValidationSchema } from './core/config/env.validation.js';
 import { PrismaModule } from './core/prisma/prisma.module.js';
-import { RedisModule } from './core/redis/redis.module.js';
-import { RedisThrottlerStorage } from './core/throttler/redis-throttler.storage.js';
 import { SupabaseModule } from './core/supabase/supabase.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -26,6 +24,12 @@ import { AdminModule } from './admin/admin.module.js';
 import { PagesModule } from './pages/pages.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { HeroConfigModule } from './hero-config/hero-config.module.js';
+import { CommitteeModule } from './committee/committee.module.js';
+import { AuthorizationModule } from './authorization/authorization.module.js';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
+import { RolesGuard } from './common/guards/roles.guard.js';
+import { FeatureGuard } from './common/guards/feature.guard.js';
+import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
 
 @Module({
   imports: [
@@ -35,22 +39,17 @@ import { HeroConfigModule } from './hero-config/hero-config.module.js';
       envFilePath: fileURLToPath(new URL('../../../.env', import.meta.url)),
       validate: (config) => envValidationSchema.parse(config)
     }),
-    ThrottlerModule.forRootAsync({
-      imports: [RedisModule],
-      inject: [RedisThrottlerStorage],
-      useFactory: (storage: RedisThrottlerStorage) => ({
-        storage,
-        throttlers: [
-          {
-            name: 'default',
-            limit: 60,
-            ttl: 60
-          }
-        ]
-      })
+    ThrottlerModule.forRoot({
+      // ttl and blockDuration are MILLISECONDS in @nestjs/throttler v6.
+      throttlers: [
+        {
+          name: 'default',
+          limit: 120,
+          ttl: 60_000
+        }
+      ]
     }),
     PrismaModule,
-    RedisModule,
     SupabaseModule,
     AuthModule,
     UsersModule,
@@ -67,15 +66,23 @@ import { HeroConfigModule } from './hero-config/hero-config.module.js';
     AdminModule,
     PagesModule,
     UploadsModule,
-    HeroConfigModule
+    HeroConfigModule,
+    CommitteeModule,
+    // Provides FeatureGuard + MembershipFeaturesService to the global guard above.
+    AuthorizationModule
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard
-    }
+    // Guard order is array order. Authorization is now DENY BY DEFAULT: every
+    // route requires a valid session unless explicitly marked @Public().
+    // Previously guards were opt-in per handler (~63 @UseGuards call sites), so
+    // a single forgotten decorator silently published an endpoint.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: EmailVerifiedGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: FeatureGuard }
   ]
 })
 export class AppModule {}

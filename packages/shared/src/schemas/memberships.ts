@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MembershipFeature } from '../enums.js';
+import { passwordSchema, passwordContainsIdentity } from './password.js';
 
 export const dependantSchema = z.object({
   name: z.string().min(1),
@@ -38,7 +39,7 @@ export const registrationWizardSchema = z
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
     email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: passwordSchema,
     confirmPassword: z.string().min(1, 'Please confirm your password'),
     phone: z.string().optional(),
     address: structuredAddressSchema,
@@ -55,7 +56,19 @@ export const registrationWizardSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword']
-  });
+  })
+  // A password that just restates the user's own name or email is trivially
+  // guessable, so it fails here as well as server-side.
+  .refine(
+    (data) =>
+      !passwordContainsIdentity(
+        data.password,
+        data.firstName,
+        data.lastName,
+        data.email.split('@')[0]
+      ),
+    { message: 'Password must not contain your name or email address', path: ['password'] }
+  );
 
 export const regenerateCardSchema = z.object({
   membershipId: z.string().min(1)

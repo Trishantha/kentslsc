@@ -20,6 +20,7 @@ interface EventItem {
   startDatetime: string;
   imageUrl?: string;
   ticketPrice: number;
+  isFree: boolean;
 }
 
 export default function EventsBlockComponent({ block }: Props) {
@@ -87,7 +88,7 @@ export default function EventsBlockComponent({ block }: Props) {
                         )}
                       </div>
                       <div className="mt-3 font-medium">
-                        {Number(event.ticketPrice) === 0 ? 'Free' : formatCurrency(event.ticketPrice)}
+                        {event.isFree || Number(event.ticketPrice) === 0 ? 'Free' : formatCurrency(event.ticketPrice)}
                       </div>
                     </div>
                   </div>

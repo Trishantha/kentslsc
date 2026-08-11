@@ -11,6 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import { DependantDto } from '../../memberships/dto/dependant.dto.js';
 import { StructuredAddressDto } from './address.dto.js';
+import { StrongPassword } from '../../common/validators/strong-password.decorator.js';
 
 export class RegisterApplicationDto {
   @IsUUID()
@@ -68,8 +69,7 @@ export class RegisterDto {
   @IsEmail()
   declare email: string;
 
-  @IsString()
-  @MinLength(8)
+  @StrongPassword()
   declare password: string;
 
   @IsOptional()

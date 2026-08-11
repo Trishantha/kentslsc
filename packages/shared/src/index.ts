@@ -1,4 +1,5 @@
 export { z } from 'zod';
+export * from './schemas/password.js';
 export * from './schemas/auth.js';
 export * from './schemas/users.js';
 export * from './schemas/memberships.js';
@@ -11,3 +12,4 @@ export * from './schemas/contact.js';
 export * from './schemas/ai.js';
 export * from './schemas/pages.js';
 export * from './enums.js';
+export * from './directory-categories.js';

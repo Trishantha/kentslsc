@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { Inter, Russo_One } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { MobileNavShell } from '@/components/layout/MobileNavShell';
-import { ConditionalFooter } from '@/components/layout/ConditionalFooter';
 import JsonLd from '@/components/JsonLd';
 import { DebugHydration } from '@/components/DebugHydration';
 
@@ -67,12 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} ${russoOne.variable} font-sans`} suppressHydrationWarning>
         <Providers>
           {process.env.NODE_ENV === 'development' && <DebugHydration />}
-          <MobileNavShell>
-            <div className="flex min-h-screen flex-col">
-              <main className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
-              <ConditionalFooter />
-            </div>
-          </MobileNavShell>
+          {children}
         </Providers>
       </body>
     </html>

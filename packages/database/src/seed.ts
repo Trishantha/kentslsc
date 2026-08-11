@@ -1,9 +1,35 @@
 import { prisma } from './prisma.js';
 import { UserRole, MembershipStatus } from '../dist/client/index.js';
 import bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+
+/**
+ * The seeded admin password used to be the literal `admin123`, committed to the
+ * repo. Anyone who read the source had the admin credentials for any
+ * environment that had ever been seeded.
+ */
+function resolveAdminPassword(): string {
+  const fromEnv = process.env.ADMIN_SEED_PASSWORD;
+  if (fromEnv) return fromEnv;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'ADMIN_SEED_PASSWORD must be set when seeding in production. Refusing to seed a known password.'
+    );
+  }
+
+  // Dev only, and printed so it is never a secret you have to guess.
+  const generated = `Dev-${randomBytes(9).toString('base64url')}1`;
+  console.warn(
+    `\n  ADMIN_SEED_PASSWORD not set. Generated a development admin password:\n     ${generated}\n  Set ADMIN_SEED_PASSWORD to choose your own.\n`
+  );
+  return generated;
+}
 
 async function main() {
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  // Cost 12 to match AuthService; the old cost of 10 left the most privileged
+  // account with the weakest hash in the database.
+  const adminPassword = await bcrypt.hash(resolveAdminPassword(), 12);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@kentslsc.org' },
@@ -12,7 +38,10 @@ async function main() {
       name: 'System Admin',
       email: 'admin@kentslsc.org',
       passwordHash: adminPassword,
-      role: UserRole.ADMIN
+      role: UserRole.ADMIN,
+      // Seeded accounts are trusted; they must not be locked behind the
+      // email-verification gate.
+      emailVerifiedAt: new Date()
     }
   });
 
@@ -102,7 +131,34 @@ async function main() {
     }
   });
 
-  console.log('Seeded:', { admin: admin.email, membershipTypes: [freeType.name, paidType.name, familyType.name], heroConfig: heroConfig.id });
+  const committeeRoles = [
+    { roleKey: 'president', position: 'President' },
+    { roleKey: 'vicePresident', position: 'Vice President' },
+    { roleKey: 'secretary', position: 'Secretary' },
+    { roleKey: 'treasurer', position: 'Treasurer' },
+    { roleKey: 'eventsLead', position: 'Events Lead' },
+    { roleKey: 'youthCoordinator', position: 'Youth Coordinator' }
+  ];
+
+  for (const [index, role] of committeeRoles.entries()) {
+    await prisma.committeeMember.upsert({
+      where: { roleKey: role.roleKey },
+      update: {},
+      create: {
+        name: 'TBC',
+        position: role.position,
+        roleKey: role.roleKey,
+        displayOrder: index
+      }
+    });
+  }
+
+  console.log('Seeded:', {
+    admin: admin.email,
+    membershipTypes: [freeType.name, paidType.name, familyType.name],
+    heroConfig: heroConfig.id,
+    committeeRoles: committeeRoles.map((r) => r.roleKey)
+  });
 }
 
 main()

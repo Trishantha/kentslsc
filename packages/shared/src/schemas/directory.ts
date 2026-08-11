@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { directoryCategoryValues } from '../directory-categories.js';
 
 export const optionalUrl = (message = 'Enter a valid URL') =>
   z.preprocess(
@@ -20,7 +21,12 @@ export const businessListingSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   isPaid: z.boolean().default(false),
-  category: z.string().optional()
+  category: z
+    .string()
+    .refine((val) => !val || directoryCategoryValues.includes(val), {
+      message: 'Select a valid category'
+    })
+    .optional()
 });
 
 export const jobAdSchema = z.object({

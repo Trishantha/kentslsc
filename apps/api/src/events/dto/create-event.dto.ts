@@ -23,6 +23,10 @@ export class CreateEventDto {
   declare ticketPrice: number;
 
   @IsOptional()
+  @IsBoolean()
+  declare isFree?: boolean;
+
+  @IsOptional()
   @IsNumber()
   declare maxTickets?: number;
 

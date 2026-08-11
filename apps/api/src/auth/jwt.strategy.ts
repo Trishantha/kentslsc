@@ -1,16 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
-import { TokenPayload, UserRole } from '@kentslsc/shared';
-import { PrismaService } from '../core/prisma/prisma.service.js';
+import { TokenPayload } from '@kentslsc/shared';
+import { TokenValidationService } from './token-validation.service.js';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    private readonly configService: ConfigService,
-    private readonly prisma: PrismaService
+    configService: ConfigService,
+    private readonly tokenValidation: TokenValidationService
   ) {
     const cookieExtractor = (req: Request) => req?.cookies?.accessToken ?? null;
 
@@ -24,15 +25,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: TokenPayload): Promise<TokenPayload> {
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user || user.deletedAt) {
-      throw new UnauthorizedException('User not found');
-    }
-    return {
-      sub: user.id,
-      email: user.email,
-      role: user.role as UserRole
-    };
+  // Requiring typ === 'access' is what stops the JS-readable socket token
+  // (same secret, same shape) from being replayed as a bearer credential.
+  async validate(payload: TokenPayload): Promise<AuthenticatedUser> {
+    return this.tokenValidation.validate(payload, 'access');
   }
 }

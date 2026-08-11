@@ -12,7 +12,7 @@ export class ContactController {
 
   @Post()
   @Public()
-  @Throttle({ default: { limit: 3, ttl: 60 } })
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   async create(@Body() dto: CreateContactMessageDto) {
     return this.contactService.create(dto);
   }

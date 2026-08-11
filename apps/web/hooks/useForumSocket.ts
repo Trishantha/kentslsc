@@ -4,7 +4,14 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:4000';
+// Websockets cannot go through the Next.js rewrite proxy, so this must be an
+// absolute origin reachable from the browser. Behind a proxied host (e.g. a
+// Codespace) set NEXT_PUBLIC_SOCKET_URL to the forwarded API URL.
+const SOCKET_URL = (
+  process.env.NEXT_PUBLIC_SOCKET_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:3001'
+).replace(/\/api\/?$/, '');
 
 export function useForumSocket(topicId: string, onNewPost: (post: unknown) => void) {
   const socketRef = useRef<Socket | null>(null);

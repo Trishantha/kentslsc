@@ -1,0 +1,79 @@
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { fetchWithRetry } from '@/lib/server-fetch';
+import JsonLd from '@/components/JsonLd';
+import BlogPostContent, { type BlogPost } from './BlogPostContent';
+import { serverApiUrl } from '@/lib/api-base';
+
+interface Props {
+  params: { slug: string };
+}
+
+async function fetchPost(slug: string): Promise<BlogPost | null> {
+  const res = await fetchWithRetry(`${serverApiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
+  if (!res || !res.ok) return null;
+  return res.json();
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const post = await fetchPost(params.slug);
+  if (!post) return {};
+  const description = post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' ') ?? undefined;
+  const image = post.imageUrl ?? '/opengraph-image.png';
+  return {
+    title: post.title,
+    description,
+    openGraph: {
+      title: post.title,
+      description,
+      type: 'article',
+      publishedTime: post.publishedAt ?? post.createdAt,
+      authors: post.author?.name ? [post.author.name] : undefined,
+      images: [image]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description,
+      images: [image]
+    },
+    alternates: {
+      canonical: `/blog/${post.slug}`
+    }
+  };
+}
+
+export default async function BlogPostPage({ params }: Props) {
+  const post = await fetchPost(params.slug);
+  if (!post) notFound();
+
+  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.aiTldr ?? post.content.slice(0, 160).replace(/\n/g, ' '),
+    image: post.imageUrl ?? `${baseUrl}/opengraph-image.png`,
+    datePublished: post.publishedAt ?? post.createdAt,
+    dateModified: post.updatedAt ?? post.createdAt,
+    author: post.author?.name
+      ? { '@type': 'Person', name: post.author.name }
+      : { '@type': 'Organization', name: 'Kent Sri Lankan Social Club' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Kent Sri Lankan Social Club',
+      logo: { '@type': 'ImageObject', url: `${baseUrl}/logo.png` }
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${baseUrl}/blog/${post.slug}`
+    }
+  };
+
+  return (
+    <>
+      <JsonLd data={articleSchema} />
+      <BlogPostContent post={post} />
+    </>
+  );
+}

@@ -1,44 +1,42 @@
 'use client';
 
-import Link from 'next/link';
+import NextLink from 'next/link';
+import { Link, usePathname } from '@/i18n/routing';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import NeonLava from '@/components/ui/NeonLava';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { MembershipFeature } from '@kentslsc/shared';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
-const publicNavLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/events', label: 'Events' },
-  { href: '/directory', label: 'Directory' },
-  { href: '/fundraisers', label: 'Fundraising' },
-  { href: '/blog', label: 'Blog' },
-  { href: '/about', label: 'About' },
-  { href: '/contact', label: 'Contact' }
-];
-
-const memberNavLinks = [
-  { href: '/forum', label: 'Forum', feature: MembershipFeature.FORUM_READ },
-  { href: '/auth/register', label: 'Membership', feature: null }
-];
-
 interface NavbarProps {
   onMenuOpen: () => void;
 }
 
 export function Navbar({ onMenuOpen }: NavbarProps) {
+  const t = useTranslations('nav');
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
   const compact = scrolled || isAdmin || pathname !== '/';
   const { data: user } = useAuth();
   const signOut = useSignOut();
+
+  const publicNavLinks = [
+    { href: '/', label: t('home') },
+    { href: '/events', label: t('events') },
+    { href: '/directory', label: t('directory') },
+    { href: '/fundraisers', label: t('fundraising') },
+    { href: '/blog', label: t('blog') },
+    { href: '/about', label: t('about') },
+    { href: '/contact', label: t('contact') }
+  ] as const;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -66,7 +64,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
           <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
             <Image
               src="/logo.png"
-              alt="Kent Sri Lankan Social Club logo"
+              alt={t('logoAlt')}
               width={compact ? 44 : 144}
               height={compact ? 44 : 144}
               priority
@@ -94,7 +92,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               key={link.href}
               href={link.href}
               className={cn(
-                'text-sm font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
                 compact
                   ? 'text-slate-700 dark:text-slate-300'
                   : 'text-white drop-shadow-md'
@@ -103,67 +101,62 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               {link.label}
             </Link>
           ))}
-          {memberNavLinks.map((link) =>
-            link.feature ? (
-              <FeatureGate key={link.href} feature={link.feature}>
-                <Link
-                  href={link.href}
-                  className={cn(
-                    'text-sm font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
-                    compact
-                      ? 'text-slate-700 dark:text-slate-300'
-                      : 'text-white drop-shadow-md'
-                  )}
-                >
-                  {link.label}
-                </Link>
-              </FeatureGate>
-            ) : (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  'text-sm font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
-                  compact
-                    ? 'text-slate-700 dark:text-slate-300'
-                    : 'text-white drop-shadow-md'
-                )}
-              >
-                {link.label}
-              </Link>
-            )
-          )}
+          <FeatureGate feature={MembershipFeature.FORUM_READ}>
+            <NextLink
+              href="/forum"
+              className={cn(
+                'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                compact
+                  ? 'text-slate-700 dark:text-slate-300'
+                  : 'text-white drop-shadow-md'
+              )}
+            >
+              {t('forum')}
+            </NextLink>
+          </FeatureGate>
+          <Link
+            href="/auth/register"
+            className={cn(
+              'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+              compact
+                ? 'text-slate-700 dark:text-slate-300'
+                : 'text-white drop-shadow-md'
+            )}
+          >
+            {t('membership')}
+          </Link>
           {user ? (
             <>
-              <Link href="/dashboard" className="btn-primary px-4 py-2 text-sm">
-                Dashboard
-              </Link>
+              <NextLink href="/dashboard" className="btn-primary whitespace-nowrap px-4 py-2 text-xs">
+                {t('dashboard')}
+              </NextLink>
               <button
                 onClick={() => signOut.mutate()}
                 disabled={signOut.isPending}
                 className={cn(
-                  'text-sm font-medium transition-colors',
+                  'whitespace-nowrap text-xs font-medium transition-colors',
                   compact
                     ? 'text-slate-700 hover:text-red-600 dark:text-slate-300'
                     : 'text-white hover:text-red-300 drop-shadow-md'
                 )}
               >
-                Sign out
+                {signOut.isPending ? t('loggingOut') : t('logout')}
               </button>
             </>
           ) : (
             <Link
               href="/auth/login"
               className={cn(
-                'rounded-xl border px-4 py-2 text-sm font-semibold transition-transform hover:scale-105',
+                'whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold transition-transform hover:scale-105',
                 compact
                   ? 'border-neon-gold/60 text-amber-900 dark:text-neon-gold'
                   : 'border-white/50 text-white drop-shadow-md'
               )}
             >
-              Login
+              {t('login')}
             </Link>
           )}
+          <LanguageSwitcher className={cn('hidden md:flex', !compact && 'text-white')} />
           <ThemeToggle className={cn(!compact && 'text-white')} />
         </div>
 
@@ -187,7 +180,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
             >
               <Image
                 src="/logo.png"
-                alt="Kent Sri Lankan Social Club logo"
+                alt={t('logoAlt')}
                 fill
                 priority
                 sizes="115px"
@@ -208,7 +201,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
                 <Image
                   src="/logo.png"
-                  alt="Kent Sri Lankan Social Club logo"
+                  alt={t('logoAlt')}
                   fill
                   priority
                   sizes="44px"
@@ -222,11 +215,12 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
             </Link>
 
             <div className="flex items-center gap-2">
+              <LanguageSwitcher />
               <ThemeToggle />
               <button
                 onClick={onMenuOpen}
                 className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-black/30"
-                aria-label="Open menu"
+                aria-label={t('openMenu')}
               >
                 <Menu className="h-6 w-6" />
               </button>

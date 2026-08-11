@@ -1,4 +1,5 @@
-import { IsOptional, IsString, IsUrl, IsEmail, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsUrl, IsEmail, IsBoolean, IsIn } from 'class-validator';
+import { directoryCategoryValues } from '@kentslsc/shared';
 
 export class CreateBusinessListingDto {
   @IsString()
@@ -34,6 +35,7 @@ export class CreateBusinessListingDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(directoryCategoryValues, { message: 'Select a valid category' })
   declare category?: string;
 
   @IsOptional()

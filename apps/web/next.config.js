@@ -1,3 +1,6 @@
+const createNextIntlPlugin = require('next-intl/plugin');
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
+
 /** @type {import('next').NextConfig} */
 
 function hostnameFromEnvUrl(envVar) {
@@ -10,8 +13,17 @@ function hostnameFromEnvUrl(envVar) {
   }
 }
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const apiHostname = hostnameFromEnvUrl('NEXT_PUBLIC_API_URL') ?? 'localhost';
+// Server-side only: where the rewrite proxy forwards /api and /uploads.
+// Mirrors lib/api-base.ts, which cannot be imported here (CommonJS config).
+const apiUrl =
+  process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const apiHostname = (() => {
+  try {
+    return new URL(apiUrl).hostname;
+  } catch {
+    return 'localhost';
+  }
+})();
 const apiProtocol = (() => {
   try {
     return new URL(apiUrl).protocol.slice(0, -1);
@@ -23,7 +35,7 @@ const apiPort = (() => {
   try {
     return new URL(apiUrl).port || (apiProtocol === 'https' ? '443' : '80');
   } catch {
-    return '4000';
+    return '3001';
   }
 })();
 const isDev = process.env.NODE_ENV === 'development';
@@ -92,6 +104,12 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
     remotePatterns
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = false;
+    }
+    return config;
+  },
   async headers() {
     return [
       {
@@ -114,4 +132,4 @@ const nextConfig = {
   }
 };
 
-module.exports = nextConfig;
+module.exports = withNextIntl(nextConfig);

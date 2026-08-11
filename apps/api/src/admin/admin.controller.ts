@@ -4,18 +4,21 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
-  UseGuards
+  Req
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { AdminUsersService } from './admin-users.service.js';
+import { AdminCreateUserDto, AdminUpdateRoleDto } from './dto/admin-user.dto.js';
+import type { RequestContext } from '../auth/sessions.service.js';
 import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
 import { CreateEventDto } from '../events/dto/create-event.dto.js';
@@ -26,15 +29,56 @@ import { CreateJobAdDto } from '../directory/dto/create-job.dto.js';
 import { UpdateJobAdDto } from '../directory/dto/update-job.dto.js';
 import { CreateFundraiserDto } from '../fundraising/dto/create-fundraiser.dto.js';
 import { UpdateFundraiserDto } from '../fundraising/dto/update-fundraiser.dto.js';
+import { RejectFundraiserDto } from '../fundraising/dto/reject-fundraiser.dto.js';
+import { RecordOfflineDonationDto } from '../fundraising/dto/record-offline-donation.dto.js';
 import { CreateBlogPostDto } from '../blog/dto/create-blog-post.dto.js';
 import { UpdateBlogPostDto } from '../blog/dto/update-blog-post.dto.js';
 
 @ApiTags('Admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly adminUsers: AdminUsersService
+  ) {}
+
+  private context(req: Request): RequestContext {
+    return { ip: req.ip, userAgent: req.headers['user-agent'] };
+  }
+
+  /**
+   * Create a user without touching the caller's session.
+   *
+   * Deliberately never calls setAuthCookies: the whole point is that an admin
+   * can provision an account without being swapped into it.
+   */
+  @Post('users')
+  @ApiBearerAuth()
+  createUser(
+    @CurrentUser() actor: TokenPayload,
+    @Body() dto: AdminCreateUserDto,
+    @Req() req: Request
+  ) {
+    return this.adminUsers.createUser(actor, dto, this.context(req));
+  }
+
+  @Patch('users/:id/role')
+  @ApiBearerAuth()
+  updateUserRole(
+    @CurrentUser() actor: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateRoleDto,
+    @Req() req: Request
+  ) {
+    return this.adminUsers.updateRole(actor, id, dto.role, this.context(req));
+  }
+
+  @Post('users/:id/force-logout')
+  @ApiBearerAuth()
+  forceLogout(@Param('id') id: string, @Req() req: Request) {
+    return this.adminUsers.forceLogout(id, this.context(req));
+  }
 
   @Get('dashboard')
   @ApiBearerAuth()
@@ -168,8 +212,23 @@ export class AdminController {
 
   @Get('fundraisers')
   @ApiBearerAuth()
-  listFundraisers() {
-    return this.adminService.listFundraisers();
+  listFundraisers(
+    @Query('page') page: string,
+    @Query('limit') limit: string
+  ) {
+    return this.adminService.listFundraisers(Number(page) || 1, Number(limit) || 20);
+  }
+
+  @Get('fundraisers/pending')
+  @ApiBearerAuth()
+  listPendingFundraisers() {
+    return this.adminService.listPendingFundraisers();
+  }
+
+  @Get('fundraisers/stats')
+  @ApiBearerAuth()
+  getFundraisingStats() {
+    return this.adminService.getFundraisingStats();
   }
 
   @Post('fundraisers')
@@ -182,6 +241,24 @@ export class AdminController {
   @ApiBearerAuth()
   updateFundraiser(@Param('id') id: string, @Body() dto: UpdateFundraiserDto) {
     return this.adminService.updateFundraiser(id, dto);
+  }
+
+  @Post('fundraisers/:id/approve')
+  @ApiBearerAuth()
+  approveFundraiser(@Param('id') id: string) {
+    return this.adminService.approveFundraiser(id);
+  }
+
+  @Post('fundraisers/:id/reject')
+  @ApiBearerAuth()
+  rejectFundraiser(@Param('id') id: string, @Body() dto: RejectFundraiserDto) {
+    return this.adminService.rejectFundraiser(id, dto.reason);
+  }
+
+  @Post('fundraisers/:id/offline-donation')
+  @ApiBearerAuth()
+  recordOfflineDonation(@Param('id') id: string, @Body() dto: RecordOfflineDonationDto) {
+    return this.adminService.recordOfflineDonation(id, dto);
   }
 
   @Delete('fundraisers/:id')

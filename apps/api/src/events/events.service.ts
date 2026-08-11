@@ -108,7 +108,8 @@ export class EventsService {
         location: dto.location,
         startDatetime: new Date(dto.startDatetime),
         endDatetime: new Date(dto.endDatetime),
-        ticketPrice: dto.ticketPrice,
+        ticketPrice: dto.isFree ? 0 : dto.ticketPrice,
+        isFree: dto.isFree ?? false,
         maxTickets: dto.maxTickets,
         imageUrl: dto.imageUrl,
         isPublished: dto.isPublished ?? false
@@ -126,7 +127,8 @@ export class EventsService {
         ...(dto.location !== undefined && { location: dto.location }),
         ...(dto.startDatetime !== undefined && { startDatetime: new Date(dto.startDatetime) }),
         ...(dto.endDatetime !== undefined && { endDatetime: new Date(dto.endDatetime) }),
-        ...(dto.ticketPrice !== undefined && { ticketPrice: dto.ticketPrice }),
+        ...(dto.isFree !== undefined && { isFree: dto.isFree }),
+        ...(dto.ticketPrice !== undefined && { ticketPrice: dto.isFree ? 0 : dto.ticketPrice }),
         ...(dto.maxTickets !== undefined && { maxTickets: dto.maxTickets }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished })
@@ -155,11 +157,12 @@ export class EventsService {
       throw new BadRequestException(`Only ${remaining} tickets remaining`);
     }
 
+    const isFree = event.isFree || Number(event.ticketPrice) === 0;
     const unitAmount = Math.round(Number(event.ticketPrice) * 100);
     const totalAmount = unitAmount * dto.quantity;
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
 
-    if (totalAmount === 0) {
+    if (isFree || totalAmount === 0) {
       // Free event: create tickets immediately without Stripe
       const tickets = await this.createTickets(userId, dto.eventId, dto.quantity, 'free', origin);
       return { free: true, tickets };

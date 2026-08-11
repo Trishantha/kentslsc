@@ -7,25 +7,21 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   Res,
   Headers,
   RawBody,
   HttpCode,
   HttpStatus,
-  NotFoundException
+  NotFoundException, BadRequestException, Logger
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MembershipsService } from './memberships.service.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { UserRole, type TokenPayload, MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
-import { FeatureGuard } from '../common/guards/feature.guard.js';
 import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
@@ -34,6 +30,8 @@ import { RegenerateCardDto } from './dto/regenerate-card.dto.js';
 @ApiTags('Memberships')
 @Controller('membership')
 export class MembershipsController {
+  private readonly logger = new Logger(MembershipsController.name);
+
   constructor(private readonly membershipsService: MembershipsService) {}
 
   @Get('types')
@@ -52,7 +50,6 @@ export class MembershipsController {
   }
 
   @Post('types')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async createType(@Body() dto: CreateMembershipTypeDto) {
@@ -60,7 +57,6 @@ export class MembershipsController {
   }
 
   @Patch('types/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async updateType(@Param('id') id: string, @Body() dto: UpdateMembershipTypeDto) {
@@ -68,7 +64,6 @@ export class MembershipsController {
   }
 
   @Delete('types/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async deleteType(@Param('id') id: string) {
@@ -76,14 +71,12 @@ export class MembershipsController {
   }
 
   @Post('apply')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   async apply(@CurrentUser() user: TokenPayload, @Body() dto: ApplyMembershipDto) {
     return this.membershipsService.apply(user, dto);
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   async getMyMembership(@CurrentUser() user: TokenPayload) {
     return this.membershipsService.findMyMembership(user.sub);
@@ -91,20 +84,13 @@ export class MembershipsController {
 
   @Get('card')
   @RequiresFeature(MembershipFeature.MEMBER_CARD)
-  @UseGuards(JwtAuthGuard, FeatureGuard)
   @ApiBearerAuth()
   async getCard(
     @CurrentUser() user: TokenPayload,
     @Query('membershipId') membershipId: string | undefined,
     @Res({ passthrough: true }) res: Response
   ) {
-    let publicId = membershipId;
-    if (!publicId) {
-      const membership = await this.membershipsService.findMyMembership(user.sub);
-      if (!membership) throw new Error('No membership found');
-      publicId = membership.membershipId;
-    }
-    const cardPath = await this.membershipsService.getCardImage(publicId!);
+    const cardPath = await this.membershipsService.getCardForUser(user, membershipId);
 
     if (cardPath.startsWith('http')) {
       return res.redirect(cardPath);
@@ -120,7 +106,6 @@ export class MembershipsController {
   }
 
   @Post('card/regenerate')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async regenerateCard(@Body() dto: RegenerateCardDto) {
@@ -134,6 +119,14 @@ export class MembershipsController {
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer
   ) {
-    return this.membershipsService.handleWebhook(rawBody, signature);
+    try {
+      return await this.membershipsService.handleWebhook(rawBody, signature);
+    } catch (error) {
+      // A bad or missing signature is a client error, not a server fault. Left
+      // as a 500 it looks like an outage and Stripe's retries mask the real
+      // cause. The message is deliberately generic — the detail goes to the log.
+      this.logger.warn(`Membership webhook rejected: ${(error as Error).message}`);
+      throw new BadRequestException('Webhook signature verification failed');
+    }
   }
 }

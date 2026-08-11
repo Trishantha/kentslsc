@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { MembershipStatus, MembershipType, Membership, Prisma } from '@kentslsc/database';
-import { TokenPayload, DependantInput, MembershipFeature } from '@kentslsc/shared';
+import { TokenPayload, DependantInput, MembershipFeature, UserRole } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
 import { generateCardBuffer } from './helpers/card-generator.js';
@@ -298,6 +298,38 @@ export class MembershipsService {
       dependantsCount: dependants.length,
       dependants
     };
+  }
+
+  /**
+   * Resolve which card the caller is allowed to see.
+   *
+   * `membershipId` is attacker-controlled, so it must be authorised rather than
+   * trusted: without this check any member holding the MEMBER_CARD feature could
+   * read any other member's card by guessing or harvesting a membership id.
+   */
+  async getCardForUser(user: TokenPayload, membershipPublicId?: string) {
+    if (!membershipPublicId) {
+      const own = await this.findMyMembership(user.sub);
+      if (!own) {
+        throw new NotFoundException('No membership found');
+      }
+      return this.getCardImage(own.membershipId);
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: { membershipId: membershipPublicId },
+      select: { userId: true, deletedAt: true }
+    });
+
+    if (!membership || membership.deletedAt) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.userId !== user.sub && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have access to this membership card');
+    }
+
+    return this.getCardImage(membershipPublicId);
   }
 
   async getCardImage(membershipPublicId: string) {

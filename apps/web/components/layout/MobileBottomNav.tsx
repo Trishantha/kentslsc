@@ -1,25 +1,27 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Link, usePathname } from '@/i18n/routing';
 import { Home, Calendar, Briefcase, Menu } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-
-const tabs = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/directory', label: 'Directory', icon: Briefcase }
-];
 
 interface MobileBottomNavProps {
   onMenuOpen: () => void;
 }
 
 export function MobileBottomNav({ onMenuOpen }: MobileBottomNavProps) {
+  const t = useTranslations('mobileBottomNav');
+  const nav = useTranslations('nav');
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin');
 
   if (isAdmin) return null;
+
+  const tabs = [
+    { href: '/', label: nav('home'), icon: Home },
+    { href: '/events', label: nav('events'), icon: Calendar },
+    { href: '/directory', label: nav('directory'), icon: Briefcase }
+  ] as const;
 
   return (
     <nav
@@ -51,7 +53,7 @@ export function MobileBottomNav({ onMenuOpen }: MobileBottomNavProps) {
           className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-slate-600 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <Menu className="h-5 w-5" />
-          <span className="text-[10px] font-medium">More</span>
+          <span className="text-[10px] font-medium">{t('more')}</span>
         </button>
       </div>
     </nav>

@@ -31,6 +31,22 @@ export enum ContactStatus {
   RESOLVED = 'RESOLVED'
 }
 
+export enum FundraiserStatus {
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED'
+}
+
+export enum FundraiserCategory {
+  CHARITY = 'CHARITY',
+  SPORTS = 'SPORTS',
+  COMMUNITY = 'COMMUNITY',
+  MEMORIAL = 'MEMORIAL',
+  MEDICAL = 'MEDICAL',
+  OTHER = 'OTHER'
+}
+
 export enum MembershipFeature {
   DIRECTORY_READ = 'DIRECTORY_READ',
   DIRECTORY_LISTING = 'DIRECTORY_LISTING',

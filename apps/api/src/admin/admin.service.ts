@@ -152,11 +152,12 @@ export class AdminService {
     return this.directoryService.deleteJob(user, id);
   }
 
-  listFundraisers() {
-    return this.fundraisingService.listAll();
+  listFundraisers(page = 1, limit = 20) {
+    return this.fundraisingService.listAll(page, limit);
   }
 
   createFundraiser(dto: Parameters<FundraisingService['create']>[0]) {
+    // Admin-created campaigns go ACTIVE immediately (no organizerId)
     return this.fundraisingService.create(dto);
   }
 
@@ -166,6 +167,26 @@ export class AdminService {
 
   removeFundraiser(id: string) {
     return this.fundraisingService.remove(id);
+  }
+
+  listPendingFundraisers() {
+    return this.fundraisingService.listPendingApproval();
+  }
+
+  approveFundraiser(id: string) {
+    return this.fundraisingService.approveFundraiser(id);
+  }
+
+  rejectFundraiser(id: string, reason?: string) {
+    return this.fundraisingService.rejectFundraiser(id, reason);
+  }
+
+  recordOfflineDonation(fundraiserId: string, dto: Parameters<FundraisingService['recordOfflineDonation']>[1]) {
+    return this.fundraisingService.recordOfflineDonation(fundraiserId, dto);
+  }
+
+  getFundraisingStats() {
+    return this.fundraisingService.getStats();
   }
 
   listBlogPosts() {
