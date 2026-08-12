@@ -26,6 +26,13 @@ let internalApiUrl = `http://127.0.0.1:${apiPort}`;
 
 let apiProcess;
 let webProcess;
+let isShuttingDown = false;
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
   const child = spawn(command, args, {
@@ -182,6 +189,44 @@ function proxyRequest(req, res, targetBaseUrl) {
   req.pipe(request);
 }
 
+async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs;
+  const target = new URL(baseUrl);
+
+  while (Date.now() < deadline) {
+    const isReady = await new Promise((resolve) => {
+      const socket = net.connect(
+        {
+          host: target.hostname,
+          port: Number(target.port || (target.protocol === 'https:' ? 443 : 80))
+        },
+        () => {
+          socket.end();
+          resolve(true);
+        }
+      );
+
+      socket.setTimeout(2000);
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.on('error', () => {
+        resolve(false);
+      });
+    });
+
+    if (isReady) {
+      console.log(`${serviceName} is accepting connections at ${baseUrl}`);
+      return;
+    }
+
+    await delay(500);
+  }
+
+  throw new Error(`${serviceName} did not become ready at ${baseUrl} within ${timeoutMs}ms`);
+}
+
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const url = req.url || '/';
@@ -233,9 +278,32 @@ async function startServices() {
     webDir
   );
 
+  const onChildExit = (name, code, signal) => {
+    const details = [`${name} exited`];
+    if (typeof code === 'number') {
+      details.push(`code=${code}`);
+    }
+    if (signal) {
+      details.push(`signal=${signal}`);
+    }
+    console.error(details.join(' '));
+
+    if (!isShuttingDown) {
+      // Exit fast so the platform can restart the whole stack instead of serving stale 503 responses.
+      process.exit(1);
+    }
+  };
+
+  apiProcess.on('exit', (code, signal) => onChildExit('API process', code, signal));
+  webProcess.on('exit', (code, signal) => onChildExit('Web process', code, signal));
+
+  await waitForService(internalApiUrl, 'API service');
+  await waitForService(internalWebUrl, 'Web service');
+
   const proxyServer = startProxyServer();
 
   const shutdown = () => {
+    isShuttingDown = true;
     console.log('Stopping app services...');
     proxyServer.close();
     [apiProcess, webProcess].forEach((child) => {
