@@ -6,7 +6,7 @@ const path = require('path');
 const rootDir = __dirname;
 const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
-const corepackCommand = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
+const nodeCommand = process.execPath;
 
 const webPort = process.env.PORT || process.env.WEB_PORT || '3000';
 const apiPort = process.env.API_PORT || process.env.API_PORT_NUMBER || '3001';
@@ -15,36 +15,12 @@ const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '
 const internalApiUrl = process.env.API_PROXY_TARGET || `http://127.0.0.1:${apiPort}`;
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
-function pnpmArgs(args) {
-  return ['pnpm', ...args];
-}
-
-function runCommand(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: rootDir,
-      stdio: 'inherit',
-      shell: false,
-      env: { ...process.env, ...options }
-    });
-
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
-      }
-    });
-  });
-}
-
-function spawnProcess(command, args, options = {}) {
+function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
   const child = spawn(command, args, {
-    cwd: rootDir,
+    cwd,
     stdio: 'inherit',
     shell: false,
-    env: { ...process.env, ...options }
+    env: { ...process.env, ...envOverrides }
   });
 
   child.on('error', (error) => {
@@ -62,8 +38,9 @@ async function ensureBuilt() {
     return;
   }
 
-  console.log('Building the web app and API before starting them...');
-  await runCommand(corepackCommand, pnpmArgs(['build']));
+  throw new Error(
+    'Missing build artifacts. Ensure deployment runs the build step before starting server.js.'
+  );
 }
 
 function startServices() {
@@ -88,15 +65,12 @@ function startServices() {
     console.log(`Public API URL: ${publicApiUrl}`);
   }
 
-  const apiProcess = spawnProcess(
-    corepackCommand,
-    pnpmArgs(['--dir', 'apps/api', 'exec', 'node', 'dist/main.js']),
-    apiEnv
-  );
+  const apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
   const webProcess = spawnProcess(
-    corepackCommand,
-    pnpmArgs(['--dir', 'apps/web', 'exec', 'next', 'start', '--hostname', host, '--port', webPort]),
-    webEnv
+    nodeCommand,
+    ['node_modules/next/dist/bin/next', 'start', '--hostname', host, '--port', webPort],
+    webEnv,
+    webDir
   );
 
   const shutdown = () => {
