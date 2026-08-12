@@ -385,14 +385,12 @@ module.exports = {
   resolveForwardedProto
 };
 
-if (require.main === module) {
-  (async () => {
-    try {
-      await ensureBuilt();
-      await startServices();
-    } catch (error) {
-      console.error('Unable to start the unified app:', error);
-      process.exit(1);
-    }
-  })();
-}
+(async () => {
+  try {
+    await ensureBuilt();
+    await startServices();
+  } catch (error) {
+    console.error('Unable to start the unified app:', error);
+    process.exit(1);
+  }
+})();
