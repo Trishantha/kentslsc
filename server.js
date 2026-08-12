@@ -15,9 +15,32 @@ const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const preferredApiPort = Number(process.env.API_PORT || process.env.API_PORT_NUMBER || 3001);
 const host = process.env.HOST || '0.0.0.0';
-const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`;
-const frontendOrigin = new URL(frontendUrl);
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+
+const isLocalHostname = (value) => /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(value);
+
+function parsePublicOriginCandidate(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (isLocalHostname(parsed.hostname)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+const frontendOrigin =
+  parsePublicOriginCandidate(process.env.FRONTEND_URL) ||
+  parsePublicOriginCandidate(process.env.NEXT_PUBLIC_FRONTEND_URL) ||
+  parsePublicOriginCandidate(publicApiUrl) ||
+  new URL(`http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
+const frontendUrl = frontendOrigin.toString();
 
 let internalWebPort = preferredInternalWebPort;
 let apiPort = preferredApiPort;
