@@ -6,13 +6,18 @@ const path = require('path');
 const rootDir = __dirname;
 const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+const corepackCommand = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
 
 const webPort = process.env.PORT || process.env.WEB_PORT || '3000';
 const apiPort = process.env.API_PORT || process.env.API_PORT_NUMBER || '3001';
 const host = process.env.HOST || '0.0.0.0';
 const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${webPort}`;
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_PROXY_TARGET || `http://127.0.0.1:${apiPort}`;
+const internalApiUrl = process.env.API_PROXY_TARGET || `http://127.0.0.1:${apiPort}`;
+const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+
+function pnpmArgs(args) {
+  return ['pnpm', ...args];
+}
 
 function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -58,7 +63,7 @@ async function ensureBuilt() {
   }
 
   console.log('Building the web app and API before starting them...');
-  await runCommand(pnpmCommand, ['build']);
+  await runCommand(corepackCommand, pnpmArgs(['build']));
 }
 
 function startServices() {
@@ -73,14 +78,26 @@ function startServices() {
     PORT: webPort,
     HOSTNAME: host,
     FRONTEND_URL: frontendUrl,
-    NEXT_PUBLIC_API_URL: apiUrl,
-    API_PROXY_TARGET: apiUrl
+    API_PROXY_TARGET: internalApiUrl,
+    ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${webPort}`);
+  console.log(`Internal API target: ${internalApiUrl}`);
+  if (publicApiUrl) {
+    console.log(`Public API URL: ${publicApiUrl}`);
+  }
 
-  const apiProcess = spawnProcess(pnpmCommand, ['--dir', 'apps/api', 'exec', 'node', 'dist/main.js'], apiEnv);
-  const webProcess = spawnProcess(pnpmCommand, ['--dir', 'apps/web', 'exec', 'next', 'start', '--hostname', host, '--port', webPort], webEnv);
+  const apiProcess = spawnProcess(
+    corepackCommand,
+    pnpmArgs(['--dir', 'apps/api', 'exec', 'node', 'dist/main.js']),
+    apiEnv
+  );
+  const webProcess = spawnProcess(
+    corepackCommand,
+    pnpmArgs(['--dir', 'apps/web', 'exec', 'next', 'start', '--hostname', host, '--port', webPort]),
+    webEnv
+  );
 
   const shutdown = () => {
     console.log('Stopping app services...');
