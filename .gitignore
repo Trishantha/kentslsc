@@ -28,7 +28,7 @@ logs
 Thumbs.db
 
 # Uploads / generated cards
-cards
-uploads
-public/cards
-public/uploads
+/apps/api/public/cards
+/apps/api/public/uploads
+/public/cards
+/public/uploads
