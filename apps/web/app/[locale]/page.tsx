@@ -1,6 +1,7 @@
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { HeroBlock, PageBlock } from '@kentslsc/shared';
 import { serverApiUrl } from '@/lib/api-base';
+import { getTranslations } from 'next-intl/server';
 import HomePageContent from './HomePageContent';
 
 export const revalidate = 60;
@@ -51,7 +52,8 @@ async function fetchHeroConfig(): Promise<HeroConfig | null> {
 
 function mergeHeroConfigIntoBlocks(
   blocks: PageBlock[],
-  heroConfig: HeroConfig | null
+  heroConfig: HeroConfig | null,
+  defaults: Pick<HeroBlock, 'title' | 'subtitle' | 'buttonText' | 'buttonUrl'>
 ): PageBlock[] {
   if (!heroConfig) return blocks;
 
@@ -63,6 +65,10 @@ function mergeHeroConfigIntoBlocks(
 
     return {
       ...heroBlock,
+      title: heroBlock.title?.trim() ? heroBlock.title : defaults.title,
+      subtitle: heroBlock.subtitle?.trim() ? heroBlock.subtitle : defaults.subtitle,
+      buttonText: heroBlock.buttonText?.trim() ? heroBlock.buttonText : defaults.buttonText,
+      buttonUrl: heroBlock.buttonUrl?.trim() ? heroBlock.buttonUrl : defaults.buttonUrl,
       mediaType: heroConfig.mediaType,
       imageUrl: heroConfig.imageUrl ?? heroBlock.imageUrl,
       videoUrl: heroConfig.videoUrl ?? heroBlock.videoUrl,
@@ -74,11 +80,17 @@ function mergeHeroConfigIntoBlocks(
   });
 }
 
-export default async function HomePage() {
+  export default async function HomePage({ params: { locale } }: { params: { locale: string } }) {
+    const t = await getTranslations({ locale, namespace: 'home' });
   const [homePage, heroConfig] = await Promise.all([fetchHomePage(), fetchHeroConfig()]);
 
   if (homePage?.blocks && homePage.blocks.length > 0) {
-    const blocks = mergeHeroConfigIntoBlocks(homePage.blocks, heroConfig);
+      const blocks = mergeHeroConfigIntoBlocks(homePage.blocks, heroConfig, {
+        title: 'Kent Sri Lankan Social Club',
+        subtitle: t('subtitle'),
+        buttonText: t('becomeMember'),
+        buttonUrl: '/membership'
+      });
     return (
       <div className="relative overflow-hidden">
         <BlockRenderer blocks={blocks} />
