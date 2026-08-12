@@ -27,6 +27,7 @@ let internalApiUrl = `http://127.0.0.1:${apiPort}`;
 let apiProcess;
 let webProcess;
 let isShuttingDown = false;
+let isUpstreamReady = false;
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -95,16 +96,8 @@ async function ensureBuilt() {
 
 function proxyRequest(req, res, targetBaseUrl) {
   const target = new URL(targetBaseUrl);
-  const client = target.protocol === 'https:' ? https : http;
-  const requestPath = (() => {
-    const rawUrl = req.url || '/';
-    try {
-      const absolute = new URL(rawUrl);
-      return `${absolute.pathname}${absolute.search}` || '/';
-    } catch {
-      return rawUrl;
-    }
-  })();
+  const client = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(target.hostname) ? http : (target.protocol === 'https:' ? https : http);
+  const requestPath = normalizeRequestPath(req.url || '/');
   const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   const incomingForwardedHost = Array.isArray(req.headers['x-forwarded-host'])
     ? req.headers['x-forwarded-host'][0]
@@ -148,9 +141,9 @@ function proxyRequest(req, res, targetBaseUrl) {
 
   const request = client.request(
     {
-      protocol: target.protocol,
+      protocol: client === https ? 'https:' : 'http:',
       hostname: target.hostname,
-      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      port: target.port || (client === https ? 443 : 80),
       method: req.method,
       path: requestPath,
       headers: {
@@ -184,9 +177,19 @@ function proxyRequest(req, res, targetBaseUrl) {
     const status = requestPath.startsWith('/api') ? 503 : 502;
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'Upstream service unavailable', detail: message }));
+    console.error(`Failed to proxy ${req.url || '/'} -> ${targetBaseUrl}: ${message}`);
   });
 
   req.pipe(request);
+}
+
+function normalizeRequestPath(rawUrl) {
+  try {
+    const absolute = new URL(rawUrl);
+    return `${absolute.pathname}${absolute.search}` || '/';
+  } catch {
+    return rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+  }
 }
 
 async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
@@ -229,8 +232,15 @@ async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
 
 function startProxyServer() {
   const server = http.createServer((req, res) => {
-    const url = req.url || '/';
-    const toApi = url.startsWith('/api') || url.startsWith('/uploads') || url.startsWith('/socket.io');
+    const urlPath = normalizeRequestPath(req.url || '/');
+
+    if (!isUpstreamReady) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Service warming up', detail: 'Upstreams are still starting' }));
+      return;
+    }
+
+    const toApi = urlPath.startsWith('/api') || urlPath.startsWith('/uploads') || urlPath.startsWith('/socket.io');
     proxyRequest(req, res, toApi ? internalApiUrl : internalWebUrl);
   });
 
@@ -297,10 +307,11 @@ async function startServices() {
   apiProcess.on('exit', (code, signal) => onChildExit('API process', code, signal));
   webProcess.on('exit', (code, signal) => onChildExit('Web process', code, signal));
 
+  const proxyServer = startProxyServer();
+
   await waitForService(internalApiUrl, 'API service');
   await waitForService(internalWebUrl, 'Web service');
-
-  const proxyServer = startProxyServer();
+  isUpstreamReady = true;
 
   const shutdown = () => {
     isShuttingDown = true;
