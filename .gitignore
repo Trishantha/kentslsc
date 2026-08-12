@@ -2,7 +2,6 @@
 .env
 .env.local
 .env.*.local
-.env.hostinger.production
 
 # Dependencies
 node_modules
