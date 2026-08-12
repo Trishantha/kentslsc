@@ -16,6 +16,7 @@ const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const preferredApiPort = Number(process.env.API_PORT || process.env.API_PORT_NUMBER || 3001);
 const host = process.env.HOST || '0.0.0.0';
 const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`;
+const frontendOrigin = new URL(frontendUrl);
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
 let internalWebPort = preferredInternalWebPort;
@@ -88,9 +89,25 @@ async function ensureBuilt() {
 function proxyRequest(req, res, targetBaseUrl) {
   const target = new URL(targetBaseUrl);
   const client = target.protocol === 'https:' ? https : http;
-  const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || target.host;
-  const forwardedProto = req.headers['x-forwarded-proto'] || 'http';
-  const forwardedPort = req.headers['x-forwarded-port'] || String(publicPort);
+  const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
+  const incomingForwardedHost = Array.isArray(req.headers['x-forwarded-host'])
+    ? req.headers['x-forwarded-host'][0]
+    : req.headers['x-forwarded-host'];
+  const isLocalHost = (value) => Boolean(value) && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(value);
+  const forwardedHost =
+    (incomingForwardedHost && !isLocalHost(incomingForwardedHost) && incomingForwardedHost) ||
+    (incomingHost && !isLocalHost(incomingHost) && incomingHost) ||
+    frontendOrigin.host;
+  const forwardedProto =
+    (Array.isArray(req.headers['x-forwarded-proto'])
+      ? req.headers['x-forwarded-proto'][0]
+      : req.headers['x-forwarded-proto']) || frontendOrigin.protocol.slice(0, -1);
+  const forwardedPort =
+    (Array.isArray(req.headers['x-forwarded-port'])
+      ? req.headers['x-forwarded-port'][0]
+      : req.headers['x-forwarded-port']) ||
+    frontendOrigin.port ||
+    (frontendOrigin.protocol === 'https:' ? '443' : '80');
 
   const request = client.request(
     {
@@ -109,7 +126,27 @@ function proxyRequest(req, res, targetBaseUrl) {
       }
     },
     (proxyRes) => {
-      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      const headers = { ...proxyRes.headers };
+      const location = headers.location;
+      const singleLocation = Array.isArray(location) ? location[0] : location;
+
+      if (singleLocation) {
+        try {
+          const resolved = new URL(singleLocation, targetBaseUrl);
+          const isInternalRedirect = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(resolved.hostname);
+
+          if (isInternalRedirect) {
+            resolved.protocol = frontendOrigin.protocol;
+            resolved.host = frontendOrigin.host;
+            resolved.port = frontendOrigin.port;
+            headers.location = resolved.toString();
+          }
+        } catch {
+          // Leave malformed or relative locations untouched.
+        }
+      }
+
+      res.writeHead(proxyRes.statusCode || 502, headers);
       proxyRes.pipe(res);
     }
   );
