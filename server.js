@@ -357,11 +357,11 @@ async function startServices() {
   apiProcess.on('exit', (code, signal) => onChildExit('API process', code, signal));
   webProcess.on('exit', (code, signal) => onChildExit('Web process', code, signal));
 
-  const proxyServer = startProxyServer();
-
   await waitForService(internalApiUrl, 'API service');
   await waitForService(internalWebUrl, 'Web service');
   isUpstreamReady = true;
+
+  const proxyServer = startProxyServer();
 
   const shutdown = () => {
     isShuttingDown = true;
@@ -385,12 +385,14 @@ module.exports = {
   resolveForwardedProto
 };
 
-(async () => {
-  try {
-    await ensureBuilt();
-    await startServices();
-  } catch (error) {
-    console.error('Unable to start the unified app:', error);
-    process.exit(1);
-  }
-})();
+if (process.env.NODE_ENV !== 'test') {
+  (async () => {
+    try {
+      await ensureBuilt();
+      await startServices();
+    } catch (error) {
+      console.error('Unable to start the unified app:', error);
+      process.exit(1);
+    }
+  })();
+}

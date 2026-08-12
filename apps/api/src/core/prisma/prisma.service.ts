@@ -11,6 +11,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
+    if (!process.env.DATABASE_URL) {
+      this.logger.warn('DATABASE_URL is not set; starting API without an eager database connection.');
+      return;
+    }
+
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -34,7 +39,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
     }
 
-    throw lastError;
+    this.logger.error(
+      'Unable to connect to the database during startup; keeping the API alive so the frontend can still load.',
+      lastError instanceof Error ? lastError.stack : String(lastError)
+    );
   }
 
   async onModuleDestroy() {
