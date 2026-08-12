@@ -89,6 +89,15 @@ async function ensureBuilt() {
 function proxyRequest(req, res, targetBaseUrl) {
   const target = new URL(targetBaseUrl);
   const client = target.protocol === 'https:' ? https : http;
+  const requestPath = (() => {
+    const rawUrl = req.url || '/';
+    try {
+      const absolute = new URL(rawUrl);
+      return `${absolute.pathname}${absolute.search}` || '/';
+    } catch {
+      return rawUrl;
+    }
+  })();
   const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   const incomingForwardedHost = Array.isArray(req.headers['x-forwarded-host'])
     ? req.headers['x-forwarded-host'][0]
@@ -109,13 +118,34 @@ function proxyRequest(req, res, targetBaseUrl) {
     frontendOrigin.port ||
     (frontendOrigin.protocol === 'https:' ? '443' : '80');
 
+  const rewritePublicOriginHeader = (headerValue, baseUrl) => {
+    const singleValue = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    if (!singleValue) return headerValue;
+
+    try {
+      const resolved = new URL(singleValue, baseUrl);
+      const isInternalRedirect = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(resolved.hostname);
+
+      if (!isInternalRedirect) {
+        return headerValue;
+      }
+
+      resolved.protocol = frontendOrigin.protocol;
+      resolved.host = frontendOrigin.host;
+      resolved.port = frontendOrigin.port;
+      return resolved.toString();
+    } catch {
+      return headerValue;
+    }
+  };
+
   const request = client.request(
     {
       protocol: target.protocol,
       hostname: target.hostname,
       port: target.port || (target.protocol === 'https:' ? 443 : 80),
       method: req.method,
-      path: req.url,
+      path: requestPath,
       headers: {
         ...req.headers,
         host: forwardedHost,
@@ -127,23 +157,14 @@ function proxyRequest(req, res, targetBaseUrl) {
     },
     (proxyRes) => {
       const headers = { ...proxyRes.headers };
-      const location = headers.location;
-      const singleLocation = Array.isArray(location) ? location[0] : location;
-
-      if (singleLocation) {
-        try {
-          const resolved = new URL(singleLocation, targetBaseUrl);
-          const isInternalRedirect = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(resolved.hostname);
-
-          if (isInternalRedirect) {
-            resolved.protocol = frontendOrigin.protocol;
-            resolved.host = frontendOrigin.host;
-            resolved.port = frontendOrigin.port;
-            headers.location = resolved.toString();
-          }
-        } catch {
-          // Leave malformed or relative locations untouched.
-        }
+      if (headers.location) {
+        headers.location = rewritePublicOriginHeader(headers.location, targetBaseUrl);
+      }
+      if (headers['x-middleware-rewrite']) {
+        headers['x-middleware-rewrite'] = rewritePublicOriginHeader(
+          headers['x-middleware-rewrite'],
+          targetBaseUrl
+        );
       }
 
       res.writeHead(proxyRes.statusCode || 502, headers);
@@ -153,7 +174,7 @@ function proxyRequest(req, res, targetBaseUrl) {
 
   request.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error);
-    const status = req.url?.startsWith('/api') ? 503 : 502;
+    const status = requestPath.startsWith('/api') ? 503 : 502;
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: 'Upstream service unavailable', detail: message }));
   });
