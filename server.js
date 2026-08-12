@@ -117,9 +117,39 @@ async function ensureBuilt() {
   );
 }
 
+function resolveProxyProtocol(targetBaseUrl, req = {}) {
+  const target = new URL(targetBaseUrl);
+  const incomingHost = Array.isArray(req.headers?.host) ? req.headers.host[0] : req.headers?.host;
+  const incomingProto = Array.isArray(req.headers?.['x-forwarded-proto'])
+    ? req.headers['x-forwarded-proto'][0]
+    : req.headers?.['x-forwarded-proto'];
+  const isLocalHost = (value) => Boolean(value) && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(value);
+
+  if (isLocalHost(incomingHost) || target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
+    return target.protocol === 'https:' ? 'https' : 'http';
+  }
+
+  return incomingProto === 'https' ? 'https' : target.protocol === 'https:' ? 'https' : 'http';
+}
+
+function resolveForwardedProto(req, targetBaseUrl, origin = frontendOrigin) {
+  const target = new URL(targetBaseUrl);
+  const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
+  const incomingProto = Array.isArray(req.headers['x-forwarded-proto'])
+    ? req.headers['x-forwarded-proto'][0]
+    : req.headers['x-forwarded-proto'];
+  const isLocalHost = (value) => Boolean(value) && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(value);
+
+  if (isLocalHost(incomingHost) || target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
+    return target.protocol.slice(0, -1);
+  }
+
+  return incomingProto || origin.protocol.slice(0, -1);
+}
+
 function proxyRequest(req, res, targetBaseUrl) {
   const target = new URL(targetBaseUrl);
-  const client = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(target.hostname) ? http : (target.protocol === 'https:' ? https : http);
+  const client = resolveProxyProtocol(targetBaseUrl, req) === 'https' ? https : http;
   const requestPath = normalizeRequestPath(req.url || '/');
   const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   const incomingForwardedHost = Array.isArray(req.headers['x-forwarded-host'])
@@ -130,10 +160,7 @@ function proxyRequest(req, res, targetBaseUrl) {
     (incomingForwardedHost && !isLocalHost(incomingForwardedHost) && incomingForwardedHost) ||
     (incomingHost && !isLocalHost(incomingHost) && incomingHost) ||
     frontendOrigin.host;
-  const forwardedProto =
-    (Array.isArray(req.headers['x-forwarded-proto'])
-      ? req.headers['x-forwarded-proto'][0]
-      : req.headers['x-forwarded-proto']) || frontendOrigin.protocol.slice(0, -1);
+  const forwardedProto = resolveForwardedProto(req, targetBaseUrl, frontendOrigin);
   const forwardedPort =
     (Array.isArray(req.headers['x-forwarded-port'])
       ? req.headers['x-forwarded-port'][0]
@@ -352,12 +379,20 @@ async function startServices() {
   process.on('SIGTERM', shutdown);
 }
 
-(async () => {
-  try {
-    await ensureBuilt();
-    await startServices();
-  } catch (error) {
-    console.error('Unable to start the unified app:', error);
-    process.exit(1);
-  }
-})();
+module.exports = {
+  normalizeRequestPath,
+  resolveProxyProtocol,
+  resolveForwardedProto
+};
+
+if (require.main === module) {
+  (async () => {
+    try {
+      await ensureBuilt();
+      await startServices();
+    } catch (error) {
+      console.error('Unable to start the unified app:', error);
+      process.exit(1);
+    }
+  })();
+}
