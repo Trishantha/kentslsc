@@ -319,6 +319,8 @@ async function startServices() {
     PORT: internalWebPort,
     HOSTNAME: '127.0.0.1',
     FRONTEND_URL: frontendUrl,
+    NEXT_PUBLIC_FRONTEND_URL: frontendUrl,
+    NEXT_PUBLIC_SOCKET_URL: publicApiUrl || frontendUrl,
     API_PROXY_TARGET: internalApiUrl,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
