@@ -21,6 +21,8 @@ function isProtectedPath(pathname: string) {
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const redirectBase =
+    process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? request.url;
 
   // Presence of a refresh cookie is the signal that a session exists at all.
   // The access cookie lasts 15 minutes while the session lasts 7 days, so keying
@@ -35,14 +37,14 @@ export function middleware(request: NextRequest) {
     if (hasSession) {
       // Role is unknown without verifying the token, and middleware deliberately
       // does no crypto (see below). /dashboard's server layout forwards admins on.
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      return NextResponse.redirect(new URL('/dashboard', redirectBase));
     }
     return intlMiddleware(request);
   }
 
   if (isProtectedPath(pathname)) {
     if (!hasSession) {
-      const loginUrl = new URL('/auth/login', request.url);
+      const loginUrl = new URL('/auth/login', redirectBase);
       loginUrl.searchParams.set('redirect', safeRedirect(`${pathname}${search}`));
       return NextResponse.redirect(loginUrl);
     }
