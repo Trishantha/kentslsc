@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -10,14 +11,17 @@ const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
 const nodeCommand = process.execPath;
 
-const webPort = process.env.PORT || process.env.WEB_PORT || '3000';
-const internalWebPort = process.env.INTERNAL_WEB_PORT || '3100';
-const apiPort = process.env.API_PORT || process.env.API_PORT_NUMBER || '3001';
+const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
+const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
+const preferredApiPort = Number(process.env.API_PORT || process.env.API_PORT_NUMBER || 3001);
 const host = process.env.HOST || '0.0.0.0';
-const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${webPort}`;
-const internalApiUrl = process.env.API_PROXY_TARGET || `http://127.0.0.1:${apiPort}`;
+const frontendUrl = process.env.FRONTEND_URL || `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`;
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-const internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+
+let internalWebPort = preferredInternalWebPort;
+let apiPort = preferredApiPort;
+let internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+let internalApiUrl = `http://127.0.0.1:${apiPort}`;
 
 let apiProcess;
 let webProcess;
@@ -35,6 +39,37 @@ function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
   });
 
   return child;
+}
+
+function findAvailableLocalPort(startPort) {
+  const maxAttempts = 50;
+
+  return new Promise((resolve, reject) => {
+    const tryPort = (port) => {
+      if (port > startPort + maxAttempts) {
+        reject(new Error(`Unable to find a free port starting at ${startPort}`));
+        return;
+      }
+
+      const server = net.createServer();
+      server.unref();
+      server.on('error', (error) => {
+        server.close();
+        if (error && error.code === 'EADDRINUSE') {
+          tryPort(port + 1);
+          return;
+        }
+        reject(error);
+      });
+      server.listen(port, '127.0.0.1', () => {
+        const address = server.address();
+        const resolvedPort = typeof address === 'object' && address ? address.port : port;
+        server.close(() => resolve(resolvedPort));
+      });
+    };
+
+    tryPort(startPort);
+  });
 }
 
 async function ensureBuilt() {
@@ -90,30 +125,36 @@ function startProxyServer() {
     proxyRequest(req, res, toApi ? internalApiUrl : internalWebUrl);
   });
 
-  server.listen(Number(webPort), host, () => {
-    console.log(`Public listener ready on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${webPort}`);
+  server.listen(publicPort, host, () => {
+    console.log(`Public listener ready on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   });
 
   return server;
 }
 
-function startServices() {
+async function startServices() {
+  apiPort = await findAvailableLocalPort(preferredApiPort);
+  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
+  internalApiUrl = `http://127.0.0.1:${apiPort}`;
+  internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+
   const apiEnv = {
     NODE_ENV: 'production',
     PORT: apiPort,
+    HOST: '127.0.0.1',
     FRONTEND_URL: frontendUrl
   };
 
   const webEnv = {
     NODE_ENV: 'production',
     PORT: internalWebPort,
-    HOSTNAME: host,
+    HOSTNAME: '127.0.0.1',
     FRONTEND_URL: frontendUrl,
     API_PROXY_TARGET: internalApiUrl,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
-  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${webPort}`);
+  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   console.log(`Internal API target: ${internalApiUrl}`);
   console.log(`Internal web target: ${internalWebUrl}`);
   if (publicApiUrl) {
@@ -123,7 +164,7 @@ function startServices() {
   apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
   webProcess = spawnProcess(
     nodeCommand,
-    ['node_modules/next/dist/bin/next', 'start', '--hostname', host, '--port', internalWebPort],
+    ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(internalWebPort)],
     webEnv,
     webDir
   );
@@ -148,7 +189,7 @@ function startServices() {
 (async () => {
   try {
     await ensureBuilt();
-    startServices();
+    await startServices();
   } catch (error) {
     console.error('Unable to start the unified app:', error);
     process.exit(1);
