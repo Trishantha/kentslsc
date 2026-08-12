@@ -88,6 +88,9 @@ async function ensureBuilt() {
 function proxyRequest(req, res, targetBaseUrl) {
   const target = new URL(targetBaseUrl);
   const client = target.protocol === 'https:' ? https : http;
+  const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || target.host;
+  const forwardedProto = req.headers['x-forwarded-proto'] || 'http';
+  const forwardedPort = req.headers['x-forwarded-port'] || String(publicPort);
 
   const request = client.request(
     {
@@ -98,7 +101,10 @@ function proxyRequest(req, res, targetBaseUrl) {
       path: req.url,
       headers: {
         ...req.headers,
-        host: target.host,
+        host: forwardedHost,
+        'x-forwarded-host': forwardedHost,
+        'x-forwarded-proto': forwardedProto,
+        'x-forwarded-port': forwardedPort,
         connection: 'close'
       }
     },
