@@ -16,6 +16,7 @@ const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 const apiMode = process.env.API_MODE || 'in-process';
+const webMode = process.env.WEB_MODE || 'in-process';
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 
 // How long the public proxy waits for an upstream response (ms).
@@ -57,6 +58,7 @@ let apiProcess;
 let webProcess;
 let apiServer;
 let apiApp;
+let webHandler;
 let isShuttingDown = false;
 let isUpstreamReady = false;
 
@@ -389,6 +391,12 @@ function startProxyServer() {
       return;
     }
 
+    if (!toApi && webHandler) {
+      // Web runs in-process; hand the request directly to Next.js.
+      webHandler(req, res);
+      return;
+    }
+
     const targetBaseUrl = toApi ? `unix:${apiSocketPath}` : internalWebUrl;
     proxyRequest(req, res, targetBaseUrl);
   });
@@ -421,6 +429,18 @@ async function startInProcessApi() {
   apiApp = await apiModule.createApiApp();
   apiServer = apiApp.getHttpServer();
   console.log('API initialized in-process');
+}
+
+async function startInProcessWeb() {
+  console.log('Starting web handler in-process (no secondary child process)');
+  const handlerPath = path.join(webDir, 'server-handler.js');
+  // eslint-disable-next-line import/no-dynamic-require
+  const webModule = require(handlerPath);
+  if (typeof webModule.init !== 'function') {
+    throw new Error(`Expected ${handlerPath} to export init()`);
+  }
+  webHandler = await webModule.init();
+  console.log('Web handler initialized in-process');
 }
 
 async function startApiAsChild(socketPath) {
@@ -504,7 +524,10 @@ async function startServices() {
 
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   console.log(`API mode: ${apiMode}`);
-  console.log(`Internal web target: ${internalWebUrl}`);
+  console.log(`Web mode: ${webMode}`);
+  if (webMode === 'child') {
+    console.log(`Internal web target: ${internalWebUrl}`);
+  }
   if (publicApiUrl) {
     console.log(`Public API URL: ${publicApiUrl}`);
   }
@@ -522,7 +545,15 @@ async function startServices() {
     throw new Error(`Unsupported API_MODE: ${apiMode}. Use 'in-process' or 'unix'.`);
   }
 
-  await startWebChild();
+  if (webMode === 'in-process') {
+    await startInProcessWeb();
+  } else if (webMode === 'child') {
+    internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
+    internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+    await startWebChild();
+  } else {
+    throw new Error(`Unsupported WEB_MODE: ${webMode}. Use 'in-process' or 'child'.`);
+  }
   isUpstreamReady = true;
   console.log('Upstreams are ready; proxy is now accepting traffic');
 
