@@ -34,11 +34,12 @@ export function middleware(request: NextRequest) {
   // silently swapping their own session for a fresh GUEST account. The API
   // rejects POST /auth/register independently — this is the friendly half.
   if (authPagePattern.test(pathname)) {
-    if (hasSession) {
-      // Role is unknown without verifying the token, and middleware deliberately
-      // does no crypto (see below). /dashboard's server layout forwards admins on.
-      return NextResponse.redirect(new URL('/dashboard', redirectBase));
-    }
+    // Do not redirect authenticated users away from the login/register pages.
+    // The middleware only knows that a refresh cookie exists, not whether it is
+    // still valid. Redirecting based on cookie presence alone can trap users with
+    // a stale/invalid cookie in a loop: login -> dashboard -> login. The API
+    // already rejects POST /auth/register for authenticated users, and the
+    // dashboard/server layouts perform the real session check.
     return intlMiddleware(request);
   }
 
