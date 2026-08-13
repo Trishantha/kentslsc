@@ -10,12 +10,16 @@ import { safeRedirect } from './safe-redirect';
  */
 export const baseURL = '/api';
 
+/**
+ * Browser-side API client. Do not set a default Content-Type: axios
+ * automatically sends `application/json` for plain objects and
+ * `multipart/form-data` (with a boundary) for FormData uploads. A hard-coded
+ * JSON header breaks file uploads because the server then receives the file
+ * body as raw JSON and the `@UploadedFile()` decorator sees no file.
+ */
 export const api = axios.create({
   baseURL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  withCredentials: true
 });
 
 // These endpoints are allowed to return 401 for anonymous users on public pages.
