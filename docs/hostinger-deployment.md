@@ -63,12 +63,11 @@ Required backend environment variables:
 NODE_ENV=production
 PORT=3001
 DATABASE_URL=postgresql://...
+REDIS_URL=redis://...
 JWT_SECRET=...
 JWT_REFRESH_SECRET=...
 FRONTEND_URL=https://your-frontend-domain.com
 ```
-
-Note: `REDIS_URL` is documented in some older deployment notes but is not currently used by this codebase.
 
 Optional backend environment variables:
 

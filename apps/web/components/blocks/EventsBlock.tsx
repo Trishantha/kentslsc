@@ -1,6 +1,6 @@
 'use client';
 
-import { SmartLink } from '@/components/ui/SmartLink';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, ArrowRight } from 'lucide-react';
@@ -41,9 +41,9 @@ export default function EventsBlockComponent({ block }: Props) {
           <div>
             {title && <h2 className="section-title">{title}</h2>}
           </div>
-          <SmartLink href="/events" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
+          <Link href="/events" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
             View all <ArrowRight className="ml-1 h-4 w-4" />
-          </SmartLink>
+          </Link>
         </div>
 
         {isLoading ? (
@@ -64,7 +64,7 @@ export default function EventsBlockComponent({ block }: Props) {
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.05 }}
               >
-                <SmartLink href={`/events/${event.id}`}>
+                <Link href={`/events/${event.id}`}>
                   <div className="glass-card group overflow-hidden">
                     <div
                       className={cn(
@@ -92,7 +92,7 @@ export default function EventsBlockComponent({ block }: Props) {
                       </div>
                     </div>
                   </div>
-                </SmartLink>
+                </Link>
               </motion.div>
             ))}
           </div>

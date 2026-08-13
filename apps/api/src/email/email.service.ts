@@ -34,15 +34,9 @@ export class EmailService {
         auth: { user, pass }
       });
     } else {
-      const message =
-        'Email is not configured (EMAIL_HOST, EMAIL_USER, EMAIL_PASS, EMAIL_FROM). Emails will be logged but not sent.';
-      if (process.env.NODE_ENV === 'production') {
-        this.logger.error(
-          `${message} In production this means verification and password-reset emails are silently dropped.`
-        );
-      } else {
-        this.logger.warn(message);
-      }
+      this.logger.warn(
+        'Email is not configured (EMAIL_HOST, EMAIL_USER, EMAIL_PASS, EMAIL_FROM). Emails will be logged but not sent.'
+      );
     }
   }
 
