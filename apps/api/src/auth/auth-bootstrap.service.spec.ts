@@ -26,6 +26,7 @@ describe('AuthBootstrapService', () => {
           useValue: {
             user: {
               findUnique: jest.fn() as any,
+              create: jest.fn().mockResolvedValue({ ...mockUser, id: 'new-admin' }) as any,
               update: jest.fn().mockResolvedValue(mockUser) as any
             },
             authEvent: {
@@ -77,17 +78,39 @@ describe('AuthBootstrapService', () => {
     expect(prisma.authEvent.create).toHaveBeenCalledTimes(2);
   });
 
-  it('should warn when no user exists for the emergency email', async () => {
+  it('should create an admin account when emergency email does not exist', async () => {
     jest
       .spyOn(config, 'get')
       .mockImplementation((key: string) =>
-        key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : key === 'ADMIN_EMERGENCY_EMAIL' ? 'missing@kentslsc.org' : undefined
+        key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : key === 'ADMIN_EMERGENCY_EMAIL' ? 'info@kentslsc.org' : undefined
       );
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
 
     await service.onModuleInit();
 
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'info@kentslsc.org',
+          role: UserRole.ADMIN,
+          emailVerifiedAt: expect.any(Date)
+        })
+      })
+    );
+    expect(prisma.authEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('should create the default admin account when no email is configured', async () => {
+    jest.spyOn(config, 'get').mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+    (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
+
+    await service.onModuleInit();
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'admin@kentslsc.org', role: UserRole.ADMIN })
+      })
+    );
   });
 
   it('should warn when the target user is not an admin', async () => {

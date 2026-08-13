@@ -90,10 +90,7 @@ SUPABASE_BUCKET=KentSLSC
 # ADMIN_EMERGENCY_EMAIL=admin@kentslsc.org
 ```
 
-If you are locked out of the admin account and cannot run a CLI reset, set
-`ADMIN_EMERGENCY_PASSWORD` in the backend environment, restart/redeploy the API,
-log in with `admin@kentslsc.org` and that password, then remove the variable and
-change the password from the admin UI.
+If you are locked out of the admin account, no admin account exists, or you cannot run a CLI reset, set `ADMIN_EMERGENCY_PASSWORD` in the backend environment, restart/redeploy the API, and log in with the email in `ADMIN_EMERGENCY_EMAIL` (default `admin@kentslsc.org`) and that password. The API will create the account if it is missing, or reset the password and clear lockouts if it exists. Remove the variable and change the password from the admin UI immediately after logging in.
 
 ## Why the Git import screen looked wrong
 

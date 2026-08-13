@@ -6,12 +6,14 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UserRole } from '@kentslsc/shared';
 
 /**
- * Emergency admin password recovery.
+ * Emergency admin account recovery / creation.
  *
  * When a deployment environment has no shell access (e.g. Hostinger Node app
- * manager), a normal CLI reset cannot run. Setting ADMIN_EMERGENCY_PASSWORD in
- * the backend environment variables and redeploying/restarting the API will reset
- * the named admin account's password before the app starts serving requests.
+ * manager), a normal CLI reset/seed cannot run. Setting ADMIN_EMERGENCY_PASSWORD
+ * in the backend environment variables and redeploying/restarting the API will:
+ *
+ * - Create an admin account for ADMIN_EMERGENCY_EMAIL if it does not exist.
+ * - Reset the password and clear any lockout for that account if it does exist.
  *
  * SECURITY:
  * - The password is set in the server environment, never in code or the repo.
@@ -32,19 +34,39 @@ export class AuthBootstrapService implements OnModuleInit {
     if (!emergencyPassword) return;
 
     const email = (this.config.get<string>('ADMIN_EMERGENCY_EMAIL') ?? 'admin@kentslsc.org').toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(emergencyPassword, 12);
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      this.logger.warn(`ADMIN_EMERGENCY_PASSWORD is set but no account exists for ${email}`);
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!existingUser) {
+      const newUser = await this.prisma.user.create({
+        data: {
+          name: 'Emergency Admin',
+          email,
+          passwordHash,
+          role: UserRole.ADMIN,
+          emailVerifiedAt: new Date()
+        }
+      });
+
+      await this.prisma.authEvent.create({
+        data: {
+          userId: newUser.id,
+          email: newUser.email,
+          type: AuthEventType.ADMIN_USER_CREATED,
+          metadata: { source: 'auth-bootstrap-emergency' }
+        }
+      });
+
+      this.logger.warn(`Emergency admin account created for ${email}. Remove ADMIN_EMERGENCY_PASSWORD from the environment and change the password after login.`);
       return;
     }
 
-    if (user.role !== UserRole.ADMIN) {
+    if (existingUser.role !== UserRole.ADMIN) {
       this.logger.warn(`ADMIN_EMERGENCY_PASSWORD is set but ${email} is not an admin`);
       return;
     }
 
-    const passwordHash = await bcrypt.hash(emergencyPassword, 12);
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { email },
@@ -52,16 +74,16 @@ export class AuthBootstrapService implements OnModuleInit {
       }),
       this.prisma.authEvent.create({
         data: {
-          userId: user.id,
-          email: user.email,
+          userId: existingUser.id,
+          email: existingUser.email,
           type: AuthEventType.PASSWORD_CHANGED,
           metadata: { source: 'auth-bootstrap-emergency' }
         }
       }),
       this.prisma.authEvent.create({
         data: {
-          userId: user.id,
-          email: user.email,
+          userId: existingUser.id,
+          email: existingUser.email,
           type: AuthEventType.LOCKOUT_CLEARED,
           metadata: { source: 'auth-bootstrap-emergency', reason: 'admin-password-reset' }
         }
