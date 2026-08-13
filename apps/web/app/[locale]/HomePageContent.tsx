@@ -281,19 +281,19 @@ export default function HomePageContent() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="mt-5 flex w-full flex-row items-center justify-center gap-3 px-4"
+            className="mt-5 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"
           >
             {!user && (
               <Link
                 href="/membership"
-                className="btn-primary h-12 w-44 whitespace-nowrap px-4 py-2.5 text-center text-sm sm:w-48"
+                className="btn-primary h-12 w-full whitespace-nowrap px-4 py-2.5 text-center text-sm sm:w-48"
               >
                 {t('becomeMember')}
               </Link>
             )}
             <Link
               href="/events"
-              className="btn-secondary h-12 w-44 whitespace-nowrap px-4 py-2.5 text-center text-sm sm:w-48"
+              className="btn-secondary h-12 w-full whitespace-nowrap px-4 py-2.5 text-center text-sm sm:w-48"
             >
               {t('exploreEvents')}
             </Link>

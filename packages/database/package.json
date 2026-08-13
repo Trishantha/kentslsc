@@ -13,6 +13,7 @@
     "migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "seed": "dotenv -e ../../.env -- tsx src/seed.ts",
+    "reset:admin": "dotenv -e ../../.env -- tsx src/reset-admin-password.ts",
     "studio": "dotenv -e ../../.env -- prisma studio",
     "typecheck": "tsc --noEmit"
   },
