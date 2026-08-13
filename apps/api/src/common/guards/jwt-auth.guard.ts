@@ -10,15 +10,22 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass()
     ]);
     if (isPublic) {
-      return true;
+      // Public routes stay reachable without a session, but we still try to
+      // authenticate so @OptionalAuth() can link actions to the signed-in user
+      // when a token is present (e.g. guest donations, public "who am I" probes).
+      try {
+        return (await super.canActivate(context)) as boolean;
+      } catch {
+        return true;
+      }
     }
-    return super.canActivate(context) as boolean | Promise<boolean>;
+    return super.canActivate(context) as boolean;
   }
 
   handleRequest<TUser = TokenPayload>(err: unknown, user: unknown): TUser {

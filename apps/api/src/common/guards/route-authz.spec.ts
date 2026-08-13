@@ -33,8 +33,10 @@ const PUBLIC_ALLOWLIST = new Set([
   'memberships/memberships.controller.ts::webhook',
 
   // Anonymous auth surface
+  'auth/auth.controller.ts::features',
   'auth/auth.controller.ts::forgotPassword',
   'auth/auth.controller.ts::login',
+  'auth/auth.controller.ts::me',
   'auth/auth.controller.ts::refresh',
   'auth/auth.controller.ts::register',
   'auth/auth.controller.ts::resetPassword',

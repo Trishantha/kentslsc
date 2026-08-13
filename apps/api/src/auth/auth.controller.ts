@@ -25,6 +25,7 @@ import { LoginDto } from './dto/login.dto.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { AllowUnverified } from '../common/decorators/allow-unverified.decorator.js';
+import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
 import { CredentialsService } from './credentials.service.js';
 import {
   ForgotPasswordDto,
@@ -311,9 +312,11 @@ export class AuthController {
   }
 
   @Get('me')
-  @AllowUnverified()
+  @Public()
   @ApiBearerAuth()
-  async me(@CurrentUser() user: TokenPayload) {
+  async me(@OptionalAuth() user: AuthenticatedUser | null) {
+    if (!user) return null;
+
     const profile = await this.prisma.user.findUnique({
       where: { id: user.sub },
       select: {
@@ -336,9 +339,10 @@ export class AuthController {
   }
 
   @Get('features')
-  @AllowUnverified()
+  @Public()
   @ApiBearerAuth()
-  async features(@CurrentUser() user: TokenPayload) {
+  async features(@OptionalAuth() user: AuthenticatedUser | null) {
+    if (!user) return [];
     return this.authService.getUserFeatures(user.sub);
   }
 
