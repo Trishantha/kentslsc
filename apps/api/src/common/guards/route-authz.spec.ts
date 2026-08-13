@@ -76,6 +76,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'pages/pages.controller.ts::getBySlug',
   'pages/pages.controller.ts::getHomePage',
   'pages/pages.controller.ts::listPublished',
+  'site-settings/site-settings.controller.ts::get',
 ]);
 
 function findControllers(dir: string, found: string[] = []): string[] {

@@ -1,28 +1,46 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { SmartLink } from '@/components/ui/SmartLink';
 import { motion } from 'framer-motion';
 import type { HeroBlock } from '@kentslsc/shared';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import type { OverlayStyle } from '@/components/ui/VideoOverlay';
+import { getVideoMimeType } from '@/lib/utils';
 
 interface Props {
   block: HeroBlock;
 }
 
 export default function HeroBlockComponent({ block }: Props) {
-  const { title, subtitle, buttonText, buttonUrl, mediaType, imageUrl, videoUrl, overlayStyle, overlayOpacity } = block;
+  const {
+    title,
+    subtitle,
+    buttonText,
+    buttonUrl,
+    mediaType,
+    imageUrl,
+    videoUrl,
+    overlayStyle,
+    overlayOpacity,
+    videoPlaybackRate
+  } = block;
 
   const isVideo = mediaType === 'video' && videoUrl;
-  const videoExt = isVideo ? videoUrl.split('.').pop()?.toLowerCase() : null;
-  const videoBase = isVideo ? videoUrl.replace(/\.[^.]+$/, '') : null;
-  const mp4Fallback = videoBase && videoExt !== 'mp4' ? `${videoBase}.mp4` : null;
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = videoPlaybackRate ?? 1;
+    }
+  }, [videoPlaybackRate]);
 
   return (
     <section className="relative flex min-h-[calc(100vh-68px)] items-center overflow-hidden px-4 py-24 md:px-6 md:py-20">
       {isVideo ? (
         <>
           <video
+            ref={videoRef}
             autoPlay
             muted
             loop
@@ -31,9 +49,7 @@ export default function HeroBlockComponent({ block }: Props) {
             className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
             style={{ backgroundColor: 'transparent' }}
           >
-            {videoExt === 'webm' && <source src={videoUrl} type="video/webm" />}
-            {videoExt === 'mp4' && <source src={videoUrl} type="video/mp4" />}
-            {mp4Fallback && <source src={mp4Fallback} type="video/mp4" />}
+            <source src={videoUrl} type={getVideoMimeType(videoUrl)} />
             {/* Fallback to the default hero video if the configured file is missing */}
             <source src="/videos/kslsc-hero.mp4" type="video/mp4" />
             <source src="/videos/kslsc-hero.webm" type="video/webm" />

@@ -37,7 +37,8 @@ interface ForumCategory {
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
-  const res = await fetchWithRetry(`${getServerApiUrl()}/api${path}`, { next: { revalidate: 86400 } });
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api${path}`, { next: { revalidate: 86400 } });
   if (!res || !res.ok) return null;
   return res.json();
 }

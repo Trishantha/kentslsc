@@ -47,6 +47,21 @@ export enum FundraiserCategory {
   OTHER = 'OTHER'
 }
 
+export enum EventCategory {
+  CULTURAL = 'CULTURAL',
+  SOCIAL = 'SOCIAL',
+  SPORTS = 'SPORTS',
+  CHARITY = 'CHARITY',
+  EDUCATIONAL = 'EDUCATIONAL',
+  COMMUNITY = 'COMMUNITY',
+  FAMILY = 'FAMILY',
+  RELIGIOUS = 'RELIGIOUS',
+  FOOD = 'FOOD',
+  ENTERTAINMENT = 'ENTERTAINMENT',
+  BUSINESS = 'BUSINESS',
+  OTHER = 'OTHER'
+}
+
 export enum MembershipFeature {
   DIRECTORY_READ = 'DIRECTORY_READ',
   DIRECTORY_LISTING = 'DIRECTORY_LISTING',
@@ -81,4 +96,34 @@ export const membershipFeatureLabels: Record<MembershipFeature, { label: string;
   [MembershipFeature.VOTING_RIGHTS]: { label: 'Voting rights', description: 'Vote in club elections and decisions.' },
   [MembershipFeature.DEPENDANTS]: { label: 'Dependants included', description: 'Include spouse and children on the membership.' },
   [MembershipFeature.MEMBER_DISCOUNTS]: { label: 'Member discounts', description: 'Receive discounts on events and family activities.' }
+};
+
+export const eventCategoryLabels: Record<EventCategory, string> = {
+  [EventCategory.CULTURAL]: 'Cultural',
+  [EventCategory.SOCIAL]: 'Social',
+  [EventCategory.SPORTS]: 'Sports',
+  [EventCategory.CHARITY]: 'Charity',
+  [EventCategory.EDUCATIONAL]: 'Educational',
+  [EventCategory.COMMUNITY]: 'Community',
+  [EventCategory.FAMILY]: 'Family',
+  [EventCategory.RELIGIOUS]: 'Religious',
+  [EventCategory.FOOD]: 'Food',
+  [EventCategory.ENTERTAINMENT]: 'Entertainment',
+  [EventCategory.BUSINESS]: 'Business',
+  [EventCategory.OTHER]: 'Other'
+};
+
+export const eventCategoryColors: Record<EventCategory, string> = {
+  [EventCategory.CULTURAL]: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+  [EventCategory.SOCIAL]: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  [EventCategory.SPORTS]: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  [EventCategory.CHARITY]: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  [EventCategory.EDUCATIONAL]: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+  [EventCategory.COMMUNITY]: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  [EventCategory.FAMILY]: 'bg-pink-500/10 text-pink-600 dark:text-pink-400',
+  [EventCategory.RELIGIOUS]: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  [EventCategory.FOOD]: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  [EventCategory.ENTERTAINMENT]: 'bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400',
+  [EventCategory.BUSINESS]: 'bg-slate-500/10 text-slate-600 dark:text-slate-400',
+  [EventCategory.OTHER]: 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
 };

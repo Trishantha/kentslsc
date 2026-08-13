@@ -10,6 +10,7 @@ import { Loader2, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { EventCategory, eventCategoryLabels } from '@kentslsc/shared';
 
 const eventSchema = z.object({
   title: z.string().min(1),
@@ -20,6 +21,7 @@ const eventSchema = z.object({
   ticketPrice: z.coerce.number().min(0).default(0),
   isFree: z.boolean().default(false),
   maxTickets: z.coerce.number().int().min(1).optional(),
+  category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   imageUrl: z.string().url().optional().or(z.literal('')),
   isPublished: z.boolean().default(false)
 });
@@ -36,6 +38,7 @@ interface Event {
   ticketPrice: number;
   isFree: boolean;
   maxTickets: number | null;
+  category: EventCategory;
   imageUrl: string | null;
   isPublished: boolean;
 }
@@ -48,7 +51,8 @@ export default function AdminEventsPage() {
     defaultValues: {
       ticketPrice: 0,
       isFree: false,
-      isPublished: false
+      isPublished: false,
+      category: EventCategory.OTHER
     }
   });
   const isFree = watch('isFree');
@@ -110,6 +114,7 @@ export default function AdminEventsPage() {
       ticketPrice: event.isFree ? 0 : event.ticketPrice,
       isFree: event.isFree,
       maxTickets: event.maxTickets ?? undefined,
+      category: event.category ?? EventCategory.OTHER,
       imageUrl: event.imageUrl ?? '',
       isPublished: event.isPublished
     });
@@ -126,6 +131,7 @@ export default function AdminEventsPage() {
       ticketPrice: 0,
       isFree: false,
       maxTickets: undefined,
+      category: EventCategory.OTHER,
       imageUrl: '',
       isPublished: false
     });
@@ -209,6 +215,17 @@ export default function AdminEventsPage() {
                 <input type="number" {...register('maxTickets')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
               </div>
             </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
+              <select {...register('category')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue">
+                {Object.values(EventCategory).map((cat) => (
+                  <option key={cat} value={cat}>
+                    {eventCategoryLabels[cat]}
+                  </option>
+                ))}
+              </select>
+              {errors.category && <p className="mt-1 text-xs text-red-400">{errors.category.message}</p>}
+            </div>
             <ImageUpload
               label="Image"
               value={watch('imageUrl')}
@@ -243,6 +260,7 @@ export default function AdminEventsPage() {
                 <thead>
                   <tr className="border-b border-white/10 text-slate-500 dark:text-slate-400">
                     <th className="py-3 font-medium">Title</th>
+                    <th className="py-3 font-medium">Category</th>
                     <th className="py-3 font-medium">Location</th>
                     <th className="py-3 font-medium">Start</th>
                     <th className="py-3 font-medium">Price</th>
@@ -259,6 +277,7 @@ export default function AdminEventsPage() {
                       transition={{ delay: idx * 0.03 }}
                     >
                       <td className="py-3 font-medium">{event.title}</td>
+                      <td className="py-3 text-slate-600 dark:text-slate-400">{eventCategoryLabels[event.category]}</td>
                       <td className="py-3 text-slate-600 dark:text-slate-400">{event.location || '-'}</td>
                       <td className="py-3 text-slate-600 dark:text-slate-400">
                         {new Date(event.startDatetime).toLocaleString('en-GB')}

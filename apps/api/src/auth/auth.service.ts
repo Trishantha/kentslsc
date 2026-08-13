@@ -247,7 +247,7 @@ export class AuthService {
       { sub: userId, email, role, sid: sessionId, jti: randomUUID(), typ: 'ws' },
       {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: '5m'
+        expiresIn: '5m' as never
       }
     );
   }
@@ -263,14 +263,14 @@ export class AuthService {
         { sub: userId, email, role, sid: sessionId, jti: randomUUID(), typ: 'access' },
         {
           secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-          expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRY') ?? '15m'
+          expiresIn: (this.configService.get<string>('JWT_ACCESS_EXPIRY') ?? '15m') as never
         }
       ),
       this.jwtService.signAsync(
         { sub: userId, email, role, sid: sessionId, jti: randomUUID(), typ: 'refresh' },
         {
           secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-          expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRY') ?? '7d'
+          expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRY') ?? '7d') as never
         }
       )
     ]);

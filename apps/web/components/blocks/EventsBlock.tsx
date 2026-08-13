@@ -7,6 +7,7 @@ import { Calendar, MapPin, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import type { EventsBlock } from '@kentslsc/shared';
+import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 interface Props {
   block: EventsBlock;
@@ -21,6 +22,7 @@ interface EventItem {
   imageUrl?: string;
   ticketPrice: number;
   isFree: boolean;
+  category?: EventCategory;
 }
 
 export default function EventsBlockComponent({ block }: Props) {
@@ -74,7 +76,19 @@ export default function EventsBlockComponent({ block }: Props) {
                       style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
                     />
                     <div className="p-5">
-                      <h3 className="text-lg font-bold group-hover:text-neon-blue">{event.title}</h3>
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-lg font-bold group-hover:text-neon-blue">{event.title}</h3>
+                        {event.category && (
+                          <span
+                            className={cn(
+                              'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                              eventCategoryColors[event.category]
+                            )}
+                          >
+                            {eventCategoryLabels[event.category]}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-400">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-neon-blue" />

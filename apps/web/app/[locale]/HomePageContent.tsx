@@ -21,6 +21,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import { getVideoMimeType } from '@/lib/utils';
 
 interface EventItem {
   id: string;
@@ -232,11 +233,7 @@ export default function HomePageContent() {
               className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
               style={{ backgroundColor: 'transparent' }}
             >
-              {hero.videoUrl.endsWith('.webm') && <source src={hero.videoUrl} type="video/webm" />}
-              {hero.videoUrl.endsWith('.mp4') && <source src={hero.videoUrl} type="video/mp4" />}
-              {hero.videoUrl.endsWith('.webm') && (
-                <source src={hero.videoUrl.replace(/\.webm$/, '.mp4')} type="video/mp4" />
-              )}
+              {hero.videoUrl && <source src={hero.videoUrl} type={getVideoMimeType(hero.videoUrl)} />}
               {/* Fallback to the default hero video if the configured file is missing */}
               <source src="/videos/kslsc-hero.mp4" type="video/mp4" />
               <source src="/videos/kslsc-hero.webm" type="video/webm" />

@@ -7,7 +7,7 @@ import type Stripe from 'stripe';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
-import { TicketStatus } from '@kentslsc/database';
+import { TicketStatus, EventCategory } from '@kentslsc/database';
 
 export interface TicketWithEvent {
   id: string;
@@ -33,11 +33,21 @@ export class EventsService {
     private readonly configService: ConfigService<EnvConfig, true>
   ) {}
 
-  async listPublished(page = 1, limit = 20, filters?: { search?: string; upcoming?: boolean }) {
-    const where: { isPublished: boolean; deletedAt: null; OR?: Record<string, unknown>[]; startDatetime?: { gte: Date } } = {
+  async listPublished(page = 1, limit = 20, filters?: { search?: string; upcoming?: boolean; category?: string }) {
+    const where: {
+      isPublished: boolean;
+      deletedAt: null;
+      category?: EventCategory;
+      OR?: Record<string, unknown>[];
+      startDatetime?: { gte: Date };
+    } = {
       isPublished: true,
       deletedAt: null
     };
+
+    if (filters?.category) {
+      where.category = filters.category as EventCategory;
+    }
 
     if (filters?.search) {
       const term = filters.search;
@@ -111,6 +121,7 @@ export class EventsService {
         ticketPrice: dto.isFree ? 0 : dto.ticketPrice,
         isFree: dto.isFree ?? false,
         maxTickets: dto.maxTickets,
+        category: dto.category ?? EventCategory.OTHER,
         imageUrl: dto.imageUrl,
         isPublished: dto.isPublished ?? false
       }
@@ -130,6 +141,7 @@ export class EventsService {
         ...(dto.isFree !== undefined && { isFree: dto.isFree }),
         ...(dto.ticketPrice !== undefined && { ticketPrice: dto.isFree ? 0 : dto.ticketPrice }),
         ...(dto.maxTickets !== undefined && { maxTickets: dto.maxTickets }),
+        ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished })
       }

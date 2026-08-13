@@ -6,7 +6,7 @@ import type { PageBlock } from '@kentslsc/shared';
 import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 interface SitePage {
@@ -32,13 +32,15 @@ function findFirstImage(blocks: PageBlock[]): string | undefined {
 }
 
 async function fetchPage(slug: string): Promise<SitePage | null> {
-  const res = await fetchWithRetry(`${getServerApiUrl()}/api/pages/${slug}`, { next: { revalidate: 60 } });
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/pages/${slug}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const page = await fetchPage(params.slug);
+  const { slug } = await params;
+  const page = await fetchPage(slug);
   if (!page) return {};
   const description = page.metaDescription ?? undefined;
   const ogImage = page.ogImageUrl ?? findFirstImage(page.blocks) ?? '/opengraph-image';
@@ -63,7 +65,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CustomPage({ params }: Props) {
-  const page = await fetchPage(params.slug);
+  const { slug } = await params;
+  const page = await fetchPage(slug);
   if (!page) notFound();
 
   return (

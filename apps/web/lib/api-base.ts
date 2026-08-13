@@ -24,9 +24,9 @@ export const serverApiUrl = normalizeApiOrigin(rawApiUrl ?? 'http://localhost:30
  * build-time env var being available at runtime (e.g. in a Hostinger deployment
  * where only NEXT_PUBLIC_* and the runtime env are injected).
  */
-export function getServerApiUrl(): string {
+export async function getServerApiUrl(): Promise<string> {
   try {
-    const h = headers();
+    const h = await headers();
     const host = h.get('host') ?? 'localhost:3000';
     const forwardedProto = h.get('x-forwarded-proto');
     const proto = forwardedProto ?? (host.includes('localhost') ? 'http' : 'https');

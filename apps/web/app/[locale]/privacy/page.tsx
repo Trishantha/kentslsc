@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 interface Props {
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }
 
 const collectKeys = [
@@ -15,7 +15,8 @@ const collectKeys = [
 
 const useKeys = ['membership', 'communications', 'payments', 'enquiries', 'legal'] as const;
 
-export async function generateMetadata({ params: { locale } }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'privacy' });
   return {
     title: t('metaTitle'),
@@ -23,7 +24,8 @@ export async function generateMetadata({ params: { locale } }: Props): Promise<M
   };
 }
 
-export default async function PrivacyPage({ params: { locale } }: Props) {
+export default async function PrivacyPage({ params }: Props) {
+  const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: 'privacy' });
 

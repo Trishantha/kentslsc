@@ -12,7 +12,8 @@ const defaultCommitteeItems: CommitteeMember[] = [
 ];
 
 async function fetchCommittee(): Promise<CommitteeMember[]> {
-  const res = await fetchWithRetry(`${getServerApiUrl()}/api/committee`, {
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/committee`, {
     next: { revalidate: 60 }
   });
   if (!res || !res.ok) return defaultCommitteeItems;

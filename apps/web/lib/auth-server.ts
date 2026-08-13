@@ -32,7 +32,8 @@ export async function getServerSession(): Promise<ServerSession> {
   if (!cookieHeader) return { authenticated: false };
 
   try {
-    const res = await fetch(`${getServerApiUrl()}/api/auth/session`, {
+    const apiUrl = await getServerApiUrl();
+    const res = await fetch(`${apiUrl}/api/auth/session`, {
       headers: { cookie: cookieHeader },
       cache: 'no-store'
     });

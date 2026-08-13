@@ -49,9 +49,7 @@ export function MediaUpload({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await api.post('/uploads', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const { data } = await api.post('/uploads', formData);
       onChange(data.url, data.path);
     } catch (err: unknown) {
       const message =

@@ -6,17 +6,19 @@ import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailCont
 import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
-  params: { locale: string; id: string };
+  params: Promise<{ locale: string; id: string }>;
 }
 
 async function fetchFundraiser(id: string): Promise<Fundraiser | null> {
-  const res = await fetchWithRetry(`${getServerApiUrl()}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const fundraiser = await fetchFundraiser(params.id);
+  const { id } = await params;
+  const fundraiser = await fetchFundraiser(id);
   if (!fundraiser) return {};
   const description = fundraiser.aiSummary ?? fundraiser.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Support ${fundraiser.title}`;
   const image = fundraiser.imageUrl ?? '/opengraph-image';
@@ -42,11 +44,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function FundraiserDetailPage({ params }: Props) {
-  const fundraiser = await fetchFundraiser(params.id);
+  const { locale, id } = await params;
+  const fundraiser = await fetchFundraiser(id);
   if (!fundraiser) notFound();
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
-  const localePath = params.locale === 'en' ? '' : `/${params.locale}`;
+  const localePath = locale === 'en' ? '' : `/${locale}`;
   const shareUrl = `${baseUrl}${localePath}/fundraisers/${fundraiser.id}`;
   const fundraiserSchema = {
     '@context': 'https://schema.org',

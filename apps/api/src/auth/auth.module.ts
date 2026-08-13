@@ -24,7 +24,9 @@ import { AuthBootstrapService } from './auth-bootstrap.service.js';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<string>('JWT_ACCESS_EXPIRY') ?? '15m' }
+        signOptions: {
+          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRY') ?? '15m') as never
+        }
       }),
       inject: [ConfigService]
     }),

@@ -1,9 +1,10 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -26,7 +27,8 @@ import {
   ArrowLeft,
   Sparkles,
   Plus,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -96,6 +98,8 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   const t = useTranslations('directoryDetail');
   const tDirectory = useTranslations('directory');
   const tCommon = useTranslations('common');
+  const searchParams = useSearchParams();
+  const [showPromotedBanner, setShowPromotedBanner] = useState(searchParams?.get('promoted') === 'success');
 
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: ['directory', 'businesses', resolvedId],
@@ -211,6 +215,22 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
         >
           <ArrowLeft className="h-4 w-4" /> {t('backToDirectory')}
         </Link>
+
+        {showPromotedBanner && (
+          <div className="mt-4 flex items-start justify-between rounded-xl border border-neon-gold/20 bg-neon-gold/10 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-neon-gold">
+              <Crown className="h-4 w-4" />
+              {t('promotionSuccess')}
+            </div>
+            <button
+              onClick={() => setShowPromotedBanner(false)}
+              className="rounded p-1 text-slate-500 hover:bg-white/10"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-6 glass-card p-6 md:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">

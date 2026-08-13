@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, MessageSquare } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, MessageSquare, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
@@ -12,27 +12,41 @@ import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared
 import { api } from '@/lib/api';
 import { Link } from '@/i18n/routing';
 
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+
 interface ContactResponse {
   id: string;
   aiFaqResponse?: string | null;
 }
 
-const contactDetails = [
-  { id: 'email', icon: Mail, value: 'info@kentslsc.org', href: 'mailto:info@kentslsc.org' },
-  { id: 'phone', icon: Phone, value: '+44 1234 567890', href: 'tel:+441234567890' },
-  {
-    id: 'address',
-    icon: MapPin,
-    value: 'Kent Sri Lankan Social Club, Community Centre, Maidstone, Kent ME15 9JQ',
-    href: '#'
+function useContactDetails() {
+  const { data: settings, isLoading } = useSiteSettings();
+  const t = useTranslations('contact');
+
+  const details: { id: string; icon: typeof Mail; value: string; href: string; labelKey: string }[] = [];
+
+  if (settings?.email) {
+    details.push({ id: 'email', icon: Mail, value: settings.email, href: `mailto:${settings.email}`, labelKey: 'email' });
   }
-] as const;
+  if (settings?.phone) {
+    details.push({ id: 'phone', icon: Phone, value: settings.phone, href: `tel:${settings.phone.replace(/\s/g, '')}`, labelKey: 'phone' });
+  }
+  if (settings?.whatsapp) {
+    details.push({ id: 'whatsapp', icon: MessageCircle, value: settings.whatsapp, href: `https://wa.me/${settings.whatsapp.replace(/\D/g, '')}`, labelKey: 'whatsapp' });
+  }
+  if (settings?.address) {
+    details.push({ id: 'address', icon: MapPin, value: settings.address, href: '#', labelKey: 'address' });
+  }
+
+  return { details, isLoading };
+}
 
 function ContactPageContent() {
   const t = useTranslations('contact');
   const auth = useTranslations('auth');
   const searchParams = useSearchParams();
   const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const { details, isLoading: contactLoading } = useContactDetails();
 
   const defaultSubject = searchParams?.get('subject') ?? '';
   const defaultMessage = searchParams?.get('message') ?? '';
@@ -102,25 +116,34 @@ function ContactPageContent() {
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                 {t('clubDetailsText')}
               </p>
-              <div className="mt-6 space-y-4">
-                {contactDetails.map((detail) => (
-                  <a
-                    key={detail.id}
-                    href={detail.href}
-                    className="flex items-start gap-4 rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10"
-                  >
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-neon-blue/10 text-neon-blue">
-                      <detail.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        {t(`labels.${detail.id}`)}
-                      </p>
-                      <p className="mt-0.5 text-sm font-medium">{detail.value}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              {contactLoading ? (
+                <div className="flex h-40 items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-neon-blue" />
+                </div>
+              ) : (
+                <div className="mt-6 space-y-4">
+                  {details.map((detail) => (
+                    <a
+                      key={detail.id}
+                      href={detail.href}
+                      className="flex items-start gap-4 rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10"
+                    >
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-neon-blue/10 text-neon-blue">
+                        <detail.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          {t(`labels.${detail.labelKey}`)}
+                        </p>
+                        <p className="mt-0.5 text-sm font-medium">{detail.value}</p>
+                      </div>
+                    </a>
+                  ))}
+                  {!details.length && (
+                    <p className="text-sm text-slate-500">{t('noContactDetails')}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="glass-card p-6">

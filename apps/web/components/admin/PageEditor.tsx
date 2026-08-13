@@ -57,7 +57,7 @@ function createBlock(type: PageBlock['type']): PageBlock {
   const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   switch (type) {
     case 'hero':
-      return { type, id, title: 'Welcome', subtitle: '', buttonText: '', buttonUrl: '', mediaType: 'video', imageUrl: '', videoUrl: '/videos/kslsc-hero.webm', overlayStyle: 'noise', overlayOpacity: 75 };
+      return { type, id, title: 'Welcome', subtitle: '', buttonText: '', buttonUrl: '', mediaType: 'video', imageUrl: '', videoUrl: '/videos/kslsc-hero.webm', overlayStyle: 'noise', overlayOpacity: 75, videoPlaybackRate: 1 };
     case 'text':
       return { type, id, title: '', content: '', align: 'left' };
     case 'image':
@@ -663,9 +663,7 @@ function UploadButton({ accept, onUploaded }: { accept: string; onUploaded: (url
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await api.post('/uploads', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const { data } = await api.post('/uploads', formData);
       onUploaded(data.url);
     } finally {
       setUploading(false);

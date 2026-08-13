@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save } from 'lucide-react';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, getVideoMimeType } from '@/lib/utils';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { MediaUpload } from '@/components/ui/MediaUpload';
@@ -199,8 +199,7 @@ export default function AdminHeroPage() {
           <div className="relative mt-4 aspect-video overflow-hidden rounded-xl border border-white/10">
             {mediaType === 'video' && videoUrl ? (
               <VideoPlayer autoPlay muted loop playsInline playbackRate={videoPlaybackRate} className="h-full w-full object-cover">
-                <source src={videoUrl} type="video/webm" />
-                <source src={videoUrl.replace(/\.webm$/, '.mp4')} type="video/mp4" />
+                <source src={videoUrl} type={getVideoMimeType(videoUrl)} />
               </VideoPlayer>
             ) : mediaType === 'image' && imageUrl ? (
               <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${imageUrl})` }} />

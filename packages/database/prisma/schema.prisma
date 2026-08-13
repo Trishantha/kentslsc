@@ -57,6 +57,21 @@ enum FundraiserCategory {
   OTHER
 }
 
+enum EventCategory {
+  CULTURAL
+  SOCIAL
+  SPORTS
+  CHARITY
+  EDUCATIONAL
+  COMMUNITY
+  FAMILY
+  RELIGIOUS
+  FOOD
+  ENTERTAINMENT
+  BUSINESS
+  OTHER
+}
+
 enum AuthEventType {
   LOGIN_SUCCESS
   LOGIN_FAILURE
@@ -240,25 +255,27 @@ model Membership {
 }
 
 model Event {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   title         String
   description   String?
   location      String?
-  startDatetime DateTime @map("start_datetime")
-  endDatetime   DateTime @map("end_datetime")
-  ticketPrice   Decimal  @default(0) @map("ticket_price") @db.Decimal(10, 2)
-  isFree        Boolean  @default(false) @map("is_free")
-  maxTickets    Int?     @map("max_tickets")
-  imageUrl      String?  @map("image_url")
-  isPublished   Boolean  @default(false) @map("is_published")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  startDatetime DateTime      @map("start_datetime")
+  endDatetime   DateTime      @map("end_datetime")
+  ticketPrice   Decimal       @default(0) @map("ticket_price") @db.Decimal(10, 2)
+  isFree        Boolean       @default(false) @map("is_free")
+  maxTickets    Int?          @map("max_tickets")
+  category      EventCategory @default(OTHER) @map("category")
+  imageUrl      String?       @map("image_url")
+  isPublished   Boolean       @default(false) @map("is_published")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
 
   tickets Ticket[]
 
   @@index([startDatetime])
   @@index([isPublished])
+  @@index([category])
   @@map("events")
 }
 
@@ -545,6 +562,25 @@ model SitePage {
   @@index([isHome])
   @@index([isPublished])
   @@map("site_pages")
+}
+
+model SiteSettings {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String?
+  phone       String?
+  whatsapp    String?
+  address     String?
+  facebook    String?
+  instagram   String?
+  twitter     String?
+  youtube     String?
+  linkedin       String?
+  tiktok         String?
+  showPageLoader Boolean? @default(true) @map("show_page_loader")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
 }
 
 model HeroConfig {

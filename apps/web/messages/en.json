@@ -279,8 +279,10 @@
     "labels": {
       "email": "Email",
       "phone": "Phone",
+      "whatsapp": "WhatsApp",
       "address": "Address"
     },
+    "noContactDetails": "Contact details are not available at the moment.",
     "responseTimesTitle": "Response Times",
     "responseTimesText": "We aim to reply to all messages within 2 working days. For urgent enquiries, please call the committee number above.",
     "successTitle": "Message Sent",
@@ -377,6 +379,9 @@
     "subtitle": "Upcoming gatherings, celebrations, and community activities.",
     "searchPlaceholder": "Search events...",
     "upcomingOnly": "Upcoming only",
+    "allCategories": "All categories",
+    "listView": "List",
+    "calendarView": "Calendar",
     "viewDetails": "View Details",
     "noEvents": "No events found. Check back soon!"
   },
@@ -386,6 +391,7 @@
     "searchPlaceholder": "Search businesses...",
     "allCategories": "All categories",
     "promoted": "Promoted",
+    "featuredBusinessesTitle": "Featured Businesses",
     "noDescription": "No description yet.",
     "jobCount": "{count} jobs",
     "jobAdsTitle": "Job Ads",
@@ -457,7 +463,6 @@
     "quantity": "Quantity",
     "reserveSuccess": "Tickets reserved! Redirecting to your tickets...",
     "purchaseFailed": "Purchase failed",
-    "membershipRequired": "Ticket purchases require a full membership.",
     "reserveTickets": "Reserve tickets",
     "buyFor": "Buy for {amount}",
     "loginToBuy": "Log in to buy tickets"
@@ -469,6 +474,7 @@
     "aiSummarise": "AI Summarise",
     "aiSummarising": "Summarising...",
     "promote30Days": "Promote 30 days",
+    "promotionSuccess": "Your business is now featured for 30 days!",
     "delete": "Delete",
     "about": "About",
     "noDescription": "No description available.",

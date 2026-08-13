@@ -279,8 +279,10 @@
     "labels": {
       "email": "மின்னஞ்சல்",
       "phone": "தொலைபேசி",
+      "whatsapp": "வாட்ஸ்அப்",
       "address": "முகவரி"
     },
+    "noContactDetails": "தற்போது தொடர்பு விவரங்கள் கிடைக்கவில்லை.",
     "responseTimesTitle": "மறுமொழி நேரம்",
     "responseTimesText": "2 வேலை நாட்களுக்குள் அனைத்து செய்திகளுக்கும் பதிலளிப்பதை நோக்கமாகக் கொண்டுள்ளோம். அவசர விசாரணைகளுக்கு, மேலே உள்ள குழு எண்ணை அழைக்கவும்.",
     "successTitle": "செய்தி அனுப்பப்பட்டது",
@@ -377,6 +379,9 @@
     "subtitle": "வரவிருக்கும் கூட்டங்கள், கொண்டாட்டங்கள் மற்றும் சமூக நடவடிக்கைகள்.",
     "searchPlaceholder": "நிகழ்வுகளைத் தேடு...",
     "upcomingOnly": "வரவிருக்கும்",
+    "allCategories": "All categories",
+    "listView": "List",
+    "calendarView": "Calendar",
     "viewDetails": "விவரங்களைக் காண்க",
     "noEvents": "நிகழ்வுகள் எதுவும் இல்லை. விரைவில் மீண்டும் பார்க்கவும்!"
   },
@@ -386,6 +391,7 @@
     "searchPlaceholder": "வணிகங்களைத் தேடு...",
     "allCategories": "அனைத்து வகைகளும்",
     "promoted": "பதவி உயர்வு",
+    "featuredBusinessesTitle": "Featured Businesses",
     "noDescription": "இன்னும் விளக்கம் இல்லை.",
     "jobCount": "{count} வேலைகள்",
     "jobAdsTitle": "வேலை விளம்பரங்கள்",
@@ -457,7 +463,6 @@
     "quantity": "அளவு",
     "reserveSuccess": "டிக்கெட்டுகள் ஒதுக்கப்பட்டுள்ளன! உங்கள் டிக்கெட்டுகளுக்கு திருப்பி விடப்படுகிறது...",
     "purchaseFailed": "வாங்க முடியவில்லை",
-    "membershipRequired": "டிக்கெட் வாங்குவதற்கு முழு உறுப்பினர் தேவை.",
     "reserveTickets": "டிக்கெட்டுகளை முன்பதிவு செய்யுங்கள்",
     "buyFor": "{amount}க்கு வாங்கவும்",
     "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக"
@@ -469,6 +474,7 @@
     "aiSummarise": "AI சுருக்கம்",
     "aiSummarising": "சுருக்கமாக...",
     "promote30Days": "30 நாட்கள் ஊக்குவிக்கவும்",
+    "promotionSuccess": "Your business is now featured for 30 days!",
     "delete": "நீக்கு",
     "about": "பற்றி",
     "noDescription": "விளக்கம் இல்லை.",

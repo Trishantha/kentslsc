@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EventCategory } from '../enums.js';
 
 export const eventSchema = z.object({
   title: z.string().min(1),
@@ -9,6 +10,7 @@ export const eventSchema = z.object({
   ticketPrice: z.number().min(0).default(0),
   isFree: z.boolean().default(false),
   maxTickets: z.number().int().min(1).optional(),
+  category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   imageUrl: z.string().url().optional(),
   isPublished: z.boolean().default(false)
 });

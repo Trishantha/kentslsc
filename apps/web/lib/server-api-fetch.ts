@@ -7,8 +7,8 @@ function normalizeApiOrigin(value: string): string {
     .replace(/\/$/, '');
 }
 
-function getRequestOrigin(): string {
-  const headersList = headers();
+async function getRequestOrigin(): Promise<string> {
+  const headersList = await headers();
   const host = headersList.get('host') || 'localhost:3000';
   const protocol = headersList.get('x-forwarded-proto') || 'https';
   return `${protocol}://${host}`;
@@ -33,7 +33,7 @@ export async function fetchWithOriginFallback<T>(
     origins.add(normalizeApiOrigin(configuredOrigin));
   }
 
-  const requestOrigin = normalizeApiOrigin(getRequestOrigin());
+  const requestOrigin = normalizeApiOrigin(await getRequestOrigin());
   origins.add(requestOrigin);
 
   const attempts: { origin: string; error?: string }[] = [];

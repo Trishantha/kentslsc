@@ -7,7 +7,7 @@ import { formatDate } from '@/lib/utils';
 import { getServerApiUrl } from '@/lib/api-base';
 
 interface VerifyPageProps {
-  params: { locale: string; id: string };
+  params: Promise<{ locale: string; id: string }>;
 }
 
 interface VerificationResult {
@@ -22,22 +22,25 @@ interface VerificationResult {
 }
 
 async function verifyMembership(id: string): Promise<VerificationResult | null> {
+  const apiUrl = await getServerApiUrl();
   const res = await fetchWithRetry(
-    `${getServerApiUrl()}/api/membership/verify/${encodeURIComponent(id)}`,
+    `${apiUrl}/api/membership/verify/${encodeURIComponent(id)}`,
     { next: { revalidate: 0 } }
   );
   if (!res || !res.ok) return null;
   return (await res.json()) as VerificationResult;
 }
 
-export async function generateMetadata({ params: { locale } }: VerifyPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: VerifyPageProps): Promise<Metadata> {
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'membershipVerify' });
   return {
     title: t('metaTitle')
   };
 }
 
-export default async function VerifyPage({ params: { locale, id } }: VerifyPageProps) {
+export default async function VerifyPage({ params }: VerifyPageProps) {
+  const { locale, id } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: 'membershipVerify' });
   const result = await verifyMembership(id);

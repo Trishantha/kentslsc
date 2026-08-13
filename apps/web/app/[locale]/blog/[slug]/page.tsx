@@ -7,17 +7,19 @@ import { getServerApiUrl } from '@/lib/api-base';
 import { summarizeRichText } from '@/lib/rich-text';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
-  const res = await fetchWithRetry(`${getServerApiUrl()}/api/blog/${slug}`, { next: { revalidate: 60 } });
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const post = await fetchPost(params.slug);
+  const { slug } = await params;
+  const post = await fetchPost(slug);
   if (!post) return {};
   const fallback = summarizeRichText(post.content, 160);
   const description = (post.aiTldr ?? fallback) || undefined;
@@ -46,7 +48,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BlogPostPage({ params }: Props) {
-  const post = await fetchPost(params.slug);
+  const { slug } = await params;
+  const post = await fetchPost(slug);
   if (!post) notFound();
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';

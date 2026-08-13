@@ -5,7 +5,7 @@ import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { summarizeRichText, stripRichText } from '@/lib/rich-text';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchEvent(id: string): Promise<Event | null> {
@@ -13,7 +13,8 @@ async function fetchEvent(id: string): Promise<Event | null> {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const event = await fetchEvent(params.id);
+  const { id } = await params;
+  const event = await fetchEvent(id);
   if (!event) return {};
   const description = summarizeRichText(event.description, 160) || `Join us for ${event.title}`;
   const image = event.imageUrl ?? '/opengraph-image';
@@ -39,10 +40,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventDetailPage({ params }: Props) {
-  const event = await fetchEvent(params.id);
+  const { id } = await params;
+  const event = await fetchEvent(id);
 
   if (!event) {
-    return <EventDetailContent id={params.id} />;
+    return <EventDetailContent id={id} />;
   }
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
@@ -75,7 +77,7 @@ export default async function EventDetailPage({ params }: Props) {
   return (
     <>
       <JsonLd data={eventSchema} />
-      <EventDetailContent id={params.id} event={event} />
+      <EventDetailContent id={id} event={event} />
     </>
   );
 }

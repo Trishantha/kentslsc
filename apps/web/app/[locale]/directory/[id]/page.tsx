@@ -4,7 +4,7 @@ import DirectoryDetailContent, { type Business } from './DirectoryDetailContent'
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 
 interface Props {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 async function fetchBusiness(id: string): Promise<Business | null> {
@@ -12,7 +12,8 @@ async function fetchBusiness(id: string): Promise<Business | null> {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const business = await fetchBusiness(params.id);
+  const { id } = await params;
+  const business = await fetchBusiness(id);
   if (!business) return {};
   const description = business.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Business listing for ${business.businessName}`;
   const image = business.logoUrl ?? '/opengraph-image';
@@ -37,10 +38,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DirectoryDetailPage({ params }: Props) {
-  const business = await fetchBusiness(params.id);
+  const { id } = await params;
+  const business = await fetchBusiness(id);
 
   if (!business) {
-    return <DirectoryDetailContent id={params.id} />;
+    return <DirectoryDetailContent id={id} />;
   }
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
@@ -62,7 +64,7 @@ export default async function DirectoryDetailPage({ params }: Props) {
   return (
     <>
       <JsonLd data={localBusinessSchema} />
-      <DirectoryDetailContent id={params.id} business={business} />
+      <DirectoryDetailContent id={id} business={business} />
     </>
   );
 }

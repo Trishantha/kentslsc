@@ -4,7 +4,9 @@ import { getServerApiUrl } from '@/lib/api-base';
 import { getTranslations } from 'next-intl/server';
 import HomePageContent from './HomePageContent';
 
-export const revalidate = 60;
+// Render the home page dynamically so hero-config changes are visible immediately
+// after saving in the admin dashboard.
+export const dynamic = 'force-dynamic';
 
 interface HomePageData {
   blocks?: PageBlock[];
@@ -22,8 +24,9 @@ interface HeroConfig {
 
 async function fetchHomePage(): Promise<HomePageData | null> {
   try {
-    const res = await fetch(`${getServerApiUrl()}/api/pages/home`, {
-      next: { revalidate: 60 }
+    const apiUrl = await getServerApiUrl();
+    const res = await fetch(`${apiUrl}/api/pages/home`, {
+      cache: 'no-store'
     });
     if (!res.ok) {
       return null;
@@ -36,8 +39,9 @@ async function fetchHomePage(): Promise<HomePageData | null> {
 
 async function fetchHeroConfig(): Promise<HeroConfig | null> {
   try {
-    const res = await fetch(`${getServerApiUrl()}/api/hero-config`, {
-      next: { revalidate: 60 }
+    const apiUrl = await getServerApiUrl();
+    const res = await fetch(`${apiUrl}/api/hero-config`, {
+      cache: 'no-store'
     });
     if (!res.ok) {
       return null;
@@ -73,12 +77,14 @@ function mergeHeroConfigIntoBlocks(
       overlayStyle: heroConfig.overlayStyle,
       overlayOpacity: isVideo
         ? heroConfig.videoOverlayOpacity ?? heroConfig.overlayOpacity ?? heroBlock.overlayOpacity
-        : heroConfig.overlayOpacity ?? heroBlock.overlayOpacity
+        : heroConfig.overlayOpacity ?? heroBlock.overlayOpacity,
+      videoPlaybackRate: heroConfig.videoPlaybackRate ?? heroBlock.videoPlaybackRate ?? 1
     } as PageBlock;
   });
 }
 
-  export default async function HomePage({ params: { locale } }: { params: { locale: string } }) {
+  export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+    const { locale } = await params;
     const t = await getTranslations({ locale, namespace: 'home' });
   const [homePage, heroConfig] = await Promise.all([fetchHomePage(), fetchHeroConfig()]);
 

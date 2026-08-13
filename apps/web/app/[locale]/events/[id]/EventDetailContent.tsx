@@ -4,14 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Calendar, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft, Lock } from 'lucide-react';
+import { Calendar, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api } from '@/lib/api';
-import { FeatureGate } from '@/components/ui/FeatureGate';
-import { MembershipFeature } from '@kentslsc/shared';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 export interface Event {
   id: string;
@@ -23,6 +22,7 @@ export interface Event {
   ticketPrice: number;
   isFree: boolean;
   maxTickets?: number;
+  category?: EventCategory;
   imageUrl?: string;
   isPublished: boolean;
   tickets?: { id: string }[];
@@ -135,6 +135,16 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
           </div>
           <div className="p-6 md:p-10">
             <h1 className="text-3xl font-bold md:text-4xl">{event.title}</h1>
+            {event.category && (
+              <span
+                className={cn(
+                  'mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium',
+                  eventCategoryColors[event.category]
+                )}
+              >
+                {eventCategoryLabels[event.category]}
+              </span>
+            )}
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
               <div className="flex items-center gap-2">
@@ -202,43 +212,18 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
               )}
 
               {user ? (
-                isFree ? (
-                  <button
-                    onClick={handleBuy}
-                    disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
-                    className="btn-primary w-full"
-                  >
-                    {purchase.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Ticket className="mr-2 h-4 w-4" />
-                    )}
-                    {t('reserveTickets')}
-                  </button>
-                ) : (
-                  <FeatureGate
-                    feature={MembershipFeature.TICKETS_PURCHASE}
-                    fallback={
-                      <div className="rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-4 text-center text-sm text-slate-600 dark:text-slate-400">
-                        <Lock className="mx-auto mb-1 h-4 w-4 text-neon-gold" />
-                        {t('membershipRequired')}
-                      </div>
-                    }
-                  >
-                    <button
-                      onClick={handleBuy}
-                      disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
-                      className="btn-primary w-full"
-                    >
-                      {purchase.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Ticket className="mr-2 h-4 w-4" />
-                      )}
-                      {t('buyFor', { amount: formatCurrency(total) })}
-                    </button>
-                  </FeatureGate>
-                )
+                <button
+                  onClick={handleBuy}
+                  disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
+                  className="btn-primary w-full"
+                >
+                  {purchase.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Ticket className="mr-2 h-4 w-4" />
+                  )}
+                  {isFree ? t('reserveTickets') : t('buyFor', { amount: formatCurrency(total) })}
+                </button>
               ) : (
                 <button onClick={handleBuy} className="btn-primary w-full">
                   <Ticket className="mr-2 h-4 w-4" /> {t('loginToBuy')}

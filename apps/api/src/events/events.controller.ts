@@ -10,8 +10,7 @@ import {
   Query,
   Headers,
   RawBody,
-  Res,
-  ForbiddenException
+  Res
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -20,19 +19,16 @@ import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
-import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
+import { UserRole, type TokenPayload } from '@kentslsc/shared';
 
 @ApiTags('Events')
 @Controller('events')
 export class EventsController {
   constructor(
     private readonly eventsService: EventsService,
-    private readonly paymentsService: PaymentsService,
-    private readonly featuresService: MembershipFeaturesService
+    private readonly paymentsService: PaymentsService
   ) {}
 
   @Get()
@@ -41,11 +37,13 @@ export class EventsController {
     @Query('page') page: string,
     @Query('limit') limit: string,
     @Query('search') search?: string,
-    @Query('upcoming') upcoming?: string
+    @Query('upcoming') upcoming?: string,
+    @Query('category') category?: string
   ) {
     return this.eventsService.listPublished(Number(page) || 1, Number(limit) || 20, {
       search,
-      upcoming: upcoming !== 'false'
+      upcoming: upcoming !== 'false',
+      category
     });
   }
 
@@ -97,14 +95,6 @@ export class EventsController {
     @Body() dto: PurchaseTicketsDto,
     @CurrentUser() user: TokenPayload
   ) {
-    const event = await this.eventsService.findById(eventId);
-    const isFree = event.isFree || Number(event.ticketPrice) === 0;
-    if (!isFree && user.role !== UserRole.ADMIN) {
-      const hasFeature = await this.featuresService.userHasFeature(user.sub, MembershipFeature.TICKETS_PURCHASE);
-      if (!hasFeature) {
-        throw new ForbiddenException('Your membership does not include ticket purchases');
-      }
-    }
     // Enforce route parameter matches body for consistency
     const body = { ...dto, eventId };
     return this.eventsService.createCheckoutSession(user.sub, body);
@@ -135,14 +125,12 @@ export class TicketsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get()
-  @RequiresFeature(MembershipFeature.MEMBER_CARD)
   @ApiBearerAuth()
   list(@CurrentUser() user: TokenPayload) {
     return this.eventsService.getUserTickets(user.sub);
   }
 
   @Get(':id')
-  @RequiresFeature(MembershipFeature.MEMBER_CARD)
   @ApiBearerAuth()
   async findOne(@Param('id') id: string, @CurrentUser() user: TokenPayload) {
     const ticket = await this.eventsService.getTicketForUser(id, user.sub);

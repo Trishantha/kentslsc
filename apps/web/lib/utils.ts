@@ -37,3 +37,18 @@ export function formatCurrency(amount: number | string | null | undefined) {
     currency: 'GBP'
   }).format(value);
 }
+
+export function getVideoMimeType(url: string): string | undefined {
+  const match = url.match(/\.([^.?#]+)(?:[?#]|$)/i);
+  switch (match?.[1]?.toLowerCase()) {
+    case 'webm':
+      return 'video/webm';
+    case 'mp4':
+      return 'video/mp4';
+    case 'ogg':
+    case 'ogv':
+      return 'video/ogg';
+    default:
+      return undefined;
+  }
+}

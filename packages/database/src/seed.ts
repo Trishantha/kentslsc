@@ -60,7 +60,9 @@ async function main() {
     'FORUM_POST',
     'TICKETS_PURCHASE',
     'MEMBER_CARD',
-    'VOTING_RIGHTS'
+    'VOTING_RIGHTS',
+    'DIRECTORY_LISTING',
+    'DIRECTORY_PROMOTE'
   ];
 
   const familyFeatures = [...fullFeatures, 'DEPENDANTS', 'MEMBER_DISCOUNTS'];

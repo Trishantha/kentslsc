@@ -11,7 +11,8 @@ export const heroBlockSchema = z.object({
   imageUrl: z.string().default(''),
   videoUrl: z.string().default(''),
   overlayStyle: z.enum(['none', 'dots', 'noise', 'scanlines', 'vignette']).default('noise'),
-  overlayOpacity: z.number().min(0).max(100).default(75)
+  overlayOpacity: z.number().min(0).max(100).default(75),
+  videoPlaybackRate: z.number().min(0.25).max(2).default(1)
 });
 
 export const textBlockSchema = z.object({

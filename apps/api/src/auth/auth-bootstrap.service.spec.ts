@@ -26,11 +26,11 @@ describe('AuthBootstrapService', () => {
           useValue: {
             user: {
               findUnique: jest.fn() as any,
-              create: jest.fn().mockResolvedValue({ ...mockUser, id: 'new-admin' }) as any,
-              update: jest.fn().mockResolvedValue(mockUser) as any
+              create: jest.fn(() => Promise.resolve({ ...mockUser, id: 'new-admin' })) as any,
+              update: jest.fn(() => Promise.resolve(mockUser)) as any
             },
             authEvent: {
-              create: jest.fn().mockResolvedValue({ id: 'event-1' }) as any
+              create: jest.fn(() => Promise.resolve({ id: 'event-1' })) as any
             },
             $transaction: jest.fn((ops: any[]) => Promise.all(ops)) as any
           } as any

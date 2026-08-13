@@ -18,7 +18,8 @@ import {
   Mail,
   FileText,
   Menu,
-  Loader2
+  Loader2,
+  Globe
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/hero', label: 'Hero', icon: FileText },
   { href: '/admin/pages', label: 'Pages', icon: FileText },
+  { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
   { href: '/admin/memberships', label: 'Memberships', icon: CreditCard },

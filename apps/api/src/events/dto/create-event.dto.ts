@@ -1,4 +1,14 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsUrl, IsDateString, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsUrl,
+  IsDateString,
+  IsEnum,
+  Min
+} from 'class-validator';
+import { EventCategory } from '@kentslsc/shared';
 
 export class CreateEventDto {
   @IsString()
@@ -29,6 +39,10 @@ export class CreateEventDto {
   @IsOptional()
   @IsNumber()
   declare maxTickets?: number;
+
+  @IsOptional()
+  @IsEnum(EventCategory)
+  declare category?: EventCategory;
 
   @IsOptional()
   @IsUrl()
