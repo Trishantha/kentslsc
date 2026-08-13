@@ -15,9 +15,7 @@ const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-
-// Unix socket used for internal API communication. Avoids the API child binding
-// to a localhost TCP port, which shared-hosting supervisors often kill.
+const apiMode = process.env.API_MODE || 'in-process';
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 
 // How long the public proxy waits for an upstream response (ms).
@@ -57,6 +55,8 @@ let internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
 
 let apiProcess;
 let webProcess;
+let apiServer;
+let apiApp;
 let isShuttingDown = false;
 let isUpstreamReady = false;
 
@@ -382,48 +382,85 @@ function startProxyServer() {
     }
 
     const toApi = urlPath.startsWith('/api') || urlPath.startsWith('/uploads') || urlPath.startsWith('/socket.io');
-    proxyRequest(req, res, toApi ? `unix:${apiSocketPath}` : internalWebUrl);
+
+    if (toApi && apiServer) {
+      // API runs in-process; hand the request directly to the NestJS HTTP server.
+      apiServer.emit('request', req, res);
+      return;
+    }
+
+    const targetBaseUrl = toApi ? `unix:${apiSocketPath}` : internalWebUrl;
+    proxyRequest(req, res, targetBaseUrl);
   });
 
   server.listen(publicPort, host, () => {
     console.log(`Public listener ready on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   });
 
+  // Route Socket.io WebSocket upgrades to the in-process API.
+  server.on('upgrade', (req, socket, head) => {
+    if (req.url && req.url.startsWith('/socket.io') && apiServer) {
+      apiServer.emit('upgrade', req, socket, head);
+    } else {
+      socket.destroy();
+    }
+  });
+
   return server;
 }
 
-async function startServices() {
-  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
-  internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+async function startInProcessApi() {
+  console.log('Starting API in-process (no secondary child process)');
+  // Tell the API module not to auto-bootstrap; we will call createApiApp() ourselves.
+  process.env.UNIFIED_MODE = 'true';
+  const handlerPath = path.join(apiDir, 'dist', 'handler.js');
+  const apiModule = await import(handlerPath);
+  if (typeof apiModule.createApiApp !== 'function') {
+    throw new Error(`Expected ${handlerPath} to export createApiApp`);
+  }
+  apiApp = await apiModule.createApiApp();
+  apiServer = apiApp.getHttpServer();
+  console.log('API initialized in-process');
+}
 
+async function startApiAsChild(socketPath) {
   // Clean up any stale socket file from a previous run.
   try {
-    if (fs.existsSync(apiSocketPath)) {
-      fs.unlinkSync(apiSocketPath);
+    if (fs.existsSync(socketPath)) {
+      fs.unlinkSync(socketPath);
     }
   } catch (cleanupError) {
-    console.warn(`Unable to remove stale socket file ${apiSocketPath}:`, cleanupError.message);
+    console.warn(`Unable to remove stale socket file ${socketPath}:`, cleanupError.message);
   }
-
-  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
-  console.log(`Internal API target: ${apiSocketPath}`);
-  console.log(`Internal web target: ${internalWebUrl}`);
-  if (publicApiUrl) {
-    console.log(`Public API URL: ${publicApiUrl}`);
-  }
-
-  // Start the public listener immediately so platforms like Hostinger see
-  // server.listen() within their startup window. Requests arriving before the
-  // upstreams are ready receive a clear 503 instead of a connection failure.
-  const proxyServer = startProxyServer();
 
   const apiEnv = {
     NODE_ENV: 'production',
     NODE_OPTIONS: `--max-old-space-size=${apiMemoryLimitMb}`,
-    SOCKET_PATH: apiSocketPath,
+    SOCKET_PATH: socketPath,
     FRONTEND_URL: frontendUrl
   };
 
+  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
+
+  apiProcess.on('exit', (code, signal) => {
+    const details = ['API process exited'];
+    if (typeof code === 'number') {
+      details.push(`code=${code}`);
+    }
+    if (signal) {
+      details.push(`signal=${signal}`);
+    }
+    console.error(details.join(' '));
+
+    if (!isShuttingDown) {
+      process.exit(1);
+    }
+  });
+
+  await waitForSocket(socketPath, 'API service');
+}
+
+async function startWebChild() {
   const webEnv = {
     NODE_ENV: 'production',
     NODE_OPTIONS: `--max-old-space-size=${webMemoryLimitMb}`,
@@ -436,7 +473,6 @@ async function startServices() {
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
-  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
   webProcess = spawnProcess(
     nodeCommand,
     ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(internalWebPort)],
@@ -444,8 +480,8 @@ async function startServices() {
     webDir
   );
 
-  const onChildExit = (name, code, signal) => {
-    const details = [`${name} exited`];
+  webProcess.on('exit', (code, signal) => {
+    const details = ['Web process exited'];
     if (typeof code === 'number') {
       details.push(`code=${code}`);
     }
@@ -455,16 +491,38 @@ async function startServices() {
     console.error(details.join(' '));
 
     if (!isShuttingDown) {
-      // Exit fast so the platform can restart the whole stack instead of serving stale 503 responses.
       process.exit(1);
     }
-  };
+  });
 
-  apiProcess.on('exit', (code, signal) => onChildExit('API process', code, signal));
-  webProcess.on('exit', (code, signal) => onChildExit('Web process', code, signal));
-
-  await waitForSocket(apiSocketPath, 'API service');
   await waitForService(internalWebUrl, 'Web service');
+}
+
+async function startServices() {
+  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
+  internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+
+  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
+  console.log(`API mode: ${apiMode}`);
+  console.log(`Internal web target: ${internalWebUrl}`);
+  if (publicApiUrl) {
+    console.log(`Public API URL: ${publicApiUrl}`);
+  }
+
+  // Start the public listener immediately so platforms like Hostinger see
+  // server.listen() within their startup window. Requests arriving before the
+  // upstreams are ready receive a clear 503 instead of a connection failure.
+  const proxyServer = startProxyServer();
+
+  if (apiMode === 'in-process') {
+    await startInProcessApi();
+  } else if (apiMode === 'unix') {
+    await startApiAsChild(apiSocketPath);
+  } else {
+    throw new Error(`Unsupported API_MODE: ${apiMode}. Use 'in-process' or 'unix'.`);
+  }
+
+  await startWebChild();
   isUpstreamReady = true;
   console.log('Upstreams are ready; proxy is now accepting traffic');
 
@@ -472,8 +530,13 @@ async function startServices() {
     isShuttingDown = true;
     console.log('Stopping app services...');
     proxyServer.close();
+    if (apiApp) {
+      apiApp.close().catch((error) => {
+        console.error('Error closing in-process API:', error);
+      });
+    }
     [apiProcess, webProcess].forEach((child) => {
-      if (!child.killed) {
+      if (child && !child.killed) {
         child.kill('SIGTERM');
       }
     });
