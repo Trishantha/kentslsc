@@ -14,7 +14,17 @@ export const api = axios.create({
 
 // These endpoints are allowed to return 401 for anonymous users on public pages.
 // They should not trigger a forced redirect to the login page.
-const optionalAuthEndpoints = ['/auth/me', '/auth/features'];
+const optionalAuthEndpoints = [
+  '/auth/me',
+  '/auth/features',
+  '/auth/login',
+  '/auth/register',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/verify-email',
+  '/auth/logout',
+  '/auth/refresh'
+];
 
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
