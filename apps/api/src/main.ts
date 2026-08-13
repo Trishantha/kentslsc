@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
+import fs from 'fs';
 import { AppModule } from './app.module.js';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
@@ -72,6 +73,42 @@ async function bootstrap() {
   }
 
   app.enableShutdownHooks();
+
+  const socketPath = configService.get<string>('SOCKET_PATH');
+  if (socketPath) {
+    await app.init();
+    const server = app.getHttpServer();
+
+    const removeSocket = () => {
+      try {
+        if (fs.existsSync(socketPath)) {
+          fs.unlinkSync(socketPath);
+        }
+      } catch {
+        // Ignore cleanup errors.
+      }
+    };
+
+    removeSocket();
+    server.listen(socketPath, () => {
+      logger.log(`API listening on Unix socket ${socketPath}`);
+    });
+
+    const shutdown = async (signal: string) => {
+      logger.log(`Received ${signal}, shutting down API...`);
+      try {
+        await app.close();
+      } catch (closeError) {
+        logger.error('Error closing API app', closeError);
+      }
+      removeSocket();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    return;
+  }
 
   const port = configService.get<number>('PORT') ?? 4000;
   const host = configService.get<string>('HOST') ?? '127.0.0.1';

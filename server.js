@@ -13,9 +13,12 @@ const nodeCommand = process.execPath;
 
 const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
-const preferredApiPort = Number(process.env.API_PORT || process.env.API_PORT_NUMBER || 3001);
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+
+// Unix socket used for internal API communication. Avoids the API child binding
+// to a localhost TCP port, which shared-hosting supervisors often kill.
+const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 
 // How long the public proxy waits for an upstream response (ms).
 const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);
@@ -50,9 +53,7 @@ const frontendOrigin =
 const frontendUrl = frontendOrigin.toString();
 
 let internalWebPort = preferredInternalWebPort;
-let apiPort = preferredApiPort;
 let internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
-let internalApiUrl = `http://127.0.0.1:${apiPort}`;
 
 let apiProcess;
 let webProcess;
@@ -155,8 +156,10 @@ function resolveForwardedProto(req, targetBaseUrl, origin = frontendOrigin) {
 }
 
 function proxyRequest(req, res, targetBaseUrl) {
-  const target = new URL(targetBaseUrl);
-  const client = resolveProxyProtocol(targetBaseUrl, req) === 'https' ? https : http;
+  const isUnixSocket = targetBaseUrl.startsWith('unix:');
+  const socketPath = isUnixSocket ? targetBaseUrl.slice(5) : undefined;
+  const target = isUnixSocket ? new URL('http://localhost') : new URL(targetBaseUrl);
+  const client = isUnixSocket ? http : resolveProxyProtocol(targetBaseUrl, req) === 'https' ? https : http;
   const requestPath = normalizeRequestPath(req.url || '/');
   const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   const incomingForwardedHost = Array.isArray(req.headers['x-forwarded-host'])
@@ -212,22 +215,38 @@ function proxyRequest(req, res, targetBaseUrl) {
     console.error(`Failed to proxy ${req.url || '/'} -> ${targetBaseUrl}: ${message}`);
   };
 
-  const request = client.request(
-    {
-      protocol: client === https ? 'https:' : 'http:',
-      hostname: target.hostname,
-      port: target.port || (client === https ? 443 : 80),
-      method: req.method,
-      path: requestPath,
-      headers: {
-        ...req.headers,
-        host: forwardedHost,
-        'x-forwarded-host': forwardedHost,
-        'x-forwarded-proto': forwardedProto,
-        'x-forwarded-port': forwardedPort,
-        connection: 'close'
+  const requestOptions = isUnixSocket
+    ? {
+        socketPath,
+        method: req.method,
+        path: requestPath,
+        headers: {
+          ...req.headers,
+          host: forwardedHost,
+          'x-forwarded-host': forwardedHost,
+          'x-forwarded-proto': forwardedProto,
+          'x-forwarded-port': forwardedPort,
+          connection: 'close'
+        }
       }
-    },
+    : {
+        protocol: client === https ? 'https:' : 'http:',
+        hostname: target.hostname,
+        port: target.port || (client === https ? 443 : 80),
+        method: req.method,
+        path: requestPath,
+        headers: {
+          ...req.headers,
+          host: forwardedHost,
+          'x-forwarded-host': forwardedHost,
+          'x-forwarded-proto': forwardedProto,
+          'x-forwarded-port': forwardedPort,
+          connection: 'close'
+        }
+      };
+
+  const request = client.request(
+    requestOptions,
     (proxyRes) => {
       if (responded) {
         // Upstream was slow to respond after we already timed out / aborted.
@@ -297,6 +316,23 @@ function normalizeRequestPath(rawUrl) {
   }
 }
 
+async function waitForSocket(socketPath, serviceName, timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      await fs.promises.access(socketPath, fs.constants.F_OK);
+      console.log(`${serviceName} is accepting connections at ${socketPath}`);
+      return;
+    } catch {
+      // Socket file not ready yet.
+    }
+    await delay(500);
+  }
+
+  throw new Error(`${serviceName} socket did not appear at ${socketPath} within ${timeoutMs}ms`);
+}
+
 async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
   const deadline = Date.now() + timeoutMs;
   const target = new URL(baseUrl);
@@ -346,7 +382,7 @@ function startProxyServer() {
     }
 
     const toApi = urlPath.startsWith('/api') || urlPath.startsWith('/uploads') || urlPath.startsWith('/socket.io');
-    proxyRequest(req, res, toApi ? internalApiUrl : internalWebUrl);
+    proxyRequest(req, res, toApi ? `unix:${apiSocketPath}` : internalWebUrl);
   });
 
   server.listen(publicPort, host, () => {
@@ -357,13 +393,20 @@ function startProxyServer() {
 }
 
 async function startServices() {
-  apiPort = await findAvailableLocalPort(preferredApiPort);
   internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
-  internalApiUrl = `http://127.0.0.1:${apiPort}`;
   internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
 
+  // Clean up any stale socket file from a previous run.
+  try {
+    if (fs.existsSync(apiSocketPath)) {
+      fs.unlinkSync(apiSocketPath);
+    }
+  } catch (cleanupError) {
+    console.warn(`Unable to remove stale socket file ${apiSocketPath}:`, cleanupError.message);
+  }
+
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
-  console.log(`Internal API target: ${internalApiUrl}`);
+  console.log(`Internal API target: ${apiSocketPath}`);
   console.log(`Internal web target: ${internalWebUrl}`);
   if (publicApiUrl) {
     console.log(`Public API URL: ${publicApiUrl}`);
@@ -377,8 +420,7 @@ async function startServices() {
   const apiEnv = {
     NODE_ENV: 'production',
     NODE_OPTIONS: `--max-old-space-size=${apiMemoryLimitMb}`,
-    PORT: apiPort,
-    HOST: '127.0.0.1',
+    SOCKET_PATH: apiSocketPath,
     FRONTEND_URL: frontendUrl
   };
 
@@ -390,7 +432,7 @@ async function startServices() {
     FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_SOCKET_URL: publicApiUrl || frontendUrl,
-    API_PROXY_TARGET: internalApiUrl,
+    API_PROXY_TARGET: `http://127.0.0.1:${publicPort}`,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
@@ -421,7 +463,7 @@ async function startServices() {
   apiProcess.on('exit', (code, signal) => onChildExit('API process', code, signal));
   webProcess.on('exit', (code, signal) => onChildExit('Web process', code, signal));
 
-  await waitForService(internalApiUrl, 'API service');
+  await waitForSocket(apiSocketPath, 'API service');
   await waitForService(internalWebUrl, 'Web service');
   isUpstreamReady = true;
   console.log('Upstreams are ready; proxy is now accepting traffic');
@@ -435,6 +477,13 @@ async function startServices() {
         child.kill('SIGTERM');
       }
     });
+    try {
+      if (fs.existsSync(apiSocketPath)) {
+        fs.unlinkSync(apiSocketPath);
+      }
+    } catch {
+      // ignore
+    }
     process.exit(0);
   };
 
