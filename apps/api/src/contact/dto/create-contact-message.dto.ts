@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsEmail, MinLength, IsBoolean } from 'class-validator';
 
 export class CreateContactMessageDto {
   @IsString()
@@ -19,4 +19,11 @@ export class CreateContactMessageDto {
   @IsString()
   @MinLength(10)
   declare message: string;
+
+  @IsBoolean()
+  declare consent: boolean;
+
+  @IsOptional()
+  @IsString()
+  declare website?: string;
 }

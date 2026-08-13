@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await fetchEvent(params.id);
   if (!event) return {};
   const description = summarizeRichText(event.description, 160) || `Join us for ${event.title}`;
-  const image = event.imageUrl ?? '/opengraph-image.png';
+  const image = event.imageUrl ?? '/opengraph-image';
   return {
     title: event.title,
     description,
@@ -52,7 +52,7 @@ export default async function EventDetailPage({ params }: Props) {
     '@type': 'Event',
     name: event.title,
     description: stripRichText(event.description) || `Join us for ${event.title}`,
-    image: event.imageUrl ?? `${baseUrl}/opengraph-image.png`,
+    image: event.imageUrl ?? `${baseUrl}/opengraph-image`,
     startDate: event.startDatetime,
     endDate: event.endDatetime,
     location: event.location

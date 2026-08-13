@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
@@ -37,9 +37,9 @@ export default function FundraisersBlockComponent({ block }: Props) {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-end justify-between">
           <div>{title && <h2 className="section-title">{title}</h2>}</div>
-          <Link href="/fundraisers" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
+          <SmartLink href="/fundraisers" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
             View all <ArrowRight className="ml-1 h-4 w-4" />
-          </Link>
+          </SmartLink>
         </div>
 
         {isLoading ? (
@@ -62,7 +62,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Link href={`/fundraisers/${f.id}`}>
+                  <SmartLink href={`/fundraisers/${f.id}`}>
                     <div className="glass-card flex h-full flex-col p-6">
                       {f.imageUrl ? (
                         <img src={f.imageUrl} alt={f.title} className="mb-4 h-40 w-full rounded-xl object-cover" />
@@ -84,7 +84,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
                         <span>Goal: £{f.targetAmount.toLocaleString()}</span>
                       </div>
                     </div>
-                  </Link>
+                  </SmartLink>
                 </motion.div>
               );
             })}

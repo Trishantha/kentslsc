@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared';
 import { api } from '@/lib/api';
+import { Link } from '@/i18n/routing';
 
 interface ContactResponse {
   id: string;
@@ -40,6 +41,7 @@ function ContactPageContent() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors }
   } = useForm<ContactMessageInput>({
     resolver: zodResolver(contactMessageSchema),
@@ -48,9 +50,13 @@ function ContactPageContent() {
       email: '',
       phone: '',
       subject: defaultSubject,
-      message: defaultMessage
+      message: defaultMessage,
+      consent: false,
+      website: ''
     }
   });
+
+  const consent = watch('consent');
 
   const mutation = useMutation<ContactResponse, Error, ContactMessageInput>({
     mutationFn: async (data) => {
@@ -243,13 +249,43 @@ function ContactPageContent() {
                       )}
                     </div>
 
+                    {/* Honeypot: hidden from real users, bots usually fill it. */}
+                    <div className="sr-only" aria-hidden="true">
+                      <label htmlFor="website">Website</label>
+                      <input
+                        id="website"
+                        tabIndex={-1}
+                        autoComplete="off"
+                        {...register('website')}
+                        className="h-0 w-0"
+                      />
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <input
+                        id="consent"
+                        type="checkbox"
+                        {...register('consent')}
+                        className="mt-1 h-4 w-4 rounded border-white/10 bg-white/10 text-neon-blue focus:ring-neon-blue"
+                      />
+                      <label htmlFor="consent" className="text-sm text-slate-700 dark:text-slate-300">
+                        {t('privacyConsentLabel')}{' '}
+                        <Link href="/privacy" className="text-neon-blue hover:underline">
+                          {t('privacyLinkText')}
+                        </Link>
+                      </label>
+                    </div>
+                    {errors.consent && (
+                      <p className="text-xs text-rose-500">{t('privacyConsentError')}</p>
+                    )}
+
                     {mutation.isError && (
                       <p className="text-sm text-rose-500">{t('formError')}</p>
                     )}
 
                     <button
                       type="submit"
-                      disabled={mutation.isPending}
+                      disabled={!consent || mutation.isPending}
                       className="btn-primary flex w-full items-center justify-center gap-2 disabled:opacity-70"
                     >
                       {mutation.isPending ? (

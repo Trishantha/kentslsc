@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await fetchPage(params.slug);
   if (!page) return {};
   const description = page.metaDescription ?? undefined;
-  const ogImage = page.ogImageUrl ?? findFirstImage(page.blocks) ?? '/opengraph-image.png';
+  const ogImage = page.ogImageUrl ?? findFirstImage(page.blocks) ?? '/opengraph-image';
   return {
     title: page.title,
     description,

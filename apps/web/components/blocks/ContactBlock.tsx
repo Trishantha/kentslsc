@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { Link } from '@/i18n/routing';
 import type { ContactBlock } from '@kentslsc/shared';
 
 interface Props {
@@ -15,7 +16,15 @@ interface Props {
 export default function ContactBlockComponent({ block }: Props) {
   const { title, content } = block;
   const t = useTranslations('contactBlock');
-  const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    subject: '',
+    message: '',
+    website: '',
+    consent: false
+  });
   const [sent, setSent] = useState(false);
 
   const mutation = useMutation({
@@ -24,12 +33,13 @@ export default function ContactBlockComponent({ block }: Props) {
     },
     onSuccess: () => {
       setSent(true);
-      setForm({ name: '', email: '', phone: '', subject: '', message: '' });
+      setForm({ name: '', email: '', phone: '', subject: '', message: '', website: '', consent: false });
     }
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.consent) return;
     mutation.mutate(form);
   };
 
@@ -88,9 +98,40 @@ export default function ContactBlockComponent({ block }: Props) {
               rows={5}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
             />
+
+            {/* Honeypot: hidden from real users, bots usually fill it. */}
+            <div className="sr-only" aria-hidden="true">
+              <label htmlFor="website">Website</label>
+              <input
+                id="website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                className="h-0 w-0"
+              />
+            </div>
+
+            <div className="flex items-start gap-3">
+              <input
+                id="consent"
+                type="checkbox"
+                required
+                checked={form.consent}
+                onChange={(e) => setForm({ ...form, consent: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-neon-blue focus:ring-neon-blue dark:border-white/10"
+              />
+              <label htmlFor="consent" className="text-sm text-slate-700 dark:text-slate-300">
+                {t('privacyConsentLabel')}{' '}
+                <Link href="/privacy" className="text-neon-blue hover:underline">
+                  {t('privacyLinkText')}
+                </Link>
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={mutation.isPending}
+              disabled={!form.consent || mutation.isPending}
               className="btn-primary w-full disabled:opacity-60"
             >
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

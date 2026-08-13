@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { SmartLink } from '@/components/ui/SmartLink';
 import { motion } from 'framer-motion';
 import type { CtaBlock } from '@kentslsc/shared';
 
@@ -23,9 +23,9 @@ export default function CtaBlockComponent({ block }: Props) {
         {content && <p className="mx-auto mt-4 max-w-2xl text-slate-700 dark:text-slate-300">{content}</p>}
         {buttonText && buttonUrl && (
           <div className="mt-8">
-            <Link href={buttonUrl} className="btn-primary">
+            <SmartLink href={buttonUrl} className="btn-primary">
               {buttonText}
-            </Link>
+            </SmartLink>
           </div>
         )}
       </motion.div>

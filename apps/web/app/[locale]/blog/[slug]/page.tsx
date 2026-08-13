@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!post) return {};
   const fallback = summarizeRichText(post.content, 160);
   const description = (post.aiTldr ?? fallback) || undefined;
-  const image = post.imageUrl ?? '/opengraph-image.png';
+  const image = post.imageUrl ?? '/opengraph-image';
   return {
     title: post.title,
     description,
@@ -55,7 +55,7 @@ export default async function BlogPostPage({ params }: Props) {
     '@type': 'Article',
     headline: post.title,
     description: post.aiTldr ?? summarizeRichText(post.content, 160),
-    image: post.imageUrl ?? `${baseUrl}/opengraph-image.png`,
+    image: post.imageUrl ?? `${baseUrl}/opengraph-image`,
     datePublished: post.publishedAt ?? post.createdAt,
     dateModified: post.updatedAt ?? post.createdAt,
     author: post.author?.name

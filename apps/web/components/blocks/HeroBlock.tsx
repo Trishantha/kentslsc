@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { SmartLink } from '@/components/ui/SmartLink';
 import { motion } from 'framer-motion';
 import type { HeroBlock } from '@kentslsc/shared';
 import VideoOverlay from '@/components/ui/VideoOverlay';
@@ -82,9 +82,9 @@ export default function HeroBlockComponent({ block }: Props) {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="mt-8"
           >
-            <Link href={buttonUrl} className="btn-primary">
+            <SmartLink href={buttonUrl} className="btn-primary">
               {buttonText}
-            </Link>
+            </SmartLink>
           </motion.div>
         )}
       </div>

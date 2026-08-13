@@ -494,6 +494,7 @@ model ContactMessage {
   message        String
   handledStatus  ContactStatus @default(NEW) @map("handled_status")
   aiFaqResponse  String?       @map("ai_faq_response")
+  consent        Boolean       @map("consent")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   deletedAt      DateTime?     @map("deleted_at")

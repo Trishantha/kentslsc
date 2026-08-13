@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const business = await fetchBusiness(params.id);
   if (!business) return {};
   const description = business.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Business listing for ${business.businessName}`;
-  const image = business.logoUrl ?? '/opengraph-image.png';
+  const image = business.logoUrl ?? '/opengraph-image';
   return {
     title: business.businessName,
     description,
@@ -50,7 +50,7 @@ export default async function DirectoryDetailPage({ params }: Props) {
     '@type': 'LocalBusiness',
     name: business.businessName,
     description: business.description ?? `Business listing for ${business.businessName}`,
-    image: business.logoUrl ?? `${baseUrl}/opengraph-image.png`,
+    image: business.logoUrl ?? `${baseUrl}/opengraph-image`,
     url: `${baseUrl}/directory/${business.id}`,
     address: business.address
       ? { '@type': 'PostalAddress', streetAddress: business.address }

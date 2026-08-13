@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
@@ -36,9 +36,9 @@ export default function DirectoryBlockComponent({ block }: Props) {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-end justify-between">
           <div>{title && <h2 className="section-title">{title}</h2>}</div>
-          <Link href="/directory" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
+          <SmartLink href="/directory" className="hidden text-sm font-semibold text-neon-blue sm:inline-flex">
             View all <ArrowRight className="ml-1 h-4 w-4" />
-          </Link>
+          </SmartLink>
         </div>
 
         {isLoading ? (
@@ -59,7 +59,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.05 }}
               >
-                <Link href={`/directory/${business.id}`}>
+                <SmartLink href={`/directory/${business.id}`}>
                   <div className="glass-card flex h-full flex-col p-6">
                     <div className="flex items-start justify-between">
                       <div
@@ -77,7 +77,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
                       {business.description ?? business.category ?? 'Sri Lankan business in Kent'}
                     </p>
                   </div>
-                </Link>
+                </SmartLink>
               </motion.div>
             ))}
           </div>

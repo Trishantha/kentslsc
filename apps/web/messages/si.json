@@ -296,7 +296,10 @@
       "phone": "ඔබගේ දුරකථන අංකය",
       "subject": "මේ කුමක් ගැනද?",
       "message": "අපිට තව කියන්න..."
-    }
+    },
+    "privacyConsentLabel": "මම කියවා පිළිගන්නේ",
+    "privacyLinkText": "පෞද්ගලිකත්ව ප්‍රතිපත්තිය",
+    "privacyConsentError": "පණිවිඩයක් යැවීමට පෞද්ගලිකත්ව ප්‍රතිපත්තිය පිළිගත යුතුය."
   },
   "privacy": {
     "metaTitle": "පෞද්ගලිකත්ව ප්‍රතිපත්තිය | Kent Sri Lankan Social Club",
@@ -508,7 +511,9 @@
     "messagePlaceholder": "ඔයාගේ පණිවිඩය",
     "sendMessage": "පණිවිඩයක් යවන්න",
     "sending": "යවමින්...",
-    "successMessage": "ඔබගේ පණිවිඩයට ස්තූතියි. අපි ඉක්මනින්ම ඔබ වෙත පැමිණෙන්නෙමු."
+    "successMessage": "ඔබගේ පණිවිඩයට ස්තූතියි. අපි ඉක්මනින්ම ඔබ වෙත පැමිණෙන්නෙමු.",
+    "privacyConsentLabel": "මම කියවා පිළිගන්නේ",
+    "privacyLinkText": "පෞද්ගලිකත්ව ප්‍රතිපත්තිය"
   },
   "globalError": {
     "title": "යමක් වැරදී ඇත",

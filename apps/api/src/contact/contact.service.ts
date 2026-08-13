@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
@@ -13,6 +13,15 @@ export class ContactService {
   ) {}
 
   async create(dto: CreateContactMessageDto) {
+    // Honeypot: bots often fill this invisible field; humans never see it.
+    if (dto.website && dto.website.trim().length > 0) {
+      throw new BadRequestException('Invalid request');
+    }
+
+    if (!dto.consent) {
+      throw new BadRequestException('You must accept the privacy policy to send a message.');
+    }
+
     const aiFaqResponse = await this.aiService
       .answerFaq(`${dto.subject}\n\n${dto.message}`)
       .catch(() => null);
@@ -24,6 +33,7 @@ export class ContactService {
         phone: dto.phone ?? null,
         subject: dto.subject,
         message: dto.message,
+        consent: dto.consent,
         aiFaqResponse
       }
     });

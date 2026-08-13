@@ -296,7 +296,10 @@
       "phone": "Your phone number",
       "subject": "What is this about?",
       "message": "Tell us more..."
-    }
+    },
+    "privacyConsentLabel": "I have read and agree to the",
+    "privacyLinkText": "Privacy Policy",
+    "privacyConsentError": "You must accept the Privacy Policy to send a message."
   },
   "privacy": {
     "metaTitle": "Privacy Policy | Kent Sri Lankan Social Club",
@@ -508,7 +511,9 @@
     "messagePlaceholder": "Your message",
     "sendMessage": "Send message",
     "sending": "Sending...",
-    "successMessage": "Thank you for your message. We will get back to you soon."
+    "successMessage": "Thank you for your message. We will get back to you soon.",
+    "privacyConsentLabel": "I have read and agree to the",
+    "privacyLinkText": "Privacy Policy"
   },
   "globalError": {
     "title": "Something went wrong",
