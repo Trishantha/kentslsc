@@ -31,14 +31,18 @@ Required frontend environment variables:
 
 ```env
 FRONTEND_URL=https://your-frontend-domain.com
-NEXT_PUBLIC_API_URL=https://your-api-domain.com
+API_PROXY_TARGET=https://your-api-domain.com
 NEXT_PUBLIC_SOCKET_URL=https://your-api-domain.com
 ```
 
 Notes:
 
 - `FRONTEND_URL` is used for metadata, sitemap, robots, and canonical URLs.
-- `NEXT_PUBLIC_API_URL` is used by the browser client and by server-side rewrites.
+- `API_PROXY_TARGET` is the origin of the backend API. The Next.js frontend
+  rewrites browser requests from `/api/*` to this origin so the httpOnly session
+  cookies stay same-origin. Do **not** set `NEXT_PUBLIC_API_URL` on the frontend
+  app; doing so would make the browser call the API directly and break
+  authentication because the cookies are scoped to the frontend domain.
 - `NEXT_PUBLIC_SOCKET_URL` is used by the forum websocket client.
 
 ## Backend API app

@@ -6,7 +6,7 @@ import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailCont
 import { serverApiUrl } from '@/lib/api-base';
 
 interface Props {
-  params: { id: string };
+  params: { locale: string; id: string };
 }
 
 async function fetchFundraiser(id: string): Promise<Fundraiser | null> {
@@ -46,7 +46,8 @@ export default async function FundraiserDetailPage({ params }: Props) {
   if (!fundraiser) notFound();
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
-  const shareUrl = `${baseUrl}/en/fundraisers/${fundraiser.id}`;
+  const localePath = params.locale === 'en' ? '' : `/${params.locale}`;
+  const shareUrl = `${baseUrl}${localePath}/fundraisers/${fundraiser.id}`;
   const fundraiserSchema = {
     '@context': 'https://schema.org',
     '@type': 'FundraiserCampaign',

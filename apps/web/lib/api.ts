@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { safeRedirect } from './safe-redirect';
 
-const envUrl = process.env.NEXT_PUBLIC_API_URL;
-export const baseURL = envUrl ? `${envUrl.replace(/\/$/, '')}/api` : '/api';
+/**
+ * The browser must always talk to the API through the Next.js rewrite proxy
+ * (`/api/*` -> API origin). A public absolute URL here would make the browser
+ * send cross-origin requests, which breaks the httpOnly session cookies because
+ * they are scoped to the frontend origin with SameSite=Lax. The proxy keeps
+ * everything same-origin and works behind forwarded hosts such as Codespaces.
+ */
+export const baseURL = '/api';
 
 export const api = axios.create({
   baseURL,

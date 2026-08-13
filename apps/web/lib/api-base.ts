@@ -6,8 +6,14 @@
 // origin. Keeping browser requests same-origin is what makes the app work
 // behind a proxied host such as a GitHub Codespace, where `localhost` in the
 // browser refers to the user's own machine rather than the server.
-export const serverApiUrl = (
+function normalizeApiOrigin(value: string): string {
+  return value
+    .replace(/\/api\/?$/, '')
+    .replace(/\/$/, '');
+}
+
+export const serverApiUrl = normalizeApiOrigin(
   process.env.API_PROXY_TARGET ??
   process.env.NEXT_PUBLIC_API_URL ??
   'http://localhost:3001'
-).replace(/\/$/, '');
+);

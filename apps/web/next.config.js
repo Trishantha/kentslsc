@@ -15,8 +15,15 @@ function hostnameFromEnvUrl(envVar) {
 
 // Server-side only: where the rewrite proxy forwards /api and /uploads.
 // Mirrors lib/api-base.ts, which cannot be imported here (CommonJS config).
-const apiUrl =
-  process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+function normalizeApiOrigin(value) {
+  return value
+    .replace(/\/api\/?$/, '')
+    .replace(/\/$/, '');
+}
+
+const apiUrl = normalizeApiOrigin(
+  process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+);
 const apiHostname = (() => {
   try {
     return new URL(apiUrl).hostname;
