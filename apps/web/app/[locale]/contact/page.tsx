@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
@@ -27,7 +27,7 @@ const contactDetails = [
   }
 ] as const;
 
-export default function ContactPage() {
+function ContactPageContent() {
   const t = useTranslations('contact');
   const auth = useTranslations('auth');
   const searchParams = useSearchParams();
@@ -270,5 +270,13 @@ export default function ContactPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ContactPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <ContactPageContent />
+    </Suspense>
   );
 }

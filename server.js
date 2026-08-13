@@ -17,6 +17,13 @@ const preferredApiPort = Number(process.env.API_PORT || process.env.API_PORT_NUM
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
+// How long the public proxy waits for an upstream response (ms).
+const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);
+
+// Memory ceilings for child processes. Keep these conservative for shared hosting.
+const apiMemoryLimitMb = Number(process.env.API_MEMORY_LIMIT_MB || 1024);
+const webMemoryLimitMb = Number(process.env.WEB_MEMORY_LIMIT_MB || 1024);
+
 const isLocalHostname = (value) => /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(value);
 
 function parsePublicOriginCandidate(value) {
@@ -189,6 +196,22 @@ function proxyRequest(req, res, targetBaseUrl) {
     }
   };
 
+  let responded = false;
+
+  const failRequest = (message, status) => {
+    if (responded) return;
+    responded = true;
+    try {
+      if (!res.headersSent) {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+      }
+      res.end(JSON.stringify({ error: 'Upstream service unavailable', detail: message }));
+    } catch (writeError) {
+      console.error(`Failed to write error response: ${writeError.message}`);
+    }
+    console.error(`Failed to proxy ${req.url || '/'} -> ${targetBaseUrl}: ${message}`);
+  };
+
   const request = client.request(
     {
       protocol: client === https ? 'https:' : 'http:',
@@ -206,6 +229,12 @@ function proxyRequest(req, res, targetBaseUrl) {
       }
     },
     (proxyRes) => {
+      if (responded) {
+        // Upstream was slow to respond after we already timed out / aborted.
+        proxyRes.resume();
+        return;
+      }
+
       const headers = { ...proxyRes.headers };
       if (headers.location) {
         headers.location = rewritePublicOriginHeader(headers.location, targetBaseUrl);
@@ -219,15 +248,41 @@ function proxyRequest(req, res, targetBaseUrl) {
 
       res.writeHead(proxyRes.statusCode || 502, headers);
       proxyRes.pipe(res);
+
+      proxyRes.on('error', (error) => {
+        failRequest(`upstream response error: ${error.message}`, 502);
+      });
+
+      proxyRes.on('aborted', () => {
+        failRequest('upstream aborted response', 502);
+      });
+
+      proxyRes.on('close', () => {
+        if (!res.writableEnded) {
+          res.end();
+        }
+      });
     }
   );
+
+  request.setTimeout(proxyRequestTimeoutMs, () => {
+    request.destroy();
+    failRequest(`upstream request timed out after ${proxyRequestTimeoutMs}ms`, 504);
+  });
 
   request.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error);
     const status = requestPath.startsWith('/api') ? 503 : 502;
-    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ error: 'Upstream service unavailable', detail: message }));
-    console.error(`Failed to proxy ${req.url || '/'} -> ${targetBaseUrl}: ${message}`);
+    failRequest(message, status);
+  });
+
+  req.on('aborted', () => {
+    request.destroy();
+  });
+
+  req.on('error', (error) => {
+    request.destroy();
+    failRequest(`client request error: ${error.message}`, 502);
   });
 
   req.pipe(request);
@@ -307,8 +362,21 @@ async function startServices() {
   internalApiUrl = `http://127.0.0.1:${apiPort}`;
   internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
 
+  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
+  console.log(`Internal API target: ${internalApiUrl}`);
+  console.log(`Internal web target: ${internalWebUrl}`);
+  if (publicApiUrl) {
+    console.log(`Public API URL: ${publicApiUrl}`);
+  }
+
+  // Start the public listener immediately so platforms like Hostinger see
+  // server.listen() within their startup window. Requests arriving before the
+  // upstreams are ready receive a clear 503 instead of a connection failure.
+  const proxyServer = startProxyServer();
+
   const apiEnv = {
     NODE_ENV: 'production',
+    NODE_OPTIONS: `--max-old-space-size=${apiMemoryLimitMb}`,
     PORT: apiPort,
     HOST: '127.0.0.1',
     FRONTEND_URL: frontendUrl
@@ -316,6 +384,7 @@ async function startServices() {
 
   const webEnv = {
     NODE_ENV: 'production',
+    NODE_OPTIONS: `--max-old-space-size=${webMemoryLimitMb}`,
     PORT: internalWebPort,
     HOSTNAME: '127.0.0.1',
     FRONTEND_URL: frontendUrl,
@@ -324,13 +393,6 @@ async function startServices() {
     API_PROXY_TARGET: internalApiUrl,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
-
-  console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
-  console.log(`Internal API target: ${internalApiUrl}`);
-  console.log(`Internal web target: ${internalWebUrl}`);
-  if (publicApiUrl) {
-    console.log(`Public API URL: ${publicApiUrl}`);
-  }
 
   apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
   webProcess = spawnProcess(
@@ -362,8 +424,7 @@ async function startServices() {
   await waitForService(internalApiUrl, 'API service');
   await waitForService(internalWebUrl, 'Web service');
   isUpstreamReady = true;
-
-  const proxyServer = startProxyServer();
+  console.log('Upstreams are ready; proxy is now accepting traffic');
 
   const shutdown = () => {
     isShuttingDown = true;

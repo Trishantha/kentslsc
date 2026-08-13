@@ -2,8 +2,6 @@ import { getMessages, setRequestLocale } from 'next-intl/server';
 import { AppShell } from '@/components/layout/AppShell';
 import { routing } from '@/i18n/routing';
 
-export const dynamic = 'force-dynamic';
-
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }

@@ -1,10 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { RegistrationWizard } from '@/components/auth/RegistrationWizard';
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const t = useTranslations('auth');
 
   return (
@@ -27,5 +28,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[80vh]" />}>
+      <RegisterPageContent />
+    </Suspense>
   );
 }
