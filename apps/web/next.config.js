@@ -21,9 +21,17 @@ function normalizeApiOrigin(value) {
     .replace(/\/$/, '');
 }
 
-const apiUrl = normalizeApiOrigin(
-  process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-);
+const isDev = process.env.NODE_ENV === 'development';
+
+const rawApiUrl = process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL;
+if (!rawApiUrl && !isDev) {
+  throw new Error(
+    'API_PROXY_TARGET (or NEXT_PUBLIC_API_URL) must be set in production. ' +
+    'See docs/hostinger-deployment.md'
+  );
+}
+
+const apiUrl = normalizeApiOrigin(rawApiUrl ?? 'http://localhost:3001');
 const apiHostname = (() => {
   try {
     return new URL(apiUrl).hostname;
@@ -45,19 +53,21 @@ const apiPort = (() => {
     return '3001';
   }
 })();
-const isDev = process.env.NODE_ENV === 'development';
 const supabaseHostname = hostnameFromEnvUrl('SUPABASE_URL');
 
 const remotePatterns = [
-  {
-    protocol: 'http',
-    hostname: 'localhost'
-  },
   {
     protocol: 'https',
     hostname: '**'
   }
 ];
+
+if (isDev) {
+  remotePatterns.push({
+    protocol: 'http',
+    hostname: 'localhost'
+  });
+}
 
 if (supabaseHostname) {
   remotePatterns.push({

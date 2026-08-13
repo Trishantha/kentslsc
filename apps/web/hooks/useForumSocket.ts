@@ -7,11 +7,21 @@ import { api } from '@/lib/api';
 // Websockets cannot go through the Next.js rewrite proxy, so this must be an
 // absolute origin reachable from the browser. Behind a proxied host (e.g. a
 // Codespace) set NEXT_PUBLIC_SOCKET_URL to the forwarded API URL.
-const SOCKET_URL = (
+// Never fall back to localhost in production: that triggers the browser's
+// "access other apps and services on this device" prompt.
+const isDev = process.env.NODE_ENV === 'development';
+const rawSocketUrl =
   process.env.NEXT_PUBLIC_SOCKET_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  'http://localhost:3001'
-).replace(/\/api\/?$/, '');
+  (isDev ? process.env.NEXT_PUBLIC_API_URL : undefined);
+
+if (rawSocketUrl && !isDev && /^(https?:)?\/\/(localhost|127\.0\.0\.1)/i.test(rawSocketUrl)) {
+  throw new Error(
+    'NEXT_PUBLIC_SOCKET_URL points to localhost in production. ' +
+    'Set it to the public API origin (e.g. https://api.kentslsc.org).'
+  );
+}
+
+const SOCKET_URL = rawSocketUrl?.replace(/\/api\/?$/, '');
 
 let sharedSocket: Socket | null = null;
 let sharedTokenPromise: Promise<string> | null = null;
@@ -33,6 +43,14 @@ async function getSocketToken(): Promise<string> {
 async function getSharedSocket(): Promise<Socket> {
   if (sharedSocket) {
     return sharedSocket;
+  }
+
+  if (!SOCKET_URL) {
+    throw new Error(
+      isDev
+        ? 'NEXT_PUBLIC_SOCKET_URL (or NEXT_PUBLIC_API_URL) must be set for forum websockets'
+        : 'NEXT_PUBLIC_SOCKET_URL must be set for forum websockets'
+    );
   }
 
   const token = await getSocketToken();

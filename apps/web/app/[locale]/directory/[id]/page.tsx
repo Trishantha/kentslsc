@@ -1,18 +1,14 @@
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import DirectoryDetailContent, { type Business } from './DirectoryDetailContent';
-import { serverApiUrl } from '@/lib/api-base';
+import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 
 interface Props {
   params: { id: string };
 }
 
 async function fetchBusiness(id: string): Promise<Business | null> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/directory/businesses/${id}`, { next: { revalidate: 60 } });
-  if (!res || !res.ok) return null;
-  return res.json();
+  return fetchWithOriginFallback(`/api/directory/businesses/${id}`);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -42,7 +38,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function DirectoryDetailPage({ params }: Props) {
   const business = await fetchBusiness(params.id);
-  if (!business) notFound();
+
+  if (!business) {
+    return <DirectoryDetailContent id={params.id} />;
+  }
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
   const localBusinessSchema: Record<string, unknown> = {
@@ -63,7 +62,7 @@ export default async function DirectoryDetailPage({ params }: Props) {
   return (
     <>
       <JsonLd data={localBusinessSchema} />
-      <DirectoryDetailContent business={business} />
+      <DirectoryDetailContent id={params.id} business={business} />
     </>
   );
 }

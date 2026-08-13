@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 import { summarizeRichText } from '@/lib/rich-text';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
 }
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
+  const res = await fetchWithRetry(`${getServerApiUrl()}/api/blog/${slug}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }

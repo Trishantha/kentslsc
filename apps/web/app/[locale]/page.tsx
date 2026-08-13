@@ -1,6 +1,6 @@
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { HeroBlock, PageBlock } from '@kentslsc/shared';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 import { getTranslations } from 'next-intl/server';
 import HomePageContent from './HomePageContent';
 
@@ -20,11 +20,9 @@ interface HeroConfig {
   videoPlaybackRate: number;
 }
 
-const apiUrl = serverApiUrl;
-
 async function fetchHomePage(): Promise<HomePageData | null> {
   try {
-    const res = await fetch(`${apiUrl}/api/pages/home`, {
+    const res = await fetch(`${getServerApiUrl()}/api/pages/home`, {
       next: { revalidate: 60 }
     });
     if (!res.ok) {
@@ -38,7 +36,7 @@ async function fetchHomePage(): Promise<HomePageData | null> {
 
 async function fetchHeroConfig(): Promise<HeroConfig | null> {
   try {
-    const res = await fetch(`${apiUrl}/api/hero-config`, {
+    const res = await fetch(`${getServerApiUrl()}/api/hero-config`, {
       next: { revalidate: 60 }
     });
     if (!res.ok) {

@@ -32,10 +32,11 @@ export interface Event {
 }
 
 interface Props {
-  event: Event;
+  id: string;
+  event?: Event;
 }
 
-export default function EventDetailContent({ event: initialEvent }: Props) {
+export default function EventDetailContent({ id, event: initialEvent }: Props) {
   const router = useRouter();
   const { data: user, isLoading: authLoading } = useAuth();
   const t = useTranslations('eventDetail');
@@ -43,17 +44,18 @@ export default function EventDetailContent({ event: initialEvent }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: event, isLoading } = useQuery<Event>({
-    queryKey: ['events', initialEvent.id],
+    queryKey: ['events', id],
     queryFn: async () => {
-      const { data } = await api.get<Event>(`/events/${initialEvent.id}`);
+      const { data } = await api.get<Event>(`/events/${id}`);
       return data;
     },
     initialData: initialEvent,
-    enabled: !!initialEvent.id
+    enabled: !!id
   });
 
   const purchase = useMutation({
     mutationFn: async () => {
+      if (!event) throw new Error('Event not loaded');
       const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string }>(
         `/events/${event.id}/tickets/purchase`,
         { eventId: event.id, quantity }
@@ -75,6 +77,7 @@ export default function EventDetailContent({ event: initialEvent }: Props) {
   });
 
   const handleBuy = () => {
+    if (!event) return;
     if (!user) {
       router.push(`/auth/login?returnTo=/events/${event.id}`);
       return;

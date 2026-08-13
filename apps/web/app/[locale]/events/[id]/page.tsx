@@ -1,9 +1,7 @@
-import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import EventDetailContent, { type Event } from './EventDetailContent';
-import { serverApiUrl } from '@/lib/api-base';
+import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { summarizeRichText, stripRichText } from '@/lib/rich-text';
 
 interface Props {
@@ -11,9 +9,7 @@ interface Props {
 }
 
 async function fetchEvent(id: string): Promise<Event | null> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/events/${id}`, { next: { revalidate: 60 } });
-  if (!res || !res.ok) return null;
-  return res.json();
+  return fetchWithOriginFallback(`/api/events/${id}`);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -44,7 +40,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function EventDetailPage({ params }: Props) {
   const event = await fetchEvent(params.id);
-  if (!event) notFound();
+
+  if (!event) {
+    return <EventDetailContent id={params.id} />;
+  }
 
   const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
   const eventSchema = {
@@ -76,7 +75,7 @@ export default async function EventDetailPage({ params }: Props) {
   return (
     <>
       <JsonLd data={eventSchema} />
-      <EventDetailContent event={event} />
+      <EventDetailContent id={params.id} event={event} />
     </>
   );
 }

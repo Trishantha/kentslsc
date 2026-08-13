@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import { fetchWithRetry } from '@/lib/server-fetch';
 import type { PageBlock } from '@kentslsc/shared';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
   params: { slug: string };
@@ -32,7 +32,7 @@ function findFirstImage(blocks: PageBlock[]): string | undefined {
 }
 
 async function fetchPage(slug: string): Promise<SitePage | null> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/pages/${slug}`, { next: { revalidate: 60 } });
+  const res = await fetchWithRetry(`${getServerApiUrl()}/api/pages/${slug}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }

@@ -4,7 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { CheckCircle2, XCircle, Calendar, Users, Shield } from 'lucide-react';
 import { fetchWithRetry } from '@/lib/server-fetch';
 import { formatDate } from '@/lib/utils';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 
 interface VerifyPageProps {
   params: { locale: string; id: string };
@@ -23,7 +23,7 @@ interface VerificationResult {
 
 async function verifyMembership(id: string): Promise<VerificationResult | null> {
   const res = await fetchWithRetry(
-    `${serverApiUrl}/api/membership/verify/${encodeURIComponent(id)}`,
+    `${getServerApiUrl()}/api/membership/verify/${encodeURIComponent(id)}`,
     { next: { revalidate: 0 } }
   );
   if (!res || !res.ok) return null;

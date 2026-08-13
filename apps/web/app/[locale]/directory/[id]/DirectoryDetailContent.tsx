@@ -75,7 +75,8 @@ export interface Business {
 }
 
 interface Props {
-  business: Business;
+  id: string;
+  business?: Business;
 }
 
 const inputClass =
@@ -87,9 +88,9 @@ const categorySelectGroups = directoryCategoryGroups.map((group) => ({
   options: group.subcategories.map((sub) => ({ value: sub.name, label: sub.name }))
 }));
 
-export default function DirectoryDetailContent({ business: initialBusiness }: Props) {
+export default function DirectoryDetailContent({ id, business: initialBusiness }: Props) {
   const params = useParams<{ id: string }>();
-  const id = params?.id ?? '';
+  const resolvedId = id || params?.id || '';
   const queryClient = useQueryClient();
   const { data: user } = useAuth();
   const t = useTranslations('directoryDetail');
@@ -97,13 +98,13 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
   const tCommon = useTranslations('common');
 
   const { data: business, isLoading } = useQuery<Business>({
-    queryKey: ['directory', 'businesses', id],
+    queryKey: ['directory', 'businesses', resolvedId],
     queryFn: async () => {
-      const { data } = await api.get(`/directory/businesses/${id}`);
+      const { data } = await api.get(`/directory/businesses/${resolvedId}`);
       return data;
     },
     initialData: initialBusiness,
-    enabled: !!id
+    enabled: !!resolvedId
   });
 
   const canManage =
@@ -130,20 +131,20 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
 
   const jobForm = useForm<CreateJobInput>({
     resolver: zodResolver(createJobSchema),
-    defaultValues: { businessListingId: id }
+    defaultValues: { businessListingId: resolvedId }
   });
 
   const updateBusiness = useMutation({
     mutationFn: (data: UpdateBusinessInput) =>
-      api.put(`/directory/businesses/${id}`, data),
+      api.put(`/directory/businesses/${resolvedId}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', id] });
+      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
       queryClient.invalidateQueries({ queryKey: ['directory', 'businesses'] });
     }
   });
 
   const deleteBusiness = useMutation({
-    mutationFn: () => api.delete(`/directory/businesses/${id}`),
+    mutationFn: () => api.delete(`/directory/businesses/${resolvedId}`),
     onSuccess: () => {
       window.location.href = '/directory';
     }
@@ -152,22 +153,22 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
   const createJob = useMutation({
     mutationFn: (data: CreateJobInput) => api.post('/directory/jobs', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', id] });
+      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
       queryClient.invalidateQueries({ queryKey: ['directory', 'jobs'] });
-      jobForm.reset({ businessListingId: id });
+      jobForm.reset({ businessListingId: resolvedId });
     }
   });
 
   const deleteJob = useMutation({
     mutationFn: (jobId: string) => api.delete(`/directory/jobs/${jobId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', id] });
+      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
       queryClient.invalidateQueries({ queryKey: ['directory', 'jobs'] });
     }
   });
 
   const promote = useMutation({
-    mutationFn: () => api.post(`/directory/businesses/${id}/promote`),
+    mutationFn: () => api.post(`/directory/businesses/${resolvedId}/promote`),
     onSuccess: (res) => {
       if (res.data.url) {
         window.location.href = res.data.url;
@@ -176,9 +177,9 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
   });
 
   const summarise = useMutation({
-    mutationFn: () => api.post(`/directory/businesses/${id}/summarise`),
+    mutationFn: () => api.post(`/directory/businesses/${resolvedId}/summarise`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', id] });
+      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
     }
   });
 
@@ -455,7 +456,7 @@ export default function DirectoryDetailContent({ business: initialBusiness }: Pr
                   onSubmit={jobForm.handleSubmit((data) => createJob.mutate(data))}
                   className="mt-4 space-y-4"
                 >
-                  <input type="hidden" {...jobForm.register('businessListingId')} value={id} />
+                  <input type="hidden" {...jobForm.register('businessListingId')} value={resolvedId} />
                   <div>
                     <label className="text-sm font-medium">{tDirectory('postJob.jobTitle')}</label>
                     <input {...jobForm.register('title')} className={inputClass} />

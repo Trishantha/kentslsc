@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { serverApiUrl } from './api-base';
+import { getServerApiUrl } from './api-base';
 
 export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
 
@@ -32,7 +32,7 @@ export async function getServerSession(): Promise<ServerSession> {
   if (!cookieHeader) return { authenticated: false };
 
   try {
-    const res = await fetch(`${serverApiUrl}/api/auth/session`, {
+    const res = await fetch(`${getServerApiUrl()}/api/auth/session`, {
       headers: { cookie: cookieHeader },
       cache: 'no-store'
     });

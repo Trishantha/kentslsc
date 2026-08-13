@@ -1,6 +1,6 @@
 import { fetchWithRetry } from '@/lib/server-fetch';
 import AboutPageContent, { type CommitteeMember } from './AboutPageContent';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 
 const defaultCommitteeItems: CommitteeMember[] = [
   { id: 'president', roleKey: 'president', name: 'TBC', position: 'President', displayOrder: 0 },
@@ -12,7 +12,7 @@ const defaultCommitteeItems: CommitteeMember[] = [
 ];
 
 async function fetchCommittee(): Promise<CommitteeMember[]> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/committee`, {
+  const res = await fetchWithRetry(`${getServerApiUrl()}/api/committee`, {
     next: { revalidate: 60 }
   });
   if (!res || !res.ok) return defaultCommitteeItems;

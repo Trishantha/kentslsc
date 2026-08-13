@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
   params: { locale: string; id: string };
 }
 
 async function fetchFundraiser(id: string): Promise<Fundraiser | null> {
-  const res = await fetchWithRetry(`${serverApiUrl}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
+  const res = await fetchWithRetry(`${getServerApiUrl()}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
   if (!res || !res.ok) return null;
   return res.json();
 }

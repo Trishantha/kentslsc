@@ -1,10 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { fetchWithRetry } from '@/lib/server-fetch';
 import { routing } from '@/i18n/routing';
-import { serverApiUrl } from '@/lib/api-base';
+import { getServerApiUrl } from '@/lib/api-base';
 
 const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
-const apiUrl = serverApiUrl;
 
 interface SitePage {
   slug: string;
@@ -38,7 +37,7 @@ interface ForumCategory {
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
-  const res = await fetchWithRetry(`${apiUrl}/api${path}`, { next: { revalidate: 86400 } });
+  const res = await fetchWithRetry(`${getServerApiUrl()}/api${path}`, { next: { revalidate: 86400 } });
   if (!res || !res.ok) return null;
   return res.json();
 }
