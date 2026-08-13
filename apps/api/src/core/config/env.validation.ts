@@ -25,6 +25,11 @@ export const envValidationSchema = z.object({
   EMAIL_FROM: z.string().email().optional().or(z.literal('')),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   ADMIN_SECRET: z.string().optional(),
+  // Emergency admin recovery. Set only when you need to reset the admin password
+  // or recreate a missing admin account on a host without shell access, then
+  // remove immediately after the first login.
+  ADMIN_EMERGENCY_PASSWORD: z.string().optional(),
+  ADMIN_EMERGENCY_EMAIL: z.string().email().optional().default('admin@kentslsc.org'),
   // Optional Supabase Storage configuration. When provided, uploads are stored
   // in the configured bucket instead of the local filesystem.
   SUPABASE_URL: z.string().url().optional(),

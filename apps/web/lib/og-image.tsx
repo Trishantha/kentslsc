@@ -2,9 +2,10 @@ import { ImageResponse } from 'next/og';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-export const runtime = 'nodejs';
+export const OG_IMAGE_WIDTH = 1200;
+export const OG_IMAGE_HEIGHT = 630;
 
-export async function GET() {
+export function generateSharedOgImage() {
   let logoDataUrl: string | undefined;
   try {
     const logoPath = join(process.cwd(), 'public', 'logo.png');
@@ -55,6 +56,6 @@ export async function GET() {
         </div>
       </div>
     ),
-    { width: 1200, height: 630 }
+    { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT }
   );
 }
