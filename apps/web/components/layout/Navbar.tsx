@@ -176,14 +176,14 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
           >
             <Link
               href="/"
-              className="relative top-[25px] flex h-[115px] w-[115px] items-center justify-center"
+              className="relative top-[25px] flex h-[132px] w-[132px] items-center justify-center"
             >
               <Image
                 src="/logo.png"
                 alt={t('logoAlt')}
                 fill
                 priority
-                sizes="115px"
+                sizes="132px"
                 className="rounded-full object-contain transition-all duration-300"
               />
             </Link>

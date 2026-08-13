@@ -9,8 +9,34 @@
  * existing account with role ADMIN.
  */
 
-import { prisma } from './prisma.js';
+import { AuthEventType } from '../dist/client/index.js';
 import bcrypt from 'bcrypt';
+
+/**
+ * CLI recovery often runs from developer machines that cannot reach Supabase's
+ * direct Postgres port (5432). The transaction pooler (6543) is reachable from
+ * anywhere, so fall back to it automatically when the direct URL is supplied.
+ * This does not mutate the .env file — it only changes the URL in-memory for this
+ * one-off run.
+ */
+function ensurePoolerUrl() {
+  const url = process.env.DATABASE_URL;
+  if (!url) return;
+  try {
+    const u = new URL(url);
+    if (u.port === '5432' && u.hostname.endsWith('.supabase.co')) {
+      u.port = '6543';
+      if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
+      if (!u.searchParams.has('connection_limit')) u.searchParams.set('connection_limit', '1');
+      process.env.DATABASE_URL = u.toString();
+    }
+  } catch {
+    // Leave an invalid/unparseable DATABASE_URL as-is so Prisma reports it cleanly.
+  }
+}
+
+ensurePoolerUrl();
+const { prisma } = await import('./prisma.js');
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim();
@@ -28,10 +54,28 @@ async function main() {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.user.update({
-    where: { email },
-    data: { passwordHash }
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { email },
+      data: { passwordHash, passwordChangedAt: new Date() }
+    }),
+    prisma.authEvent.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        type: AuthEventType.PASSWORD_CHANGED,
+        metadata: { source: 'reset-admin-password-cli' }
+      }
+    }),
+    prisma.authEvent.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        type: AuthEventType.LOCKOUT_CLEARED,
+        metadata: { source: 'reset-admin-password-cli', reason: 'admin-password-reset' }
+      }
+    })
+  ]);
 
   console.log(`Password reset for ${email}`);
 }
