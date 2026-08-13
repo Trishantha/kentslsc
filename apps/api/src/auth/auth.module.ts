@@ -14,6 +14,8 @@ import { MembershipsModule } from '../memberships/memberships.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { EmailModule } from '../email/email.module.js';
 
+import { AuthBootstrapService } from './auth-bootstrap.service.js';
+
 @Module({
   imports: [
     ConfigModule,
@@ -34,7 +36,7 @@ import { EmailModule } from '../email/email.module.js';
     // import this before, and EmailModule is not @Global().
     EmailModule
   ],
-  providers: [AuthService, JwtStrategy, SessionsService, CredentialsService, LoginLockoutService],
+  providers: [AuthService, AuthBootstrapService, JwtStrategy, SessionsService, CredentialsService, LoginLockoutService],
   controllers: [AuthController],
   // Re-export TokenModule (not the service directly — AuthModule doesn't provide
   // it) so consumers of AuthModule can validate tokens through the same path as
