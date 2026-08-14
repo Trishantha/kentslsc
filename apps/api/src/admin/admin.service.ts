@@ -95,11 +95,26 @@ export class AdminService {
         }
       }),
       this.prisma.membership.count({ where })
-    ]).then(([items, total]) => ({ items, total, page, limit }));
+    ]).then(([items, total]) => ({
+      items: items.map((item) => ({
+        ...item,
+        membershipType: {
+          ...item.membershipType,
+          price: Number(item.membershipType.price)
+        }
+      })),
+      total,
+      page,
+      limit
+    }));
   }
 
   updateMembershipStatus(id: string, status: MembershipStatusDto) {
     return this.membershipsService.updateStatus(id, status as DbMembershipStatus);
+  }
+
+  findMembership(id: string) {
+    return this.membershipsService.findMembershipById(id);
   }
 
   regenerateMembershipCard(membershipId: string) {
@@ -274,6 +289,14 @@ export class AdminService {
       where: { deletedAt: null },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  async findContactMessage(id: string) {
+    const message = await this.prisma.contactMessage.findFirst({
+      where: { id, deletedAt: null }
+    });
+    if (!message) throw new NotFoundException('Contact message not found');
+    return message;
   }
 
   async updateContactStatus(id: string, status: ContactStatusDto) {

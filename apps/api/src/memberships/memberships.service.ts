@@ -120,6 +120,21 @@ export class MembershipsService {
     return type;
   }
 
+  async findMembershipById(id: string) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
+    return {
+      ...membership,
+      membershipType: this.serializeMembershipType(membership.membershipType),
+      dependants
+    };
+  }
+
   async createType(dto: CreateMembershipTypeDto) {
     return this.prisma.membershipType.create({
       data: {

@@ -243,6 +243,12 @@ export class AdminController {
     return this.adminService.listMemberships(Number(page) || 1, Number(limit) || 20, status);
   }
 
+  @Get('memberships/:id')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  findMembership(@Param('id') id: string) {
+    return this.adminService.findMembership(id);
+  }
+
   @Put('memberships/:id/status')
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   updateMembershipStatus(
@@ -515,6 +521,12 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_CONTACT_MESSAGES)
   listContactMessages() {
     return this.adminService.listContactMessages();
+  }
+
+  @Get('contact-messages/:id')
+  @RequirePermission(Permission.MANAGE_CONTACT_MESSAGES)
+  findContactMessage(@Param('id') id: string) {
+    return this.adminService.findContactMessage(id);
   }
 
   @Put('contact-messages/:id/status')
