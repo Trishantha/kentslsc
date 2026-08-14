@@ -52,7 +52,7 @@ export default function AdminCommitteePage() {
     reset,
     setValue,
     watch,
-    formState: { errors, isDirty }
+    formState: { errors }
   } = useForm<CommitteeForm>({
     resolver: zodResolver(committeeSchema),
     defaultValues: {
@@ -307,7 +307,7 @@ export default function AdminCommitteePage() {
 
             <button
               type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending || !isDirty}
+              disabled={createMutation.isPending || updateMutation.isPending}
               className="btn-primary w-full"
             >
               {createMutation.isPending || updateMutation.isPending ? (
