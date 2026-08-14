@@ -85,6 +85,7 @@ function runMigrations() {
     );
     return;
   }
+  console.log(`Using Prisma CLI at: ${prismaBinary}`);
 
   // Prefer the copied prisma artifacts from the database package build so the
   // runtime image does not need the source prisma folder.
@@ -96,6 +97,24 @@ function runMigrations() {
     console.warn(`Prisma schema not found at ${schemaPath}; skipping migrations.`);
     return;
   }
+  console.log(`Using Prisma schema at: ${schemaPath}`);
+
+  // Verify the Prisma binary can execute before running migrations.
+  const versionResult = spawnSync(prismaBinary, ['--version'], {
+    cwd: rootDir,
+    stdio: 'pipe',
+    env: process.env
+  });
+  if (versionResult.status !== 0) {
+    console.error('Prisma --version failed:', versionResult.error ? versionResult.error.message : '');
+    if (versionResult.stderr) console.error(versionResult.stderr.toString());
+    if (versionResult.stdout) console.log(versionResult.stdout.toString());
+    throw new Error(
+      `Prisma CLI at ${prismaBinary} could not execute (exit code ${versionResult.status ?? 'unknown'}). ` +
+        'Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
+    );
+  }
+  console.log('Prisma CLI is executable.');
 
   console.log('Running database migrations...');
   const result = spawnSync(prismaBinary, ['migrate', 'deploy', '--schema', schemaPath], {
@@ -109,6 +128,9 @@ function runMigrations() {
   }
   if (result.stderr) {
     console.error(result.stderr.toString());
+  }
+  if (result.error) {
+    console.error('Migration spawn error:', result.error.message);
   }
 
   if (result.status !== 0) {
