@@ -112,6 +112,41 @@ function runMigrations() {
   }
   console.log(`Using Prisma CLI entry at: ${prismaEntry}`);
 
+  // Hostinger's build environment strips execute permission from Prisma's native
+  // engine binaries. Find them and chmod +x before Prisma tries to spawn them.
+  const chmodPrismaEngines = () => {
+    const searchRoots = [
+      path.join(rootDir, 'node_modules', '.pnpm'),
+      path.join(rootDir, 'packages', 'database', 'node_modules', '.pnpm')
+    ];
+    for (const searchRoot of searchRoots) {
+      if (!fs.existsSync(searchRoot)) continue;
+      try {
+        const entries = fs.readdirSync(searchRoot);
+        for (const entry of entries) {
+          if (!entry.startsWith('@prisma+engines@')) continue;
+          const enginesDir = path.join(searchRoot, entry, 'node_modules', '@prisma', 'engines');
+          if (!fs.existsSync(enginesDir)) continue;
+          const engineFiles = fs.readdirSync(enginesDir);
+          for (const engineFile of engineFiles) {
+            if (engineFile.startsWith('schema-engine-') || engineFile.startsWith('query-engine-')) {
+              const enginePath = path.join(enginesDir, engineFile);
+              try {
+                fs.chmodSync(enginePath, 0o755);
+                console.log(`Made executable: ${enginePath}`);
+              } catch (chmodErr) {
+                console.warn(`Could not chmod ${enginePath}: ${chmodErr.message}`);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Could not chmod Prisma engines under ${searchRoot}: ${err.message}`);
+      }
+    }
+  };
+  chmodPrismaEngines();
+
   // Prefer the copied prisma artifacts from the database package build so the
   // runtime image does not need the source prisma folder.
   const distSchemaPath = path.join(rootDir, 'packages', 'database', 'dist', 'prisma', 'schema.prisma');
