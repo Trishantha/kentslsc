@@ -874,7 +874,11 @@ async function startInProcessWeb() {
   console.log('Starting web handler in-process (no secondary child process)');
   // Make sure Next.js server-side fetches and rewrites target the local proxy
   // instead of relying on a public origin that may not be reachable from the host.
-  process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || `http://127.0.0.1:${publicPort}`;
+  const localApiOrigin = `http://127.0.0.1:${publicPort}`;
+  process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || localApiOrigin;
+  // Force server-to-API calls inside this process to use the local in-process
+  // listener, even if the env file points API_PROXY_TARGET at a public URL.
+  process.env.INTERNAL_API_URL = localApiOrigin;
   const handlerPath = path.join(webDir, 'server-handler.js');
   // eslint-disable-next-line import/no-dynamic-require
   const webModule = require(handlerPath);
