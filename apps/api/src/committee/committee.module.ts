@@ -4,6 +4,7 @@ import { CommitteeService } from './committee.service.js';
 
 @Module({
   controllers: [CommitteeController],
-  providers: [CommitteeService]
+  providers: [CommitteeService],
+  exports: [CommitteeService]
 })
 export class CommitteeModule {}

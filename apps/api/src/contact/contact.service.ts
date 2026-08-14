@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
+import { SiteSettingsService } from '../site-settings/site-settings.service.js';
 import { CreateContactMessageDto } from './dto/create-contact-message.dto.js';
 
 @Injectable()
@@ -16,7 +17,8 @@ export class ContactService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
-    private readonly aiService: AiService
+    private readonly aiService: AiService,
+    private readonly siteSettingsService: SiteSettingsService
   ) {}
 
   async create(dto: CreateContactMessageDto) {
@@ -46,7 +48,30 @@ export class ContactService {
         }
       });
 
-      await this.emailService.sendContactConfirmation(dto.email, dto.name).catch(() => undefined);
+      const settings = await this.siteSettingsService.get().catch(() => null);
+      const adminEmail = settings?.email ?? null;
+
+      await this.emailService.sendContactConfirmation(dto.email, dto.name).catch((err) => {
+        this.logger.warn(
+          `Failed to send contact confirmation to ${dto.email}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      });
+
+      if (adminEmail) {
+        await this.emailService
+          .sendContactNotification(adminEmail, {
+            name: dto.name,
+            email: dto.email,
+            phone: dto.phone ?? null,
+            subject: dto.subject,
+            message: dto.message
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to send contact notification to ${adminEmail}: ${err instanceof Error ? err.message : String(err)}`
+            );
+          });
+      }
 
       return message;
     } catch (error) {

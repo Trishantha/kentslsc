@@ -7,8 +7,10 @@ import { EventsModule } from '../events/events.module.js';
 import { DirectoryModule } from '../directory/directory.module.js';
 import { FundraisingModule } from '../fundraising/fundraising.module.js';
 import { BlogModule } from '../blog/blog.module.js';
+import { CommitteeModule } from '../committee/committee.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { EmailModule } from '../email/email.module.js';
+import { PermissionsModule } from '../permissions/permissions.module.js';
 import { AdminUsersService } from './admin-users.service.js';
 
 @Module({
@@ -19,10 +21,12 @@ import { AdminUsersService } from './admin-users.service.js';
     DirectoryModule,
     FundraisingModule,
     BlogModule,
+    CommitteeModule,
     // AuthModule exports CredentialsService (set-password links) and
     // SessionsService (revoke on role change).
     AuthModule,
-    EmailModule
+    EmailModule,
+    PermissionsModule
   ],
   providers: [AdminService, AdminUsersService],
   controllers: [AdminController]

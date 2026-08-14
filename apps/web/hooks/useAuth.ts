@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import type { Permission } from '@kentslsc/shared';
 
 export interface AuthUser {
   id: string;
@@ -18,6 +19,7 @@ export interface AuthUser {
     postcode: string;
   };
   role: 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
+  permissions: Permission[];
   emailVerified: boolean;
   createdAt: string;
 }

@@ -36,6 +36,7 @@ import {
 import { UserRole, type TokenPayload } from '@kentslsc/shared';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
 import { authCookieOptions } from './auth-cookies.js';
 
 @ApiTags('Auth')
@@ -52,7 +53,8 @@ export class AuthController {
     private readonly credentials: CredentialsService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly permissionsService: PermissionsService
   ) {}
 
   @Post('register')
@@ -334,8 +336,9 @@ export class AuthController {
     });
     if (!profile) return null;
 
+    const permissions = await this.permissionsService.getUserPermissions(user.sub);
     const { emailVerifiedAt, ...rest } = profile;
-    return { ...rest, emailVerified: emailVerifiedAt !== null };
+    return { ...rest, emailVerified: emailVerifiedAt !== null, permissions };
   }
 
   @Get('features')
@@ -365,11 +368,14 @@ export class AuthController {
     });
     if (!user || user.deletedAt) return { authenticated: false as const };
 
+    const permissions = await this.permissionsService.getUserPermissions(user.id);
+
     return {
       authenticated: true as const,
       userId: user.id,
       role: user.role,
-      emailVerified: user.emailVerifiedAt !== null
+      emailVerified: user.emailVerifiedAt !== null,
+      permissions
     };
   }
 

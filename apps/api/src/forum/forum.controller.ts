@@ -11,11 +11,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ForumService } from './forum.service.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
+import { Permission, MembershipFeature, type TokenPayload } from '@kentslsc/shared';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
 import { CreateTopicDto } from './dto/create-topic.dto.js';
@@ -34,21 +34,21 @@ export class ForumController {
   }
 
   @Post('categories')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_FORUM)
   @ApiBearerAuth()
   async createCategory(@Body() dto: CreateCategoryDto) {
     return this.forumService.createCategory(dto);
   }
 
   @Patch('categories/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_FORUM)
   @ApiBearerAuth()
   async updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.forumService.updateCategory(id, dto);
   }
 
   @Delete('categories/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_FORUM)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async deleteCategory(@Param('id') id: string) {

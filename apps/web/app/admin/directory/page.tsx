@@ -1,70 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import {
-  optionalUrl,
-  directoryCategoryGroups,
-  directoryCategoryValues,
-  getDirectoryCategoryLabel
-} from '@kentslsc/shared';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Loader2, Plus, Pencil, Trash2, X, Building2 } from 'lucide-react';
-import { api, getApiErrorMessage } from '@/lib/api';
-import { ImageUpload } from '@/components/ui/ImageUpload';
-import SearchableSelect from '@/components/ui/SearchableSelect';
-
-const businessSchema = z.object({
-  businessName: z.string().min(1),
-  logoUrl: z.string().url().optional().or(z.literal('')),
-  description: z.string().optional(),
-  servicesText: z.string().optional(),
-  websiteUrl: optionalUrl('Enter a valid website URL, e.g. example.com').or(z.literal('')),
-  email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  category: z
-    .string()
-    .refine((val) => !val || directoryCategoryValues.includes(val), {
-      message: 'Select a valid category'
-    })
-    .optional(),
-  isPaid: z.boolean().default(false)
-});
-
-type BusinessForm = z.infer<typeof businessSchema>;
-
-const categorySelectGroups = directoryCategoryGroups.map((group) => ({
-  name: group.name,
-  emoji: group.emoji,
-  options: group.subcategories.map((sub) => ({ value: sub.name, label: sub.name }))
-}));
-
-interface Business {
-  id: string;
-  businessName: string;
-  logoUrl: string | null;
-  description: string | null;
-  servicesText: string | null;
-  websiteUrl: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  category: string | null;
-  isPaid: boolean;
-}
+import { Plus, Loader2, Building2, Eye, Search } from 'lucide-react';
+import Link from 'next/link';
+import { api } from '@/lib/api';
+import { AdminListLayout } from '@/components/admin/AdminListLayout';
+import { getDirectoryCategoryLabel } from '@kentslsc/shared';
+import type { AdminBusiness } from './types';
 
 export default function AdminDirectoryPage() {
-  const [editing, setEditing] = useState<Business | null>(null);
-  const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm<BusinessForm>({
-    resolver: zodResolver(businessSchema)
-  });
+  const [search, setSearch] = useState('');
 
-  const { data, isLoading } = useQuery<Business[]>({
+  const { data, isLoading, error } = useQuery<AdminBusiness[]>({
     queryKey: ['admin', 'businesses'],
     queryFn: async () => {
       const res = await api.get('/admin/directory/businesses');
@@ -72,239 +21,173 @@ export default function AdminDirectoryPage() {
     }
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (values: BusinessForm) => {
-      const res = await api.post('/admin/directory/businesses', values);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
-      reset();
-    }
-  });
+  const stats = useMemo(() => {
+    if (!data) return null;
+    const total = data.length;
+    const paid = data.filter((b) => b.isPaid).length;
+    const promoted = data.filter((b) => b.isPromoted).length;
+    return { total, paid, promoted };
+  }, [data]);
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: BusinessForm }) => {
-      const res = await api.put(`/admin/directory/businesses/${id}`, values);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
-      setEditing(null);
-      reset();
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/admin/directory/businesses/${id}`);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] })
-  });
-
-  const onSubmit = (values: BusinessForm) => {
-    if (editing) {
-      updateMutation.mutate({ id: editing.id, values });
-    } else {
-      createMutation.mutate(values);
-    }
-  };
-
-  const startEdit = (business: Business) => {
-    setEditing(business);
-    reset({
-      businessName: business.businessName,
-      logoUrl: business.logoUrl ?? '',
-      description: business.description ?? '',
-      servicesText: business.servicesText ?? '',
-      websiteUrl: business.websiteUrl ?? '',
-      email: business.email ?? '',
-      phone: business.phone ?? '',
-      address: business.address ?? '',
-      category: business.category ?? '',
-      isPaid: business.isPaid
-    });
-  };
-
-  const clearEdit = () => {
-    setEditing(null);
-    reset({
-      businessName: '',
-      logoUrl: '',
-      description: '',
-      servicesText: '',
-      websiteUrl: '',
-      email: '',
-      phone: '',
-      address: '',
-      category: '',
-      isPaid: false
-    });
-  };
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter(
+      (b) =>
+        b.businessName.toLowerCase().includes(q) ||
+        (b.category?.toLowerCase().includes(q) ?? false) ||
+        (b.email?.toLowerCase().includes(q) ?? false)
+    );
+  }, [data, search]);
 
   return (
-    <div>
-      <h1 className="section-title">Directory</h1>
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <div className="glass-card p-6 lg:col-span-1">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">{editing ? 'Edit Listing' : 'Add Listing'}</h2>
-            {editing && (
-              <button type="button" onClick={clearEdit} className="text-slate-500 hover:text-slate-300">
-                <X className="h-4 w-4" />
-              </button>
-            )}
+    <AdminListLayout
+      title="Directory"
+      description="Manage business listings, jobs and media."
+      action={
+        <Link
+          href="/admin/directory/new"
+          className="btn-primary inline-flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New listing
+        </Link>
+      }
+    >
+      {stats && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { label: 'Total Listings', value: stats.total, icon: <Building2 className="h-5 w-5 text-neon-blue" /> },
+            { label: 'Paid Listings', value: stats.paid, icon: <Building2 className="h-5 w-5 text-neon-gold" /> },
+            { label: 'Promoted', value: stats.promoted, icon: <Building2 className="h-5 w-5 text-green-400" /> }
+          ].map((s) => (
+            <div key={s.label} className="glass-card flex items-center gap-3 p-4">
+              {s.icon}
+              <div>
+                <p className="text-xl font-bold">{s.value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{s.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="glass-card mt-6 p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search listings..."
+              className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-9 pr-4 text-sm outline-none focus:border-neon-blue"
+            />
           </div>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Business name</label>
-              <input {...register('businessName')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-              {errors.businessName && <p className="mt-1 text-xs text-red-400">{errors.businessName.message}</p>}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
-              <Controller
-                name="category"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    groups={categorySelectGroups}
-                    placeholder="All categories"
-                    searchPlaceholder="Search categories..."
-                    className="mt-1"
-                  />
-                )}
-              />
-              {errors.category && <p className="mt-1 text-xs text-red-400">{errors.category.message}</p>}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Description</label>
-              <textarea {...register('description')} rows={3} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Services</label>
-              <textarea {...register('servicesText')} rows={2} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Email</label>
-                <input {...register('email')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-                {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Phone</label>
-                <input {...register('phone')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Address</label>
-              <input {...register('address')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Website</label>
-                <input {...register('websiteUrl')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
-                {errors.websiteUrl && <p className="mt-1 text-xs text-red-400">{errors.websiteUrl.message}</p>}
-              </div>
-              <ImageUpload
-                label="Logo"
-                value={watch('logoUrl')}
-                onChange={(url) => setValue('logoUrl', url, { shouldValidate: true })}
-                hideUrlInput
-              />
-              {errors.logoUrl && <p className="mt-1 text-xs text-red-400">{errors.logoUrl.message}</p>}
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" {...register('isPaid')} className="rounded border-white/10 bg-white/5" />
-              Paid listing
-            </label>
-            {(createMutation.error || updateMutation.error) && (
-              <p className="text-sm text-red-400">
-                {getApiErrorMessage(createMutation.error ?? updateMutation.error)}
-              </p>
-            )}
-            <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary w-full">
-              {createMutation.isPending || updateMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : editing ? (
-                <Pencil className="mr-2 h-4 w-4" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
-              {editing ? 'Update Listing' : 'Add Listing'}
-            </button>
-          </form>
         </div>
 
-        <div className="glass-card p-6 lg:col-span-2">
-          {isLoading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-neon-blue" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-slate-500 dark:text-slate-400">
-                    <th className="py-3 font-medium">Business</th>
-                    <th className="py-3 font-medium">Category</th>
-                    <th className="py-3 font-medium">Paid</th>
-                    <th className="py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {data?.map((business, idx) => (
-                    <motion.tr
-                      key={business.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 }}
-                    >
-                      <td className="py-3">
-                        <div className="flex items-center gap-3">
-                          {business.logoUrl ? (
-                            <img src={business.logoUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                          ) : (
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neon-blue/10 text-neon-blue">
-                              <Building2 className="h-4 w-4" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-medium">{business.businessName}</div>
-                            <div className="text-xs text-slate-500">{business.email || '-'}</div>
+        {isLoading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-neon-blue" />
+          </div>
+        ) : error ? (
+          <div className="flex h-40 items-center justify-center text-red-400">
+            <p>Failed to load listings. {(error as Error).message}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-slate-500 dark:text-slate-400">
+                  <th className="px-4 py-3 font-medium">Business</th>
+                  <th className="px-4 py-3 font-medium">Category</th>
+                  <th className="px-4 py-3 font-medium">Paid</th>
+                  <th className="px-4 py-3 font-medium">Promoted</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.map((business, idx) => (
+                  <motion.tr
+                    key={business.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="group"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {business.logoUrl ? (
+                          <img
+                            src={business.logoUrl}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neon-blue/10 text-neon-blue">
+                            <Building2 className="h-4 w-4" />
                           </div>
+                        )}
+                        <div>
+                          <Link
+                            href={`/admin/directory/${business.id}/details`}
+                            className="font-medium hover:text-neon-blue"
+                          >
+                            {business.businessName}
+                          </Link>
+                          <div className="text-xs text-slate-500">{business.email || '-'}</div>
                         </div>
-                      </td>
-                      <td className="py-3 text-slate-600 dark:text-slate-400">
-                        {business.category ? getDirectoryCategoryLabel(business.category) : '-'}
-                      </td>
-                      <td className="py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${business.isPaid ? 'bg-green-500/10 text-green-400' : 'bg-slate-500/10 text-slate-400'}`}>
-                          {business.isPaid ? 'Yes' : 'No'}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <div className="flex gap-2">
-                          <button onClick={() => startEdit(business)} className="rounded-lg bg-neon-blue/10 p-2 text-neon-blue hover:bg-neon-blue/20">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => deleteMutation.mutate(business.id)} className="rounded-lg bg-red-500/10 p-2 text-red-400 hover:bg-red-500/20">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-              {!data?.length && <div className="mt-8 text-center text-slate-500">No businesses yet.</div>}
-            </div>
-          )}
-        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                      {business.category ? getDirectoryCategoryLabel(business.category) : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          business.isPaid
+                            ? 'bg-green-500/10 text-green-400'
+                            : 'bg-slate-500/10 text-slate-400'
+                        }`}
+                      >
+                        {business.isPaid ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          business.isPromoted
+                            ? 'bg-neon-blue/10 text-neon-blue'
+                            : 'bg-slate-500/10 text-slate-400'
+                        }`}
+                      >
+                        {business.isPromoted ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <Link
+                          href={`/admin/directory/${business.id}/details`}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-1.5 text-neon-blue hover:bg-neon-blue/20"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Link>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+            {!filtered.length && (
+              <div className="mt-8 text-center text-slate-500">
+                {search ? 'No listings match your search.' : 'No listings yet.'}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </AdminListLayout>
   );
 }

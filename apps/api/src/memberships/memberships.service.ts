@@ -258,6 +258,7 @@ export class MembershipsService {
       membershipId: membership.membershipId,
       memberName,
       membershipTypeName: membership.membershipType.name,
+      isFree: membership.membershipType.isFree,
       startDate: membership.startDate,
       endDate: membership.endDate,
       dependantsCount: dependants.length,

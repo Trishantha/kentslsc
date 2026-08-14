@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { HeroConfigService } from './hero-config.service.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { UserRole } from '@kentslsc/shared';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
+import { Permission } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('Hero Config')
@@ -17,7 +17,7 @@ export class HeroConfigController {
   }
 
   @Put()
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_HERO)
   @ApiBearerAuth()
   update(@Body() dto: {
     mediaType?: string;

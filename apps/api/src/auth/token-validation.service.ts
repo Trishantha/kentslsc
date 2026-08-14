@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { UserRole, type TokenPayload, type TokenType } from '@kentslsc/shared';
+import { Permission, UserRole, type TokenPayload, type TokenType } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { PermissionsService } from '../permissions/permissions.service.js';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 
 /**
@@ -12,7 +13,10 @@ import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 export class TokenValidationService {
   private readonly logger = new Logger(TokenValidationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissionsService: PermissionsService
+  ) {}
 
   async validate(payload: TokenPayload, expectedType: TokenType): Promise<AuthenticatedUser> {
     // Tokens minted for a different purpose must not be interchangeable.
@@ -49,6 +53,10 @@ export class TokenValidationService {
       }
     }
 
+    // Load effective permissions from the database so permission changes apply
+    // immediately without requiring a token refresh.
+    const permissions = await this.permissionsService.getUserPermissions(user.id);
+
     return {
       sub: user.id,
       email: user.email,
@@ -58,7 +66,8 @@ export class TokenValidationService {
       sid: payload.sid ?? '',
       typ: actualType,
       jti: payload.jti,
-      emailVerified: user.emailVerifiedAt !== null
+      emailVerified: user.emailVerifiedAt !== null,
+      permissions: permissions as Permission[]
     };
   }
 }

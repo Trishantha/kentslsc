@@ -405,9 +405,6 @@ export default function DashboardPage() {
     );
   }
 
-  const hasCardFeature = Boolean(
-    membership?.membershipType.features.includes(MembershipFeature.MEMBER_CARD)
-  );
   const cardAssetUrl = membership
     ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
     : null;
@@ -524,7 +521,7 @@ export default function DashboardPage() {
                   <h2 className="text-xl font-bold">Membership Card</h2>
                 </div>
 
-                {hasCardFeature && cardAssetUrl ? (
+                {cardAssetUrl ? (
                   <div className="mt-6 flex flex-col items-center gap-6">
                     <div className="relative overflow-hidden rounded-2xl border border-slate-300 shadow-xl dark:border-white/10">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -554,9 +551,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="mt-6 rounded-2xl border border-slate-300 bg-slate-200/50 p-8 text-center dark:border-white/10 dark:bg-white/5">
                     <p className="text-slate-700 dark:text-slate-400">
-                      {hasCardFeature
-                        ? 'Your card is being generated.'
-                        : 'Your current membership does not include a digital membership card.'}
+                      Your digital membership card will appear here once your membership is active.
                     </p>
                   </div>
                 )}

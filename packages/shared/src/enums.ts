@@ -80,6 +80,111 @@ export enum MembershipFeature {
   MEMBER_DISCOUNTS = 'MEMBER_DISCOUNTS'
 }
 
+export enum Permission {
+  MANAGE_USERS = 'MANAGE_USERS',
+  MANAGE_MEMBERSHIPS = 'MANAGE_MEMBERSHIPS',
+  MANAGE_EVENTS = 'MANAGE_EVENTS',
+  MANAGE_TICKETS = 'MANAGE_TICKETS',
+  MANAGE_DIRECTORY = 'MANAGE_DIRECTORY',
+  MANAGE_JOBS = 'MANAGE_JOBS',
+  MANAGE_FUNDRAISERS = 'MANAGE_FUNDRAISERS',
+  MANAGE_BLOG = 'MANAGE_BLOG',
+  MANAGE_FORUM = 'MANAGE_FORUM',
+  MANAGE_CONTACT_MESSAGES = 'MANAGE_CONTACT_MESSAGES',
+  MANAGE_SITE_SETTINGS = 'MANAGE_SITE_SETTINGS',
+  MANAGE_HERO = 'MANAGE_HERO',
+  MANAGE_PAGES = 'MANAGE_PAGES',
+  MANAGE_PAYMENTS = 'MANAGE_PAYMENTS',
+  MANAGE_COMMITTEE = 'MANAGE_COMMITTEE',
+  VIEW_ADMIN_DASHBOARD = 'VIEW_ADMIN_DASHBOARD'
+}
+
+export const permissionLabels: Record<
+  Permission,
+  { label: string; description: string; section: string }
+> = {
+  [Permission.MANAGE_USERS]: {
+    label: 'Users',
+    description: 'Create and manage platform users and their permissions.',
+    section: 'Access'
+  },
+  [Permission.MANAGE_MEMBERSHIPS]: {
+    label: 'Memberships',
+    description: 'Review, approve and manage member accounts and membership types.',
+    section: 'Members'
+  },
+  [Permission.MANAGE_EVENTS]: {
+    label: 'Events',
+    description: 'Create, edit and delete events; scan tickets at the door.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_TICKETS]: {
+    label: 'Tickets',
+    description: 'Scan and validate event tickets.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_DIRECTORY]: {
+    label: 'Directory',
+    description: 'Manage business directory listings.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_JOBS]: {
+    label: 'Jobs',
+    description: 'Manage job advertisements in the directory.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_FUNDRAISERS]: {
+    label: 'Fundraisers',
+    description: 'Create and moderate fundraising campaigns and donations.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_BLOG]: {
+    label: 'Blog',
+    description: 'Write, edit and publish blog posts.',
+    section: 'Content'
+  },
+  [Permission.MANAGE_FORUM]: {
+    label: 'Forum moderation',
+    description: 'Review flagged forum topics and posts.',
+    section: 'Community'
+  },
+  [Permission.MANAGE_CONTACT_MESSAGES]: {
+    label: 'Contact messages',
+    description: 'Read and respond to contact form submissions.',
+    section: 'Content'
+  },
+  [Permission.MANAGE_SITE_SETTINGS]: {
+    label: 'Site settings',
+    description: 'Update social links, contact details and global site settings.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_HERO]: {
+    label: 'Hero',
+    description: 'Update the homepage hero media and overlay.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_PAGES]: {
+    label: 'Pages',
+    description: 'Create and edit CMS pages.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_PAYMENTS]: {
+    label: 'Payments',
+    description: 'Configure payment provider settings.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_COMMITTEE]: {
+    label: 'Committee',
+    description: 'Manage committee member profiles.',
+    section: 'Settings'
+  },
+  [Permission.VIEW_ADMIN_DASHBOARD]: {
+    label: 'Admin dashboard',
+    description: 'View the back-office dashboard and access permitted sections.',
+    section: 'Access'
+  }
+};
+
 export const membershipFeatureLabels: Record<MembershipFeature, { label: string; description: string }> = {
   [MembershipFeature.DIRECTORY_READ]: { label: 'Directory: read listings', description: 'View business directory listings.' },
   [MembershipFeature.DIRECTORY_LISTING]: { label: 'Directory: create listing', description: 'Add and manage your own business listing.' },

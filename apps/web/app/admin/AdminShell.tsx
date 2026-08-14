@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { Permission } from '@kentslsc/shared';
+import type { AuthUser } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   Users,
   CreditCard,
   Calendar,
-  QrCode,
   Building2,
   Briefcase,
   HeartHandshake,
@@ -20,29 +21,107 @@ import {
   FileText,
   Menu,
   Loader2,
-  Globe
+  Globe,
+  Settings,
+  Shield,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/hero', label: 'Hero', icon: FileText },
-  { href: '/admin/pages', label: 'Pages', icon: FileText },
-  { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe },
-  { href: '/admin/users', label: 'Users', icon: Users },
-  { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
-  { href: '/admin/memberships', label: 'Memberships', icon: CreditCard },
-  { href: '/admin/events', label: 'Events', icon: Calendar },
-  { href: '/admin/tickets/scan', label: 'Ticket Scan', icon: QrCode },
-  { href: '/admin/committee', label: 'Committee', icon: Users },
-  { href: '/admin/directory', label: 'Directory', icon: Building2 },
-  { href: '/admin/jobs', label: 'Jobs', icon: Briefcase },
-  { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake },
-  { href: '/admin/payments', label: 'Payments', icon: CreditCard },
-  { href: '/admin/blog', label: 'Blog', icon: Newspaper },
-  { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning },
-  { href: '/admin/contact', label: 'Contact Messages', icon: Mail }
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: Permission | Permission[];
+}
+
+interface NavGroup {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: 'Overview',
+    icon: LayoutDashboard,
+    items: [
+      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: Permission.VIEW_ADMIN_DASHBOARD }
+    ]
+  },
+  {
+    label: 'Content',
+    icon: FileText,
+    items: [
+      { href: '/admin/hero', label: 'Hero', icon: FileText, permission: Permission.MANAGE_HERO },
+      { href: '/admin/pages', label: 'Pages', icon: FileText, permission: Permission.MANAGE_PAGES },
+      { href: '/admin/blog', label: 'Blog', icon: Newspaper, permission: Permission.MANAGE_BLOG }
+    ]
+  },
+  {
+    label: 'Community',
+    icon: Calendar,
+    items: [
+      { href: '/admin/events', label: 'Events', icon: Calendar, permission: Permission.MANAGE_EVENTS },
+      { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake, permission: Permission.MANAGE_FUNDRAISERS },
+      { href: '/admin/directory', label: 'Directory', icon: Building2, permission: Permission.MANAGE_DIRECTORY },
+      { href: '/admin/jobs', label: 'Jobs', icon: Briefcase, permission: Permission.MANAGE_JOBS },
+      { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning, permission: Permission.MANAGE_FORUM },
+      { href: '/admin/contact', label: 'Contact Messages', icon: Mail, permission: Permission.MANAGE_CONTACT_MESSAGES }
+    ]
+  },
+  {
+    label: 'Membership',
+    icon: Users,
+    items: [
+      { href: '/admin/users', label: 'Users', icon: Users, permission: Permission.MANAGE_USERS },
+      { href: '/admin/roles', label: 'Roles', icon: Shield, permission: Permission.MANAGE_USERS },
+      { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS },
+      { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS }
+    ]
+  },
+  {
+    label: 'Finance',
+    icon: CreditCard,
+    items: [
+      { href: '/admin/payments', label: 'Payments', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS }
+    ]
+  },
+  {
+    label: 'Settings',
+    icon: Settings,
+    items: [
+      { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe, permission: Permission.MANAGE_SITE_SETTINGS },
+      { href: '/admin/committee', label: 'Committee', icon: Users, permission: Permission.MANAGE_COMMITTEE }
+    ]
+  }
 ];
+
+function canSeeItem(user: AuthUser | null, item: NavItem): boolean {
+  if (!user) return false;
+  if (user.role === 'ADMIN') return true;
+  if (!item.permission) return true;
+  const perms = Array.isArray(item.permission) ? item.permission : [item.permission];
+  const userPermissions = new Set(user.permissions ?? []);
+  return perms.some((p) => userPermissions.has(p));
+}
+
+function canSeeGroup(user: AuthUser | null, group: NavGroup): boolean {
+  const visible = group.items.filter((item) => canSeeItem(user, item));
+  return visible.length > 0;
+}
+
+function filterGroups(user: AuthUser | null): NavGroup[] {
+  if (!user || user.role === 'ADMIN') return navGroups;
+  return navGroups
+    .filter((group) => canSeeGroup(user, group))
+    .map((group) => ({ ...group, items: group.items.filter((item) => canSeeItem(user, item)) }));
+}
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname?.startsWith(`${href}/`);
+}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useAuth();
@@ -50,10 +129,33 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const visibleGroups = useMemo(() => filterGroups(user ?? null), [user]);
+
+  const initiallyOpen = useMemo(() => {
+    return visibleGroups
+      .filter((group) => group.items.some((item) => isActive(pathname || '', item.href)))
+      .map((group) => group.label);
+  }, [visibleGroups, pathname]);
+
+  const [openGroups, setOpenGroups] = useState<string[]>(initiallyOpen);
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      for (const group of visibleGroups) {
+        if (group.items.some((item) => isActive(pathname || '', item.href))) {
+          next.add(group.label);
+        }
+      }
+      return Array.from(next);
+    });
+  }, [visibleGroups, pathname]);
+
   // Authorisation already happened server-side in layout.tsx; this only covers
   // the case where a session is revoked mid-visit during a client navigation.
+  // Any user with at least one back-office permission is allowed to stay.
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== 'ADMIN')) {
+    if (!isLoading && !user) {
       router.replace('/auth/login');
     }
   }, [user, isLoading, router]);
@@ -66,9 +168,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!user) {
     return null;
   }
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    );
+  };
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -87,23 +195,54 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="hidden flex-col gap-1 px-4 pb-4 md:flex md:flex-1 md:overflow-y-auto md:pb-0">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+          {visibleGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const expanded = openGroups.includes(group.label);
+            const groupActive = group.items.some((item) => isActive(pathname || '', item.href));
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-neon-blue/10 text-neon-blue'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+              <div key={group.label} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.label)}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors',
+                    groupActive
+                      ? 'text-neon-blue'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  )}
+                >
+                  <GroupIcon className="h-4 w-4" />
+                  <span className="flex-1 text-left">{group.label}</span>
+                  {expanded ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+                  )}
+                </button>
+                {expanded && (
+                  <div className="mt-1 flex flex-col gap-0.5 pl-4">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(pathname || '', item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cn(
+                            'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                            active
+                              ? 'bg-neon-blue/10 text-neon-blue'
+                              : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
+              </div>
             );
           })}
         </nav>
@@ -111,7 +250,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 p-4 pt-20 md:ml-64 md:p-8 md:pt-8">
         {children}
       </main>
-      <AdminMobileMenu isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      <AdminMobileMenu
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        groups={visibleGroups}
+      />
     </div>
   );
 }

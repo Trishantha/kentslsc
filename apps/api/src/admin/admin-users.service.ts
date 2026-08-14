@@ -7,12 +7,17 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuthEventType } from '@kentslsc/database';
-import { UserRole } from '@kentslsc/shared';
+import { UserRole, Permission, permissionLabels } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { CredentialsService } from '../auth/credentials.service.js';
 import { SessionsService, type RequestContext } from '../auth/sessions.service.js';
+import { PermissionsService, type RoleInput } from '../permissions/permissions.service.js';
 import type { AdminCreateUserDto } from './dto/admin-user.dto.js';
+import type {
+  AddExistingBackOfficeUserDto,
+  InviteBackOfficeUserDto
+} from './dto/back-office-user.dto.js';
 
 @Injectable()
 export class AdminUsersService {
@@ -20,7 +25,8 @@ export class AdminUsersService {
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
     private readonly credentials: CredentialsService,
-    private readonly sessions: SessionsService
+    private readonly sessions: SessionsService,
+    private readonly permissionsService: PermissionsService
   ) {}
 
   /**
@@ -147,5 +153,171 @@ export class AdminUsersService {
     });
 
     return { success: true, revoked };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Permission & role management
+  // ---------------------------------------------------------------------------
+
+  listPermissionDefinitions() {
+    return Object.entries(permissionLabels).map(([key, value]) => ({
+      permission: key,
+      ...value
+    }));
+  }
+
+  listRoles() {
+    return this.permissionsService.findAllRoles();
+  }
+
+  createRole(input: RoleInput) {
+    return this.permissionsService.createRole(input);
+  }
+
+  findRole(id: string) {
+    return this.permissionsService.findRoleById(id);
+  }
+
+  async updateBackOfficeRole(id: string, input: Partial<RoleInput>) {
+    const role = await this.permissionsService.updateRole(id, input);
+    await this.permissionsService.syncRolePermissionsForUsers(id);
+    return role;
+  }
+
+  deleteRole(id: string) {
+    return this.permissionsService.deleteRole(id);
+  }
+
+  getUserPermissions(userId: string) {
+    return this.permissionsService.getUserPermissionDetails(userId);
+  }
+
+  setDirectPermissions(userId: string, permissions: Permission[]) {
+    return this.permissionsService.setDirectUserPermissions(userId, permissions);
+  }
+
+  grantPermission(userId: string, permission: Permission) {
+    return this.permissionsService.grantDirectPermission(userId, permission);
+  }
+
+  revokePermission(userId: string, permission: Permission) {
+    return this.permissionsService.revokeDirectPermission(userId, permission);
+  }
+
+  assignRole(userId: string, roleId: string | null) {
+    return this.permissionsService.assignRoleToUser(userId, roleId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Back-office user onboarding
+  // ---------------------------------------------------------------------------
+
+  async addExistingBackOfficeUser(
+    actor: { sub: string },
+    dto: AddExistingBackOfficeUserDto,
+    ctx: RequestContext = {}
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId, deletedAt: null },
+      select: { id: true, email: true, firstName: true, role: true }
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === UserRole.ADMIN) {
+      throw new BadRequestException('Admin users already have full back-office access');
+    }
+
+    if (dto.roleId) {
+      await this.permissionsService.assignRoleToUser(user.id, dto.roleId);
+    }
+
+    if (dto.permissions && dto.permissions.length > 0) {
+      await this.permissionsService.setDirectUserPermissions(user.id, dto.permissions);
+    }
+
+    // If the user has no usable password or explicit invite, send a set-password link.
+    if (dto.sendInvite) {
+      const link = await this.credentials.createSetPasswordLink(user.id);
+      await this.email
+        .sendAdminCreatedAccount(user.email, user.firstName ?? '', link)
+        .catch(() => undefined);
+    }
+
+    await this.sessions.recordEvent({
+      userId: user.id,
+      email: user.email,
+      type: AuthEventType.ADMIN_USER_CREATED,
+      ctx,
+      metadata: {
+        createdBy: actor.sub,
+        invited: Boolean(dto.sendInvite),
+        source: 'existing_user',
+        roleId: dto.roleId
+      }
+    });
+
+    return this.permissionsService.getUserPermissionDetails(user.id);
+  }
+
+  async inviteBackOfficeUser(
+    actor: { sub: string },
+    dto: InviteBackOfficeUserDto,
+    ctx: RequestContext = {}
+  ) {
+    const email = dto.email.toLowerCase().trim();
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException('A user with that email already exists');
+    }
+
+    const rawPassword = dto.sendInvite
+      ? randomBytes(32).toString('base64url')
+      : dto.password;
+    if (!rawPassword) {
+      throw new BadRequestException('Provide a password or set sendInvite');
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        name: `${dto.firstName} ${dto.lastName}`.trim(),
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email,
+        phone: dto.phone,
+        role: UserRole.MEMBER,
+        passwordHash: await bcrypt.hash(rawPassword, 12),
+        emailVerifiedAt: new Date()
+      },
+      select: { id: true, name: true, email: true, role: true, createdAt: true }
+    });
+
+    if (dto.roleId) {
+      await this.permissionsService.assignRoleToUser(user.id, dto.roleId);
+    }
+
+    if (dto.permissions && dto.permissions.length > 0) {
+      await this.permissionsService.setDirectUserPermissions(user.id, dto.permissions);
+    }
+
+    if (dto.sendInvite) {
+      const link = await this.credentials.createSetPasswordLink(user.id);
+      await this.email.sendAdminCreatedAccount(user.email, dto.firstName, link).catch(() => undefined);
+    }
+
+    await this.sessions.recordEvent({
+      userId: user.id,
+      email: user.email,
+      type: AuthEventType.ADMIN_USER_CREATED,
+      ctx,
+      metadata: {
+        createdBy: actor.sub,
+        role: UserRole.MEMBER,
+        invited: Boolean(dto.sendInvite),
+        source: 'invite',
+        roleId: dto.roleId
+      }
+    });
+
+    return user;
   }
 }

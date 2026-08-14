@@ -17,11 +17,19 @@ import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto } from './dto/index.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
+import {
+  CreateEventDto,
+  UpdateEventDto,
+  PurchaseTicketsDto,
+  ValidateTicketDto,
+  UpdateEventPostersDto,
+  UpdateEventTicketDesignDto,
+  GenerateTicketsDto
+} from './dto/index.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { Permission, type TokenPayload } from '@kentslsc/shared';
 
 @ApiTags('Events')
 @Controller('events')
@@ -48,7 +56,7 @@ export class EventsController {
   }
 
   @Get('admin')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   listAdmin(@Query('page') page: string, @Query('limit') limit: string) {
     return this.eventsService.listAll(Number(page) || 1, Number(limit) || 20);
@@ -61,28 +69,28 @@ export class EventsController {
   }
 
   @Post()
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   create(@Body() dto: CreateEventDto) {
     return this.eventsService.create(dto);
   }
 
   @Put(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateEventDto) {
     return this.eventsService.update(id, dto);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   patch(@Param('id') id: string, @Body() dto: UpdateEventDto) {
     return this.eventsService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.eventsService.remove(id);
@@ -98,6 +106,38 @@ export class EventsController {
     // Enforce route parameter matches body for consistency
     const body = { ...dto, eventId };
     return this.eventsService.createCheckoutSession(user.sub, body);
+  }
+
+  @Put(':id/posters')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  @ApiBearerAuth()
+  updatePosters(@Param('id') id: string, @Body() dto: UpdateEventPostersDto) {
+    return this.eventsService.updatePosterImages(id, dto);
+  }
+
+  @Put(':id/ticket-design')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  @ApiBearerAuth()
+  updateTicketDesign(@Param('id') id: string, @Body() dto: UpdateEventTicketDesignDto) {
+    return this.eventsService.updateTicketDesign(id, dto);
+  }
+
+  @Post(':id/tickets/generate')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  @ApiBearerAuth()
+  generateTickets(
+    @Param('id') eventId: string,
+    @Body() dto: GenerateTicketsDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.eventsService.generateTickets(user.sub, eventId, dto);
+  }
+
+  @Get(':id/tickets')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  @ApiBearerAuth()
+  listEventTickets(@Param('id') eventId: string) {
+    return this.eventsService.listEventTickets(eventId);
   }
 
   @Post('webhook')
@@ -139,14 +179,14 @@ export class TicketsController {
   }
 
   @Get('validate/:qrCodeValue')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_TICKETS, Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   preview(@Param('qrCodeValue') qrCodeValue: string) {
     return this.eventsService.previewTicket(qrCodeValue);
   }
 
   @Post('validate')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_TICKETS, Permission.MANAGE_EVENTS)
   @ApiBearerAuth()
   validate(@Body() dto: ValidateTicketDto) {
     return this.eventsService.validateTicket(dto.qrCodeValue);

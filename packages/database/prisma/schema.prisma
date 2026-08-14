@@ -88,6 +88,25 @@ enum AuthEventType {
   ROLE_CHANGED
 }
 
+enum Permission {
+  MANAGE_USERS
+  MANAGE_MEMBERSHIPS
+  MANAGE_EVENTS
+  MANAGE_TICKETS
+  MANAGE_DIRECTORY
+  MANAGE_JOBS
+  MANAGE_FUNDRAISERS
+  MANAGE_BLOG
+  MANAGE_FORUM
+  MANAGE_CONTACT_MESSAGES
+  MANAGE_SITE_SETTINGS
+  MANAGE_HERO
+  MANAGE_PAGES
+  MANAGE_PAYMENTS
+  MANAGE_COMMITTEE
+  VIEW_ADMIN_DASHBOARD
+}
+
 model User {
   id            String    @id @default(uuid())
   name          String
@@ -99,6 +118,8 @@ model User {
   address       Json?     @db.JsonB
   role          UserRole  @default(GUEST)
   refreshToken  String?   @map("refresh_token")
+  // Optional back-office role that provides a default permission set.
+  backOfficeRoleId String?   @map("back_office_role_id")
   // Timestamp only, deliberately no parallel boolean: two sources of truth for
   // the same fact drift. Callers derive `emailVerified` from this being non-null.
   emailVerifiedAt   DateTime? @map("email_verified_at")
@@ -121,10 +142,58 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   authEvents              AuthEvent[]
+  userPermissions         UserPermission[]
+  backOfficeRole          BackOfficeRole?       @relation(fields: [backOfficeRoleId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([role])
+  @@index([backOfficeRoleId])
   @@map("users")
+}
+
+model BackOfficeRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions BackOfficeRolePermission[]
+  users       User[]
+  sourcePermissions UserPermission[] @relation("SourceRolePermissions")
+
+  @@map("back_office_roles")
+}
+
+model BackOfficeRolePermission {
+  id        String     @id @default(uuid())
+  roleId    String     @map("role_id")
+  permission Permission @map("permission")
+
+  role BackOfficeRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+  @@index([roleId])
+  @@index([permission])
+  @@map("back_office_role_permissions")
+}
+
+model UserPermission {
+  id         String     @id @default(uuid())
+  userId     String     @map("user_id")
+  permission Permission @map("permission")
+  // If the permission was granted because of a role, the source role is tracked
+  // so it can be distinguished from directly-assigned permissions.
+  sourceRoleId String?  @map("source_role_id")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceRole BackOfficeRole?  @relation("SourceRolePermissions", fields: [sourceRoleId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, permission])
+  @@index([userId])
+  @@index([permission])
+  @@map("user_permissions")
 }
 
 /// One row per signed-in device. Replaces the single `users.refresh_token`
@@ -266,6 +335,9 @@ model Event {
   maxTickets    Int?          @map("max_tickets")
   category      EventCategory @default(OTHER) @map("category")
   imageUrl      String?       @map("image_url")
+  posterImageUrl String?      @map("poster_image_url")
+  posterImages  Json?         @map("poster_images") @db.JsonB
+  ticketDesign  Json?         @map("ticket_design") @db.JsonB
   isPublished   Boolean       @default(false) @map("is_published")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -285,6 +357,8 @@ model Ticket {
   userId          String      @map("user_id")
   purchaseDatetime DateTime   @default(now()) @map("purchase_datetime")
   qrCodeValue     String      @unique @map("qr_code_value")
+  serialNumber    Int?        @map("serial_number")
+  ticketNumber    String?     @unique @map("ticket_number")
   status          TicketStatus @default(VALID)
   paymentId       String?     @map("payment_id")
   stripeSessionId String?     @map("stripe_session_id")

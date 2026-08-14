@@ -11,8 +11,12 @@ import {
   Newspaper,
   Mail,
   Flag,
-  Loader2
+  Loader2,
+  Plus,
+  FileText,
+  CheckCircle
 } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface DashboardStats {
@@ -62,6 +66,37 @@ export default function AdminDashboardPage() {
       <p className="mt-2 text-slate-600 dark:text-slate-400">
         Overview of platform activity and moderation queues.
       </p>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Link
+          href="/admin/events/new"
+          className="btn-primary inline-flex items-center gap-2 text-sm"
+        >
+          <Plus className="h-4 w-4" />
+          New event
+        </Link>
+        <Link
+          href="/admin/blog"
+          className="btn-secondary inline-flex items-center gap-2 text-sm"
+        >
+          <FileText className="h-4 w-4" />
+          Add blog post
+        </Link>
+        <Link
+          href="/admin/memberships"
+          className="btn-secondary inline-flex items-center gap-2 text-sm"
+        >
+          <CheckCircle className="h-4 w-4" />
+          Review memberships
+        </Link>
+        <Link
+          href="/admin/fundraisers"
+          className="btn-secondary inline-flex items-center gap-2 text-sm"
+        >
+          <HeartHandshake className="h-4 w-4" />
+          Review fundraisers
+        </Link>
+      </div>
+
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {cards.map((card, idx) => {
           const Icon = card.icon;

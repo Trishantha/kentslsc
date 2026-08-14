@@ -168,10 +168,21 @@ export class UsersService {
     return { user, memberships, tickets, listings, donations, topics, posts };
   }
 
-  async listUsers(page = 1, limit = 20, role?: string) {
+  async listUsers(page = 1, limit = 20, role?: string, search?: string) {
     const skip = (page - 1) * limit;
-    const where: { deletedAt: null; role?: UserRole } = { deletedAt: null };
+    const where: {
+      deletedAt: null;
+      role?: UserRole;
+      OR?: Array<{ name: { contains: string; mode: 'insensitive' } } | { email: { contains: string; mode: 'insensitive' } }>;
+    } = { deletedAt: null };
     if (role) where.role = role as UserRole;
+    if (search && search.trim()) {
+      const term = search.trim();
+      where.OR = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } }
+      ];
+    }
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
         where,

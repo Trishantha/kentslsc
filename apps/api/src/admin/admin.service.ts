@@ -6,6 +6,7 @@ import { EventsService } from '../events/events.service.js';
 import { DirectoryService } from '../directory/directory.service.js';
 import { FundraisingService } from '../fundraising/fundraising.service.js';
 import { BlogService } from '../blog/blog.service.js';
+import { CommitteeService } from '../committee/committee.service.js';
 import type { TokenPayload } from '@kentslsc/shared';
 import {
   MembershipStatus as MembershipStatusDto,
@@ -25,7 +26,8 @@ export class AdminService {
     private readonly eventsService: EventsService,
     private readonly directoryService: DirectoryService,
     private readonly fundraisingService: FundraisingService,
-    private readonly blogService: BlogService
+    private readonly blogService: BlogService,
+    private readonly committeeService: CommitteeService
   ) {}
 
   async getDashboardStats() {
@@ -66,8 +68,8 @@ export class AdminService {
     };
   }
 
-  listUsers(page: number, limit: number, role?: string) {
-    return this.usersService.listUsers(page, limit, role);
+  listUsers(page: number, limit: number, role?: string, search?: string) {
+    return this.usersService.listUsers(page, limit, role, search);
   }
 
   findUserById(id: string) {
@@ -211,6 +213,30 @@ export class AdminService {
 
   removeBlogPost(id: string) {
     return this.blogService.remove(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Committee
+  // ---------------------------------------------------------------------------
+
+  listCommittee() {
+    return this.committeeService.findAll();
+  }
+
+  findCommitteeMember(id: string) {
+    return this.committeeService.findById(id);
+  }
+
+  createCommittee(dto: Parameters<CommitteeService['create']>[0]) {
+    return this.committeeService.create(dto);
+  }
+
+  updateCommittee(id: string, dto: Parameters<CommitteeService['update']>[1]) {
+    return this.committeeService.update(id, dto);
+  }
+
+  removeCommittee(id: string) {
+    return this.committeeService.remove(id);
   }
 
   async getFlaggedForumItems() {

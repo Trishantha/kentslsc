@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getServerApiUrl } from './api-base';
+import type { Permission } from '@kentslsc/shared';
 
 export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
 
@@ -11,6 +12,7 @@ export type ServerSession =
       userId: string;
       role: SessionRole;
       emailVerified: boolean;
+      permissions: Permission[];
     };
 
 /**
@@ -65,6 +67,42 @@ export async function requireSession(options: { verified?: boolean } = {}) {
 export async function requireRole(role: SessionRole) {
   const session = await requireSession();
   if (session.role !== role) {
+    redirect('/dashboard');
+  }
+  return session;
+}
+
+/** True when the session belongs to an admin or holds at least one of the given permissions. */
+export function hasPermission(
+  session: ServerSession,
+  ...permissions: Permission[]
+): session is Extract<ServerSession, { authenticated: true }> {
+  if (!session.authenticated) return false;
+  if (session.role === 'ADMIN') return true;
+  const userPermissions = new Set(session.permissions ?? []);
+  return permissions.some((p) => userPermissions.has(p));
+}
+
+/**
+ * Gate the admin area: allow admins and any user with back-office permissions.
+ */
+export async function requireAdminOrBackOfficePermission() {
+  const session = await requireSession();
+  const userPermissions = new Set(session.permissions ?? []);
+  const hasBackOfficePermission =
+    session.role === 'ADMIN' || userPermissions.size > 0;
+  if (!hasBackOfficePermission) {
+    redirect('/dashboard');
+  }
+  return session;
+}
+
+/**
+ * Require a specific back-office permission. Admins always pass.
+ */
+export async function requirePermission(...permissions: Permission[]) {
+  const session = await requireSession();
+  if (!hasPermission(session, ...permissions)) {
     redirect('/dashboard');
   }
   return session;

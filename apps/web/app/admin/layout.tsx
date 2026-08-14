@@ -1,4 +1,4 @@
-import { requireRole } from '@/lib/auth-server';
+import { requireAdminOrBackOfficePermission } from '@/lib/auth-server';
 import { AdminShell } from './AdminShell';
 
 /**
@@ -9,8 +9,11 @@ import { AdminShell } from './AdminShell';
  * session and only bounced after hydration. The API guards meant no data
  * leaked, but the shell was still visible. This resolves the role before any
  * markup is produced.
+ *
+ * Now the admin area is open to any user with at least one back-office
+ * permission, not just the platform admin.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireRole('ADMIN');
+  await requireAdminOrBackOfficePermission();
   return <AdminShell>{children}</AdminShell>;
 }

@@ -2,3 +2,6 @@ export * from './create-event.dto.js';
 export * from './update-event.dto.js';
 export * from './purchase-tickets.dto.js';
 export * from './validate-ticket.dto.js';
+export * from './update-event-posters.dto.js';
+export * from './update-event-ticket-design.dto.js';
+export * from './generate-tickets.dto.js';

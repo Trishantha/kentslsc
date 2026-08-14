@@ -27,8 +27,10 @@ import { HeroConfigModule } from './hero-config/hero-config.module.js';
 import { CommitteeModule } from './committee/committee.module.js';
 import { SiteSettingsModule } from './site-settings/site-settings.module.js';
 import { AuthorizationModule } from './authorization/authorization.module.js';
+import { PermissionsModule } from './permissions/permissions.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { PermissionGuard } from './common/guards/permission.guard.js';
 import { FeatureGuard } from './common/guards/feature.guard.js';
 import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
 
@@ -71,7 +73,8 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     CommitteeModule,
     SiteSettingsModule,
     // Provides FeatureGuard + MembershipFeaturesService to the global guard above.
-    AuthorizationModule
+    AuthorizationModule,
+    PermissionsModule
   ],
   controllers: [AppController],
   providers: [
@@ -84,6 +87,7 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: EmailVerifiedGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: FeatureGuard }
   ]
 })

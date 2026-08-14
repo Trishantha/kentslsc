@@ -2,58 +2,65 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
-  LayoutDashboard,
-  Users,
-  CreditCard,
-  Calendar,
-  QrCode,
-  Building2,
-  Briefcase,
-  HeartHandshake,
-  Newspaper,
-  MessageSquareWarning,
-  Mail,
-  FileText,
   ChevronRight,
+  ChevronDown,
   LogOut,
-  ArrowLeft,
-  Globe
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: unknown;
+}
+
+export interface NavGroup {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+}
+
 interface AdminMobileMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  groups: NavGroup[];
 }
 
-const adminMenuItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/hero', label: 'Hero', icon: FileText },
-  { href: '/admin/pages', label: 'Pages', icon: FileText },
-  { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe },
-  { href: '/admin/users', label: 'Users', icon: Users },
-  { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
-  { href: '/admin/memberships', label: 'Memberships', icon: CreditCard },
-  { href: '/admin/events', label: 'Events', icon: Calendar },
-  { href: '/admin/tickets/scan', label: 'Ticket Scan', icon: QrCode },
-  { href: '/admin/committee', label: 'Committee', icon: Users },
-  { href: '/admin/directory', label: 'Directory', icon: Building2 },
-  { href: '/admin/jobs', label: 'Jobs', icon: Briefcase },
-  { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake },
-  { href: '/admin/blog', label: 'Blog', icon: Newspaper },
-  { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning },
-  { href: '/admin/contact', label: 'Contact Messages', icon: Mail }
-];
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname?.startsWith(`${href}/`);
+}
 
-export function AdminMobileMenu({ isOpen, onClose }: AdminMobileMenuProps) {
+export function AdminMobileMenu({ isOpen, onClose, groups }: AdminMobileMenuProps) {
   const pathname = usePathname();
   const { data: user } = useAuth();
   const signOut = useSignOut();
+
+  const initiallyOpen = useMemo(() => {
+    return groups
+      .filter((group) => group.items.some((item) => isActive(pathname || '', item.href)))
+      .map((group) => group.label);
+  }, [groups, pathname]);
+
+  const [openGroups, setOpenGroups] = useState<string[]>(initiallyOpen);
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      for (const group of groups) {
+        if (group.items.some((item) => isActive(pathname || '', item.href))) {
+          next.add(group.label);
+        }
+      }
+      return Array.from(next);
+    });
+  }, [groups, pathname]);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,6 +72,12 @@ export function AdminMobileMenu({ isOpen, onClose }: AdminMobileMenuProps) {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    );
+  };
 
   return (
     <AnimatePresence>
@@ -124,36 +137,80 @@ export function AdminMobileMenu({ isOpen, onClose }: AdminMobileMenuProps) {
                 Back to website
               </Link>
 
-              {/* Admin links */}
-              <div className="space-y-2">
-                {adminMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+              {/* Grouped admin links */}
+              <div className="space-y-3">
+                {groups.map((group) => {
+                  const GroupIcon = group.icon;
+                  const expanded = openGroups.includes(group.label);
+                  const groupActive = group.items.some((item) => isActive(pathname || '', item.href));
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onClose}
+                    <div
+                      key={group.label}
                       className={cn(
-                        'flex items-center gap-4 rounded-2xl border p-4 transition-all active:scale-[0.98]',
-                        isActive
-                          ? 'border-neon-blue/30 bg-neon-blue/10 shadow-neon'
-                          : 'border-slate-300 bg-white shadow-sm hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10'
+                        'rounded-2xl border transition-colors',
+                        groupActive
+                          ? 'border-neon-blue/30 bg-neon-blue/5 dark:bg-neon-blue/10'
+                          : 'border-slate-300 bg-white dark:border-white/10 dark:bg-white/5'
                       )}
                     >
-                      <div
-                        className={cn(
-                          'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl',
-                          isActive ? 'bg-neon-blue text-white' : 'bg-neon-blue/10 text-neon-blue'
-                        )}
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.label)}
+                        className="flex w-full items-center gap-3 px-4 py-3"
                       >
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <span className={cn('flex-1 font-semibold', isActive && 'text-neon-blue')}>
-                        {item.label}
-                      </span>
-                      <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" />
-                    </Link>
+                        <div
+                          className={cn(
+                            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl',
+                            groupActive ? 'bg-neon-blue text-white' : 'bg-neon-blue/10 text-neon-blue'
+                          )}
+                        >
+                          <GroupIcon className="h-5 w-5" />
+                        </div>
+                        <span className={cn('flex-1 text-left font-semibold', groupActive && 'text-neon-blue')}>
+                          {group.label}
+                        </span>
+                        {expanded ? (
+                          <ChevronDown className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" />
+                        )}
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {expanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="space-y-1 px-3 pb-3">
+                              {group.items.map((item) => {
+                                const Icon = item.icon;
+                                const active = isActive(pathname || '', item.href);
+                                return (
+                                  <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    onClick={onClose}
+                                    className={cn(
+                                      'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                                      active
+                                        ? 'bg-neon-blue/10 text-neon-blue'
+                                        : 'text-slate-600 hover:bg-white/50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
+                                    )}
+                                  >
+                                    <Icon className="h-4 w-4" />
+                                    {item.label}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   );
                 })}
               </div>

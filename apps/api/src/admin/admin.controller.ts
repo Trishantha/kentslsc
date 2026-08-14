@@ -14,10 +14,21 @@ import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 import { AdminUsersService } from './admin-users.service.js';
 import { AdminCreateUserDto, AdminUpdateRoleDto } from './dto/admin-user.dto.js';
+import {
+  CreateRoleDto,
+  UpdateRoleDto,
+  AssignRoleDto,
+  SetUserPermissionsDto
+} from './dto/role.dto.js';
+import {
+  AddExistingBackOfficeUserDto,
+  InviteBackOfficeUserDto
+} from './dto/back-office-user.dto.js';
 import type { RequestContext } from '../auth/sessions.service.js';
 import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
@@ -34,9 +45,13 @@ import { RecordOfflineDonationDto } from '../fundraising/dto/record-offline-dona
 import { CreateFundraiserUpdateDto } from '../fundraising/dto/create-fundraiser-update.dto.js';
 import { CreateBlogPostDto } from '../blog/dto/create-blog-post.dto.js';
 import { UpdateBlogPostDto } from '../blog/dto/update-blog-post.dto.js';
+import {
+  CreateCommitteeMemberDto,
+  UpdateCommitteeMemberDto
+} from '../committee/dto/index.js';
 
 @ApiTags('Admin')
-@Roles(UserRole.ADMIN)
+@ApiBearerAuth()
 @Controller('admin')
 export class AdminController {
   constructor(
@@ -48,6 +63,116 @@ export class AdminController {
     return { ip: req.ip, userAgent: req.headers['user-agent'] };
   }
 
+  // ---------------------------------------------------------------------------
+  // Permission & role management (admin-only)
+  // ---------------------------------------------------------------------------
+
+  @Get('permissions')
+  @Roles(UserRole.ADMIN)
+  listPermissions() {
+    return this.adminUsers.listPermissionDefinitions();
+  }
+
+  @Get('roles')
+  @Roles(UserRole.ADMIN)
+  listRoles() {
+    return this.adminUsers.listRoles();
+  }
+
+  @Post('roles')
+  @Roles(UserRole.ADMIN)
+  createRole(@Body() dto: CreateRoleDto) {
+    return this.adminUsers.createRole(dto);
+  }
+
+  @Get('roles/:id')
+  @Roles(UserRole.ADMIN)
+  findRole(@Param('id') id: string) {
+    return this.adminUsers.findRole(id);
+  }
+
+  @Patch('roles/:id')
+  @Roles(UserRole.ADMIN)
+  updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    return this.adminUsers.updateBackOfficeRole(id, dto);
+  }
+
+  @Delete('roles/:id')
+  @Roles(UserRole.ADMIN)
+  deleteRole(@Param('id') id: string) {
+    return this.adminUsers.deleteRole(id);
+  }
+
+  @Get('users/:id/permissions')
+  @Roles(UserRole.ADMIN)
+  getUserPermissions(@Param('id') id: string) {
+    return this.adminUsers.getUserPermissions(id);
+  }
+
+  @Put('users/:id/permissions')
+  @Roles(UserRole.ADMIN)
+  setUserPermissions(
+    @Param('id') id: string,
+    @Body() dto: SetUserPermissionsDto
+  ) {
+    return this.adminUsers.setDirectPermissions(id, dto.permissions);
+  }
+
+  @Post('users/:id/permissions/:permission')
+  @Roles(UserRole.ADMIN)
+  grantUserPermission(
+    @Param('id') id: string,
+    @Param('permission') permission: Permission
+  ) {
+    return this.adminUsers.grantPermission(id, permission);
+  }
+
+  @Delete('users/:id/permissions/:permission')
+  @Roles(UserRole.ADMIN)
+  revokeUserPermission(
+    @Param('id') id: string,
+    @Param('permission') permission: Permission
+  ) {
+    return this.adminUsers.revokePermission(id, permission);
+  }
+
+  @Post('users/:id/role')
+  @Roles(UserRole.ADMIN)
+  assignBackOfficeRole(
+    @Param('id') id: string,
+    @Body() dto: AssignRoleDto
+  ) {
+    return this.adminUsers.assignRole(id, dto.roleId ?? null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Back-office user onboarding
+  // ---------------------------------------------------------------------------
+
+  @Post('back-office-users/existing')
+  @Roles(UserRole.ADMIN)
+  addExistingBackOfficeUser(
+    @CurrentUser() actor: TokenPayload,
+    @Body() dto: AddExistingBackOfficeUserDto,
+    @Req() req: Request
+  ) {
+    return this.adminUsers.addExistingBackOfficeUser(actor, dto, this.context(req));
+  }
+
+  @Post('back-office-users/invite')
+  @Roles(UserRole.ADMIN)
+  inviteBackOfficeUser(
+    @CurrentUser() actor: TokenPayload,
+    @Body() dto: InviteBackOfficeUserDto,
+    @Req() req: Request
+  ) {
+    return this.adminUsers.inviteBackOfficeUser(actor, dto, this.context(req));
+  }
+
+  // ---------------------------------------------------------------------------
+  // User management
+  // ---------------------------------------------------------------------------
+
   /**
    * Create a user without touching the caller's session.
    *
@@ -55,7 +180,7 @@ export class AdminController {
    * can provision an account without being swapped into it.
    */
   @Post('users')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_USERS)
   createUser(
     @CurrentUser() actor: TokenPayload,
     @Body() dto: AdminCreateUserDto,
@@ -65,7 +190,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/role')
-  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
   updateUserRole(
     @CurrentUser() actor: TokenPayload,
     @Param('id') id: string,
@@ -76,35 +201,40 @@ export class AdminController {
   }
 
   @Post('users/:id/force-logout')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_USERS)
   forceLogout(@Param('id') id: string, @Req() req: Request) {
     return this.adminUsers.forceLogout(id, this.context(req));
   }
 
   @Get('dashboard')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.VIEW_ADMIN_DASHBOARD)
   dashboard() {
     return this.adminService.getDashboardStats();
   }
 
   @Get('users')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_USERS)
   listUsers(
     @Query('page') page: string,
     @Query('limit') limit: string,
-    @Query('role') role?: string
+    @Query('role') role?: string,
+    @Query('search') search?: string
   ) {
-    return this.adminService.listUsers(Number(page) || 1, Number(limit) || 20, role);
+    return this.adminService.listUsers(Number(page) || 1, Number(limit) || 20, role, search);
   }
 
   @Get('users/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_USERS)
   findUser(@Param('id') id: string) {
     return this.adminService.findUserById(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Memberships
+  // ---------------------------------------------------------------------------
+
   @Get('memberships')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   listMemberships(
     @Query('page') page: string,
     @Query('limit') limit: string,
@@ -114,7 +244,7 @@ export class AdminController {
   }
 
   @Put('memberships/:id/status')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   updateMembershipStatus(
     @Param('id') id: string,
     @Body() dto: UpdateMembershipStatusDto
@@ -123,13 +253,17 @@ export class AdminController {
   }
 
   @Post('memberships/:id/regenerate-card')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   regenerateMembershipCard(@Param('id') membershipId: string) {
     return this.adminService.regenerateMembershipCard(membershipId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------------------
+
   @Get('events')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_EVENTS)
   listEvents(
     @Query('page') page: string,
     @Query('limit') limit: string
@@ -138,37 +272,41 @@ export class AdminController {
   }
 
   @Post('events')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_EVENTS)
   createEvent(@Body() dto: CreateEventDto) {
     return this.adminService.createEvent(dto);
   }
 
   @Put('events/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_EVENTS)
   updateEvent(@Param('id') id: string, @Body() dto: UpdateEventDto) {
     return this.adminService.updateEvent(id, dto);
   }
 
   @Delete('events/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_EVENTS)
   removeEvent(@Param('id') id: string) {
     return this.adminService.removeEvent(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Directory
+  // ---------------------------------------------------------------------------
+
   @Get('directory/businesses')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
   listBusinesses() {
     return this.adminService.listBusinesses();
   }
 
   @Post('directory/businesses')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
   createBusiness(@CurrentUser() user: TokenPayload, @Body() dto: CreateBusinessListingDto) {
     return this.adminService.createBusiness(user, dto);
   }
 
   @Put('directory/businesses/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
   updateBusiness(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -178,25 +316,25 @@ export class AdminController {
   }
 
   @Delete('directory/businesses/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
   removeBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.adminService.removeBusiness(user, id);
   }
 
   @Get('directory/jobs')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_JOBS)
   listJobs() {
     return this.adminService.listJobs();
   }
 
   @Post('directory/jobs')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_JOBS)
   createJob(@CurrentUser() user: TokenPayload, @Body() dto: CreateJobAdDto) {
     return this.adminService.createJob(user, dto);
   }
 
   @Put('directory/jobs/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_JOBS)
   updateJob(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -206,13 +344,17 @@ export class AdminController {
   }
 
   @Delete('directory/jobs/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_JOBS)
   removeJob(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.adminService.removeJob(user, id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Fundraisers
+  // ---------------------------------------------------------------------------
+
   @Get('fundraisers')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   listFundraisers(
     @Query('page') page: string,
     @Query('limit') limit: string
@@ -221,49 +363,49 @@ export class AdminController {
   }
 
   @Get('fundraisers/pending')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   listPendingFundraisers() {
     return this.adminService.listPendingFundraisers();
   }
 
   @Get('fundraisers/stats')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   getFundraisingStats() {
     return this.adminService.getFundraisingStats();
   }
 
   @Post('fundraisers')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   createFundraiser(@Body() dto: CreateFundraiserDto) {
     return this.adminService.createFundraiser(dto);
   }
 
   @Put('fundraisers/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   updateFundraiser(@Param('id') id: string, @Body() dto: UpdateFundraiserDto) {
     return this.adminService.updateFundraiser(id, dto);
   }
 
   @Post('fundraisers/:id/approve')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   approveFundraiser(@Param('id') id: string) {
     return this.adminService.approveFundraiser(id);
   }
 
   @Post('fundraisers/:id/reject')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   rejectFundraiser(@Param('id') id: string, @Body() dto: RejectFundraiserDto) {
     return this.adminService.rejectFundraiser(id, dto.reason);
   }
 
   @Post('fundraisers/:id/offline-donation')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   recordOfflineDonation(@Param('id') id: string, @Body() dto: RecordOfflineDonationDto) {
     return this.adminService.recordOfflineDonation(id, dto);
   }
 
   @Post('fundraisers/:id/updates')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   addFundraiserUpdate(
     @Param('id') id: string,
     @Body() dto: CreateFundraiserUpdateDto,
@@ -273,65 +415,115 @@ export class AdminController {
   }
 
   @Delete('fundraisers/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   removeFundraiser(@Param('id') id: string) {
     return this.adminService.removeFundraiser(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Blog
+  // ---------------------------------------------------------------------------
+
   @Get('blog/posts')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_BLOG)
   listBlogPosts() {
     return this.adminService.listBlogPosts();
   }
 
   @Post('blog/posts')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_BLOG)
   createBlogPost(@CurrentUser() user: TokenPayload, @Body() dto: CreateBlogPostDto) {
     return this.adminService.createBlogPost(user.sub, dto);
   }
 
   @Put('blog/posts/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_BLOG)
   updateBlogPost(@Param('id') id: string, @Body() dto: UpdateBlogPostDto) {
     return this.adminService.updateBlogPost(id, dto);
   }
 
   @Delete('blog/posts/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_BLOG)
   removeBlogPost(@Param('id') id: string) {
     return this.adminService.removeBlogPost(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Committee
+  // ---------------------------------------------------------------------------
+
+  @Get('committee')
+  @RequirePermission(Permission.MANAGE_COMMITTEE)
+  listCommittee() {
+    return this.adminService.listCommittee();
+  }
+
+  @Get('committee/:id')
+  @RequirePermission(Permission.MANAGE_COMMITTEE)
+  findCommitteeMember(@Param('id') id: string) {
+    return this.adminService.findCommitteeMember(id);
+  }
+
+  @Post('committee')
+  @RequirePermission(Permission.MANAGE_COMMITTEE)
+  createCommittee(@Body() dto: CreateCommitteeMemberDto) {
+    return this.adminService.createCommittee(dto);
+  }
+
+  @Put('committee/:id')
+  @RequirePermission(Permission.MANAGE_COMMITTEE)
+  updateCommittee(
+    @Param('id') id: string,
+    @Body() dto: UpdateCommitteeMemberDto
+  ) {
+    return this.adminService.updateCommittee(id, dto);
+  }
+
+  @Delete('committee/:id')
+  @RequirePermission(Permission.MANAGE_COMMITTEE)
+  removeCommittee(@Param('id') id: string) {
+    return this.adminService.removeCommittee(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Forum moderation
+  // ---------------------------------------------------------------------------
+
   @Get('forum/flagged')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FORUM)
   getFlaggedForumItems() {
     return this.adminService.getFlaggedForumItems();
   }
 
   @Delete('forum/topics/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FORUM)
   removeForumTopic(@Param('id') id: string) {
     return this.adminService.removeForumTopic(id);
   }
 
   @Delete('forum/posts/:id')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_FORUM)
   removeForumPost(@Param('id') id: string) {
     return this.adminService.removeForumPost(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Contact messages
+  // ---------------------------------------------------------------------------
+
   @Get('contact-messages')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_CONTACT_MESSAGES)
   listContactMessages() {
     return this.adminService.listContactMessages();
   }
 
   @Put('contact-messages/:id/status')
-  @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_CONTACT_MESSAGES)
   updateContactStatus(
     @Param('id') id: string,
     @Body() dto: UpdateContactStatusDto
   ) {
     return this.adminService.updateContactStatus(id, dto.status);
   }
+
 }

@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { BlogService } from './blog.service.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { Permission, type TokenPayload } from '@kentslsc/shared';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto.js';
 import { UpdateBlogPostDto } from './dto/update-blog-post.dto.js';
 import { Public } from '../common/decorators/public.decorator.js';
@@ -26,35 +26,35 @@ export class BlogController {
   }
 
   @Get('admin/posts')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_BLOG)
   @ApiBearerAuth()
   listAdmin() {
     return this.blogService.listAdmin();
   }
 
   @Get('admin/posts/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_BLOG)
   @ApiBearerAuth()
   findAdminOne(@Param('id') id: string) {
     return this.blogService.findAdminById(id);
   }
 
   @Post('admin/posts')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_BLOG)
   @ApiBearerAuth()
   create(@Body() dto: CreateBlogPostDto, @CurrentUser() user: TokenPayload) {
     return this.blogService.create(user.sub, dto);
   }
 
   @Put('admin/posts/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_BLOG)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateBlogPostDto) {
     return this.blogService.update(id, dto);
   }
 
   @Delete('admin/posts/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_BLOG)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.blogService.remove(id);

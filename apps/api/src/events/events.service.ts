@@ -5,9 +5,9 @@ import type { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import type Stripe from 'stripe';
 import QRCode from 'qrcode';
-import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto } from './dto/index.js';
+import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
-import { TicketStatus, EventCategory } from '@kentslsc/database';
+import { TicketStatus, EventCategory, Prisma } from '@kentslsc/database';
 
 export interface TicketWithEvent {
   id: string;
@@ -181,6 +181,88 @@ export class EventsService {
     return this.prisma.event.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
+  async updatePosterImages(id: string, dto: UpdateEventPostersDto) {
+    await this.findById(id);
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        ...(dto.posterImageUrl !== undefined && { posterImageUrl: dto.posterImageUrl }),
+        ...(dto.posterImages !== undefined && { posterImages: dto.posterImages as unknown as Prisma.InputJsonValue })
+      }
+    });
+  }
+
+  async updateTicketDesign(id: string, dto: UpdateEventTicketDesignDto) {
+    await this.findById(id);
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        ...(dto.ticketDesign !== undefined && { ticketDesign: dto.ticketDesign as unknown as Prisma.InputJsonValue })
+      }
+    });
+  }
+
+  private async getNextTicketSerial(eventId: string) {
+    const lastTicket = await this.prisma.ticket.findFirst({
+      where: { eventId, deletedAt: null },
+      orderBy: { serialNumber: 'desc' },
+      select: { serialNumber: true }
+    });
+    return (lastTicket?.serialNumber ?? 0) + 1;
+  }
+
+  async generateTickets(adminUserId: string, eventId: string, dto: GenerateTicketsDto) {
+    const event = await this.findByIdWithTicketCount(eventId);
+    const prefix = dto.prefix?.trim() || event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
+
+    const remaining = event.maxTickets ? event.maxTickets - event._count.tickets : null;
+    if (remaining !== null && dto.quantity > remaining) {
+      throw new BadRequestException(`Only ${remaining} tickets remaining`);
+    }
+
+    const startSerial = await this.getNextTicketSerial(eventId);
+
+    const tickets = await this.prisma.$transaction(async (tx) => {
+      const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];
+      for (let i = 0; i < dto.quantity; i++) {
+        const serialNumber = startSerial + i;
+        const ticketNumber = `${prefix}-${String(serialNumber).padStart(3, '0')}`;
+        const ticket = await tx.ticket.create({
+          data: {
+            eventId,
+            userId: adminUserId,
+            qrCodeValue: crypto.randomUUID(),
+            serialNumber,
+            ticketNumber,
+            paymentId: 'admin-generated',
+            status: TicketStatus.VALID
+          }
+        });
+        created.push({
+          id: ticket.id,
+          qrCodeValue: ticket.qrCodeValue,
+          serialNumber: ticket.serialNumber ?? serialNumber,
+          ticketNumber: ticket.ticketNumber ?? ticketNumber,
+          status: ticket.status
+        });
+      }
+      return created;
+    });
+
+    return { tickets, totalGenerated: tickets.length };
+  }
+
+  async listEventTickets(eventId: string) {
+    await this.findById(eventId);
+    return this.prisma.ticket.findMany({
+      where: { eventId, deletedAt: null },
+      orderBy: { serialNumber: 'asc' },
+      include: {
+        user: { select: { id: true, name: true, email: true } }
+      }
+    });
+  }
+
   async getRemainingCapacity(eventId: string) {
     const event = await this.findByIdWithTicketCount(eventId);
     if (!event.maxTickets) return null;
@@ -248,6 +330,9 @@ export class EventsService {
       throw new BadRequestException('Not enough tickets remaining');
     }
 
+    const startSerial = await this.getNextTicketSerial(eventId);
+    const prefix = event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
+
     const tickets = await this.prisma.$transaction(async (tx) => {
       // Re-check capacity inside the transaction to avoid overselling.
       const sold = await tx.ticket.count({
@@ -258,19 +343,29 @@ export class EventsService {
         throw new BadRequestException('Not enough tickets remaining');
       }
 
-      const created: { id: string; qrCodeValue: string; status: string }[] = [];
+      const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];
       for (let i = 0; i < quantity; i++) {
+        const serialNumber = startSerial + i;
+        const ticketNumber = `${prefix}-${String(serialNumber).padStart(3, '0')}`;
         const ticket = await tx.ticket.create({
           data: {
             eventId,
             userId,
             qrCodeValue: crypto.randomUUID(),
+            serialNumber,
+            ticketNumber,
             paymentId,
             stripeSessionId: paymentId === 'free' ? null : paymentId,
             status: TicketStatus.VALID
           }
         });
-        created.push(ticket);
+        created.push({
+          id: ticket.id,
+          qrCodeValue: ticket.qrCodeValue,
+          serialNumber: ticket.serialNumber ?? serialNumber,
+          ticketNumber: ticket.ticketNumber ?? ticketNumber,
+          status: ticket.status
+        });
       }
       return created;
     });
@@ -331,7 +426,8 @@ export class EventsService {
       }
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return ticket;
+    const eventExpired = ticket.event.endDatetime < new Date();
+    return { ...ticket, eventExpired };
   }
 
   async validateTicket(qrCodeValue: string) {
@@ -343,6 +439,7 @@ export class EventsService {
       }
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
+    if (ticket.event.endDatetime < new Date()) throw new BadRequestException('Event has ended');
     if (ticket.status === TicketStatus.USED) throw new BadRequestException('Ticket already used');
     if (ticket.status === TicketStatus.CANCELLED) throw new BadRequestException('Ticket cancelled');
 

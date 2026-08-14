@@ -15,10 +15,10 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { FundraisingService } from './fundraising.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { Permission, type TokenPayload } from '@kentslsc/shared';
 import { CreateFundraiserDto } from './dto/create-fundraiser.dto.js';
 import { UpdateFundraiserDto } from './dto/update-fundraiser.dto.js';
 import { CreateDonationDto } from './dto/create-donation.dto.js';
@@ -91,14 +91,14 @@ export class FundraisingController {
   }
 
   @Put(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateFundraiserDto) {
     return this.fundraisingService.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_FUNDRAISERS)
   @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.fundraisingService.remove(id);

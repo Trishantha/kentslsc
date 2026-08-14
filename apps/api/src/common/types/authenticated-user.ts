@@ -1,4 +1,4 @@
-import type { TokenPayload } from '@kentslsc/shared';
+import type { Permission, TokenPayload } from '@kentslsc/shared';
 
 /**
  * What `@CurrentUser()` actually resolves to once JwtStrategy has validated the
@@ -10,8 +10,12 @@ import type { TokenPayload } from '@kentslsc/shared';
  * they'd keep getting 403s on a page that just told them they were verified.
  * JwtStrategy already loads the user row on every request, so reading it there
  * costs nothing extra.
+ *
+ * `permissions` is also read from the database on every request so permission
+ * changes take effect immediately without waiting for token expiry.
  */
 export interface AuthenticatedUser extends TokenPayload {
   sid: string;
   emailVerified: boolean;
+  permissions: Permission[];
 }

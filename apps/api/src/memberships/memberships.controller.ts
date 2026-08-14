@@ -18,10 +18,10 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MembershipsService } from './memberships.service.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload, MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
-import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
+import { Permission, type TokenPayload, MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
@@ -50,21 +50,21 @@ export class MembershipsController {
   }
 
   @Post('types')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   @ApiBearerAuth()
   async createType(@Body() dto: CreateMembershipTypeDto) {
     return this.membershipsService.createType(dto);
   }
 
   @Patch('types/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   @ApiBearerAuth()
   async updateType(@Param('id') id: string, @Body() dto: UpdateMembershipTypeDto) {
     return this.membershipsService.updateType(id, dto);
   }
 
   @Delete('types/:id')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   @ApiBearerAuth()
   async deleteType(@Param('id') id: string) {
     return this.membershipsService.deleteType(id);
@@ -83,7 +83,6 @@ export class MembershipsController {
   }
 
   @Get('card')
-  @RequiresFeature(MembershipFeature.MEMBER_CARD)
   @ApiBearerAuth()
   async getCard(
     @CurrentUser() user: TokenPayload,
@@ -106,7 +105,7 @@ export class MembershipsController {
   }
 
   @Post('card/regenerate')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   @ApiBearerAuth()
   async regenerateCard(@Body() dto: RegenerateCardDto) {
     return this.membershipsService.regenerateCard(dto.membershipId);

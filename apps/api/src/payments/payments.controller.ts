@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { UserRole } from '@kentslsc/shared';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
+import { Permission } from '@kentslsc/shared';
 import { PaymentsService } from './payments.service.js';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 
@@ -11,14 +11,14 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get('settings')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
   @ApiBearerAuth()
   async getSettings() {
     return this.paymentsService.getSettings();
   }
 
   @Put('settings')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
   @ApiBearerAuth()
   async updateSettings(@Body() dto: UpdatePaymentSettingsDto) {
     return this.paymentsService.updateSettings(dto);
