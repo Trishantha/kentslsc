@@ -69,6 +69,18 @@ function loadEnvironmentFiles() {
 
 loadEnvironmentFiles();
 
+function redactDatabaseUrl(url) {
+  if (!url) return '(not set)';
+  try {
+    const parsed = new URL(url);
+    // Mask password if present; keep host/port/database for diagnostics.
+    parsed.password = parsed.password ? '***' : '';
+    return parsed.toString();
+  } catch {
+    return '(invalid URL)';
+  }
+}
+
 async function runMigrations() {
   if (!process.env.DATABASE_URL || process.env.SKIP_MIGRATIONS === 'true') {
     console.log(
@@ -78,6 +90,8 @@ async function runMigrations() {
     );
     return;
   }
+
+  console.log(`DATABASE_URL target: ${redactDatabaseUrl(process.env.DATABASE_URL)}`);
 
   // Prefer the actual Prisma Node entry point over the .bin shell shim, because
   // Hostinger's build environment sometimes strips execute permission from the
@@ -259,6 +273,17 @@ async function runMigrations() {
     console.error('Migration spawn error:', result.error.message);
   }
 
+  // Prisma P1001 means the database server is unreachable. This is usually a
+  // transient network or Supabase IP-restriction issue, not a migration problem.
+  // Crashing the unified server in a tight loop produces a 503 for every visitor
+  // and prevents the health endpoint from reporting status. Continue startup so
+  // the proxy can serve traffic; the API will surface its own DB errors at
+  // runtime and the operator can address the connectivity issue separately.
+  const isDbUnreachableError = (stdout, stderr) => {
+    const combined = `${stdout || ''}${stderr || ''}`;
+    return /\bP1001\b/.test(combined) || /Can't reach database server/.test(combined);
+  };
+
   if (result.status !== 0) {
     // If the migration command could not be spawned due to resource limits, do not
     // crash the unified server in a loop. On shared hosts the account process cap
@@ -269,6 +294,16 @@ async function runMigrations() {
       console.warn(
         `WARNING: Database migration could not run due to a resource limit (${result.error.code}). ` +
           'Skipping migrations and continuing startup. Set SKIP_MIGRATIONS=true to silence this warning.'
+      );
+      return;
+    }
+
+    if (isDbUnreachableError(result.stdout, result.stderr)) {
+      console.warn(
+        'WARNING: Database is unreachable during migrations (Prisma P1001). ' +
+          'The unified server will continue starting so the proxy and health endpoint are available. ' +
+          'Investigate the DATABASE_URL network path / Supabase IP allow-list; ' +
+          'set SKIP_MIGRATIONS=true to silence this warning.'
       );
       return;
     }

@@ -45,6 +45,21 @@ Notes:
   authentication because the cookies are scoped to the frontend domain.
 - `NEXT_PUBLIC_SOCKET_URL` is used by the forum websocket client.
 
+Optional frontend environment variable:
+
+```env
+INTERNAL_API_URL=https://your-api-domain.com
+```
+
+- `INTERNAL_API_URL` is only needed when the frontend container cannot reach the
+  public `API_PROXY_TARGET` origin from inside the container for server-side
+  requests (e.g. protected pages checking the session). On Hostinger this can
+  happen when the public API domain resolves to the outside world but the
+  container cannot reach it. Set this to an origin the frontend container can
+  reach directly, such as the API's internal service URL. If you are unsure,
+  leave it unset and check the frontend logs for `[auth-server] Session check
+  failed:` errors after logging in.
+
 ## Backend API app
 
 Use `apps/api` as the app root.

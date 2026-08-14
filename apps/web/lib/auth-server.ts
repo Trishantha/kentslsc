@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getServerApiUrl } from './api-base';
+import { getInternalApiUrl } from './api-base';
 import type { Permission } from '@kentslsc/shared';
 
 export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
@@ -34,16 +34,18 @@ export async function getServerSession(): Promise<ServerSession> {
   if (!cookieHeader) return { authenticated: false };
 
   try {
-    const apiUrl = await getServerApiUrl();
+    const apiUrl = await getInternalApiUrl();
     const res = await fetch(`${apiUrl}/api/auth/session`, {
       headers: { cookie: cookieHeader },
       cache: 'no-store'
     });
     if (!res.ok) return { authenticated: false };
     return (await res.json()) as ServerSession;
-  } catch {
+  } catch (error) {
     // API unreachable: treat as signed out rather than rendering a member area
-    // we could not authorise.
+    // we could not authorise. Log it so deployments with container-to-container
+    // reachability issues are diagnosable.
+    console.error('[auth-server] Session check failed:', error);
     return { authenticated: false };
   }
 }
