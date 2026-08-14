@@ -11,8 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   registrationWizardSchema,
   RegistrationWizardInput,
-  MembershipFeature,
-  membershipFeatureLabels
+  MembershipFeature
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { useAuth, useSignOut } from '@/hooks/useAuth';

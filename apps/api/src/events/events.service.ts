@@ -147,7 +147,6 @@ export class EventsService {
   }
 
   async update(id: string, dto: UpdateEventDto) {
-    const current = await this.findById(id);
     if (dto.maxTickets !== undefined && dto.maxTickets != null) {
       const sold = await this.prisma.ticket.count({
         where: { eventId: id, status: { not: TicketStatus.CANCELLED }, deletedAt: null }

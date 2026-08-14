@@ -6,29 +6,6 @@ import { Loader2, Plus, Clock, CheckCircle2, XCircle, Megaphone } from 'lucide-r
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  PENDING_APPROVAL: {
-    label: 'Pending Review',
-    color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-    icon: <Clock className="h-3.5 w-3.5" />
-  },
-  ACTIVE: {
-    label: 'Active',
-    color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />
-  },
-  REJECTED: {
-    label: 'Rejected',
-    color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    icon: <XCircle className="h-3.5 w-3.5" />
-  },
-  COMPLETED: {
-    label: 'Completed',
-    color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
-    icon: <Megaphone className="h-3.5 w-3.5" />
-  }
-};
-
 interface Campaign {
   id: string;
   title: string;

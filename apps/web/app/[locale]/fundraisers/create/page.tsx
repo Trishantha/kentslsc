@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,7 +35,6 @@ type FormValues = z.infer<typeof schema>;
 
 export default function CreateFundraiserPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const t = useTranslations('fundraisers');
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');

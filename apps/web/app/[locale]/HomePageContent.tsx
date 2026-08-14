@@ -14,8 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  ArrowRight,
-  Loader2
+  ArrowRight
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';

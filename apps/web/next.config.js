@@ -125,12 +125,6 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
     remotePatterns
   },
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = false;
-    }
-    return config;
-  },
   async headers() {
     return [
       {

@@ -117,14 +117,3 @@ export default function FundraisersPage() {
   );
 }
 
-interface Fundraiser {
-  id: string;
-  title: string;
-  description?: string;
-  targetAmount: number;
-  raisedAmount: number;
-  imageUrl?: string;
-  aiSummary?: string;
-  endDate: string;
-}
-

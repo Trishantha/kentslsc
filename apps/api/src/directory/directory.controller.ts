@@ -84,7 +84,7 @@ export class DirectoryController {
   @Post('businesses/:id/summarise')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
   @ApiBearerAuth()
-  summariseBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  summariseBusiness(@CurrentUser() _user: TokenPayload, @Param('id') id: string) {
     return this.directoryService.summariseBusiness(id);
   }
 

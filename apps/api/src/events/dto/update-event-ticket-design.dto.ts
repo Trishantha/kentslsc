@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUrl, IsObject } from 'class-validator';
+import { IsOptional, IsObject } from 'class-validator';
 
 export class UpdateEventTicketDesignDto {
   @IsOptional()

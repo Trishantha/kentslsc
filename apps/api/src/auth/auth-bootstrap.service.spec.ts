@@ -1,7 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
 import { AuthBootstrapService } from './auth-bootstrap.service.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UserRole } from '@kentslsc/shared';

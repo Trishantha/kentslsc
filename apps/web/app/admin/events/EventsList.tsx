@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Eye, Pencil, Ticket, QrCode } from 'lucide-react';
+import { Eye, Ticket, QrCode } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { eventCategoryLabels } from '@kentslsc/shared';
 import type { AdminEvent } from './page';

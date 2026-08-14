@@ -21,7 +21,6 @@ interface ContactResponse {
 
 function useContactDetails() {
   const { data: settings, isLoading } = useSiteSettings();
-  const t = useTranslations('contact');
 
   const details: { id: string; icon: typeof Mail; value: string; href: string; labelKey: string }[] = [];
 

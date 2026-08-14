@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { Loader2, ArrowLeft, Plus, Check } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
+import { MembershipFeature } from '@kentslsc/shared';
 import { getApiErrorMessage } from '@/lib/api';
 
 const membershipTypeSchema = z.object({

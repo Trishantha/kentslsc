@@ -387,7 +387,6 @@ export default function DashboardPage() {
 
   const {
     data: membership,
-    isLoading,
     error
   } = useQuery<MembershipResponse | null>({
     queryKey: ['my-membership'],

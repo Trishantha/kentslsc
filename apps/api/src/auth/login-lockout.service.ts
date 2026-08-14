@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'crypto';
 import { AuthEventType } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 

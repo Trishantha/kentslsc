@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, Target, Calendar, TrendingUp } from 'lucide-react';
+import { Users, Calendar, TrendingUp } from 'lucide-react';
 
 interface Props {
   raisedAmount: number;

@@ -32,7 +32,6 @@ const permissionList = Object.entries(permissionLabels).map(
 
 export default function AdminUsersPage() {
   const { data: currentUser } = useAuth();
-  const queryClient = useQueryClient();
   const [role, setRole] = useState('ALL');
   const [page] = useState(1);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);

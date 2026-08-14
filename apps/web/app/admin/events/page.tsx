@@ -1,13 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { Plus, Loader2, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import { EventsList } from './EventsList';
-import { EventCategory, eventCategoryLabels } from '@kentslsc/shared';
+import { EventCategory } from '@kentslsc/shared';
 
 export interface AdminEvent {
   id: string;

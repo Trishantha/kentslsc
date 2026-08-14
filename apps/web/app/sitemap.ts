@@ -31,11 +31,6 @@ interface Fundraiser {
   updatedAt: string;
 }
 
-interface ForumCategory {
-  id: string;
-  updatedAt: string;
-}
-
 async function fetchJson<T>(path: string): Promise<T | null> {
   const apiUrl = await getServerApiUrl();
   const res = await fetchWithRetry(`${apiUrl}/api${path}`, { next: { revalidate: 86400 } });
@@ -87,8 +82,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     fetchJson<Business[]>('/directory/businesses'),
     fetchJson<Fundraiser[]>('/fundraisers')
   ]);
-
-  const now = new Date();
 
   const pageItems = asArray(pages);
   const blogItems = asArray(blogPosts);

@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +15,6 @@ import {
 } from '@kentslsc/shared';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { useHasFeature } from '@/hooks/useFeatures';
 import { formatDate } from '@/lib/utils';
 import { Search, MapPin, Briefcase, Plus, Crown, Loader2, Lock } from 'lucide-react';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -65,10 +63,8 @@ const categorySelectGroups = directoryCategoryGroups.map((group) => ({
 
 export default function DirectoryPage() {
   const t = useTranslations('directory');
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: user } = useAuth();
-  const canListDirectory = useHasFeature(MembershipFeature.DIRECTORY_LISTING);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');

@@ -9,7 +9,6 @@ import { useTranslations } from 'next-intl';
 import { loginSchema, LoginInput } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { isAxiosError } from 'axios';
-import { AuthUser } from '@/hooks/useAuth';
 import { safeRedirect } from '@/lib/safe-redirect';
 
 export default function LoginPage() {

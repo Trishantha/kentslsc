@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Trophy, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, Trophy, Clock, WifiOff } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface Donation {

@@ -452,7 +452,7 @@ export class FundraisingService {
   }
 
   private async checkMilestones(
-    fundraiserId: string,
+    _fundraiserId: string,
     prevRaised: number,
     newRaised: number,
     targetAmount: number,

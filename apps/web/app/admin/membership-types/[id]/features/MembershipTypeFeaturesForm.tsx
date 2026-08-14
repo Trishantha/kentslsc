@@ -6,7 +6,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2, Save, Check } from 'lucide-react';
-import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
+import { MembershipFeature } from '@kentslsc/shared';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type { AdminMembershipType } from '../../types';
 
