@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2, Trash2, MessageSquareWarning } from 'lucide-react';
 import { api } from '@/lib/api';
+import { AdminListLayout } from '@/components/admin/AdminListLayout';
 
 interface ForumTopic {
   id: string;
@@ -51,11 +52,32 @@ export default function AdminForumPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'forum', 'flagged'] })
   });
 
+  const topicCount = data?.topics.length ?? 0;
+  const postCount = data?.posts.length ?? 0;
+
   return (
-    <div>
-      <h1 className="section-title">Forum Moderation</h1>
-      <p className="mt-2 text-slate-600 dark:text-slate-400">Review and remove flagged topics and posts.</p>
-      <div className="mt-6 space-y-6">
+    <AdminListLayout
+      title="Forum Moderation"
+      description="Review and remove flagged topics and posts."
+    >
+      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+        <div className="glass-card flex items-center gap-3 p-4">
+          <MessageSquareWarning className="h-6 w-6 text-red-400" />
+          <div>
+            <p className="text-2xl font-bold">{topicCount}</p>
+            <p className="text-xs text-slate-500">Flagged topics</p>
+          </div>
+        </div>
+        <div className="glass-card flex items-center gap-3 p-4">
+          <MessageSquareWarning className="h-6 w-6 text-amber-400" />
+          <div>
+            <p className="text-2xl font-bold">{postCount}</p>
+            <p className="text-xs text-slate-500">Flagged posts</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-neon-blue" />
@@ -136,6 +158,6 @@ export default function AdminForumPage() {
           </>
         )}
       </div>
-    </div>
+    </AdminListLayout>
   );
 }
