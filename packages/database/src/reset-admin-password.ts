@@ -12,30 +12,8 @@
 import { AuthEventType } from '../dist/client/index.js';
 import bcrypt from 'bcrypt';
 
-/**
- * This project uses Supabase's transaction pooler for hosted/runtime access,
- * which is reachable on port 6543. Keep that URL intact so Prisma can connect
- * from environments that cannot reach the direct Postgres port 5432.
- */
-function normalizeDatabaseUrl() {
-  const url = process.env.DATABASE_URL;
-  if (!url) return;
-
-  try {
-    const u = new URL(url);
-    if (u.hostname.endsWith('.supabase.co') && u.port === '5432') {
-      u.port = '6543';
-      if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
-      if (!u.searchParams.has('connection_limit')) u.searchParams.set('connection_limit', '1');
-      process.env.DATABASE_URL = u.toString();
-    }
-  } catch {
-    // Leave an invalid/unparseable DATABASE_URL as-is so Prisma reports it cleanly.
-  }
-}
-
-normalizeDatabaseUrl();
 const { prisma } = await import('./prisma.js');
+
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim();
