@@ -100,14 +100,22 @@ function runMigrations() {
   console.log('Running database migrations...');
   const result = spawnSync(prismaBinary, ['migrate', 'deploy', '--schema', schemaPath], {
     cwd: rootDir,
-    stdio: 'inherit',
+    stdio: 'pipe',
     env: process.env
   });
 
+  if (result.stdout) {
+    console.log(result.stdout.toString());
+  }
+  if (result.stderr) {
+    console.error(result.stderr.toString());
+  }
+
   if (result.status !== 0) {
     throw new Error(
-      `Database migration failed with exit code ${result.status ?? 'unknown'}. ` +
-        'Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
+      `Database migration failed with exit code ${result.status ?? 'unknown'}` +
+        (result.signal ? ` (signal: ${result.signal})` : '') +
+        '. Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
     );
   }
 
