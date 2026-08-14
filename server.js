@@ -166,12 +166,31 @@ function findAvailableLocalPort(startPort) {
   });
 }
 
+function checkBuildArtifacts() {
+  return {
+    apiBuilt: fs.existsSync(path.join(apiDir, 'dist', 'main.js')),
+    webBuilt: fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'))
+  };
+}
+
 async function ensureBuilt() {
-  const apiBuilt = fs.existsSync(path.join(apiDir, 'dist', 'main.js'));
-  const webBuilt = fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'));
+  const { apiBuilt, webBuilt } = checkBuildArtifacts();
 
   if (apiBuilt && webBuilt) {
     return;
+  }
+
+  const skipAutoBuild = process.env.SKIP_AUTO_BUILD === 'true' || process.env.SKIP_AUTO_BUILD === '1';
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (skipAutoBuild || isProduction) {
+    const missing = [!apiBuilt && 'apps/api/dist/main.js', !webBuilt && 'apps/web/.next/BUILD_ID']
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(
+      `Missing required build artifacts: ${missing}. ` +
+      'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to build on startup.'
+    );
   }
 
   console.log('Missing build artifacts. Running project build before startup...');
@@ -189,8 +208,7 @@ async function ensureBuilt() {
     );
   }
 
-  const apiBuiltAfterBuild = fs.existsSync(path.join(apiDir, 'dist', 'main.js'));
-  const webBuiltAfterBuild = fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'));
+  const { apiBuilt: apiBuiltAfterBuild, webBuilt: webBuiltAfterBuild } = checkBuildArtifacts();
 
   if (!apiBuiltAfterBuild || !webBuiltAfterBuild) {
     throw new Error(
@@ -462,6 +480,20 @@ function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
 
+    // Respond to platform/health probes immediately so the host does not
+    // restart the process while the API and web handlers are still warming up.
+    if (urlPath === '/health' || urlPath === '/api/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(
+        JSON.stringify({
+          status: isUpstreamReady ? 'up' : 'warming_up',
+          uptime: process.uptime(),
+          ready: isUpstreamReady
+        })
+      );
+      return;
+    }
+
     if (!isUpstreamReady) {
       res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Service warming up', detail: 'Upstreams are still starting' }));
@@ -675,7 +707,8 @@ module.exports = {
   loadEnvironmentFiles,
   normalizeRequestPath,
   resolveProxyProtocol,
-  resolveForwardedProto
+  resolveForwardedProto,
+  startProxyServer
 };
 
 const isDirectCliEntry = process.argv[1] && path.resolve(process.argv[1]) === __filename;
