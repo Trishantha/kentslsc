@@ -141,6 +141,26 @@ function runMigrations() {
   }
   console.log('Prisma CLI is executable.');
 
+  // The 20260813150000_add_contact_consent migration was previously run against
+  // a database that already had the consent column, leaving it in a failed state.
+  // Mark it as applied so the remaining migrations can continue.
+  console.log('Resolving any previously failed contact_consent migration...');
+  const resolveResult = spawnSync(
+    nodeCommand,
+    [prismaEntry, 'migrate', 'resolve', '--applied', '20260813150000_add_contact_consent', '--schema', schemaPath],
+    {
+      cwd: rootDir,
+      stdio: 'pipe',
+      env: process.env
+    }
+  );
+  if (resolveResult.stdout) {
+    console.log(resolveResult.stdout.toString());
+  }
+  if (resolveResult.stderr) {
+    console.error(resolveResult.stderr.toString());
+  }
+
   console.log('Running database migrations...');
   const result = spawnSync(nodeCommand, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
     cwd: rootDir,
