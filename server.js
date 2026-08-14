@@ -879,6 +879,7 @@ async function startInProcessWeb() {
   // Force server-to-API calls inside this process to use the local in-process
   // listener, even if the env file points API_PROXY_TARGET at a public URL.
   process.env.INTERNAL_API_URL = localApiOrigin;
+  console.log(`Server-side API origin forced to local: ${localApiOrigin}`);
   const handlerPath = path.join(webDir, 'server-handler.js');
   // eslint-disable-next-line import/no-dynamic-require
   const webModule = require(handlerPath);

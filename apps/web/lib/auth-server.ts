@@ -43,9 +43,10 @@ export async function getServerSession(): Promise<ServerSession> {
     return (await res.json()) as ServerSession;
   } catch (error) {
     // API unreachable: treat as signed out rather than rendering a member area
-    // we could not authorise. Log it so deployments with container-to-container
+    // we could not authorise. Log the resolved URL so container-to-container
     // reachability issues are diagnosable.
-    console.error('[auth-server] Session check failed:', error);
+    const attemptedUrl = await getInternalApiUrl().catch(() => 'unknown');
+    console.error(`[auth-server] Session check failed (API: ${attemptedUrl}):`, error);
     return { authenticated: false };
   }
 }
