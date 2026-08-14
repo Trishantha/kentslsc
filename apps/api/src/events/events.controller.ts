@@ -138,10 +138,26 @@ export class TicketsController {
     return { ...ticket, qrDataUrl };
   }
 
+  @Get('validate/:qrCodeValue')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  preview(@Param('qrCodeValue') qrCodeValue: string) {
+    return this.eventsService.previewTicket(qrCodeValue);
+  }
+
   @Post('validate')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   validate(@Body() dto: ValidateTicketDto) {
     return this.eventsService.validateTicket(dto.qrCodeValue);
+  }
+
+  @Post(':id/resend')
+  @ApiBearerAuth()
+  resend(
+    @Param('id') ticketId: string,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.eventsService.resendTicketEmail(ticketId, user.sub, user.email);
   }
 }

@@ -24,6 +24,8 @@ interface Event {
   imageUrl?: string;
   isPublished: boolean;
   category: EventCategory;
+  soldCount?: number;
+  remainingCount?: number | null;
 }
 
 interface EventsResponse {
@@ -193,12 +195,27 @@ export default function EventsPage() {
                     <div className="font-medium text-slate-800 dark:text-slate-200">
                       {event.isFree || Number(event.ticketPrice) === 0 ? tCommon('free') : formatCurrency(event.ticketPrice)}
                     </div>
+                    {typeof event.remainingCount === 'number' && (
+                      <div
+                        className={cn(
+                          'text-xs font-medium',
+                          event.remainingCount <= 5 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
+                        )}
+                      >
+                        {event.remainingCount === 0
+                          ? t('soldOut')
+                          : t('remaining', { count: event.remainingCount })}
+                      </div>
+                    )}
                   </div>
                   <Link
                     href={`/events/${event.id}`}
-                    className="btn-primary mt-5 block w-full text-center text-sm"
+                    className={cn(
+                      'btn-primary mt-5 block w-full text-center text-sm',
+                      event.remainingCount === 0 && 'pointer-events-none opacity-60'
+                    )}
                   >
-                    {t('viewDetails')}
+                    {event.remainingCount === 0 ? t('soldOut') : t('viewDetails')}
                   </Link>
                 </div>
               </motion.div>

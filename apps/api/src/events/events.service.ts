@@ -62,15 +62,30 @@ export class EventsService {
       where.startDatetime = { gte: new Date() };
     }
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.event.findMany({
         where,
         orderBy: { startDatetime: 'asc' },
         take: limit,
-        skip: (page - 1) * limit
+        skip: (page - 1) * limit,
+        include: {
+          _count: {
+            select: {
+              tickets: {
+                where: { status: { not: TicketStatus.CANCELLED }, deletedAt: null }
+              }
+            }
+          }
+        }
       }),
       this.prisma.event.count({ where })
     ]);
+
+    const data = rows.map((event) => {
+      const soldCount = event._count.tickets;
+      const remainingCount = event.maxTickets != null ? event.maxTickets - soldCount : null;
+      return { ...event, soldCount, remainingCount };
+    });
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
@@ -100,9 +115,12 @@ export class EventsService {
     const event = await this.prisma.event.findUnique({
       where: { id, deletedAt: null },
       include: {
-        tickets: {
-          where: { status: { not: TicketStatus.CANCELLED }, deletedAt: null },
-          select: { id: true }
+        _count: {
+          select: {
+            tickets: {
+              where: { status: { not: TicketStatus.CANCELLED }, deletedAt: null }
+            }
+          }
         }
       }
     });
@@ -129,7 +147,17 @@ export class EventsService {
   }
 
   async update(id: string, dto: UpdateEventDto) {
-    await this.findById(id);
+    const current = await this.findById(id);
+    if (dto.maxTickets !== undefined && dto.maxTickets != null) {
+      const sold = await this.prisma.ticket.count({
+        where: { eventId: id, status: { not: TicketStatus.CANCELLED }, deletedAt: null }
+      });
+      if (sold > dto.maxTickets) {
+        throw new BadRequestException(
+          `Cannot set max tickets below the ${sold} tickets already sold`
+        );
+      }
+    }
     return this.prisma.event.update({
       where: { id },
       data: {
@@ -156,7 +184,7 @@ export class EventsService {
   async getRemainingCapacity(eventId: string) {
     const event = await this.findByIdWithTicketCount(eventId);
     if (!event.maxTickets) return null;
-    return event.maxTickets - event.tickets.length;
+    return event.maxTickets - event._count.tickets;
   }
 
   async createCheckoutSession(userId: string, dto: PurchaseTicketsDto) {
@@ -211,16 +239,25 @@ export class EventsService {
   }
 
   async createTickets(userId: string, eventId: string, quantity: number, paymentId: string, origin: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
     const event = await this.findByIdWithTicketCount(eventId);
-    const remaining = event.maxTickets ? event.maxTickets - event.tickets.length : null;
+    const remaining = event.maxTickets ? event.maxTickets - event._count.tickets : null;
     if (remaining !== null && quantity > remaining) {
       throw new BadRequestException('Not enough tickets remaining');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-
     const tickets = await this.prisma.$transaction(async (tx) => {
+      // Re-check capacity inside the transaction to avoid overselling.
+      const sold = await tx.ticket.count({
+        where: { eventId, status: { not: TicketStatus.CANCELLED }, deletedAt: null }
+      });
+      const txRemaining = event.maxTickets ? event.maxTickets - sold : null;
+      if (txRemaining !== null && quantity > txRemaining) {
+        throw new BadRequestException('Not enough tickets remaining');
+      }
+
       const created: { id: string; qrCodeValue: string; status: string }[] = [];
       for (let i = 0; i < quantity; i++) {
         const ticket = await tx.ticket.create({
@@ -239,9 +276,11 @@ export class EventsService {
     });
 
     const cardUrl = `${origin}/dashboard/tickets`;
-    await this.emailService.sendTicket(user.email, event.title, cardUrl).catch(() => {
-      // Log and continue if email fails
-    });
+    await this.emailService
+      .sendTicket(user.email, event.title, cardUrl, tickets)
+      .catch(() => {
+        // Log and continue if email fails
+      });
 
     return tickets;
   }
@@ -263,8 +302,36 @@ export class EventsService {
     return ticket;
   }
 
+  async resendTicketEmail(ticketId: string, userId: string, email: string) {
+    const ticket = await this.getTicketForUser(ticketId, userId);
+    if (ticket.status === TicketStatus.CANCELLED) {
+      throw new BadRequestException('Ticket has been cancelled');
+    }
+    if (!ticket.event) {
+      throw new NotFoundException('Event not found');
+    }
+    const origin = this.configService.get('FRONTEND_URL', { infer: true });
+    const cardUrl = `${origin}/dashboard/tickets`;
+    await this.emailService.sendTicket(email, ticket.event.title, cardUrl, [
+      { id: ticket.id, qrCodeValue: ticket.qrCodeValue }
+    ]);
+    return { sent: true };
+  }
+
   async generateQrDataUrl(qrCodeValue: string) {
     return QRCode.toDataURL(qrCodeValue, { width: 256, margin: 2 });
+  }
+
+  async previewTicket(qrCodeValue: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { qrCodeValue, deletedAt: null },
+      include: {
+        event: true,
+        user: { select: { id: true, name: true, email: true } }
+      }
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket;
   }
 
   async validateTicket(qrCodeValue: string) {

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "site_settings" (
   "youtube" text,
   "linkedin" text,
   "tiktok" text,
+  "show_page_loader" BOOLEAN DEFAULT true,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now()
 );

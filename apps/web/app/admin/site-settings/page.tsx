@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Globe, Mail, Phone, MessageCircle, MapPin, ToggleLeft } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
 import { siteSettingsSchema, type SiteSettingsInput } from '@kentslsc/shared';
 
@@ -31,6 +31,7 @@ const socialFields: { id: keyof SiteSettingsInput; label: string; icon: React.El
 
 export default function AdminSiteSettingsPage() {
   const queryClient = useQueryClient();
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<SiteSettings>({
     queryKey: ['site-settings'],
@@ -83,11 +84,15 @@ export default function AdminSiteSettingsPage() {
 
   const mutation = useMutation({
     mutationFn: async (payload: SiteSettingsInput) => {
+      setSaveError(null);
       const { data } = await api.put('/site-settings', payload);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-settings'] });
+    },
+    onError: (err: unknown) => {
+      setSaveError(getApiErrorMessage(err));
     }
   });
 
@@ -218,6 +223,12 @@ export default function AdminSiteSettingsPage() {
             )}
           />
         </div>
+
+        {saveError && (
+          <div className="rounded-xl bg-rose-500/10 p-3 text-sm text-rose-600 dark:text-rose-400 lg:col-span-2">
+            {saveError}
+          </div>
+        )}
 
         <div className="lg:col-span-2">
           <button

@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { Link } from '@/i18n/routing';
+import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared';
 import type { ContactBlock } from '@kentslsc/shared';
 
 interface Props {
@@ -16,31 +19,47 @@ interface Props {
 export default function ContactBlockComponent({ block }: Props) {
   const { title, content } = block;
   const t = useTranslations('contactBlock');
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    subject: '',
-    message: '',
-    website: '',
-    consent: false
-  });
   const [sent, setSent] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors }
+  } = useForm<ContactMessageInput>({
+    resolver: zodResolver(contactMessageSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      subject: '',
+      message: '',
+      website: '',
+      consent: false
+    }
+  });
+
+  const consent = watch('consent');
 
   const mutation = useMutation({
-    mutationFn: async (payload: typeof form) => {
+    mutationFn: async (payload: ContactMessageInput) => {
       await api.post('/contact', payload);
     },
     onSuccess: () => {
       setSent(true);
-      setForm({ name: '', email: '', phone: '', subject: '', message: '', website: '', consent: false });
+      setSubmitError(null);
+      reset();
+    },
+    onError: (err: unknown) => {
+      setSubmitError(getApiErrorMessage(err) ?? 'Something went wrong. Please try again.');
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.consent) return;
-    mutation.mutate(form);
+  const onSubmit = (data: ContactMessageInput) => {
+    setSubmitError(null);
+    mutation.mutate(data);
   };
 
   return (
@@ -59,45 +78,51 @@ export default function ContactBlockComponent({ block }: Props) {
             {t('successMessage')}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder={t('namePlaceholder')}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
-              />
-              <input
-                required
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder={t('emailPlaceholder')}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
-              />
+              <div>
+                <input
+                  {...register('name')}
+                  placeholder={t('namePlaceholder')}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
+                />
+                {errors.name && <p className="mt-1 text-xs text-rose-500">{errors.name.message}</p>}
+              </div>
+              <div>
+                <input
+                  type="email"
+                  {...register('email')}
+                  placeholder={t('emailPlaceholder')}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
+                />
+                {errors.email && <p className="mt-1 text-xs text-rose-500">{errors.email.message}</p>}
+              </div>
             </div>
-            <input
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder={t('phonePlaceholder')}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
-            />
-            <input
-              required
-              value={form.subject}
-              onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              placeholder={t('subjectPlaceholder')}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
-            />
-            <textarea
-              required
-              value={form.message}
-              onChange={(e) => setForm({ ...form, message: e.target.value })}
-              placeholder={t('messagePlaceholder')}
-              rows={5}
-              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
-            />
+            <div>
+              <input
+                {...register('phone')}
+                placeholder={t('phonePlaceholder')}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
+              />
+              {errors.phone && <p className="mt-1 text-xs text-rose-500">{errors.phone.message}</p>}
+            </div>
+            <div>
+              <input
+                {...register('subject')}
+                placeholder={t('subjectPlaceholder')}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
+              />
+              {errors.subject && <p className="mt-1 text-xs text-rose-500">{errors.subject.message}</p>}
+            </div>
+            <div>
+              <textarea
+                {...register('message')}
+                placeholder={t('messagePlaceholder')}
+                rows={5}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-neon-blue dark:border-white/10 dark:bg-white/5"
+              />
+              {errors.message && <p className="mt-1 text-xs text-rose-500">{errors.message.message}</p>}
+            </div>
 
             {/* Honeypot: hidden from real users, bots usually fill it. */}
             <div className="sr-only" aria-hidden="true">
@@ -106,8 +131,7 @@ export default function ContactBlockComponent({ block }: Props) {
                 id="website"
                 tabIndex={-1}
                 autoComplete="off"
-                value={form.website}
-                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                {...register('website')}
                 className="h-0 w-0"
               />
             </div>
@@ -116,9 +140,7 @@ export default function ContactBlockComponent({ block }: Props) {
               <input
                 id="consent"
                 type="checkbox"
-                required
-                checked={form.consent}
-                onChange={(e) => setForm({ ...form, consent: e.target.checked })}
+                {...register('consent')}
                 className="mt-1 h-4 w-4 rounded border-slate-300 text-neon-blue focus:ring-neon-blue dark:border-white/10"
               />
               <label htmlFor="consent" className="text-sm text-slate-700 dark:text-slate-300">
@@ -128,10 +150,17 @@ export default function ContactBlockComponent({ block }: Props) {
                 </Link>
               </label>
             </div>
+            {errors.consent && <p className="text-xs text-rose-500">{errors.consent.message}</p>}
+
+            {submitError && (
+              <div className="rounded-xl bg-rose-500/10 p-3 text-sm text-rose-600 dark:text-rose-400">
+                {submitError}
+              </div>
+            )}
 
             <button
               type="submit"
-              disabled={!form.consent || mutation.isPending}
+              disabled={!consent || mutation.isPending}
               className="btn-primary w-full disabled:opacity-60"
             >
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

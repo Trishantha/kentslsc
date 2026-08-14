@@ -17,7 +17,7 @@ export const contactHoneypotSchema = z.object({
 });
 
 export const updateContactStatusSchema = z.object({
-  handledStatus: z.enum(['new', 'in_progress', 'resolved'])
+  handledStatus: z.enum(['NEW', 'IN_PROGRESS', 'RESOLVED'])
 });
 
 export type ContactMessageInput = z.infer<typeof contactMessageSchema>;

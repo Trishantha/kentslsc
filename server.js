@@ -127,12 +127,27 @@ async function ensureBuilt() {
   );
 }
 
+function getHeaderValue(value) {
+  if (Array.isArray(value)) {
+    return getHeaderValue(value[0]);
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed.split(',')[0].trim();
+}
+
 function resolveProxyProtocol(targetBaseUrl, req = {}) {
   const target = new URL(targetBaseUrl);
   const incomingHost = Array.isArray(req.headers?.host) ? req.headers.host[0] : req.headers?.host;
-  const incomingProto = Array.isArray(req.headers?.['x-forwarded-proto'])
-    ? req.headers['x-forwarded-proto'][0]
-    : req.headers?.['x-forwarded-proto'];
+  const incomingProto = getHeaderValue(req.headers?.['x-forwarded-proto']);
   const isLocalHost = (value) => Boolean(value) && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(value);
 
   if (isLocalHost(incomingHost) || target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
@@ -145,9 +160,7 @@ function resolveProxyProtocol(targetBaseUrl, req = {}) {
 function resolveForwardedProto(req, targetBaseUrl, origin = frontendOrigin) {
   const target = new URL(targetBaseUrl);
   const incomingHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
-  const incomingProto = Array.isArray(req.headers['x-forwarded-proto'])
-    ? req.headers['x-forwarded-proto'][0]
-    : req.headers['x-forwarded-proto'];
+  const incomingProto = getHeaderValue(req.headers['x-forwarded-proto']);
   const isLocalHost = (value) => Boolean(value) && /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(value);
 
   if (isLocalHost(incomingHost) || target.hostname === '127.0.0.1' || target.hostname === 'localhost') {
@@ -591,7 +604,7 @@ module.exports = {
   resolveForwardedProto
 };
 
-if (process.env.NODE_ENV !== 'test') {
+if (require.main === module) {
   (async () => {
     try {
       await ensureBuilt();

@@ -233,6 +233,9 @@ importers:
       framer-motion:
         specifier: ^13.0.0
         version: 13.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      html5-qrcode:
+        specifier: ^2.3.8
+        version: 2.3.8
       lucide-react:
         specifier: ^1.30.0
         version: 1.30.0(react@18.3.1)
@@ -3385,6 +3388,9 @@ packages:
 
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
+
+  html5-qrcode@2.3.8:
+    resolution: {integrity: sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ==}
 
   htmlparser2@10.1.0:
     resolution: {integrity: sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==}
@@ -8584,6 +8590,8 @@ snapshots:
   helmet@8.3.0: {}
 
   html-escaper@2.0.2: {}
+
+  html5-qrcode@2.3.8: {}
 
   htmlparser2@10.1.0:
     dependencies:

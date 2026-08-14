@@ -17,3 +17,18 @@ test('resolveProxyProtocol keeps local loopback upstreams on HTTP', () => {
     'https'
   );
 });
+
+test('resolveProxyProtocol honors comma-separated forwarded protocols', () => {
+  assert.equal(
+    resolveProxyProtocol('https://example.com/en', {
+      headers: { host: 'example.com', 'x-forwarded-proto': 'https,http' }
+    }),
+    'https'
+  );
+  assert.equal(
+    resolveProxyProtocol('http://127.0.0.1:3101/en', {
+      headers: { host: 'localhost:3101', 'x-forwarded-proto': 'https,http' }
+    }),
+    'http'
+  );
+});

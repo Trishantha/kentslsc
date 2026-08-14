@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
+import QRCode from 'qrcode';
 
 /** Names are user-supplied and land in an HTML body. */
 function escapeHtml(value: string): string {
@@ -23,7 +24,7 @@ export class EmailService {
     const host = configService.get<string>('EMAIL_HOST');
     const user = configService.get<string>('EMAIL_USER');
     const pass = configService.get<string>('EMAIL_PASS');
-    const from = configService.get<string>('EMAIL_FROM');
+    const from = configService.get<string>('EMAIL_FROM') || user;
 
     if (host && user && pass && from) {
       this.from = from;
@@ -34,8 +35,10 @@ export class EmailService {
         auth: { user, pass }
       });
     } else {
-      const message =
-        'Email is not configured (EMAIL_HOST, EMAIL_USER, EMAIL_PASS, EMAIL_FROM). Emails will be logged but not sent.';
+      const missing = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS', 'EMAIL_FROM'].filter(
+        (key) => !configService.get<string>(key)
+      );
+      const message = `Email is not configured (${missing.join(', ')}). Emails will be logged but not sent.`;
       if (process.env.NODE_ENV === 'production') {
         this.logger.error(
           `${message} In production this means verification and password-reset emails are silently dropped.`
@@ -124,11 +127,43 @@ export class EmailService {
     });
   }
 
-  async sendTicket(email: string, eventTitle: string, cardUrl?: string) {
+  async sendTicket(
+    email: string,
+    eventTitle: string,
+    cardUrl: string,
+    tickets: { id: string; qrCodeValue: string }[] = []
+  ) {
+    const attachments: Mail.Attachment[] = [];
+    const ticketItems: string[] = [];
+
+    for (const [index, ticket] of tickets.entries()) {
+      const dataUrl = await QRCode.toDataURL(ticket.qrCodeValue, { width: 256, margin: 2 });
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+      const cid = `ticket-qr-${ticket.id}`;
+      attachments.push({
+        filename: `ticket-${index + 1}.png`,
+        content: Buffer.from(base64, 'base64'),
+        cid
+      });
+      ticketItems.push(
+        `<div style="margin-bottom: 24px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center;">
+          <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Ticket ${index + 1} of ${tickets.length}</p>
+          <img src="cid:${cid}" alt="Ticket QR code" style="width: 160px; height: 160px;" />
+          <p style="margin: 8px 0 0; font-family: monospace; font-size: 12px; color: #94a3b8;">${ticket.qrCodeValue}</p>
+        </div>`
+      );
+    }
+
     return this.send({
       to: email,
-      subject: `Your ticket for ${eventTitle}`,
-      html: `<p>Thank you for your purchase. Your ticket is attached.</p>${cardUrl ? `<p><a href="${cardUrl}">View ticket</a></p>` : ''}`
+      subject: tickets.length > 1 ? `Your tickets for ${eventTitle}` : `Your ticket for ${eventTitle}`,
+      attachments,
+      html: `
+        <p>Thank you for your purchase for <strong>${escapeHtml(eventTitle)}</strong>.</p>
+        ${ticketItems.length ? ticketItems.join('') : '<p>Your tickets are available in your dashboard.</p>'}
+        <p><a href="${cardUrl}">View your tickets in the dashboard</a></p>
+        <p style="font-size: 12px; color: #64748b;">Show the QR code at the entrance. Each code can only be used once.</p>
+      `
     });
   }
 

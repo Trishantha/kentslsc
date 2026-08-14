@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, MapPin, TicketCheck, TicketX } from 'lucide-react';
+import { Calendar, MapPin, TicketCheck, TicketX, Mail, Loader2, CheckCircle } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
+import { api, getApiErrorMessage } from '@/lib/api';
 
 export interface TicketCardProps {
   ticket: {
@@ -22,6 +25,23 @@ export interface TicketCardProps {
 
 export function TicketCard({ ticket }: TicketCardProps) {
   const isValid = ticket.status === 'VALID';
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const resend = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<{ sent: boolean }>(`/tickets/${ticket.id}/resend`);
+      return data;
+    },
+    onSuccess: () => {
+      setEmailStatus('sent');
+      setEmailError(null);
+    },
+    onError: (err: unknown) => {
+      setEmailStatus('error');
+      setEmailError(getApiErrorMessage(err));
+    }
+  });
 
   return (
     <div className="glass-card overflow-hidden">
@@ -63,6 +83,28 @@ export function TicketCard({ ticket }: TicketCardProps) {
           <p className="pt-2 text-xs text-slate-500 dark:text-slate-500">
             Show this QR code at the entrance. Each code can only be used once.
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (emailStatus === 'sending') return;
+              setEmailStatus('sending');
+              resend.mutate();
+            }}
+            disabled={emailStatus === 'sending' || !isValid}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-neon-blue/10 px-3 py-2 text-sm font-medium text-neon-blue hover:bg-neon-blue/20 disabled:opacity-50"
+          >
+            {emailStatus === 'sending' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : emailStatus === 'sent' ? (
+              <CheckCircle className="h-4 w-4" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            {emailStatus === 'sent' ? 'Ticket emailed' : 'Email this ticket'}
+          </button>
+          {emailStatus === 'error' && emailError && (
+            <p className="mt-2 text-xs text-rose-500">{emailError}</p>
+          )}
         </div>
       </div>
     </div>

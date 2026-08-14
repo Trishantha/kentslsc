@@ -22,7 +22,7 @@ export const envValidationSchema = z.object({
   EMAIL_PORT: z.coerce.number().default(587),
   EMAIL_USER: z.string().optional(),
   EMAIL_PASS: z.string().optional(),
-  EMAIL_FROM: z.string().email().optional().or(z.literal('')),
+  EMAIL_FROM: z.string().email().optional(),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   ADMIN_SECRET: z.string().optional(),
   // Emergency admin recovery. Set only when you need to reset the admin password
