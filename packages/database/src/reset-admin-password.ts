@@ -13,18 +13,17 @@ import { AuthEventType } from '../dist/client/index.js';
 import bcrypt from 'bcrypt';
 
 /**
- * CLI recovery often runs from developer machines that cannot reach Supabase's
- * direct Postgres port (5432). The transaction pooler (6543) is reachable from
- * anywhere, so fall back to it automatically when the direct URL is supplied.
- * This does not mutate the .env file — it only changes the URL in-memory for this
- * one-off run.
+ * This project uses Supabase's transaction pooler for hosted/runtime access,
+ * which is reachable on port 6543. Keep that URL intact so Prisma can connect
+ * from environments that cannot reach the direct Postgres port 5432.
  */
-function ensurePoolerUrl() {
+function normalizeDatabaseUrl() {
   const url = process.env.DATABASE_URL;
   if (!url) return;
+
   try {
     const u = new URL(url);
-    if (u.port === '5432' && u.hostname.endsWith('.supabase.co')) {
+    if (u.hostname.endsWith('.supabase.co') && u.port === '5432') {
       u.port = '6543';
       if (!u.searchParams.has('pgbouncer')) u.searchParams.set('pgbouncer', 'true');
       if (!u.searchParams.has('connection_limit')) u.searchParams.set('connection_limit', '1');
@@ -35,7 +34,7 @@ function ensurePoolerUrl() {
   }
 }
 
-ensurePoolerUrl();
+normalizeDatabaseUrl();
 const { prisma } = await import('./prisma.js');
 
 async function main() {
