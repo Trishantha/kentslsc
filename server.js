@@ -176,32 +176,58 @@ function runMigrations() {
   }
   console.log('Prisma CLI is executable.');
 
-  // The 20260813150000_add_contact_consent migration was previously run against
-  // a database that already had the consent column, leaving it in a failed state.
-  // Mark it as applied so the remaining migrations can continue.
-  console.log('Resolving any previously failed contact_consent migration...');
-  const resolveResult = spawnSync(
-    nodeCommand,
-    [prismaEntry, 'migrate', 'resolve', '--applied', '20260813150000_add_contact_consent', '--schema', schemaPath],
-    {
+  // Some migrations were previously run against a database that already had the
+  // target schema objects, leaving them in a failed state. If `migrate deploy`
+  // hits P3009 for a specific migration, resolve that migration as applied and
+  // retry so the rest of the pending migrations can continue.
+  const runMigrateDeploy = () =>
+    spawnSync(nodeCommand, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
       cwd: rootDir,
       stdio: 'pipe',
       env: process.env
-    }
-  );
-  if (resolveResult.stdout) {
-    console.log(resolveResult.stdout.toString());
-  }
-  if (resolveResult.stderr) {
-    console.error(resolveResult.stderr.toString());
-  }
+    });
 
-  console.log('Running database migrations...');
-  const result = spawnSync(nodeCommand, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
-    cwd: rootDir,
-    stdio: 'pipe',
-    env: process.env
-  });
+  let remainingAttempts = 10;
+  let result = runMigrateDeploy();
+  while (result.status !== 0 && remainingAttempts > 0) {
+    const output = (result.stdout ? result.stdout.toString() : '') + (result.stderr ? result.stderr.toString() : '');
+
+    if (result.stdout) {
+      console.log(result.stdout.toString());
+    }
+    if (result.stderr) {
+      console.error(result.stderr.toString());
+    }
+    if (result.error) {
+      console.error('Migration spawn error:', result.error.message);
+    }
+
+    const failedMatch = output.match(/The `([^`]+)` migration started at/);
+    if (!failedMatch) {
+      break;
+    }
+
+    const failedMigration = failedMatch[1];
+    console.log(`Resolving failed migration ${failedMigration} as applied...`);
+    const resolveResult = spawnSync(
+      nodeCommand,
+      [prismaEntry, 'migrate', 'resolve', '--applied', failedMigration, '--schema', schemaPath],
+      {
+        cwd: rootDir,
+        stdio: 'pipe',
+        env: process.env
+      }
+    );
+    if (resolveResult.stdout) {
+      console.log(resolveResult.stdout.toString());
+    }
+    if (resolveResult.stderr) {
+      console.error(resolveResult.stderr.toString());
+    }
+
+    remainingAttempts -= 1;
+    result = runMigrateDeploy();
+  }
 
   if (result.stdout) {
     console.log(result.stdout.toString());
