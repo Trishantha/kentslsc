@@ -604,7 +604,9 @@ module.exports = {
   resolveForwardedProto
 };
 
-if (require.main === module) {
+const isDirectCliEntry = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+
+if (isDirectCliEntry && process.env.NODE_ENV !== 'test') {
   (async () => {
     try {
       await ensureBuilt();
