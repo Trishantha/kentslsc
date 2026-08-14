@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
@@ -10,6 +10,58 @@ const rootDir = __dirname;
 const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
 const nodeCommand = process.execPath;
+
+function parseDotEnvValue(rawValue) {
+  const value = rawValue.trim();
+  if (!value || value === '""' || value === "''") {
+    return '';
+  }
+
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+
+  return value.replace(/\s+#.*$/, '').trim();
+}
+
+function loadDotEnvFile(filePath, { override = false } = {}) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return;
+  }
+
+  const fileContents = fs.readFileSync(filePath, 'utf8');
+  for (const line of fileContents.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const match = trimmed.match(/^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)$/) || trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) {
+      continue;
+    }
+
+    const [, key, rawValue] = match;
+    if (override || typeof process.env[key] === 'undefined') {
+      process.env[key] = parseDotEnvValue(rawValue);
+    }
+  }
+}
+
+function loadEnvironmentFiles() {
+  const envFiles = [
+    process.env.ENV_FILE,
+    process.env.NODE_ENV === 'production' ? path.join(rootDir, '.env.hostinger.production') : null,
+    path.join(rootDir, '.env'),
+    path.join(rootDir, 'apps', 'web', '.env.local')
+  ].filter(Boolean);
+
+  for (const filePath of envFiles) {
+    loadDotEnvFile(filePath, { override: false });
+  }
+}
+
+loadEnvironmentFiles();
 
 const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
@@ -122,9 +174,29 @@ async function ensureBuilt() {
     return;
   }
 
-  throw new Error(
-    'Missing build artifacts. Ensure deployment runs the build step before starting server.js.'
-  );
+  console.log('Missing build artifacts. Running project build before startup...');
+
+  const corepackCommand = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
+  const result = spawnSync(corepackCommand, ['pnpm', 'build'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `Build failed while preparing the app for startup with exit code ${result.status ?? 'unknown'}.`
+    );
+  }
+
+  const apiBuiltAfterBuild = fs.existsSync(path.join(apiDir, 'dist', 'main.js'));
+  const webBuiltAfterBuild = fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'));
+
+  if (!apiBuiltAfterBuild || !webBuiltAfterBuild) {
+    throw new Error(
+      'Build completed but required artifacts are still missing. Check the app build output.'
+    );
+  }
 }
 
 function getHeaderValue(value) {
@@ -599,6 +671,8 @@ async function startServices() {
 }
 
 module.exports = {
+  loadDotEnvFile,
+  loadEnvironmentFiles,
   normalizeRequestPath,
   resolveProxyProtocol,
   resolveForwardedProto

@@ -1,7 +1,24 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
-const { resolveProxyProtocol } = require('./server.js');
+const { loadDotEnvFile, resolveProxyProtocol } = require('./server.js');
+
+test('loadDotEnvFile loads environment variables from a .env file', () => {
+  const original = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+
+  try {
+    loadDotEnvFile(path.join(__dirname, '.env'));
+    assert.match(process.env.DATABASE_URL || '', /postgresql:\/\/postgres:/);
+  } finally {
+    if (typeof original === 'undefined') {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = original;
+    }
+  }
+});
 
 test('resolveProxyProtocol keeps local loopback upstreams on HTTP', () => {
   assert.equal(
