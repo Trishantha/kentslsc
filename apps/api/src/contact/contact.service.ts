@@ -50,8 +50,15 @@ export class ContactService {
 
       return message;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code =
+        error && typeof error === 'object' && 'code' in error ? String(error.code) : undefined;
+      const meta =
+        error && typeof error === 'object' && 'meta' in error
+          ? JSON.stringify(error.meta)
+          : undefined;
       this.logger.error(
-        `Failed to save contact message: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to save contact message: ${message}${code ? ` (code: ${code})` : ''}${meta ? ` meta: ${meta}` : ''}`
       );
       throw new ServiceUnavailableException(
         'We are unable to save your message right now. Please try again in a few minutes.'

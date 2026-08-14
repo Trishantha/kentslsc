@@ -17,6 +17,7 @@
     "clean": "rm -rf .turbo apps/*/.turbo packages/*/.turbo apps/web/.next apps/api/dist packages/*/dist",
     "db:generate": "corepack pnpm --filter database generate",
     "db:migrate": "corepack pnpm --filter database migrate",
+    "db:migrate:deploy": "corepack pnpm --filter database migrate:deploy:prod",
     "db:seed": "corepack pnpm --filter database seed",
     "db:studio": "corepack pnpm --filter database studio"
   },

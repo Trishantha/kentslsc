@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const http = require('node:http');
 
-const { loadDotEnvFile, resolveProxyProtocol, startProxyServer } = require('./server.js');
+const { loadDotEnvFile, resolveProxyProtocol, runMigrations, startProxyServer } = require('./server.js');
 
 test('loadDotEnvFile loads environment variables from a .env file', () => {
   const original = process.env.DATABASE_URL;
@@ -52,6 +52,33 @@ test('resolveProxyProtocol honors comma-separated forwarded protocols', () => {
     }),
     'http'
   );
+});
+
+test('runMigrations skips when DATABASE_URL is not set', () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  // Should not throw.
+  runMigrations();
+  if (typeof originalDatabaseUrl === 'undefined') {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+});
+
+test('runMigrations skips when SKIP_MIGRATIONS is true', () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalSkipMigrations = process.env.SKIP_MIGRATIONS;
+  process.env.DATABASE_URL = 'postgresql://localhost/test';
+  process.env.SKIP_MIGRATIONS = 'true';
+  // Should not throw.
+  runMigrations();
+  process.env.DATABASE_URL = originalDatabaseUrl;
+  if (typeof originalSkipMigrations === 'undefined') {
+    delete process.env.SKIP_MIGRATIONS;
+  } else {
+    process.env.SKIP_MIGRATIONS = originalSkipMigrations;
+  }
 });
 
 test('startProxyServer health endpoint responds 200 during warmup', async () => {

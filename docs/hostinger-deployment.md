@@ -61,6 +61,14 @@ Start command:
 pnpm --filter @kentslsc/api start:prod
 ```
 
+This command now applies any pending database migrations automatically before starting the API. The first deploy to a fresh database will run all migrations and create the required tables/columns (including the `consent` column on `contact_messages`).
+
+If you need to start the API without running migrations (not recommended in production), use:
+
+```bash
+pnpm --filter @kentslsc/api start:prod:skip-migrations
+```
+
 Required backend environment variables:
 
 ```env
@@ -113,8 +121,28 @@ It does not configure runtime variables for a full Node app. If the deployment i
 2. Create the frontend Node app in Hostinger and point it at `apps/web`.
 3. Create the backend Node app in Hostinger and point it at `apps/api`.
 4. Set the frontend and backend environment variables above.
-5. Run database migrations on the production database.
+5. Verify the backend starts and applies database migrations (check the deployment logs for `Database migrations applied successfully.`).
 6. Point your domain or subdomains to the frontend and API apps.
+
+## Troubleshooting
+
+### Contact form returns "We are unable to save your message right now" (HTTP 503)
+
+The most common cause is a missing database migration. If the `contact_messages` table does not have the `consent` column (added in `20260813150000_add_contact_consent`), the API throws a 503 when trying to save the message.
+
+To fix it:
+
+1. Check that `DATABASE_URL` is set correctly in the backend environment variables.
+2. Restart the backend app so the new `start:prod` command runs `prisma migrate deploy`.
+3. Look for migration output in the backend logs. If you see migration errors, run the migration manually from your local machine or a shell with `DATABASE_URL` set:
+
+   ```bash
+   pnpm --filter @kentslsc/database migrate:deploy:prod
+   ```
+
+### Frontend shows a React hydration warning in the console
+
+Browser extensions such as Grammarly can inject extra DOM nodes into form inputs and cause React hydration warnings. These usually do not prevent the form from submitting; focus on the API response (the 503 above) first.
 
 ## Suggested domain split
 

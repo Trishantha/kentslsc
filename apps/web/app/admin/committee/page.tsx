@@ -5,10 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
-import { Loader2, Pencil, Plus, Trash2, X, Users } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, Pencil, Plus, Trash2, X, Users, Globe, Save } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { revalidateCommitteePages } from './actions';
 
 const committeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -32,7 +33,18 @@ interface CommitteeMember {
 export default function AdminCommitteePage() {
   const [editing, setEditing] = useState<CommitteeMember | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null
+  );
+  const [isPublishing, setIsPublishing] = useState(false);
   const queryClient = useQueryClient();
+
+  const showStatus = (type: 'success' | 'error', message: string) => {
+    setSaveStatus({ type, message });
+    if (type === 'success') {
+      setTimeout(() => setSaveStatus(null), 4000);
+    }
+  };
 
   const {
     register,
@@ -40,7 +52,7 @@ export default function AdminCommitteePage() {
     reset,
     setValue,
     watch,
-    formState: { errors }
+    formState: { errors, isDirty }
   } = useForm<CommitteeForm>({
     resolver: zodResolver(committeeSchema),
     defaultValues: {
@@ -60,6 +72,19 @@ export default function AdminCommitteePage() {
     }
   });
 
+  const publishToWebsite = async () => {
+    setIsPublishing(true);
+    setSubmitError(null);
+    try {
+      await revalidateCommitteePages();
+      showStatus('success', 'Website updated. Changes are now live on the about page.');
+    } catch (err) {
+      showStatus('error', `Could not update website: ${getApiErrorMessage(err)}`);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (values: CommitteeForm) => {
       const res = await api.post('/committee', {
@@ -68,10 +93,16 @@ export default function AdminCommitteePage() {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'committee'] });
       reset();
       setSubmitError(null);
+      try {
+        await revalidateCommitteePages();
+        showStatus('success', 'Member saved and website updated.');
+      } catch {
+        showStatus('error', 'Member saved, but the website could not be refreshed automatically.');
+      }
     },
     onError: (error) => {
       setSubmitError(getApiErrorMessage(error));
@@ -86,11 +117,17 @@ export default function AdminCommitteePage() {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'committee'] });
       setEditing(null);
       reset();
       setSubmitError(null);
+      try {
+        await revalidateCommitteePages();
+        showStatus('success', 'Changes saved and website updated.');
+      } catch {
+        showStatus('error', 'Changes saved, but the website could not be refreshed automatically.');
+      }
     },
     onError: (error) => {
       setSubmitError(getApiErrorMessage(error));
@@ -101,13 +138,20 @@ export default function AdminCommitteePage() {
     mutationFn: async (id: string) => {
       await api.delete(`/committee/${id}`);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'committee'] });
+      try {
+        await revalidateCommitteePages();
+        showStatus('success', 'Member removed and website updated.');
+      } catch {
+        showStatus('error', 'Member removed, but the website could not be refreshed automatically.');
+      }
     }
   });
 
   const onSubmit = (values: CommitteeForm) => {
     setSubmitError(null);
+    setSaveStatus(null);
     if (editing) {
       updateMutation.mutate({ id: editing.id, values });
       return;
@@ -117,6 +161,7 @@ export default function AdminCommitteePage() {
 
   const startEdit = (member: CommitteeMember) => {
     setSubmitError(null);
+    setSaveStatus(null);
     setEditing(member);
     reset({
       name: member.name,
@@ -130,6 +175,7 @@ export default function AdminCommitteePage() {
   const clearEdit = () => {
     setEditing(null);
     setSubmitError(null);
+    setSaveStatus(null);
     reset({
       name: '',
       position: '',
@@ -141,10 +187,44 @@ export default function AdminCommitteePage() {
 
   return (
     <div>
-      <h1 className="section-title">Committee</h1>
-      <p className="mt-2 text-slate-600 dark:text-slate-400">
-        Manage committee member name, position, role key, and photo.
-      </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="section-title">Committee</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-400">
+            Manage committee member name, position, role key, and photo.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={publishToWebsite}
+          disabled={isPublishing}
+          className="btn-primary flex w-full items-center justify-center gap-2 sm:w-auto"
+        >
+          {isPublishing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Globe className="h-4 w-4" />
+          )}
+          {isPublishing ? 'Publishing…' : 'Publish to website'}
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {saveStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={`mt-4 rounded-xl px-4 py-3 text-sm ${
+              saveStatus.type === 'success'
+                ? 'bg-green-500/10 text-green-400'
+                : 'bg-red-500/10 text-red-400'
+            }`}
+          >
+            {saveStatus.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="glass-card p-6 lg:col-span-1">
@@ -219,7 +299,7 @@ export default function AdminCommitteePage() {
             <ImageUpload
               label="Photo"
               value={watch('photoUrl')}
-              onChange={(url) => setValue('photoUrl', url, { shouldValidate: true })}
+              onChange={(url) => setValue('photoUrl', url, { shouldValidate: true, shouldDirty: true })}
               hideUrlInput
             />
 
@@ -227,17 +307,19 @@ export default function AdminCommitteePage() {
 
             <button
               type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={createMutation.isPending || updateMutation.isPending || !isDirty}
               className="btn-primary w-full"
             >
               {createMutation.isPending || updateMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : editing ? (
-                <Pencil className="mr-2 h-4 w-4" />
               ) : (
-                <Plus className="mr-2 h-4 w-4" />
+                <Save className="mr-2 h-4 w-4" />
               )}
-              {editing ? 'Update Member' : 'Add Member'}
+              {createMutation.isPending || updateMutation.isPending
+                ? 'Saving…'
+                : editing
+                  ? 'Save Changes'
+                  : 'Save Member'}
             </button>
           </form>
         </div>

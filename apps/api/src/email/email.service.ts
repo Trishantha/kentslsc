@@ -183,6 +183,23 @@ export class EmailService {
     });
   }
 
+  async sendContactNotification(
+    adminEmail: string,
+    message: { name: string; email: string; phone: string | null; subject: string; message: string }
+  ) {
+    return this.send({
+      to: adminEmail,
+      subject: `New contact message: ${escapeHtml(message.subject)}`,
+      html: `<p>You have received a new message via the Kent SLSC contact form.</p>
+<p><strong>From:</strong> ${escapeHtml(message.name)} &lt;${escapeHtml(message.email)}&gt;</p>
+${message.phone ? `<p><strong>Phone:</strong> ${escapeHtml(message.phone)}</p>` : ''}
+<p><strong>Subject:</strong> ${escapeHtml(message.subject)}</p>
+<p><strong>Message:</strong></p>
+<p>${escapeHtml(message.message).replace(/\n/g, '<br/>')}</p>
+<p>Reply directly to this email to respond to ${escapeHtml(message.name)}.</p>`
+    });
+  }
+
   async sendDonationThankYou(email: string, name: string, campaignTitle: string, amount: number) {
     return this.send({
       to: email,

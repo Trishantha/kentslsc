@@ -12,13 +12,15 @@
     "generate": "dotenv -e ../../.env -- prisma generate",
     "migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:deploy:prod": "prisma migrate deploy",
     "seed": "dotenv -e ../../.env -- tsx src/seed.ts",
     "reset:admin": "dotenv -e ../../.env -- tsx src/reset-admin-password.ts",
     "studio": "dotenv -e ../../.env -- prisma studio",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "@kentslsc/config": "workspace:*",
@@ -26,7 +28,6 @@
     "@types/node": "^26.2.0",
     "bcrypt": "^6.0.0",
     "dotenv-cli": "^11.0.0",
-    "prisma": "^5.22.0",
     "tsx": "^4.23.11",
     "typescript": "^5.9.3"
   }

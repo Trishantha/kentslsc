@@ -63,6 +63,57 @@ function loadEnvironmentFiles() {
 
 loadEnvironmentFiles();
 
+function runMigrations() {
+  if (!process.env.DATABASE_URL || process.env.SKIP_MIGRATIONS === 'true') {
+    console.log(
+      process.env.DATABASE_URL
+        ? 'Skipping database migrations (SKIP_MIGRATIONS=true).'
+        : 'DATABASE_URL is not set; skipping database migrations.'
+    );
+    return;
+  }
+
+  const prismaBinaryCandidates = [
+    path.join(rootDir, 'packages', 'database', 'node_modules', '.bin', 'prisma'),
+    path.join(rootDir, 'node_modules', '.pnpm', 'node_modules', '.bin', 'prisma'),
+    path.join(rootDir, 'node_modules', '.bin', 'prisma')
+  ];
+  const prismaBinary = prismaBinaryCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!prismaBinary) {
+    console.warn(
+      `Prisma CLI not found in any of: ${prismaBinaryCandidates.join(', ')}; skipping migrations.`
+    );
+    return;
+  }
+
+  // Prefer the copied prisma artifacts from the database package build so the
+  // runtime image does not need the source prisma folder.
+  const distSchemaPath = path.join(rootDir, 'packages', 'database', 'dist', 'prisma', 'schema.prisma');
+  const sourceSchemaPath = path.join(rootDir, 'packages', 'database', 'prisma', 'schema.prisma');
+  const schemaPath = fs.existsSync(distSchemaPath) ? distSchemaPath : sourceSchemaPath;
+
+  if (!fs.existsSync(schemaPath)) {
+    console.warn(`Prisma schema not found at ${schemaPath}; skipping migrations.`);
+    return;
+  }
+
+  console.log('Running database migrations...');
+  const result = spawnSync(prismaBinary, ['migrate', 'deploy', '--schema', schemaPath], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `Database migration failed with exit code ${result.status ?? 'unknown'}. ` +
+        'Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
+    );
+  }
+
+  console.log('Database migrations applied successfully.');
+}
+
 const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const host = process.env.HOST || '0.0.0.0';
@@ -654,6 +705,11 @@ async function startServices() {
   // upstreams are ready receive a clear 503 instead of a connection failure.
   const proxyServer = startProxyServer();
 
+  // Apply any pending database migrations before the API starts handling
+  // requests. This prevents runtime errors caused by missing columns (e.g. the
+  // contact form failing because the consent column has not been added yet).
+  runMigrations();
+
   if (apiMode === 'in-process') {
     await startInProcessApi();
   } else if (apiMode === 'unix') {
@@ -708,6 +764,7 @@ module.exports = {
   normalizeRequestPath,
   resolveProxyProtocol,
   resolveForwardedProto,
+  runMigrations,
   startProxyServer
 };
 
