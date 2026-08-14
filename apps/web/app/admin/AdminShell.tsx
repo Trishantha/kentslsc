@@ -20,7 +20,8 @@ import {
   FileText,
   Menu,
   Loader2,
-  Globe
+  Globe,
+  ShieldCheck
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 
@@ -28,6 +29,8 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/hero', label: 'Hero', icon: FileText },
   { href: '/admin/pages', label: 'Pages', icon: FileText },
+  { href: '/admin/policy-documents', label: 'Policy Documents', icon: ShieldCheck },
+  { href: '/admin/gdpr', label: 'GDPR & Privacy', icon: ShieldCheck },
   { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard },
