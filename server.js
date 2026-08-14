@@ -711,9 +711,11 @@ module.exports = {
   startProxyServer
 };
 
-const isDirectCliEntry = process.argv[1] && path.resolve(process.argv[1]) === __filename;
-
-if (isDirectCliEntry && process.env.NODE_ENV !== 'test') {
+// Start the server immediately when this file is loaded. Hostinger's Node.js
+// hosting does not support guards like "if (require.main === module)"; it
+// expects the entry file to call server.listen() without such conditions.
+// Tests can prevent auto-start by setting NODE_ENV=test before requiring this file.
+if (process.env.NODE_ENV !== 'test') {
   (async () => {
     try {
       await ensureBuilt();

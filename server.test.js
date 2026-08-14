@@ -1,3 +1,6 @@
+// Prevent server.js from auto-starting when it is imported by the test runner.
+process.env.NODE_ENV = 'test';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
