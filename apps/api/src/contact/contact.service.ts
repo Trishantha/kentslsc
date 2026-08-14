@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException
+} from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
@@ -6,6 +11,8 @@ import { CreateContactMessageDto } from './dto/create-contact-message.dto.js';
 
 @Injectable()
 export class ContactService {
+  private readonly logger = new Logger(ContactService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
@@ -26,20 +33,29 @@ export class ContactService {
       .answerFaq(`${dto.subject}\n\n${dto.message}`)
       .catch(() => null);
 
-    const message = await this.prisma.contactMessage.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        phone: dto.phone ?? null,
-        subject: dto.subject,
-        message: dto.message,
-        consent: dto.consent,
-        aiFaqResponse
-      }
-    });
+    try {
+      const message = await this.prisma.contactMessage.create({
+        data: {
+          name: dto.name,
+          email: dto.email,
+          phone: dto.phone ?? null,
+          subject: dto.subject,
+          message: dto.message,
+          consent: dto.consent,
+          aiFaqResponse
+        }
+      });
 
-    await this.emailService.sendContactConfirmation(dto.email, dto.name).catch(() => undefined);
+      await this.emailService.sendContactConfirmation(dto.email, dto.name).catch(() => undefined);
 
-    return message;
+      return message;
+    } catch (error) {
+      this.logger.error(
+        `Failed to save contact message: ${error instanceof Error ? error.message : String(error)}`
+      );
+      throw new ServiceUnavailableException(
+        'We are unable to save your message right now. Please try again in a few minutes.'
+      );
+    }
   }
 }

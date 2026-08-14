@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 
 export interface SiteSettingsDto {
@@ -15,25 +15,43 @@ export interface SiteSettingsDto {
   showPageLoader?: boolean;
 }
 
+const DEFAULT_SITE_SETTINGS = {
+  email: 'info@kentslsc.org',
+  phone: '+44 1234 567890',
+  address: 'Kent Sri Lankan Social Club, Community Centre, Maidstone, Kent ME15 9JQ'
+};
+
 @Injectable()
 export class SiteSettingsService {
+  private readonly logger = new Logger(SiteSettingsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async get() {
-    const existing = await this.prisma.siteSettings.findFirst();
-    if (existing) return existing;
+    try {
+      const existing = await this.prisma.siteSettings.findFirst();
+      if (existing) return existing;
 
-    return this.prisma.siteSettings.create({
-      data: {
-        email: 'info@kentslsc.org',
-        phone: '+44 1234 567890',
-        address: 'Kent Sri Lankan Social Club, Community Centre, Maidstone, Kent ME15 9JQ'
-      }
-    });
+      return await this.prisma.siteSettings.create({
+        data: DEFAULT_SITE_SETTINGS
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Unable to read site settings from the database; returning defaults. ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return DEFAULT_SITE_SETTINGS;
+    }
   }
 
   async update(data: SiteSettingsDto) {
     const existing = await this.get();
+    if (!('id' in existing)) {
+      throw new ServiceUnavailableException(
+        'Site settings cannot be updated while the database is unavailable.'
+      );
+    }
     return this.prisma.siteSettings.update({
       where: { id: existing.id },
       data: {

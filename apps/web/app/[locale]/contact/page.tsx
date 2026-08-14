@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { Link } from '@/i18n/routing';
 
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -303,7 +303,9 @@ function ContactPageContent() {
                     )}
 
                     {mutation.isError && (
-                      <p className="text-sm text-rose-500">{t('formError')}</p>
+                      <p className="text-sm text-rose-500">
+                        {getApiErrorMessage(mutation.error) || t('formError')}
+                      </p>
                     )}
 
                     <button
