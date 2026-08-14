@@ -180,6 +180,13 @@ async function runMigrations() {
     // all. Rather than crash the whole unified server, log loudly and continue.
     // Migrations are idempotent, so a skipped check here is safer than a startup
     // death spiral. Operators can set SKIP_MIGRATIONS=true to silence this.
+    if (isResourceError(versionResult.error)) {
+      console.warn(
+        `WARNING: Prisma CLI could not be spawned due to a resource limit (${versionResult.error.code}). ` +
+          'Skipping database migrations and continuing startup. Set SKIP_MIGRATIONS=true to silence this warning.'
+      );
+      return;
+    }
     console.warn(
       'WARNING: Could not verify Prisma CLI executability. Continuing anyway; ' +
         'if migrate deploy fails below, increase available processes or set SKIP_MIGRATIONS=true.'
@@ -253,6 +260,19 @@ async function runMigrations() {
   }
 
   if (result.status !== 0) {
+    // If the migration command could not be spawned due to resource limits, do not
+    // crash the unified server in a loop. On shared hosts the account process cap
+    // is sometimes exhausted during startup. Skipping migrations lets the app serve
+    // traffic; migrations are idempotent and can be applied manually or on the
+    // next deploy when resources are available.
+    if (isResourceError(result.error)) {
+      console.warn(
+        `WARNING: Database migration could not run due to a resource limit (${result.error.code}). ` +
+          'Skipping migrations and continuing startup. Set SKIP_MIGRATIONS=true to silence this warning.'
+      );
+      return;
+    }
+
     throw new Error(
       `Database migration failed with exit code ${result.status ?? 'unknown'}` +
         (result.signal ? ` (signal: ${result.signal})` : '') +
@@ -323,10 +343,10 @@ function delay(ms) {
 // Hostinger's shared Node.js plans cap the number of processes/threads. Spawning
 // the Prisma CLI during startup can fail with EAGAIN when the account is near that
 // cap. Retry transient resource errors with a short backoff instead of crashing.
-async function spawnWithRetry(command, args, options, { label, maxAttempts = 5 } = {}) {
-  const isResourceError = (error) =>
-    error && ['EAGAIN', 'EMFILE', 'ENOMEM', 'EBUSY'].includes(error.code);
+const isResourceError = (error) =>
+  error && ['EAGAIN', 'EMFILE', 'ENOMEM', 'EBUSY'].includes(error.code);
 
+async function spawnWithRetry(command, args, options, { label, maxAttempts = 5 } = {}) {
   let attempt = 0;
   while (attempt < maxAttempts) {
     attempt += 1;
@@ -928,7 +948,7 @@ async function startServices() {
   // Apply any pending database migrations before the API starts handling
   // requests. This prevents runtime errors caused by missing columns (e.g. the
   // contact form failing because the consent column has not been added yet).
-  runMigrations();
+  await runMigrations();
 
   if (apiMode === 'in-process') {
     await startInProcessApi();

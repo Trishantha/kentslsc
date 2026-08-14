@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ElementType } from 'react';
+import { useEffect, useState, type ElementType } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -383,6 +383,7 @@ function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
 
 export default function DashboardPage() {
   const [showQr, setShowQr] = useState(false);
+  const [cardError, setCardError] = useState(false);
 
   const {
     data: membership,
@@ -397,17 +398,14 @@ export default function DashboardPage() {
     retry: false
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
-      </div>
-    );
-  }
-
   const cardAssetUrl = membership
-    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
+    ? (membership.cardUrl ??
+      `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`)
     : null;
+
+  useEffect(() => {
+    setCardError(false);
+  }, [cardAssetUrl]);
 
   return (
     <div className="px-4 py-16 md:px-6">
@@ -529,8 +527,15 @@ export default function DashboardPage() {
                         src={cardAssetUrl}
                         alt="Membership card"
                         className="max-h-72 w-auto object-contain"
+                        onError={() => setCardError(true)}
                       />
                     </div>
+                    {cardError && (
+                      <p className="text-sm text-red-400">
+                        Could not load the membership card. Please try refreshing, or contact support if the
+                        problem persists.
+                      </p>
+                    )}
                     <div className="flex flex-wrap justify-center gap-3">
                       <a
                         href={cardAssetUrl}

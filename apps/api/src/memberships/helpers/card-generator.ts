@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
 
@@ -17,7 +18,8 @@ interface TierPalette {
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const logoPath = join(process.cwd(), 'public', 'logo.png');
+    const moduleDir = fileURLToPath(new URL('.', import.meta.url));
+    const logoPath = join(moduleDir, '..', '..', '..', 'public', 'logo.png');
     const buffer = await readFile(logoPath);
     const resized = await sharp(buffer)
       .resize(220, 220, { fit: 'cover' })
