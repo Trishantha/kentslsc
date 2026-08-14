@@ -73,19 +73,44 @@ function runMigrations() {
     return;
   }
 
-  const prismaBinaryCandidates = [
-    path.join(rootDir, 'packages', 'database', 'node_modules', '.bin', 'prisma'),
-    path.join(rootDir, 'node_modules', '.pnpm', 'node_modules', '.bin', 'prisma'),
-    path.join(rootDir, 'node_modules', '.bin', 'prisma')
+  // Prefer the actual Prisma Node entry point over the .bin shell shim, because
+  // Hostinger's build environment sometimes strips execute permission from the
+  // shim (EACCES). Running it via Node avoids that entirely.
+  const prismaEntryCandidates = [
+    path.join(rootDir, 'packages', 'database', 'node_modules', 'prisma', 'build', 'index.js'),
+    path.join(rootDir, 'node_modules', 'prisma', 'build', 'index.js')
   ];
-  const prismaBinary = prismaBinaryCandidates.find((candidate) => fs.existsSync(candidate));
-  if (!prismaBinary) {
+  let prismaEntry = prismaEntryCandidates.find((candidate) => fs.existsSync(candidate));
+
+  if (!prismaEntry) {
+    const pnpmPrismaDir = path.join(rootDir, 'node_modules', '.pnpm');
+    if (fs.existsSync(pnpmPrismaDir)) {
+      const prismaPkgDir = fs
+        .readdirSync(pnpmPrismaDir)
+        .find((name) => name.startsWith('prisma@'));
+      if (prismaPkgDir) {
+        const candidate = path.join(
+          pnpmPrismaDir,
+          prismaPkgDir,
+          'node_modules',
+          'prisma',
+          'build',
+          'index.js'
+        );
+        if (fs.existsSync(candidate)) {
+          prismaEntry = candidate;
+        }
+      }
+    }
+  }
+
+  if (!prismaEntry) {
     console.warn(
-      `Prisma CLI not found in any of: ${prismaBinaryCandidates.join(', ')}; skipping migrations.`
+      `Prisma CLI entry not found in any of: ${prismaEntryCandidates.join(', ')}; skipping migrations.`
     );
     return;
   }
-  console.log(`Using Prisma CLI at: ${prismaBinary}`);
+  console.log(`Using Prisma CLI entry at: ${prismaEntry}`);
 
   // Prefer the copied prisma artifacts from the database package build so the
   // runtime image does not need the source prisma folder.
@@ -99,8 +124,8 @@ function runMigrations() {
   }
   console.log(`Using Prisma schema at: ${schemaPath}`);
 
-  // Verify the Prisma binary can execute before running migrations.
-  const versionResult = spawnSync(prismaBinary, ['--version'], {
+  // Verify the Prisma CLI can execute via Node before running migrations.
+  const versionResult = spawnSync(nodeCommand, [prismaEntry, '--version'], {
     cwd: rootDir,
     stdio: 'pipe',
     env: process.env
@@ -110,14 +135,14 @@ function runMigrations() {
     if (versionResult.stderr) console.error(versionResult.stderr.toString());
     if (versionResult.stdout) console.log(versionResult.stdout.toString());
     throw new Error(
-      `Prisma CLI at ${prismaBinary} could not execute (exit code ${versionResult.status ?? 'unknown'}). ` +
+      `Prisma CLI at ${prismaEntry} could not execute (exit code ${versionResult.status ?? 'unknown'}). ` +
         'Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
     );
   }
   console.log('Prisma CLI is executable.');
 
   console.log('Running database migrations...');
-  const result = spawnSync(prismaBinary, ['migrate', 'deploy', '--schema', schemaPath], {
+  const result = spawnSync(nodeCommand, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
     cwd: rootDir,
     stdio: 'pipe',
     env: process.env
