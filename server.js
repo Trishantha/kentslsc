@@ -5,11 +5,17 @@ const net = require('net');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const v8 = require('v8');
 
 const rootDir = __dirname;
 const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
 const nodeCommand = process.execPath;
+
+// Shared-hosting process/thread limits are tight. Force conservative defaults for
+// libraries that spawn helper threads/processes, unless the operator overrides them.
+process.env.SHARP_NUM_THREADS = process.env.SHARP_NUM_THREADS || '1';
+process.env.NEXT_TELEMETRY_DISABLED = process.env.NEXT_TELEMETRY_DISABLED || '1';
 
 function parseDotEnvValue(rawValue) {
   const value = rawValue.trim();
@@ -63,7 +69,7 @@ function loadEnvironmentFiles() {
 
 loadEnvironmentFiles();
 
-function runMigrations() {
+async function runMigrations() {
   if (!process.env.DATABASE_URL || process.env.SKIP_MIGRATIONS === 'true') {
     console.log(
       process.env.DATABASE_URL
@@ -160,35 +166,42 @@ function runMigrations() {
   console.log(`Using Prisma schema at: ${schemaPath}`);
 
   // Verify the Prisma CLI can execute via Node before running migrations.
-  const versionResult = spawnSync(nodeCommand, [prismaEntry, '--version'], {
-    cwd: rootDir,
-    stdio: 'pipe',
-    env: process.env
-  });
+  const versionResult = await spawnWithRetry(
+    nodeCommand,
+    [prismaEntry, '--version'],
+    { cwd: rootDir, stdio: 'pipe', env: process.env },
+    { label: 'Prisma --version', maxAttempts: 5 }
+  );
   if (versionResult.status !== 0) {
     console.error('Prisma --version failed:', versionResult.error ? versionResult.error.message : '');
     if (versionResult.stderr) console.error(versionResult.stderr.toString());
     if (versionResult.stdout) console.log(versionResult.stdout.toString());
-    throw new Error(
-      `Prisma CLI at ${prismaEntry} could not execute (exit code ${versionResult.status ?? 'unknown'}). ` +
-        'Set SKIP_MIGRATIONS=true to start without applying migrations (not recommended in production).'
+    // When the process limit is exhausted we may not be able to spawn Prisma at
+    // all. Rather than crash the whole unified server, log loudly and continue.
+    // Migrations are idempotent, so a skipped check here is safer than a startup
+    // death spiral. Operators can set SKIP_MIGRATIONS=true to silence this.
+    console.warn(
+      'WARNING: Could not verify Prisma CLI executability. Continuing anyway; ' +
+        'if migrate deploy fails below, increase available processes or set SKIP_MIGRATIONS=true.'
     );
+  } else {
+    console.log('Prisma CLI is executable.');
   }
-  console.log('Prisma CLI is executable.');
 
   // Some migrations were previously run against a database that already had the
   // target schema objects, leaving them in a failed state. If `migrate deploy`
   // hits P3009 for a specific migration, resolve that migration as applied and
   // retry so the rest of the pending migrations can continue.
-  const runMigrateDeploy = () =>
-    spawnSync(nodeCommand, [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath], {
-      cwd: rootDir,
-      stdio: 'pipe',
-      env: process.env
-    });
+  const runMigrateDeploy = async () =>
+    spawnWithRetry(
+      nodeCommand,
+      [prismaEntry, 'migrate', 'deploy', '--schema', schemaPath],
+      { cwd: rootDir, stdio: 'pipe', env: process.env },
+      { label: 'prisma migrate deploy', maxAttempts: 5 }
+    );
 
   let remainingAttempts = 10;
-  let result = runMigrateDeploy();
+  let result = await runMigrateDeploy();
   while (result.status !== 0 && remainingAttempts > 0) {
     const output = (result.stdout ? result.stdout.toString() : '') + (result.stderr ? result.stderr.toString() : '');
 
@@ -307,6 +320,36 @@ function delay(ms) {
   });
 }
 
+// Hostinger's shared Node.js plans cap the number of processes/threads. Spawning
+// the Prisma CLI during startup can fail with EAGAIN when the account is near that
+// cap. Retry transient resource errors with a short backoff instead of crashing.
+async function spawnWithRetry(command, args, options, { label, maxAttempts = 5 } = {}) {
+  const isResourceError = (error) =>
+    error && ['EAGAIN', 'EMFILE', 'ENOMEM', 'EBUSY'].includes(error.code);
+
+  let attempt = 0;
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const result = spawnSync(command, args, options);
+
+    if (!result.error || !isResourceError(result.error)) {
+      return result;
+    }
+
+    console.warn(
+      `${label || 'spawn'} failed with ${result.error.code} (attempt ${attempt}/${maxAttempts}); ` +
+        'retrying after short delay...'
+    );
+
+    if (attempt < maxAttempts) {
+      await delay(1000 * 2 ** (attempt - 1));
+    }
+  }
+
+  // Return the last failed result so the caller can decide what to do.
+  return spawnSync(command, args, options);
+}
+
 function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
   const child = spawn(command, args, {
     cwd,
@@ -358,6 +401,42 @@ function checkBuildArtifacts() {
     apiBuilt: fs.existsSync(path.join(apiDir, 'dist', 'main.js')),
     webBuilt: fs.existsSync(path.join(webDir, '.next', 'BUILD_ID'))
   };
+}
+
+function logStartupDiagnostics() {
+  const heapStats = v8.getHeapStatistics();
+  const memory = process.memoryUsage();
+  const heapLimitMb = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+  const rssMb = Math.round(memory.rss / 1024 / 1024);
+
+  // Count this process's threads from /proc on Linux. Hostinger's process limit
+  // counts threads, so this is a useful diagnostic on shared hosting.
+  let threadCount = null;
+  try {
+    const status = fs.readFileSync('/proc/self/status', 'utf8');
+    const match = status.match(/^Threads:\s*(\d+)/m);
+    if (match) {
+      threadCount = Number(match[1]);
+    }
+  } catch {
+    // Non-Linux or no /proc access.
+  }
+
+  console.log(`Node options: ${process.env.NODE_OPTIONS || '(none)'}`);
+  console.log(`Process memory limit (heap): ${heapLimitMb} MB`);
+  console.log(`Process RSS at startup: ${rssMb} MB`);
+  if (threadCount !== null) {
+    console.log(`Threads in this process: ${threadCount}`);
+  }
+
+  if (apiMode === 'in-process' && webMode === 'in-process' && heapLimitMb < 1536) {
+    console.warn(
+      'WARNING: API and web handlers are both running in-process. ' +
+      'This loads NestJS, Prisma, and Next.js in a single Node process and can exceed ' +
+      'shared-hosting memory limits. Consider increasing NODE_OPTIONS (e.g. ' +
+      "--max-old-space-size=2048) or using API_MODE=unix / WEB_MODE=child."
+    );
+  }
 }
 
 async function ensureBuilt() {
@@ -584,6 +663,7 @@ function proxyRequest(req, res, targetBaseUrl) {
   request.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error);
     const status = requestPath.startsWith('/api') ? 503 : 502;
+    console.error(`Upstream connection error for ${requestPath} -> ${targetBaseUrl}: ${message}`);
     failRequest(message, status);
   });
 
@@ -737,6 +817,9 @@ async function startInProcessApi() {
 
 async function startInProcessWeb() {
   console.log('Starting web handler in-process (no secondary child process)');
+  // Make sure Next.js server-side fetches and rewrites target the local proxy
+  // instead of relying on a public origin that may not be reachable from the host.
+  process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || `http://127.0.0.1:${publicPort}`;
   const handlerPath = path.join(webDir, 'server-handler.js');
   // eslint-disable-next-line import/no-dynamic-require
   const webModule = require(handlerPath);
@@ -829,6 +912,7 @@ async function startServices() {
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   console.log(`API mode: ${apiMode}`);
   console.log(`Web mode: ${webMode}`);
+  logStartupDiagnostics();
   if (webMode === 'child') {
     console.log(`Internal web target: ${internalWebUrl}`);
   }
@@ -904,17 +988,38 @@ module.exports = {
   startProxyServer
 };
 
+function registerFatalErrorHandlers() {
+  process.on('uncaughtException', (error) => {
+    console.error('FATAL: uncaught exception in unified server:', error);
+    if (error && error.stack) {
+      console.error(error.stack);
+    }
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('FATAL: unhandled rejection in unified server:', reason);
+    if (reason && reason.stack) {
+      console.error(reason.stack);
+    }
+  });
+}
+
 // Start the server immediately when this file is loaded. Hostinger's Node.js
 // hosting does not support guards like "if (require.main === module)"; it
 // expects the entry file to call server.listen() without such conditions.
 // Tests can prevent auto-start by setting NODE_ENV=test before requiring this file.
 if (process.env.NODE_ENV !== 'test') {
+  registerFatalErrorHandlers();
   (async () => {
     try {
       await ensureBuilt();
       await startServices();
     } catch (error) {
       console.error('Unable to start the unified app:', error);
+      if (error && error.stack) {
+        console.error(error.stack);
+      }
       process.exit(1);
     }
   })();

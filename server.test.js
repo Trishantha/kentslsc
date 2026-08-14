@@ -54,11 +54,11 @@ test('resolveProxyProtocol honors comma-separated forwarded protocols', () => {
   );
 });
 
-test('runMigrations skips when DATABASE_URL is not set', () => {
+test('runMigrations skips when DATABASE_URL is not set', async () => {
   const originalDatabaseUrl = process.env.DATABASE_URL;
   delete process.env.DATABASE_URL;
   // Should not throw.
-  runMigrations();
+  await runMigrations();
   if (typeof originalDatabaseUrl === 'undefined') {
     delete process.env.DATABASE_URL;
   } else {
@@ -66,13 +66,13 @@ test('runMigrations skips when DATABASE_URL is not set', () => {
   }
 });
 
-test('runMigrations skips when SKIP_MIGRATIONS is true', () => {
+test('runMigrations skips when SKIP_MIGRATIONS is true', async () => {
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalSkipMigrations = process.env.SKIP_MIGRATIONS;
   process.env.DATABASE_URL = 'postgresql://localhost/test';
   process.env.SKIP_MIGRATIONS = 'true';
   // Should not throw.
-  runMigrations();
+  await runMigrations();
   process.env.DATABASE_URL = originalDatabaseUrl;
   if (typeof originalSkipMigrations === 'undefined') {
     delete process.env.SKIP_MIGRATIONS;

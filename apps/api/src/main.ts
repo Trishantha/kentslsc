@@ -56,13 +56,17 @@ if (process.env.UNIFIED_MODE !== 'true') {
     logger.error('Failed to start API', error);
     process.exit(1);
   });
+
+  // Only install global process-level handlers when this module owns the process.
+  // In unified mode the parent server.js is responsible for lifecycle management,
+  // and these handlers would otherwise call process.exit() on behalf of the
+  // whole application and mask the real error.
+  process.on('unhandledRejection', (reason) => {
+    logger.error(`Unhandled rejection: ${String(reason)}`);
+  });
+
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception', error.stack ?? String(error));
+    process.exit(1);
+  });
 }
-
-process.on('unhandledRejection', (reason) => {
-  logger.error(`Unhandled rejection: ${String(reason)}`);
-});
-
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception', error.stack ?? String(error));
-  process.exit(1);
-});
