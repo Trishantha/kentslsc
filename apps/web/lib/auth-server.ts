@@ -58,10 +58,20 @@ export async function getServerSession(): Promise<ServerSession> {
           `[auth-server] Session check returned HTTP ${res.status} from ${apiUrl}/api/auth/session. ` +
             `Has auth cookie: ${hasAuthCookie}. Body: ${body.slice(0, 500)}`
         );
-        // A reachable origin answered; trust that response and stop trying others.
-        return { authenticated: false };
+        // This origin answered but is not usable (wrong service, auth error, etc.).
+        // Record it and try the next candidate so a transient/bad public origin does
+        // not bounce a signed-in user back to the login page.
+        attempts.push({ origin: apiUrl, error: `HTTP ${res.status}` });
+        continue;
       }
-      return (await res.json()) as ServerSession;
+
+      try {
+        return (await res.json()) as ServerSession;
+      } catch (parseError) {
+        const message = parseError instanceof Error ? parseError.message : String(parseError);
+        attempts.push({ origin: apiUrl, error: `JSON parse error: ${message}` });
+        continue;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       attempts.push({ origin: apiUrl, error: message });

@@ -82,16 +82,32 @@ export async function fetchApiWithOriginFallback(
 ): Promise<FetchResult> {
   const origins = await getApiOriginCandidates();
   const attempts: { origin: string; error: string }[] = [];
+  let lastStatus: number | null = null;
 
   for (const origin of origins) {
     const url = `${origin}${path}`;
     const result = await fetchWithRetryResult(url, options);
-    if (result.ok) {
+
+    // Treat non-2xx responses (and unexpected HTML, e.g. hitting the frontend
+    // itself) as a failed attempt so we try the next origin candidate. This is
+    // especially important on hosts where the public API domain is unreachable
+    // from inside the container and we need to fall back to INTERNAL_API_URL or
+    // the local loopback.
+    const contentType = result.ok ? result.response.headers.get('content-type') ?? '' : '';
+    const isJson = contentType.includes('application/json');
+    if (result.ok && result.response.ok && isJson) {
       return result;
     }
+
+    if (result.ok) {
+      lastStatus = result.response.status;
+    }
+
     attempts.push({
       origin,
-      error: result.status ? `HTTP ${result.status}` : String(result.error ?? 'no response')
+      error: result.ok
+        ? `HTTP ${result.response.status} (${isJson ? 'json' : contentType || 'unknown content-type'})`
+        : String(result.error ?? 'no response')
     });
   }
 
@@ -100,7 +116,11 @@ export async function fetchApiWithOriginFallback(
       .map((a) => `${a.origin} (${a.error})`)
       .join(', ')}`
   );
-  return { ok: false, status: null, error: new Error(`All API origins failed for ${path}`) };
+  return {
+    ok: false,
+    status: lastStatus,
+    error: new Error(`All API origins failed for ${path}`)
+  };
 }
 
 /**
