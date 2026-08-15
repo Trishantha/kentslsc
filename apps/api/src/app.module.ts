@@ -26,6 +26,8 @@ import { UploadsModule } from './uploads/uploads.module.js';
 import { HeroConfigModule } from './hero-config/hero-config.module.js';
 import { CommitteeModule } from './committee/committee.module.js';
 import { SiteSettingsModule } from './site-settings/site-settings.module.js';
+import { PolicyDocumentsModule } from './policy-documents/policy-documents.module.js';
+import { GdprSettingsModule } from './gdpr-settings/gdpr-settings.module.js';
 import { AuthorizationModule } from './authorization/authorization.module.js';
 import { PermissionsModule } from './permissions/permissions.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
@@ -72,6 +74,8 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     HeroConfigModule,
     CommitteeModule,
     SiteSettingsModule,
+    PolicyDocumentsModule,
+    GdprSettingsModule,
     // Provides FeatureGuard + MembershipFeaturesService to the global guard above.
     AuthorizationModule,
     PermissionsModule

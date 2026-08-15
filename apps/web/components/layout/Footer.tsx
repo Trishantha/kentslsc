@@ -32,7 +32,10 @@ export function Footer() {
               <li><Link href="/directory">{nav('directory')}</Link></li>
               <li><Link href="/membership">{nav('membership')}</Link></li>
               <li><Link href="/contact">{nav('contact')}</Link></li>
-              <li><Link href="/privacy">{nav('privacy')}</Link></li>
+              <li><Link href="/privacy-policy">Privacy Policy</Link></li>
+              <li><Link href="/terms-and-conditions">Terms &amp; Conditions</Link></li>
+              <li><Link href="/cookie-policy">Cookie Policy</Link></li>
+              <li><Link href="/gdpr">GDPR</Link></li>
             </ul>
           </div>
           <div>

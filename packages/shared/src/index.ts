@@ -12,5 +12,6 @@ export * from './schemas/contact.js';
 export * from './schemas/ai.js';
 export * from './schemas/pages.js';
 export * from './schemas/site-settings.js';
+export * from './schemas/policy.js';
 export * from './enums.js';
 export * from './directory-categories.js';

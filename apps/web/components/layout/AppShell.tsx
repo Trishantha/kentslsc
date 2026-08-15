@@ -7,6 +7,7 @@ import { PageTransitionLoader } from '@/components/PageTransitionLoader';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { MobileNavShell } from './MobileNavShell';
 import { ConditionalFooter } from './ConditionalFooter';
+import { CookieConsentBanner } from '@/components/ui/CookieConsentBanner';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ export function AppShell({ children, locale, messages, timeZone }: AppShellProps
           <main className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
           <ConditionalFooter />
         </div>
+        <CookieConsentBanner />
       </MobileNavShell>
     </NextIntlClientProvider>
   );

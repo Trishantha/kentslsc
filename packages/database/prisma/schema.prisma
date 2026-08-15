@@ -705,3 +705,47 @@ model CommitteeMember {
   @@index([displayOrder])
   @@map("committee_members")
 }
+
+enum PolicyDocumentType {
+  PRIVACY_POLICY
+  TERMS_CONDITIONS
+  MEMBERSHIP_POLICY
+  DISCLAIMER
+  GDPR_POLICY
+  COOKIE_POLICY
+
+  @@map("policy_document_type")
+}
+
+model PolicyDocument {
+  id          String             @id @default(uuid())
+  type        PolicyDocumentType @unique
+  title       String
+  content     String
+  isPublished Boolean            @default(false) @map("is_published")
+  updatedBy   String?            @map("updated_by")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@map("policy_documents")
+}
+
+model GdprSettings {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cookieConsentEnabled    Boolean  @default(true) @map("cookie_consent_enabled")
+  cookieConsentMessage    String   @default("We use cookies to improve your experience on our website. By continuing to browse, you agree to our use of cookies.") @map("cookie_consent_message")
+  cookiePolicyUrl         String?  @map("cookie_policy_url")
+  privacyPolicyUrl        String?  @map("privacy_policy_url")
+  analyticsEnabled        Boolean  @default(false) @map("analytics_enabled")
+  marketingCookiesEnabled Boolean  @default(false) @map("marketing_cookies_enabled")
+  dataRetentionDays       Int      @default(365) @map("data_retention_days")
+  dpoName                 String?  @map("dpo_name")
+  dpoEmail                String?  @map("dpo_email")
+  dpoPhone                String?  @map("dpo_phone")
+  gdprNotes               String?  @map("gdpr_notes")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("gdpr_settings")
+}

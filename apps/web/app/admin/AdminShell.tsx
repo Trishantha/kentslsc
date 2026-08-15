@@ -24,6 +24,7 @@ import {
   Globe,
   Settings,
   Shield,
+  ShieldCheck,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -93,7 +94,9 @@ const navGroups: NavGroup[] = [
     icon: Settings,
     items: [
       { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe, permission: Permission.MANAGE_SITE_SETTINGS },
-      { href: '/admin/committee', label: 'Committee', icon: Users, permission: Permission.MANAGE_COMMITTEE }
+      { href: '/admin/committee', label: 'Committee', icon: Users, permission: Permission.MANAGE_COMMITTEE },
+      { href: '/admin/policy-documents', label: 'Policy Documents', icon: ShieldCheck },
+      { href: '/admin/gdpr', label: 'GDPR & Privacy', icon: ShieldCheck }
     ]
   }
 ];
