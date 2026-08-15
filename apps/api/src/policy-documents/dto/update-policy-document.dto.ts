@@ -6,12 +6,12 @@ export class UpdatePolicyDocumentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(200)
-  title: string;
+  title!: string;
 
   @ApiProperty()
   @IsString()
   @MinLength(1)
-  content: string;
+  content!: string;
 
   @ApiPropertyOptional()
   @IsBoolean()
