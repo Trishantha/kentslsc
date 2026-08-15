@@ -12,6 +12,7 @@ module.exports = {
     '^@kentslsc/database$': '<rootDir>/../../../packages/database/src/index.ts',
     '^@kentslsc/shared$': '<rootDir>/../../../packages/shared/src/index.ts',
     '^nanoid$': '<rootDir>/../test/mocks/nanoid.mock.ts',
+    '^\\./helpers/card-generator\\.js$': '<rootDir>/../test/mocks/card-generator.mock.ts',
     '^(.*)\\.js$': '$1'
   },
   transformIgnorePatterns: [

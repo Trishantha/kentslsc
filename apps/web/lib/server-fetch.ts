@@ -3,16 +3,23 @@ interface FetchWithRetryOptions extends RequestInit {
   retryDelayMs?: number;
 }
 
+export type FetchResult =
+  | { ok: true; response: Response }
+  | { ok: false; status: number | null; error?: unknown };
+
 /**
  * Fetch wrapper for Next.js server components.
  *
  * Retries transient network errors (e.g. the API is restarting during dev)
  * but does NOT retry HTTP error responses such as 404 or 500.
+ *
+ * Returns a tagged result so callers can distinguish "API unreachable" from a
+ * genuine 404. For the simpler "response or null" behaviour, use fetchWithRetry().
  */
-export async function fetchWithRetry(
+export async function fetchWithRetryResult(
   url: string,
   options: FetchWithRetryOptions = {}
-): Promise<Response | null> {
+): Promise<FetchResult> {
   const { retries = 3, retryDelayMs = 500, ...fetchOptions } = options;
 
   let lastError: unknown;
@@ -33,7 +40,7 @@ export async function fetchWithRetry(
           `Server fetch received HTTP ${response.status} from ${url}. Body: ${body || '(empty)'}`
         );
       }
-      return response;
+      return { ok: true, response };
     } catch (error) {
       lastError = error;
       const isNetworkError =
@@ -53,5 +60,21 @@ export async function fetchWithRetry(
   }
 
   console.error(`Server fetch failed after ${retries} attempts for ${url}`, lastError);
+  return { ok: false, status: null, error: lastError };
+}
+
+/**
+ * Backward-compatible wrapper around fetchWithRetryResult().
+ *
+ * Returns the Response on success (including non-OK HTTP responses, which are
+ * logged), or null on network/API failure. Callers that need to distinguish 404
+ * from other errors should use fetchWithRetryResult() instead.
+ */
+export async function fetchWithRetry(
+  url: string,
+  options: FetchWithRetryOptions = {}
+): Promise<Response | null> {
+  const result = await fetchWithRetryResult(url, options);
+  if (result.ok) return result.response;
   return null;
 }
