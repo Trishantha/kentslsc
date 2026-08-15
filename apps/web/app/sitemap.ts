@@ -1,7 +1,6 @@
 import type { MetadataRoute } from 'next';
-import { fetchWithRetry } from '@/lib/server-fetch';
+import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { routing } from '@/i18n/routing';
-import { getServerApiUrl } from '@/lib/api-base';
 
 const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
 
@@ -37,10 +36,7 @@ interface ForumCategory {
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
-  const apiUrl = await getServerApiUrl();
-  const res = await fetchWithRetry(`${apiUrl}/api${path}`, { next: { revalidate: 86400 } });
-  if (!res || !res.ok) return null;
-  return res.json();
+  return fetchWithOriginFallback<T>(`/api${path}`, { next: { revalidate: 86400 } });
 }
 
 function asArray<T>(value: T[] | { data?: T[] } | null | undefined): T[] {

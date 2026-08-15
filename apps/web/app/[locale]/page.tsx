@@ -1,6 +1,6 @@
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { HeroBlock, PageBlock } from '@kentslsc/shared';
-import { getServerApiUrl } from '@/lib/api-base';
+import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
 import { getTranslations } from 'next-intl/server';
 import HomePageContent from './HomePageContent';
 
@@ -23,33 +23,23 @@ interface HeroConfig {
 }
 
 async function fetchHomePage(): Promise<HomePageData | null> {
-  try {
-    const apiUrl = await getServerApiUrl();
-    const res = await fetch(`${apiUrl}/api/pages/home`, {
-      cache: 'no-store'
-    });
-    if (!res.ok) {
-      return null;
-    }
-    return (await res.json()) as HomePageData;
-  } catch {
+  const result = await fetchApiWithOriginFallback('/api/pages/home', {
+    cache: 'no-store'
+  });
+  if (!result.ok || !result.response.ok) {
     return null;
   }
+  return (await result.response.json()) as HomePageData;
 }
 
 async function fetchHeroConfig(): Promise<HeroConfig | null> {
-  try {
-    const apiUrl = await getServerApiUrl();
-    const res = await fetch(`${apiUrl}/api/hero-config`, {
-      cache: 'no-store'
-    });
-    if (!res.ok) {
-      return null;
-    }
-    return (await res.json()) as HeroConfig;
-  } catch {
+  const result = await fetchApiWithOriginFallback('/api/hero-config', {
+    cache: 'no-store'
+  });
+  if (!result.ok || !result.response.ok) {
     return null;
   }
+  return (await result.response.json()) as HeroConfig;
 }
 
 function mergeHeroConfigIntoBlocks(

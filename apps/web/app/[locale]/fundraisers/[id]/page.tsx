@@ -1,19 +1,15 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchWithRetry } from '@/lib/server-fetch';
+import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import JsonLd from '@/components/JsonLd';
 import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
-import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
 }
 
 async function fetchFundraiser(id: string): Promise<Fundraiser | null> {
-  const apiUrl = await getServerApiUrl();
-  const res = await fetchWithRetry(`${apiUrl}/api/fundraisers/${id}`, { next: { revalidate: 60 } });
-  if (!res || !res.ok) return null;
-  return res.json();
+  return fetchWithOriginFallback<Fundraiser>(`/api/fundraisers/${id}`, { next: { revalidate: 60 } });
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

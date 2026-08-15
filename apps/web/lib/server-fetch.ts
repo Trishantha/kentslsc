@@ -1,8 +1,10 @@
 import { getApiOriginCandidates } from './api-base';
 
-interface FetchWithRetryOptions extends RequestInit {
+export interface FetchWithRetryOptions extends RequestInit {
   retries?: number;
   retryDelayMs?: number;
+  /** Next.js fetch cache options (used by server components). */
+  next?: { revalidate?: number | false; tags?: string[] };
 }
 
 export type FetchResult =

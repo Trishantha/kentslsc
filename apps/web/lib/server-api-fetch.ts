@@ -1,46 +1,29 @@
-import { headers } from 'next/headers';
-import { fetchWithRetry } from './server-fetch';
+import { getApiOriginCandidates } from './api-base';
+import { fetchWithRetry, type FetchWithRetryOptions } from './server-fetch';
 
-function normalizeApiOrigin(value: string): string {
-  return value
-    .replace(/\/api\/?$/, '')
-    .replace(/\/$/, '');
+interface FetchWithOriginFallbackOptions<T> extends FetchWithRetryOptions {
+  parser?: (res: Response) => Promise<T>;
 }
 
-async function getRequestOrigin(): Promise<string> {
-  const headersList = await headers();
-  const host = headersList.get('host') || 'localhost:3000';
-  const protocol = headersList.get('x-forwarded-proto') || 'https';
-  return `${protocol}://${host}`;
-}
-
-function getConfiguredApiOrigin(): string | undefined {
-  return (
-    process.env.API_PROXY_TARGET ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    undefined
-  );
-}
-
+/**
+ * Fetch from the API using every known origin candidate until one responds.
+ *
+ * Uses the same candidate list as fetchApiWithOriginFallback() (INTERNAL_API_URL,
+ * API_PROXY_TARGET, request origin, loopback) so server-side renders keep working
+ * even when a configured public origin is unreachable from inside the frontend
+ * container.
+ */
 export async function fetchWithOriginFallback<T>(
   path: string,
-  parser: (res: Response) => Promise<T> = (res) => res.json()
+  options: FetchWithOriginFallbackOptions<T> = {}
 ): Promise<T | null> {
-  const configuredOrigin = getConfiguredApiOrigin();
-  const origins = new Set<string>();
-
-  if (configuredOrigin) {
-    origins.add(normalizeApiOrigin(configuredOrigin));
-  }
-
-  const requestOrigin = normalizeApiOrigin(await getRequestOrigin());
-  origins.add(requestOrigin);
-
+  const { parser = (res: Response) => res.json() as Promise<T>, ...fetchOptions } = options;
+  const origins = await getApiOriginCandidates();
   const attempts: { origin: string; error?: string }[] = [];
 
   for (const origin of origins) {
     try {
-      const res = await fetchWithRetry(`${origin}${path}`, { next: { revalidate: 60 } });
+      const res = await fetchWithRetry(`${origin}${path}`, fetchOptions);
       if (res && res.ok) {
         return await parser(res);
       }
