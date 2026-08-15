@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { getApiOriginCandidates } from './api-base';
 
 export interface FetchWithRetryOptions extends RequestInit {
@@ -5,6 +6,19 @@ export interface FetchWithRetryOptions extends RequestInit {
   retryDelayMs?: number;
   /** Next.js fetch cache options (used by server components). */
   next?: { revalidate?: number | false; tags?: string[] };
+}
+
+/**
+ * Read the incoming request's cookie header so server-side fetches can forward
+ * the user's session to the API. Returns undefined outside a request context
+ * (e.g. during static generation), in which case the caller is unauthenticated.
+ */
+async function getCookieHeader(): Promise<string | undefined> {
+  try {
+    return (await cookies()).toString();
+  } catch {
+    return undefined;
+  }
 }
 
 export type FetchResult =
@@ -26,11 +40,23 @@ export async function fetchWithRetryResult(
 ): Promise<FetchResult> {
   const { retries = 3, retryDelayMs = 500, ...fetchOptions } = options;
 
+  // Forward the user's session cookies to the API on server-side fetches.
+  // This is required for authenticated routes such as /api/admin/*.
+  const cookieHeader = await getCookieHeader();
+  const existingHeaders = new Headers(fetchOptions.headers);
+  if (cookieHeader && !existingHeaders.has('cookie')) {
+    existingHeaders.set('cookie', cookieHeader);
+  }
+  const finalOptions: FetchWithRetryOptions = {
+    ...fetchOptions,
+    headers: existingHeaders
+  };
+
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, fetchOptions);
+      const response = await fetch(url, finalOptions);
       if (!response.ok) {
         // Surface API-side failures in server logs instead of letting callers
         // silently treat 500s as "not found" or empty data.
