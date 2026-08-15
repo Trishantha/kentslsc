@@ -280,18 +280,27 @@ export class MembershipsService {
       qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
     });
 
-    const { url: cardUrl } = await this.supabaseStorage.uploadBuffer({
-      buffer: cardBuffer,
-      path: `cards/${membership.membershipId}.png`,
-      contentType: 'image/png',
-      upsert: true
-    });
+    try {
+      const { url: cardUrl } = await this.supabaseStorage.uploadBuffer({
+        buffer: cardBuffer,
+        path: `cards/${membership.membershipId}.png`,
+        contentType: 'image/png',
+        upsert: true
+      });
 
-    return this.prisma.membership.update({
-      where: { id: membership.id },
-      data: { membershipCardUrl: cardUrl },
-      include: { membershipType: true }
-    });
+      return this.prisma.membership.update({
+        where: { id: membership.id },
+        data: { membershipCardUrl: cardUrl },
+        include: { membershipType: true }
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Failed to upload membership card for ${membership.membershipId}: ${message}. ` +
+          'Membership will be active without a card URL until storage is configured.'
+      );
+      return membership;
+    }
   }
 
   private async sendWelcomeEmail(userId: string, fullName: string, overrideEmail: string | undefined, cardUrl: string | null) {
