@@ -331,9 +331,18 @@ const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 // have baked in a different default (e.g. http://localhost:3001). Set the
 // internal API origin before any Next.js module is loaded so server-side fetches
 // and rewrites target the local unified proxy.
+//
+// In webMode === 'in-process' the Next.js runtime lives inside this process, so
+// we always route internal server-to-API calls through the local listener.
+// webMode === 'child' gets the same variables explicitly when spawned below.
 const localApiOrigin = `http://127.0.0.1:${publicPort}`;
-process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || localApiOrigin;
-process.env.INTERNAL_API_URL = process.env.INTERNAL_API_URL || localApiOrigin;
+if (webMode === 'in-process') {
+  process.env.API_PROXY_TARGET = localApiOrigin;
+  process.env.INTERNAL_API_URL = localApiOrigin;
+} else {
+  process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || localApiOrigin;
+  process.env.INTERNAL_API_URL = process.env.INTERNAL_API_URL || localApiOrigin;
+}
 
 // How long the public proxy waits for an upstream response (ms).
 const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);

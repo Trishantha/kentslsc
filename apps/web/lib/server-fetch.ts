@@ -20,6 +20,19 @@ export async function fetchWithRetry(
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, fetchOptions);
+      if (!response.ok) {
+        // Surface API-side failures in server logs instead of letting callers
+        // silently treat 500s as "not found" or empty data.
+        let body = '';
+        try {
+          body = (await response.clone().text()).slice(0, 500);
+        } catch {
+          // ignore
+        }
+        console.error(
+          `Server fetch received HTTP ${response.status} from ${url}. Body: ${body || '(empty)'}`
+        );
+      }
       return response;
     } catch (error) {
       lastError = error;
