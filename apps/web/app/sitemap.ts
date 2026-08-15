@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { fetchWithRetry } from '@/lib/server-fetch';
+import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
 import { routing } from '@/i18n/routing';
-import { getServerApiUrl } from '@/lib/api-base';
+
 
 const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
 
@@ -32,10 +32,9 @@ interface Fundraiser {
 }
 
 async function fetchJson<T>(path: string): Promise<T | null> {
-  const apiUrl = await getServerApiUrl();
-  const res = await fetchWithRetry(`${apiUrl}/api${path}`, { next: { revalidate: 86400 } });
-  if (!res || !res.ok) return null;
-  return res.json();
+  const result = await fetchApiWithOriginFallback(`/api${path}`, { next: { revalidate: 86400 } });
+  if (!result.ok || !result.response.ok) return null;
+  return result.response.json();
 }
 
 function asArray<T>(value: T[] | { data?: T[] } | null | undefined): T[] {
