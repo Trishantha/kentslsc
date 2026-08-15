@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useClientSearchParams } from '@/hooks/useClientSearchParams';
 import { Link } from '@/i18n/routing';
 import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -83,7 +83,7 @@ export function RegistrationWizard() {
     if (type.isFree || type.price === 0) return tCommon('free');
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
   }
-  const searchParams = useSearchParams();
+  const searchParams = useClientSearchParams();
   const { data: currentUser } = useAuth();
   const signOut = useSignOut();
   const [step, setStep] = useState(1);

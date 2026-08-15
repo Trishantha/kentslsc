@@ -1,14 +1,14 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/routing';
-import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { passwordSchema } from '@kentslsc/shared';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { CheckCircle2, Loader2 } from 'lucide-react';
+import { useClientSearchParams } from '@/hooks/useClientSearchParams';
 
 const formSchema = z
   .object({
@@ -22,20 +22,6 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function ResetPasswordPage() {
-  return (
-    <Suspense
-      fallback={
-        <Wrapper>
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-blue" />
-        </Wrapper>
-      }
-    >
-      <ResetPasswordForm />
-    </Suspense>
-  );
-}
-
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-4">
@@ -44,10 +30,17 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ResetPasswordForm() {
-  const searchParams = useSearchParams();
-  const token = searchParams?.get('token');
+export default function ResetPasswordPage() {
+  const searchParams = useClientSearchParams();
+  const [token, setToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    setToken(searchParams.get('token'));
+    setReady(true);
+  }, [searchParams]);
 
   const {
     register,
@@ -64,6 +57,14 @@ function ResetPasswordForm() {
       setError('root', { message: getApiErrorMessage(err) });
     }
   };
+
+  if (!ready) {
+    return (
+      <Wrapper>
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-blue" />
+      </Wrapper>
+    );
+  }
 
   if (!token) {
     return (

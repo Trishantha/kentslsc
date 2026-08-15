@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { useClientSearchParams } from '@/hooks/useClientSearchParams';
 
 /**
  * Landing page for the link in the confirmation email.
@@ -11,14 +11,6 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
  * Public and locale-prefixed: the link may be opened in a different browser (or
  * on a phone) from the one that registered, so it must work signed-out.
  */
-export default function VerifyEmailPage() {
-  return (
-    <Suspense fallback={<Shell><Loader2 className="mx-auto h-8 w-8 animate-spin text-neon-blue" /></Shell>}>
-      <VerifyEmailContent />
-    </Suspense>
-  );
-}
-
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-12">
@@ -27,9 +19,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function VerifyEmailContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams?.get('token');
+export default function VerifyEmailPage() {
+  const searchParams = useClientSearchParams();
+  const [token, setToken] = useState<string | null>(null);
   const [state, setState] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState<string | null>(null);
   // React 18 StrictMode double-invokes effects in dev; without this the
@@ -37,23 +29,28 @@ function VerifyEmailContent() {
   const attempted = useRef(false);
 
   useEffect(() => {
+    if (!searchParams) return;
+
+    const t = searchParams.get('token');
+    setToken(t);
+
     if (attempted.current) return;
     attempted.current = true;
 
-    if (!token) {
+    if (!t) {
       setState('error');
       setMessage('This link is missing its confirmation code.');
       return;
     }
 
     api
-      .post('/auth/verify-email', { token })
+      .post('/auth/verify-email', { token: t })
       .then(() => setState('success'))
       .catch((err) => {
         setState('error');
         setMessage(getApiErrorMessage(err));
       });
-  }, [token]);
+  }, [searchParams]);
 
   if (state === 'verifying') {
     return (

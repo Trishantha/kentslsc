@@ -1,8 +1,6 @@
 'use client';
 
 import { Link } from '@/i18n/routing';
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
@@ -12,33 +10,7 @@ import { isAxiosError } from 'axios';
 import { safeRedirect } from '@/lib/safe-redirect';
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={<LoginSkeleton />}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-function LoginSkeleton() {
   const t = useTranslations('auth');
-  return (
-    <div className="flex min-h-[80vh] items-center justify-center px-4">
-      <div className="glass-card w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold">{t('welcomeBack')}</h1>
-        <p className="mt-2 text-slate-700 dark:text-slate-400">{t('loading')}</p>
-      </div>
-    </div>
-  );
-}
-
-function LoginForm() {
-  const t = useTranslations('auth');
-  const searchParams = useSearchParams();
-  // Both params are attacker-controllable; safeRedirect collapses anything
-  // off-origin (or looping back into /auth) to the dashboard.
-  const redirect = safeRedirect(
-    searchParams?.get('redirect') ?? searchParams?.get('returnTo')
-  );
   const {
     register,
     handleSubmit,
@@ -49,6 +21,19 @@ function LoginForm() {
   const onSubmit = async (data: LoginInput) => {
     try {
       const { data: result } = await api.post('/auth/login', data);
+
+      // Read the redirect param at submit time to avoid useSearchParams/Suspense,
+      // which can leave the form stuck on "Loading..." in static builds.
+      // Both params are attacker-controllable; safeRedirect collapses anything
+      // off-origin (or looping back into /auth) to the dashboard.
+      const searchParams =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search)
+          : new URLSearchParams();
+      const redirect = safeRedirect(
+        searchParams.get('redirect') ?? searchParams.get('returnTo')
+      );
+
       // Unverified users may sign in, but land on the verification gate rather
       // than a portal page they'd immediately be bounced out of.
       let destination = redirect;
