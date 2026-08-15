@@ -271,30 +271,34 @@ export class PaymentsService {
     return this.stripe!.webhooks.constructEvent(payload, signature, webhookSecret);
   }
 
-  extractPayPalMetadata(payload: any): Record<string, string> {
-    const source = payload?.resource?.purchase_units?.[0]?.custom_id ?? payload?.purchase_units?.[0]?.custom_id;
+  extractPayPalMetadata(payload: Record<string, unknown>): Record<string, string> {
+    const resource = payload?.resource as Record<string, unknown>;
+    const purchaseUnits = resource?.purchase_units as Array<Record<string, unknown>>;
+    const source = purchaseUnits?.[0]?.custom_id ?? (payload?.purchase_units as Array<Record<string, unknown>>)?.[0]?.custom_id;
     if (!source) return {};
 
     try {
-      return JSON.parse(source) as Record<string, string>;
+      return JSON.parse(source as string) as Record<string, string>;
     } catch {
       return {};
     }
   }
 
-  extractPayPalPaymentId(payload: any): string | null {
-    return payload?.resource?.id ?? payload?.id ?? null;
+  extractPayPalPaymentId(payload: Record<string, unknown>): string | null {
+    const resource = payload?.resource as Record<string, unknown>;
+    return (resource?.id as string) ?? (payload?.id as string) ?? null;
   }
 
-  async handleDirectoryPromotion(session: Stripe.Checkout.Session) {
-    const businessListingId = session.metadata?.businessListingId;
+  async handleDirectoryPromotion(session: Stripe.Checkout.Session | Record<string, unknown>) {
+    const metadata = typeof session === 'object' && 'metadata' in session ? session.metadata : (session as Record<string, unknown>).metadata;
+    const businessListingId = typeof metadata === 'object' && metadata !== null ? (metadata as Record<string, unknown>).businessListingId : null;
     if (!businessListingId) return;
 
     const promotedUntil = new Date();
     promotedUntil.setDate(promotedUntil.getDate() + PROMOTION_DAYS);
 
     await this.prisma.businessListing.updateMany({
-      where: { id: businessListingId, deletedAt: null },
+      where: { id: businessListingId as string, deletedAt: null },
       data: { isPromoted: true, promotedUntil }
     });
   }

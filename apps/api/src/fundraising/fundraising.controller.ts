@@ -120,7 +120,7 @@ export class FundraisingController {
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
     @Res() res: Response
   ) {
     try {
