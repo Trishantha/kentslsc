@@ -816,6 +816,67 @@ async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
   throw new Error(`${serviceName} did not become ready at ${baseUrl} within ${timeoutMs}ms`);
 }
 
+function getStaticMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const types = {
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.mjs': 'application/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
+    '.eot': 'application/vnd.ms-fontobject',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.avif': 'image/avif',
+    '.ico': 'image/x-icon'
+  };
+  return types[ext] || 'application/octet-stream';
+}
+
+/**
+ * Serve Next.js static assets directly from the filesystem.
+ *
+ * On some shared-hosting/reverse-proxy setups the in-process Next.js handler
+ * does not receive or cannot serve `/_next/static/*` requests. Serving them
+ * here guarantees the CSS/JS chunks that hydrate the page are delivered with
+ * correct MIME types and long-term caching headers.
+ */
+function serveNextStaticFile(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const relativePath = url.pathname.replace(/^\/_next\/static\//, '');
+  const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
+  const filePath = path.join(webDir, '.next', 'static', safePath);
+
+  if (!filePath.startsWith(path.join(webDir, '.next', 'static'))) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      console.error(`Static file not found: ${filePath}`);
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+
+    const contentType = getStaticMimeType(filePath);
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable'
+    });
+    res.end(data);
+  });
+}
+
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
@@ -837,6 +898,14 @@ function startProxyServer() {
     if (!isUpstreamReady) {
       res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Service warming up', detail: 'Upstreams are still starting' }));
+      return;
+    }
+
+    // Serve Next.js static assets directly from the build output. This
+    // bypasses any reverse-proxy or in-process handler issues that can otherwise
+    // return 404 / text-plain responses for CSS and JS chunks.
+    if (urlPath.startsWith('/_next/static/')) {
+      serveNextStaticFile(req, res);
       return;
     }
 
