@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, useRouter } from '@/i18n/routing';
+import { Link } from '@/i18n/routing';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -33,7 +33,6 @@ function LoginSkeleton() {
 
 function LoginForm() {
   const t = useTranslations('auth');
-  const router = useRouter();
   const searchParams = useSearchParams();
   // Both params are attacker-controllable; safeRedirect collapses anything
   // off-origin (or looping back into /auth) to the dashboard.
@@ -59,19 +58,10 @@ function LoginForm() {
         destination = '/admin';
       }
 
-      // Prefer Next.js client navigation for a smoother transition; fall back to
-      // a full navigation if the router call fails or is delayed.
-      try {
-        router.push(destination);
-      } catch {
-        window.location.href = destination;
-      }
-      // Ensure the redirect happens even if router.push does not resolve quickly.
-      window.setTimeout(() => {
-        if (window.location.pathname.startsWith('/auth')) {
-          window.location.href = destination;
-        }
-      }, 1000);
+      // Use a full page navigation so the new session cookies are sent on the
+      // first request to the destination, rather than relying on a client-side
+      // transition that may skip the server-side auth check.
+      window.location.href = destination;
     } catch (error) {
       if (!isAxiosError(error) || !error.response) {
         setError('root', { message: t('cannotReachServer') });

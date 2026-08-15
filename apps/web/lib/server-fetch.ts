@@ -1,3 +1,5 @@
+import { getApiOriginCandidates } from './api-base';
+
 interface FetchWithRetryOptions extends RequestInit {
   retries?: number;
   retryDelayMs?: number;
@@ -64,11 +66,48 @@ export async function fetchWithRetryResult(
 }
 
 /**
+ * Try to reach the API through every known origin candidate.
+ *
+ * This is the resilient choice for server-side fetches where the configured
+ * public API origin may not be reachable from inside the frontend container.
+ * It tries INTERNAL_API_URL, API_PROXY_TARGET, the request's own origin and
+ * local loopback, returning the first one that produces any response. Callers
+ * still receive a tagged result so they can distinguish 404 from API errors.
+ */
+export async function fetchApiWithOriginFallback(
+  path: string,
+  options: FetchWithRetryOptions = {}
+): Promise<FetchResult> {
+  const origins = await getApiOriginCandidates();
+  const attempts: { origin: string; error: string }[] = [];
+
+  for (const origin of origins) {
+    const url = `${origin}${path}`;
+    const result = await fetchWithRetryResult(url, options);
+    if (result.ok) {
+      return result;
+    }
+    attempts.push({
+      origin,
+      error: result.status ? `HTTP ${result.status}` : String(result.error ?? 'no response')
+    });
+  }
+
+  console.error(
+    `Server fetch failed for ${path}. Tried origins: ${attempts
+      .map((a) => `${a.origin} (${a.error})`)
+      .join(', ')}`
+  );
+  return { ok: false, status: null, error: new Error(`All API origins failed for ${path}`) };
+}
+
+/**
  * Backward-compatible wrapper around fetchWithRetryResult().
  *
  * Returns the Response on success (including non-OK HTTP responses, which are
  * logged), or null on network/API failure. Callers that need to distinguish 404
- * from other errors should use fetchWithRetryResult() instead.
+ * from other errors should use fetchWithRetryResult() or
+ * fetchApiWithOriginFallback() instead.
  */
 export async function fetchWithRetry(
   url: string,
@@ -78,3 +117,5 @@ export async function fetchWithRetry(
   if (result.ok) return result.response;
   return null;
 }
+
+

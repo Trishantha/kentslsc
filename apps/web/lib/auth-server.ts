@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getInternalApiUrl } from './api-base';
+import { getApiOriginCandidates } from './api-base';
 import type { Permission } from '@kentslsc/shared';
 
 export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
@@ -35,40 +35,47 @@ export async function getServerSession(): Promise<ServerSession> {
     cookieHeader.includes('accessToken=') || cookieHeader.includes('refreshToken=');
   if (!cookieHeader) return { authenticated: false };
 
-  try {
-    const apiUrl = await getInternalApiUrl();
-    const res = await fetch(`${apiUrl}/api/auth/session`, {
-      headers: { cookie: cookieHeader },
-      cache: 'no-store'
-    });
-    if (!res.ok) {
-      // Log the failure so operators can distinguish a stale token (401), an
-      // unverified account (403), or an API-side error (500) from a simple
-      // "not signed in" case. Do not leak this to the browser.
-      let body = '(empty)';
-      try {
-        body = await res.text();
-      } catch {
-        // ignore
+  const origins = await getApiOriginCandidates();
+  const attempts: { origin: string; error: string }[] = [];
+
+  for (const apiUrl of origins) {
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/session`, {
+        headers: { cookie: cookieHeader },
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        // Log the failure so operators can distinguish a stale token (401), an
+        // unverified account (403), or an API-side error (500) from a simple
+        // "not signed in" case. Do not leak this to the browser.
+        let body = '(empty)';
+        try {
+          body = await res.text();
+        } catch {
+          // ignore
+        }
+        console.error(
+          `[auth-server] Session check returned HTTP ${res.status} from ${apiUrl}/api/auth/session. ` +
+            `Has auth cookie: ${hasAuthCookie}. Body: ${body.slice(0, 500)}`
+        );
+        // A reachable origin answered; trust that response and stop trying others.
+        return { authenticated: false };
       }
-      console.error(
-        `[auth-server] Session check returned HTTP ${res.status} from ${apiUrl}/api/auth/session. ` +
-          `Has auth cookie: ${hasAuthCookie}. Body: ${body.slice(0, 500)}`
+      return (await res.json()) as ServerSession;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      attempts.push({ origin: apiUrl, error: message });
+      console.warn(
+        `[auth-server] Session check attempt failed for ${apiUrl}/api/auth/session: ${message}`
       );
-      return { authenticated: false };
     }
-    return (await res.json()) as ServerSession;
-  } catch (error) {
-    // API unreachable: treat as signed out rather than rendering a member area
-    // we could not authorise. Log the resolved URL so container-to-container
-    // reachability issues are diagnosable.
-    const attemptedUrl = await getInternalApiUrl().catch(() => 'unknown');
-    console.error(
-      `[auth-server] Session check failed (API: ${attemptedUrl}, hasAuthCookie: ${hasAuthCookie}):`,
-      error
-    );
-    return { authenticated: false };
   }
+
+  console.error(
+    `[auth-server] Session check failed on all origins. Has auth cookie: ${hasAuthCookie}. ` +
+      `Tried: ${attempts.map((a) => `${a.origin} (${a.error})`).join(', ')}`
+  );
+  return { authenticated: false };
 }
 
 /** Require a signed-in, email-verified user. Redirects otherwise. */

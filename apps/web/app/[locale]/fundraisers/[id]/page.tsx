@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchWithRetryResult } from '@/lib/server-fetch';
+import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
-import { getServerApiUrl } from '@/lib/api-base';
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
@@ -15,8 +14,7 @@ type FetchFundraiserResult =
   | { kind: 'error'; status: number | null };
 
 async function fetchFundraiser(id: string): Promise<FetchFundraiserResult> {
-  const apiUrl = await getServerApiUrl();
-  const result = await fetchWithRetryResult(`${apiUrl}/api/fundraisers/${id}`, {
+  const result = await fetchApiWithOriginFallback(`/api/fundraisers/${id}`, {
     next: { revalidate: 60 }
   });
 

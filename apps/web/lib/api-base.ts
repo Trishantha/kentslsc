@@ -83,6 +83,33 @@ async function resolveApiOrigin(): Promise<string> {
 }
 
 /**
+ * All candidate origins that the frontend server might use to reach the API,
+ * ordered from most explicit to least explicit.
+ *
+ * Callers that must reach the API (e.g. session checks) should try these in
+ * order and use the first one that responds, rather than betting on a single
+ * resolved origin. A configured public origin may be unreachable from inside the
+ * container even when a self-referential or loopback origin works fine.
+ */
+export async function getApiOriginCandidates(): Promise<string[]> {
+  const candidates = new Set<string>();
+
+  const internal = readEnv('INTERNAL_API_URL');
+  if (internal) candidates.add(normalizeApiOrigin(internal));
+
+  const publicOrigin = readEnv('API_PROXY_TARGET') ?? readEnv('NEXT_PUBLIC_API_URL');
+  if (publicOrigin) candidates.add(normalizeApiOrigin(publicOrigin));
+
+  const requestOrigin = await getRequestOrigin();
+  if (requestOrigin) candidates.add(requestOrigin);
+
+  const port = readEnv('PORT') ?? readEnv('WEB_PORT') ?? '3000';
+  candidates.add(`http://127.0.0.1:${port}`);
+
+  return [...candidates];
+}
+
+/**
  * Public API origin.
  *
  * Used for server-side content fetches (pages, sitemap, fundraisers, etc.).
