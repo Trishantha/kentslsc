@@ -3,19 +3,44 @@
   "globalDependencies": ["**/.env.*local", "**/.env"],
   "globalEnv": [
     "NODE_ENV",
+    "PORT",
+    "WEB_PORT",
+    "API_URL",
     "DATABASE_URL",
+    "E2E_DATABASE_URL",
+    "ADMIN_SEED_PASSWORD",
     "REDIS_URL",
     "JWT_SECRET",
     "JWT_REFRESH_SECRET",
+    "JWT_ACCESS_EXPIRY",
+    "JWT_REFRESH_EXPIRY",
     "OPENAI_API_KEY",
+    "OPENAI_TIMEOUT_MS",
+    "LOGIN_MAX_FAILURES",
+    "DEFAULT_PAYMENT_PROVIDER",
     "STRIPE_SECRET_KEY",
     "STRIPE_WEBHOOK_SECRET",
     "STRIPE_PUBLISHABLE_KEY",
+    "PAYPAL_CLIENT_ID",
+    "PAYPAL_CLIENT_SECRET",
+    "PAYPAL_API_BASE_URL",
     "EMAIL_HOST",
     "EMAIL_PORT",
     "EMAIL_USER",
     "EMAIL_PASS",
-    "EMAIL_FROM"
+    "EMAIL_FROM",
+    "FRONTEND_URL",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_SOCKET_URL",
+    "NEXT_PUBLIC_FRONTEND_URL",
+    "API_PROXY_TARGET",
+    "INTERNAL_API_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_KEY",
+    "SUPABASE_BUCKET",
+    "ADMIN_SECRET",
+    "ADMIN_EMERGENCY_PASSWORD",
+    "ADMIN_EMERGENCY_EMAIL"
   ],
   "tasks": {
     "build": {
@@ -34,6 +59,7 @@
       "dependsOn": ["^build"]
     },
     "test:e2e": {
+      "cache": false,
       "dependsOn": ["^build"]
     },
     "typecheck": {

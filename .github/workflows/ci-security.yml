@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Enable corepack
         run: corepack enable
@@ -43,8 +43,66 @@ jobs:
           FRONTEND_URL: http://localhost:3000
         run: corepack pnpm build
 
+      - name: Typecheck
+        run: corepack pnpm typecheck
+
+      - name: Lint
+        run: corepack pnpm lint
+
       - name: Run smoke tests
         run: corepack pnpm test
+
+  e2e-smoke:
+    name: Database-backed E2E Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kentslsc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Build workspace
+        env:
+          API_PROXY_TARGET: http://localhost:3001
+          NEXT_PUBLIC_SOCKET_URL: http://localhost:3001
+          FRONTEND_URL: http://localhost:3000
+        run: corepack pnpm build
+
+      - name: Run E2E smoke tests
+        env:
+          NODE_ENV: test
+          E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kentslsc_test
+          JWT_SECRET: ci-jwt-secret-min-length-32!!
+          JWT_REFRESH_SECRET: ci-refresh-secret-min-length-32!!
+          FRONTEND_URL: http://localhost:3000
+          API_URL: http://localhost:4000
+        run: corepack pnpm test:e2e
 
   security-audit:
     name: Production Dependency Audit
@@ -58,7 +116,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Enable corepack
         run: corepack enable
