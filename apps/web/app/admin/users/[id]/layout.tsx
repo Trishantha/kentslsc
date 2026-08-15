@@ -1,26 +1,23 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, User, Mail, Shield, CreditCard, Ticket, Heart, Store, MessageSquare } from 'lucide-react';
-import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  User,
+  Mail,
+  Shield,
+  CreditCard,
+  Ticket,
+  Heart,
+  Store,
+  MessageSquare,
+  Loader2
+} from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import type { UserDetail } from '../types';
-
-interface UserDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getUser(id: string): Promise<UserDetail | null> {
-  const result = await fetchApiWithOriginFallback(`/api/admin/users/${id}`);
-  if (!result.ok) {
-    // A genuine 404 from the API means the user does not exist.
-    if (result.status === 404) return null;
-    // Any other failure (network, 500, etc.) is an API reachability problem;
-    // throw so the error boundary can show a useful message instead of a 404.
-    throw new Error(result.error ? String(result.error) : 'Failed to load user details');
-  }
-  return result.response.json();
-}
 
 const tabs = [
   { href: 'profile', label: 'Profile', icon: User },
@@ -32,10 +29,50 @@ const tabs = [
   { href: 'forum', label: 'Forum', icon: MessageSquare }
 ];
 
-export default async function UserDetailLayout({ children, params }: UserDetailLayoutProps) {
-  const { id } = await params;
-  const user = await getUser(id);
-  if (!user) notFound();
+interface UserDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function UserDetailLayout({ children }: UserDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: user,
+    isLoading,
+    error
+  } = useQuery<UserDetail>({
+    queryKey: ['admin', 'users', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/users/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load user</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'User not found.'}
+        </p>
+        <Link
+          href="/admin/users"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to users
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
