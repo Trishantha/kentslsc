@@ -50,11 +50,12 @@ export class ContactService {
 
       const settings = await this.siteSettingsService.get().catch(() => null);
       const adminEmail = settings?.email ?? null;
+      const emailErrors: string[] = [];
 
       await this.emailService.sendContactConfirmation(dto.email, dto.name).catch((err) => {
-        this.logger.warn(
-          `Failed to send contact confirmation to ${dto.email}: ${err instanceof Error ? err.message : String(err)}`
-        );
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to send contact confirmation to ${dto.email}: ${errorMessage}`);
+        emailErrors.push(`confirmation: ${errorMessage}`);
       });
 
       if (adminEmail) {
@@ -67,13 +68,13 @@ export class ContactService {
             message: dto.message
           })
           .catch((err) => {
-            this.logger.warn(
-              `Failed to send contact notification to ${adminEmail}: ${err instanceof Error ? err.message : String(err)}`
-            );
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Failed to send contact notification to ${adminEmail}: ${errorMessage}`);
+            emailErrors.push(`notification: ${errorMessage}`);
           });
       }
 
-      return message;
+      return { ...message, emailErrors };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const code =

@@ -24,7 +24,19 @@ export class EmailService {
     const host = configService.get<string>('EMAIL_HOST');
     const user = configService.get<string>('EMAIL_USER');
     const pass = configService.get<string>('EMAIL_PASS');
-    const from = configService.get<string>('EMAIL_FROM') || user;
+    let from = configService.get<string>('EMAIL_FROM') || user;
+
+    // Hostinger (and several other shared-hosting SMTP servers) requires the
+    // envelope From address to be owned by the authenticated user. If the
+    // configured From address differs from EMAIL_USER, fall back to EMAIL_USER
+    // rather than have every send rejected with "Sender address rejected".
+    if (from && user && from.toLowerCase() !== user.toLowerCase()) {
+      this.logger.warn(
+        `EMAIL_FROM (${from}) does not match EMAIL_USER (${user}). ` +
+          'Using EMAIL_USER as the sender address to avoid SMTP rejection.'
+      );
+      from = user;
+    }
 
     if (host && user && pass && from) {
       this.from = from;
@@ -63,14 +75,23 @@ export class EmailService {
           `[email not sent - no SMTP config]\n  to: ${String(options.to)}\n  subject: ${options.subject ?? '[no subject]'}\n  body: ${String(options.html ?? options.text ?? '')}`
         );
       } else {
-        this.logger.warn(`Email not sent (no SMTP config): ${options.subject ?? '[no subject]'}`);
+        this.logger.error(`Email not sent (no SMTP config): ${options.subject ?? '[no subject]'}`);
       }
       return { messageId: 'mock-message-id', accepted: [], rejected: [] };
     }
-    return this.transporter.sendMail({
-      from: this.from,
-      ...options
-    });
+    try {
+      return await this.transporter.sendMail({
+        from: this.from,
+        ...options
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to send email to ${String(options.to)} (subject: ${options.subject ?? '[no subject]'}): ${message}`,
+        error instanceof Error ? error.stack : undefined
+      );
+      throw error;
+    }
   }
 
   async sendEmailVerification(email: string, name: string, verifyUrl: string, expiresInHours: number) {

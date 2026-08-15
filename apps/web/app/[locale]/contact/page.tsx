@@ -17,6 +17,7 @@ import { useSiteSettings } from '@/hooks/useSiteSettings';
 interface ContactResponse {
   id: string;
   aiFaqResponse?: string | null;
+  emailErrors?: string[];
 }
 
 function useContactDetails() {
@@ -174,6 +175,18 @@ function ContactPageContent() {
                     </div>
                     <h2 className="mt-4 text-2xl font-bold">{t('successTitle')}</h2>
                     <p className="mt-2 text-slate-600 dark:text-slate-400">{t('successText')}</p>
+                    {mutation.data?.emailErrors && mutation.data.emailErrors.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-left">
+                        <p className="text-sm font-semibold text-rose-400">
+                          Your message was saved, but we could not send the email confirmation:
+                        </p>
+                        <ul className="mt-2 list-inside list-disc text-xs text-rose-400">
+                          {mutation.data.emailErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     {aiResponse && (
                       <div className="mt-6 rounded-xl border border-neon-gold/20 bg-neon-gold/5 p-4 text-left">
                         <div className="flex items-center gap-2 text-neon-gold">
