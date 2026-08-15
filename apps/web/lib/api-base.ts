@@ -20,8 +20,14 @@ function normalizeApiOrigin(value: string): string {
  * (e.g. http://localhost:3001). Evaluating it lazily lets server.js-injected
  * variables like API_PROXY_TARGET take effect at runtime.
  */
+function readEnv(key: string): string | undefined {
+  // Use dynamic property access so the bundler cannot hoist the lookup to
+  // module-evaluation time and capture a stale value.
+  return process.env[key];
+}
+
 export async function getServerApiUrl(): Promise<string> {
-  const raw = process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL;
+  const raw = readEnv('API_PROXY_TARGET') ?? readEnv('NEXT_PUBLIC_API_URL');
   return normalizeApiOrigin(raw ?? 'http://localhost:3001');
 }
 
@@ -35,7 +41,7 @@ export async function getServerApiUrl(): Promise<string> {
  * the API runs in-process). Falls back to getServerApiUrl() when unset.
  */
 export async function getInternalApiUrl(): Promise<string> {
-  const raw = process.env.INTERNAL_API_URL;
+  const raw = readEnv('INTERNAL_API_URL');
   if (raw) return normalizeApiOrigin(raw);
   return getServerApiUrl();
 }

@@ -326,6 +326,15 @@ const apiMode = process.env.API_MODE || 'in-process';
 const webMode = process.env.WEB_MODE || 'in-process';
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 
+// When running the API/web in-process (or child mode on the same host), the
+// public origin may be unreachable from inside the container and the build may
+// have baked in a different default (e.g. http://localhost:3001). Set the
+// internal API origin before any Next.js module is loaded so server-side fetches
+// and rewrites target the local unified proxy.
+const localApiOrigin = `http://127.0.0.1:${publicPort}`;
+process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || localApiOrigin;
+process.env.INTERNAL_API_URL = process.env.INTERNAL_API_URL || localApiOrigin;
+
 // How long the public proxy waits for an upstream response (ms).
 const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);
 
@@ -937,6 +946,7 @@ async function startWebChild() {
     NEXT_PUBLIC_FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_SOCKET_URL: publicApiUrl || frontendUrl,
     API_PROXY_TARGET: `http://127.0.0.1:${publicPort}`,
+    INTERNAL_API_URL: `http://127.0.0.1:${publicPort}`,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
