@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { CheckCircle2, XCircle, Calendar, Users, Shield } from 'lucide-react';
-import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
+import { fetchWithRetry } from '@/lib/server-fetch';
 import { formatDate } from '@/lib/utils';
-
+import { getServerApiUrl } from '@/lib/api-base';
 
 interface VerifyPageProps {
   params: Promise<{ locale: string; id: string }>;
@@ -22,12 +22,13 @@ interface VerificationResult {
 }
 
 async function verifyMembership(id: string): Promise<VerificationResult | null> {
-  const result = await fetchApiWithOriginFallback(
-    `/api/membership/verify/${encodeURIComponent(id)}`,
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(
+    `${apiUrl}/api/membership/verify/${encodeURIComponent(id)}`,
     { next: { revalidate: 0 } }
   );
-  if (!result.ok || !result.response.ok) return null;
-  return (await result.response.json()) as VerificationResult;
+  if (!res || !res.ok) return null;
+  return (await res.json()) as VerificationResult;
 }
 
 export async function generateMetadata({ params }: VerifyPageProps): Promise<Metadata> {

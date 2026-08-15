@@ -104,6 +104,7 @@ export default function AdminUsersPage() {
                   <th className="py-3 font-medium">Name</th>
                   <th className="py-3 font-medium">Email</th>
                   <th className="py-3 font-medium">Role</th>
+                  <th className="py-3 font-medium">Status</th>
                   <th className="py-3 font-medium">Joined</th>
                   <th className="py-3 font-medium">Actions</th>
                 </tr>
@@ -121,6 +122,18 @@ export default function AdminUsersPage() {
                     <td className="py-3">
                       <span className="rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-semibold text-neon-gold">
                         {user.role}
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-1 text-xs font-semibold',
+                          user.status === 'BANNED'
+                            ? 'bg-red-500/10 text-red-400'
+                            : 'bg-green-500/10 text-green-400'
+                        )}
+                      >
+                        {user.status === 'BANNED' ? 'BANNED' : 'ACTIVE'}
                       </span>
                     </td>
                     <td className="py-3 text-slate-600 dark:text-slate-400">

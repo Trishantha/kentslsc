@@ -348,49 +348,30 @@ export class MembershipsService {
     membershipPublicId: string,
     storedCardUrl?: string | null
   ): Promise<string> {
+    if (!storedCardUrl?.startsWith('http')) {
+      // Cards are generated when a membership becomes ACTIVE. If a card URL is
+      // missing we should not block the request by generating it on-the-fly
+      // (that can time out or crash); instead surface it so it can be fixed.
+      throw new NotFoundException('Membership card is not available');
+    }
+
     const isPublicBucket = this.supabaseStorage.isPublic;
 
-    if (isPublicBucket !== false && storedCardUrl?.startsWith('http')) {
+    if (isPublicBucket !== false) {
       // If the bucket is known to be public (or we haven't checked), prefer the
       // direct public URL. For public buckets this avoids the overhead of
       // signing and works with custom domains.
       return storedCardUrl;
     }
 
-    // The bucket is private or the stored URL is missing/invalid. Generate a
-    // signed URL so the image can be served without making the bucket public.
-    let publicUrl = storedCardUrl;
-    if (!publicUrl?.startsWith('http')) {
-      const membership = await this.prisma.membership.findUnique({
-        where: { membershipId: membershipPublicId },
-        include: { membershipType: true }
-      });
-      if (!membership || membership.deletedAt) {
-        throw new NotFoundException('Membership not found');
-      }
-      const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
-      const user = await this.prisma.user.findUnique({
-        where: { id: membership.userId },
-        select: { name: true }
-      });
-      const updated = await this.generateAndAttachCard(
-        membership,
-        user?.name ?? 'Member',
-        dependants
-      );
-      publicUrl = updated.membershipCardUrl!;
-    }
-
-    if (isPublicBucket === true) {
-      return publicUrl;
-    }
-
-    const signedUrl = await this.supabaseStorage.getSignedUrlForPublicUrl(publicUrl, 86400);
+    // The bucket is private. Create a temporary signed URL so the image can be
+    // served without making the bucket public.
+    const signedUrl = await this.supabaseStorage.getSignedUrlForPublicUrl(storedCardUrl, 86400);
     if (signedUrl) return signedUrl;
 
     // Fallback to the public URL if signing fails (e.g. custom domain). This
     // will work for public buckets and fail visibly for private ones.
-    return publicUrl;
+    return storedCardUrl;
   }
 
   /**

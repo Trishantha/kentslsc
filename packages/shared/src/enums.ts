@@ -5,6 +5,11 @@ export enum UserRole {
   GUEST = 'GUEST'
 }
 
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  BANNED = 'BANNED'
+}
+
 export enum MembershipStatus {
   PENDING = 'PENDING',
   ACTIVE = 'ACTIVE',

@@ -12,7 +12,7 @@ import {
   RawBody,
   HttpCode,
   HttpStatus,
-  NotFoundException, BadRequestException, Logger
+  BadRequestException, Logger
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -86,10 +86,24 @@ export class MembershipsController {
   async getCard(
     @CurrentUser() user: TokenPayload,
     @Query('membershipId') membershipId: string | undefined,
+    @Query('t') timestamp: string | undefined,
     @Res({ passthrough: true }) res: Response
   ) {
     const cardUrl = await this.membershipsService.getCardForUser(user, membershipId);
-    return res.redirect(cardUrl);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    // Append the cache-busting timestamp to the redirected storage URL as well,
+    // otherwise the browser/CDN may keep serving the cached image even after a
+    // card is regenerated at the same Supabase path.
+    // Signed URLs already include a unique token, so adding extra query params
+    // would break the signature; only bust public URLs.
+    const isSigned = /[?&]token=/.test(cardUrl);
+    let redirectUrl = cardUrl;
+    if (!isSigned) {
+      const bust = timestamp ?? Date.now().toString();
+      const separator = cardUrl.includes('?') ? '&' : '?';
+      redirectUrl = `${cardUrl}${separator}t=${encodeURIComponent(bust)}`;
+    }
+    return res.redirect(redirectUrl);
   }
 
   @Get('verify/:membershipId')

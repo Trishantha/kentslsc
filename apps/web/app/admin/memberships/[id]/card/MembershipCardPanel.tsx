@@ -14,6 +14,8 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
   const queryClient = useQueryClient();
   const [cardUrl, setCardUrl] = useState<string | null>(membership.membershipCardUrl);
   const [error, setError] = useState<string | null>(null);
+  const [imageRetry, setImageRetry] = useState(Date.now);
+  const [imageRetryCount, setImageRetryCount] = useState(0);
 
   const regenerateMutation = useMutation({
     mutationFn: async () => {
@@ -23,6 +25,9 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
     onSuccess: (data: { membershipCardUrl?: string | null }) => {
       if (data?.membershipCardUrl) {
         setCardUrl(data.membershipCardUrl);
+        // Force the <img> to request a fresh redirect after regeneration.
+        setImageRetry(Date.now());
+        setImageRetryCount(0);
       }
       queryClient.invalidateQueries({ queryKey: ['admin', 'memberships'] });
     },
@@ -30,7 +35,7 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
   });
 
   const cardImageUrl = cardUrl
-    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
+    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}&t=${imageRetry}`
     : null;
 
   return (
@@ -63,6 +68,12 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
                 src={cardImageUrl}
                 alt={`Membership card for ${membership.user.name}`}
                 className="mx-auto max-h-[420px] w-auto rounded-lg object-contain"
+                onError={() => {
+                  if (imageRetryCount < 2) {
+                    setImageRetryCount((c) => c + 1);
+                    setImageRetry(Date.now());
+                  }
+                }}
               />
             </div>
             <div className="flex flex-wrap gap-3">

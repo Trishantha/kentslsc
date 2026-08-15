@@ -384,6 +384,8 @@ function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
 export default function DashboardPage() {
   const [showQr, setShowQr] = useState(false);
   const [cardError, setCardError] = useState(false);
+  const [cardRetry, setCardRetry] = useState(Date.now);
+  const [cardRetryCount, setCardRetryCount] = useState(0);
 
   const {
     data: membership,
@@ -397,12 +399,13 @@ export default function DashboardPage() {
     retry: false
   });
 
-  const cardAssetUrl = membership
-    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
+  const cardAssetUrl = membership?.cardUrl
+    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}&t=${cardRetry}`
     : null;
 
   useEffect(() => {
     setCardError(false);
+    setCardRetryCount(0);
   }, [cardAssetUrl]);
 
   return (
@@ -525,7 +528,13 @@ export default function DashboardPage() {
                         src={cardAssetUrl}
                         alt="Membership card"
                         className="max-h-72 w-auto object-contain"
-                        onError={() => setCardError(true)}
+                        onError={() => {
+                          setCardError(true);
+                          if (cardRetryCount < 2) {
+                            setCardRetryCount((c) => c + 1);
+                            setCardRetry(Date.now());
+                          }
+                        }}
                       />
                     </div>
                     {cardError && (

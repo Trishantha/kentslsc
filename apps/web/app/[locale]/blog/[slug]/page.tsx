@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
+import { fetchWithRetry } from '@/lib/server-fetch';
 import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
-
+import { getServerApiUrl } from '@/lib/api-base';
 import { summarizeRichText } from '@/lib/rich-text';
 
 interface Props {
@@ -11,9 +11,10 @@ interface Props {
 }
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
-  const result = await fetchApiWithOriginFallback(`/api/blog/${slug}`, { next: { revalidate: 60 } });
-  if (!result.ok || !result.response.ok) return null;
-  return result.response.json();
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/blog/${slug}`, { next: { revalidate: 60 } });
+  if (!res || !res.ok) return null;
+  return res.json();
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

@@ -12,7 +12,6 @@ import { TokenModule } from './token.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
-import { PermissionsModule } from '../permissions/permissions.module.js';
 import { EmailModule } from '../email/email.module.js';
 
 import { AuthBootstrapService } from './auth-bootstrap.service.js';
@@ -34,7 +33,6 @@ import { AuthBootstrapService } from './auth-bootstrap.service.js';
     UsersModule,
     MembershipsModule,
     AuthorizationModule,
-    PermissionsModule,
     TokenModule,
     // Required for verification, reset and lockout mail. AuthModule did not
     // import this before, and EmailModule is not @Global().

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
@@ -16,6 +16,7 @@ import {
   MembershipStatus as DbMembershipStatus,
   ContactStatus as DbContactStatus
 } from '@kentslsc/database';
+import type { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
 
 @Injectable()
 export class AdminService {
@@ -115,6 +116,54 @@ export class AdminService {
 
   findMembership(id: string) {
     return this.membershipsService.findMembershipById(id);
+  }
+
+  async createMembershipForUser(userId: string, dto: AdminCreateMembershipDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deletedAt: null },
+      select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true, address: true, status: true }
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status === 'BANNED') {
+      throw new BadRequestException('Cannot create a membership for a banned user');
+    }
+
+    const fullName = dto.fullName?.trim() || `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.name;
+    const address = user.address as { buildingStreet?: string; locality?: string; townCity?: string; postcode?: string } | null;
+
+    // Cancel any existing active memberships so the new one is the effective
+    // membership. This makes "upgrade" behave as admins expect.
+    await this.prisma.membership.updateMany({
+      where: { userId, deletedAt: null, status: DbMembershipStatus.ACTIVE },
+      data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
+    });
+
+    const result = await this.membershipsService.processApplication(user.id, user.email, {
+      membershipTypeId: dto.membershipTypeId,
+      fullName,
+      address: address
+        ? {
+            buildingStreet: address.buildingStreet ?? '',
+            locality: address.locality,
+            townCity: address.townCity ?? '',
+            postcode: address.postcode ?? ''
+          }
+        : undefined,
+      phone: user.phone ?? undefined,
+      dependants: []
+    });
+
+    // If the caller requested a non-default status (e.g. ACTIVE immediately),
+    // override the membership status after creation. processApplication creates
+    // free memberships as ACTIVE and paid ones as PENDING by default.
+    if (dto.status && result.membership) {
+      const membership = await this.membershipsService.findMembershipById((result.membership as { id: string }).id);
+      if (membership.status !== dto.status) {
+        await this.membershipsService.updateStatus(membership.id, dto.status as DbMembershipStatus);
+      }
+    }
+
+    return result;
   }
 
   regenerateMembershipCard(membershipId: string) {

@@ -7,7 +7,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AuthEventType, Prisma } from '@kentslsc/database';
 import { MembershipsService } from '../memberships/memberships.service.js';
 import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
-import { LoginInput, UserRole, TokenPayload, MembershipFeature } from '@kentslsc/shared';
+import { LoginInput, UserRole, TokenPayload, MembershipFeature, UserStatus } from '@kentslsc/shared';
 import { RegisterDto } from './dto/register.dto.js';
 import { SessionsService, type RequestContext } from './sessions.service.js';
 import { LoginLockoutService } from './login-lockout.service.js';
@@ -143,6 +143,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Banned accounts cannot authenticate.
+    if (user.status === UserStatus.BANNED) {
+      await this.sessions.recordEvent({
+        userId: user.id,
+        email: user.email,
+        type: AuthEventType.LOGIN_FAILURE,
+        ctx,
+        metadata: { reason: 'banned' }
+      });
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     await this.lockout.clear(email);
 
     const tokens = await this.issueSession(user.id, user.email, user.role as UserRole, ctx);
@@ -192,6 +204,10 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { id: rotated.userId } });
     if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (user.status === UserStatus.BANNED) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft, User, Mail, Shield, CreditCard, Ticket, Heart, Store, MessageSquare } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
+import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
 import { notFound } from 'next/navigation';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import type { UserDetail } from '../types';
@@ -11,7 +11,15 @@ interface UserDetailLayoutProps {
 }
 
 async function getUser(id: string): Promise<UserDetail | null> {
-  return fetchWithOriginFallback(`/api/admin/users/${id}`);
+  const result = await fetchApiWithOriginFallback(`/api/admin/users/${id}`);
+  if (!result.ok) {
+    // A genuine 404 from the API means the user does not exist.
+    if (result.status === 404) return null;
+    // Any other failure (network, 500, etc.) is an API reachability problem;
+    // throw so the error boundary can show a useful message instead of a 404.
+    throw new Error(result.error ? String(result.error) : 'Failed to load user details');
+  }
+  return result.response.json();
 }
 
 const tabs = [
@@ -48,6 +56,11 @@ export default async function UserDetailLayout({ children, params }: UserDetailL
               <span className="rounded-full bg-neon-gold/10 px-2 py-0.5 text-xs font-semibold text-neon-gold">
                 {user.role}
               </span>
+              {user.status === 'BANNED' && (
+                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-400">
+                  BANNED
+                </span>
+              )}
             </div>
           </div>
         </div>

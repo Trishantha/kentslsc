@@ -69,7 +69,6 @@ const PUBLIC_ALLOWLIST = new Set([
   'fundraising/fundraising.controller.ts::getUpdates',
   'fundraising/fundraising.controller.ts::findOne',
   'fundraising/fundraising.controller.ts::list',
-  'gdpr-settings/gdpr-settings.controller.ts::get',
   'hero-config/hero-config.controller.ts::get',
   'memberships/memberships.controller.ts::getFeatures',
   'memberships/memberships.controller.ts::getTypes',
@@ -79,6 +78,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'pages/pages.controller.ts::listPublished',
   'policy-documents/policy-documents.controller.ts::listPublished',
   'policy-documents/policy-documents.controller.ts::getByType',
+  'gdpr-settings/gdpr-settings.controller.ts::get',
   'site-settings/site-settings.controller.ts::get',
 ]);
 

@@ -1,5 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { Permission, UserRole, type TokenPayload, type TokenType } from '@kentslsc/shared';
+import { Permission, UserRole, type TokenPayload, type TokenType, UserStatus } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
@@ -35,12 +35,17 @@ export class TokenValidationService {
         email: true,
         role: true,
         deletedAt: true,
-        emailVerifiedAt: true
+        emailVerifiedAt: true,
+        status: true
       }
     });
 
     if (!user || user.deletedAt) {
       throw new UnauthorizedException('User not found');
+    }
+
+    if (user.status === UserStatus.BANNED) {
+      throw new UnauthorizedException('User account has been suspended');
     }
 
     if (payload.sid) {

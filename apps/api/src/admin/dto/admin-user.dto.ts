@@ -1,5 +1,5 @@
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
-import { UserRole } from '@kentslsc/shared';
+import { UserRole, UserStatus } from '@kentslsc/shared';
 import { StrongPassword } from '../../common/validators/strong-password.decorator.js';
 
 export class AdminCreateUserDto {
@@ -43,4 +43,9 @@ export class AdminCreateUserDto {
 export class AdminUpdateRoleDto {
   @IsEnum(UserRole)
   declare role: UserRole;
+}
+
+export class AdminUpdateStatusDto {
+  @IsEnum(UserStatus)
+  declare status: UserStatus;
 }

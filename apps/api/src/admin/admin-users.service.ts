@@ -7,7 +7,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuthEventType } from '@kentslsc/database';
-import { UserRole, Permission, permissionLabels } from '@kentslsc/shared';
+import { UserRole, Permission, UserStatus, permissionLabels } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { CredentialsService } from '../auth/credentials.service.js';
@@ -92,7 +92,7 @@ export class AdminUsersService {
     ctx: RequestContext = {}
   ) {
     const target = await this.prisma.user.findUnique({
-      where: { id: targetUserId },
+      where: { id: targetUserId, deletedAt: null },
       select: { id: true, email: true, role: true, deletedAt: true }
     });
     if (!target || target.deletedAt) throw new NotFoundException('User not found');
@@ -117,7 +117,7 @@ export class AdminUsersService {
     const updated = await this.prisma.user.update({
       where: { id: targetUserId },
       data: { role },
-      select: { id: true, email: true, role: true }
+      select: { id: true, email: true, role: true, status: true }
     });
 
     // A privilege change must not wait for the old token to expire. JwtStrategy
@@ -131,6 +131,56 @@ export class AdminUsersService {
       type: AuthEventType.ROLE_CHANGED,
       ctx,
       metadata: { changedBy: actor.sub, from: target.role, to: role }
+    });
+
+    return updated;
+  }
+
+  async updateStatus(
+    actor: { sub: string },
+    targetUserId: string,
+    status: UserStatus,
+    ctx: RequestContext = {}
+  ) {
+    if (targetUserId === actor.sub) {
+      throw new BadRequestException('You cannot change your own status');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId, deletedAt: null },
+      select: { id: true, email: true, status: true, role: true }
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    if (target.status === status) return { id: target.id, status };
+
+    // Prevent banning the last admin (same safeguard as role change).
+    if (target.role === UserRole.ADMIN && status === UserStatus.BANNED) {
+      const admins = await this.prisma.user.count({
+        where: { role: UserRole.ADMIN, deletedAt: null, status: UserStatus.ACTIVE }
+      });
+      if (admins <= 1) {
+        throw new BadRequestException('Cannot ban the last remaining active administrator');
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { status },
+      select: { id: true, email: true, role: true, status: true }
+    });
+
+    // Banning a user must end all sessions immediately.
+    if (status === UserStatus.BANNED) {
+      await this.sessions.revokeAllForUser(targetUserId, 'banned');
+    }
+
+    await this.sessions.recordEvent({
+      userId: targetUserId,
+      email: target.email,
+      type: AuthEventType.USER_STATUS_CHANGED,
+      ctx,
+      metadata: { changedBy: actor.sub, from: target.status, to: status }
     });
 
     return updated;

@@ -11,7 +11,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
 import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
-import { UserRole } from '@kentslsc/shared';
+import { UserRole, UserStatus } from '@kentslsc/shared';
 
 const PASSWORD = 'Str0ngPassw0rd!x';
 
@@ -22,6 +22,7 @@ const mockUser = {
   firstName: 'Test',
   lastName: 'User',
   role: UserRole.MEMBER,
+  status: UserStatus.ACTIVE,
   passwordHash: bcrypt.hashSync(PASSWORD, 4),
   deletedAt: null
 };

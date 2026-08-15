@@ -1,6 +1,6 @@
-import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
+import { fetchWithRetry } from '@/lib/server-fetch';
 import AboutPageContent, { type CommitteeMember } from './AboutPageContent';
-
+import { getServerApiUrl } from '@/lib/api-base';
 
 const defaultCommitteeItems: CommitteeMember[] = [
   { id: 'president', roleKey: 'president', name: 'TBC', position: 'President', displayOrder: 0 },
@@ -12,11 +12,12 @@ const defaultCommitteeItems: CommitteeMember[] = [
 ];
 
 async function fetchCommittee(): Promise<CommitteeMember[]> {
-  const result = await fetchApiWithOriginFallback('/api/committee', {
+  const apiUrl = await getServerApiUrl();
+  const res = await fetchWithRetry(`${apiUrl}/api/committee`, {
     next: { revalidate: 60 }
   });
-  if (!result.ok || !result.response.ok) return defaultCommitteeItems;
-  const data = (await result.response.json()) as CommitteeMember[];
+  if (!res || !res.ok) return defaultCommitteeItems;
+  const data = (await res.json()) as CommitteeMember[];
   if (!Array.isArray(data) || data.length === 0) return defaultCommitteeItems;
   return data;
 }

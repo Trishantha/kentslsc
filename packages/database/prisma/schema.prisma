@@ -15,6 +15,11 @@ enum UserRole {
   GUEST
 }
 
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
 enum MembershipStatus {
   PENDING
   ACTIVE
@@ -86,6 +91,7 @@ enum AuthEventType {
   REFRESH_REUSE_DETECTED
   ADMIN_USER_CREATED
   ROLE_CHANGED
+  USER_STATUS_CHANGED
 }
 
 enum Permission {
@@ -117,6 +123,7 @@ model User {
   phone         String?
   address       Json?     @db.JsonB
   role          UserRole  @default(GUEST)
+  status        UserStatus @default(ACTIVE)
   refreshToken  String?   @map("refresh_token")
   // Optional back-office role that provides a default permission set.
   backOfficeRoleId String?   @map("back_office_role_id")

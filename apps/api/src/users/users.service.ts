@@ -24,6 +24,7 @@ export class UsersService {
         phone: true,
         address: true,
         role: true,
+        status: true,
         createdAt: true,
         updatedAt: true
       }
@@ -44,6 +45,7 @@ export class UsersService {
         phone: true,
         address: true,
         role: true,
+        status: true,
         createdAt: true,
         updatedAt: true
       }
@@ -128,6 +130,7 @@ export class UsersService {
         phone: true,
         address: true,
         role: true,
+        status: true,
         updatedAt: true
       }
     });
@@ -153,6 +156,7 @@ export class UsersService {
           phone: true,
           address: true,
           role: true,
+          status: true,
           createdAt: true,
           updatedAt: true,
           deletedAt: true
@@ -196,6 +200,7 @@ export class UsersService {
           lastName: true,
           email: true,
           role: true,
+          status: true,
           createdAt: true
         }
       }),

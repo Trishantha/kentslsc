@@ -18,7 +18,7 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 import { AdminUsersService } from './admin-users.service.js';
-import { AdminCreateUserDto, AdminUpdateRoleDto } from './dto/admin-user.dto.js';
+import { AdminCreateUserDto, AdminUpdateRoleDto, AdminUpdateStatusDto } from './dto/admin-user.dto.js';
 import {
   CreateRoleDto,
   UpdateRoleDto,
@@ -31,6 +31,7 @@ import {
 } from './dto/back-office-user.dto.js';
 import type { RequestContext } from '../auth/sessions.service.js';
 import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js';
+import { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
 import { CreateEventDto } from '../events/dto/create-event.dto.js';
 import { UpdateEventDto } from '../events/dto/update-event.dto.js';
@@ -198,6 +199,26 @@ export class AdminController {
     @Req() req: Request
   ) {
     return this.adminUsers.updateRole(actor, id, dto.role, this.context(req));
+  }
+
+  @Patch('users/:id/status')
+  @Roles(UserRole.ADMIN)
+  updateUserStatus(
+    @CurrentUser() actor: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateStatusDto,
+    @Req() req: Request
+  ) {
+    return this.adminUsers.updateStatus(actor, id, dto.status, this.context(req));
+  }
+
+  @Post('users/:id/memberships')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  createUserMembership(
+    @Param('id') id: string,
+    @Body() dto: AdminCreateMembershipDto
+  ) {
+    return this.adminService.createMembershipForUser(id, dto);
   }
 
   @Post('users/:id/force-logout')
