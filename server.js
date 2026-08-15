@@ -180,33 +180,40 @@ async function runMigrations() {
   console.log(`Using Prisma schema at: ${schemaPath}`);
 
   // Verify the Prisma CLI can execute via Node before running migrations.
-  const versionResult = await spawnWithRetry(
-    nodeCommand,
-    [prismaEntry, '--version'],
-    { cwd: rootDir, stdio: 'pipe', env: process.env },
-    { label: 'Prisma --version', maxAttempts: 5 }
-  );
-  if (versionResult.status !== 0) {
-    console.error('Prisma --version failed:', versionResult.error ? versionResult.error.message : '');
-    if (versionResult.stderr) console.error(versionResult.stderr.toString());
-    if (versionResult.stdout) console.log(versionResult.stdout.toString());
-    // When the process limit is exhausted we may not be able to spawn Prisma at
-    // all. Rather than crash the whole unified server, log loudly and continue.
-    // Migrations are idempotent, so a skipped check here is safer than a startup
-    // death spiral. Operators can set SKIP_MIGRATIONS=true to silence this.
-    if (isResourceError(versionResult.error)) {
-      console.warn(
-        `WARNING: Prisma CLI could not be spawned due to a resource limit (${versionResult.error.code}). ` +
-          'Skipping database migrations and continuing startup. Set SKIP_MIGRATIONS=true to silence this warning.'
-      );
-      return;
-    }
-    console.warn(
-      'WARNING: Could not verify Prisma CLI executability. Continuing anyway; ' +
-        'if migrate deploy fails below, increase available processes or set SKIP_MIGRATIONS=true.'
-    );
+  // This check spawns a child process; on shared hosts with tight process caps
+  // it can exhaust the account budget and delay startup. Skip it when the
+  // operator has already opted out or when migrations are disabled entirely.
+  if (process.env.SKIP_PRISMA_VERSION_CHECK === 'true' || process.env.SKIP_MIGRATIONS === 'true') {
+    console.log('Skipping Prisma --version check (SKIP_PRISMA_VERSION_CHECK or SKIP_MIGRATIONS set).');
   } else {
-    console.log('Prisma CLI is executable.');
+    const versionResult = await spawnWithRetry(
+      nodeCommand,
+      [prismaEntry, '--version'],
+      { cwd: rootDir, stdio: 'pipe', env: process.env },
+      { label: 'Prisma --version', maxAttempts: 5 }
+    );
+    if (versionResult.status !== 0) {
+      console.error('Prisma --version failed:', versionResult.error ? versionResult.error.message : '');
+      if (versionResult.stderr) console.error(versionResult.stderr.toString());
+      if (versionResult.stdout) console.log(versionResult.stdout.toString());
+      // When the process limit is exhausted we may not be able to spawn Prisma at
+      // all. Rather than crash the whole unified server, log loudly and continue.
+      // Migrations are idempotent, so a skipped check here is safer than a startup
+      // death spiral. Operators can set SKIP_MIGRATIONS=true to silence this.
+      if (isResourceError(versionResult.error)) {
+        console.warn(
+          `WARNING: Prisma CLI could not be spawned due to a resource limit (${versionResult.error.code}). ` +
+            'Skipping database migrations and continuing startup. Set SKIP_MIGRATIONS=true to silence this warning.'
+        );
+        return;
+      }
+      console.warn(
+        'WARNING: Could not verify Prisma CLI executability. Continuing anyway; ' +
+          'if migrate deploy fails below, increase available processes or set SKIP_MIGRATIONS=true.'
+      );
+    } else {
+      console.log('Prisma CLI is executable.');
+    }
   }
 
   // Some migrations were previously run against a database that already had the
@@ -847,10 +854,15 @@ function getStaticMimeType(filePath) {
  * does not receive or cannot serve `/_next/static/*` requests. Serving them
  * here guarantees the CSS/JS chunks that hydrate the page are delivered with
  * correct MIME types and long-term caching headers.
+ *
+ * If the file is missing from the build output we fall back to the in-process
+ * Next.js handler. This covers builds where chunk hashes differ between the HTML
+ * and the static manifest, and it keeps the request inside the process instead
+ * of returning a plain 404.
  */
-function serveNextStaticFile(req, res) {
+function serveNextStaticFile(req, res, fallback) {
   const url = new URL(req.url || '/', 'http://localhost');
-  const relativePath = url.pathname.replace(/^\/_next\/static\//, '');
+  const relativePath = decodeURIComponent(url.pathname).replace(/^\/_next\/static\//, '');
   const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(webDir, '.next', 'static', safePath);
 
@@ -862,6 +874,10 @@ function serveNextStaticFile(req, res) {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      if (typeof fallback === 'function') {
+        fallback();
+        return;
+      }
       console.error(`Static file not found: ${filePath}`);
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not found');
@@ -905,7 +921,14 @@ function startProxyServer() {
     // bypasses any reverse-proxy or in-process handler issues that can otherwise
     // return 404 / text-plain responses for CSS and JS chunks.
     if (urlPath.startsWith('/_next/static/')) {
-      serveNextStaticFile(req, res);
+      serveNextStaticFile(req, res, () => {
+        if (webHandler) {
+          webHandler(req, res);
+        } else {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Not found');
+        }
+      });
       return;
     }
 
@@ -975,6 +998,85 @@ async function startInProcessWeb() {
   }
   webHandler = await webModule.init();
   console.log('Web handler initialized in-process');
+}
+
+/**
+ * Verify that critical API routes are reachable through the in-process listener.
+ *
+ * This catches stale or corrupted API builds where controllers are missing and
+ * routes return 404. We do not crash the whole process on shared hosts (the host
+ * would just restart it in a tight loop), but we keep the proxy in warming_up
+ * state and log the failure loudly so the operator knows the build is bad.
+ */
+async function verifyCriticalApiRoutes() {
+  if (apiMode !== 'in-process' || !apiServer) {
+    return true;
+  }
+
+  const routes = ['/api/pages/home', '/api/hero-config', '/api/health'];
+  const failures = [];
+
+  const isRouteNotRegistered = (status, body) => {
+    if (status !== 404) return false;
+    const text = String(body).toLowerCase();
+    // A genuine "resource not found" from a working controller says the route is
+    // registered and the build is fine. Only treat router-level "unknown route"
+    // responses as build failures.
+    if (text.includes('home page not found')) return false;
+    if (text.includes('hero config') && text.includes('not found')) return false;
+    return true;
+  };
+
+  for (const route of routes) {
+    const result = await new Promise((resolve) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: publicPort,
+          path: route,
+          method: 'GET'
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => {
+            body += chunk;
+          });
+          res.on('end', () => {
+            resolve({ status: res.statusCode, body: body.slice(0, 500) });
+          });
+        }
+      );
+      req.setTimeout(5000, () => {
+        req.destroy();
+        resolve({ status: null, body: 'timeout' });
+      });
+      req.on('error', (error) => {
+        resolve({ status: null, body: error.message });
+      });
+      req.end();
+    });
+
+    // 404 from the router means the controller/route is missing from the build.
+    // 404 from a service (e.g. "Home page not found") is expected on a fresh DB.
+    // 500/503 may be transient while the database is still unreachable.
+    if (isRouteNotRegistered(result.status, result.body)) {
+      failures.push({ route, ...result });
+    }
+  }
+
+  if (failures.length > 0) {
+    console.error(
+      'CRITICAL: Some API routes are missing. This usually means apps/api/dist ' +
+        'is stale or was built from a different commit. Rebuild the API and redeploy. ' +
+        'Missing routes:'
+    );
+    for (const failure of failures) {
+      console.error(`  ${failure.route} -> HTTP ${failure.status}: ${failure.body}`);
+    }
+    return false;
+  }
+
+  return true;
 }
 
 async function startApiAsChild(socketPath) {
@@ -1095,8 +1197,17 @@ async function startServices() {
   } else {
     throw new Error(`Unsupported WEB_MODE: ${webMode}. Use 'in-process' or 'child'.`);
   }
-  isUpstreamReady = true;
-  console.log('Upstreams are ready; proxy is now accepting traffic');
+
+  const apiRoutesOk = await verifyCriticalApiRoutes();
+  isUpstreamReady = apiRoutesOk;
+  if (apiRoutesOk) {
+    console.log('Upstreams are ready; proxy is now accepting traffic');
+  } else {
+    console.error(
+      'Upstreams started but critical API routes are missing. ' +
+        'The health endpoint will continue to report warming_up until the build is fixed.'
+    );
+  }
 
   const shutdown = () => {
     isShuttingDown = true;
