@@ -119,6 +119,7 @@
     "logIn": "Log In",
     "noAccount": "Don't have an account?",
     "register": "Register",
+    "forgotPassword": "Forgot your password?",
     "loading": "Loading...",
     "cannotReachServer": "Cannot reach the server. Please make sure the API is running.",
     "invalidCredentials": "Invalid email or password",

@@ -65,7 +65,7 @@ export default function LoginPage() {
       <div className="glass-card w-full max-w-md p-8">
         <h1 className="text-2xl font-bold">{t('welcomeBack')}</h1>
         <p className="mt-2 text-slate-700 dark:text-slate-400">{t('loginToAccount')}</p>
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" suppressHydrationWarning>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-6 space-y-4" suppressHydrationWarning>
           <div>
             <label className="text-sm font-medium">{t('email')}</label>
             <input {...register('email')} type="email" autoComplete="email" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none dark:border-white/10 dark:bg-white/10" suppressHydrationWarning />
@@ -77,13 +77,13 @@ export default function LoginPage() {
             {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
           </div>
           {errors.root && <p className="text-sm text-red-500">{errors.root.message}</p>}
-          <button disabled={isSubmitting} className="btn-primary w-full" suppressHydrationWarning>
+          <button type="submit" disabled={isSubmitting} className="btn-primary w-full disabled:opacity-70 disabled:cursor-not-allowed" suppressHydrationWarning>
             {isSubmitting ? t('loggingIn') : t('logIn')}
           </button>
         </form>
         <p className="mt-3 text-center text-sm">
           <Link href="/auth/forgot-password" className="text-neon-blue hover:underline">
-            Forgot your password?
+            {t('forgotPassword')}
           </Link>
         </p>
         <p className="mt-4 text-center text-sm text-slate-700 dark:text-slate-400">
