@@ -65,6 +65,51 @@ export class EmailService {
     return !!this.transporter;
   }
 
+  /**
+   * Wrap a plain HTML email body in a branded Kent SLSC template with a signature.
+   * Keeps all outgoing emails visually consistent.
+   */
+  private wrapHtml(body: string): string {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'https://kentslsc.org';
+    const year = new Date().getFullYear();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kent Sri Lankan Social Club</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:24px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background-color:#0f172a;padding:24px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Kent Sri Lankan Social Club</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 24px;color:#334155;font-size:16px;line-height:1.6;">
+              ${body}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f8fafc;padding:24px;text-align:center;color:#64748b;font-size:13px;line-height:1.5;border-top:1px solid #e2e8f0;">
+              <p style="margin:0 0 8px 0;font-weight:600;color:#0f172a;">Kent Sri Lankan Social Club</p>
+              <p style="margin:0 0 8px 0;">Bringing our Sri Lankan community together in Kent.</p>
+              <p style="margin:0;"><a href="${frontendUrl}" style="color:#0ea5e9;text-decoration:none;">${frontendUrl}</a></p>
+              <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">&copy; ${year} Kent Sri Lankan Social Club. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
   async send(options: Mail.Options) {
     if (!this.transporter) {
       // Outside production, print the body so a developer can copy the
@@ -80,9 +125,11 @@ export class EmailService {
       return { messageId: 'mock-message-id', accepted: [], rejected: [] };
     }
     try {
+      const html = typeof options.html === 'string' ? this.wrapHtml(options.html) : options.html;
       return await this.transporter.sendMail({
         from: this.from,
-        ...options
+        ...options,
+        html
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

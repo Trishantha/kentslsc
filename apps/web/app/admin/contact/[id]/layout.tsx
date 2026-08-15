@@ -1,28 +1,62 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Mail, MessageSquare, CheckCircle } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Mail, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import type { ContactMessage } from '../types';
-
-interface ContactDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getContactMessage(id: string): Promise<ContactMessage | null> {
-  return fetchWithOriginFallback(`/api/admin/contact-messages/${id}`);
-}
 
 const tabs = [
   { href: 'message', label: 'Message', icon: MessageSquare },
   { href: 'status', label: 'Status', icon: CheckCircle }
 ];
 
-export default async function ContactDetailLayout({ children, params }: ContactDetailLayoutProps) {
-  const { id } = await params;
-  const message = await getContactMessage(id);
-  if (!message) notFound();
+interface ContactDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function ContactDetailLayout({ children }: ContactDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: message,
+    isLoading,
+    error
+  } = useQuery<ContactMessage>({
+    queryKey: ['admin', 'contact-messages', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/contact-messages/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !message) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load message</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Message not found.'}
+        </p>
+        <Link
+          href="/admin/contact"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to contact messages
+        </Link>
+      </div>
+    );
+  }
 
   const statusColor =
     message.handledStatus === 'RESOLVED'

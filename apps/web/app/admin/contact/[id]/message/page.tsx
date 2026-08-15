@@ -50,7 +50,7 @@ export default function ContactMessagePage() {
             <p className="font-medium">{formatDateTime(message.createdAt)}</p>
           </div>
         </div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-300">
           {message.message}
         </div>
       </div>
