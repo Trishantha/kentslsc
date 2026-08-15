@@ -31,6 +31,8 @@ export type ServerSession =
  */
 export async function getServerSession(): Promise<ServerSession> {
   const cookieHeader = cookies().toString();
+  const hasAuthCookie =
+    cookieHeader.includes('accessToken=') || cookieHeader.includes('refreshToken=');
   if (!cookieHeader) return { authenticated: false };
 
   try {
@@ -39,14 +41,32 @@ export async function getServerSession(): Promise<ServerSession> {
       headers: { cookie: cookieHeader },
       cache: 'no-store'
     });
-    if (!res.ok) return { authenticated: false };
+    if (!res.ok) {
+      // Log the failure so operators can distinguish a stale token (401), an
+      // unverified account (403), or an API-side error (500) from a simple
+      // "not signed in" case. Do not leak this to the browser.
+      let body = '(empty)';
+      try {
+        body = await res.text();
+      } catch {
+        // ignore
+      }
+      console.error(
+        `[auth-server] Session check returned HTTP ${res.status} from ${apiUrl}/api/auth/session. ` +
+          `Has auth cookie: ${hasAuthCookie}. Body: ${body.slice(0, 500)}`
+      );
+      return { authenticated: false };
+    }
     return (await res.json()) as ServerSession;
   } catch (error) {
     // API unreachable: treat as signed out rather than rendering a member area
     // we could not authorise. Log the resolved URL so container-to-container
     // reachability issues are diagnosable.
     const attemptedUrl = await getInternalApiUrl().catch(() => 'unknown');
-    console.error(`[auth-server] Session check failed (API: ${attemptedUrl}):`, error);
+    console.error(
+      `[auth-server] Session check failed (API: ${attemptedUrl}, hasAuthCookie: ${hasAuthCookie}):`,
+      error
+    );
     return { authenticated: false };
   }
 }
