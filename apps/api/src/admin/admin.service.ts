@@ -138,7 +138,10 @@ export class AdminService {
       data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
     });
 
-    const result = await this.membershipsService.processApplication(user.id, user.email, {
+    const membershipType = await this.membershipsService.findTypeById(dto.membershipTypeId);
+
+    const membership = await this.membershipsService.createMembership({
+      userId: user.id,
       membershipTypeId: dto.membershipTypeId,
       fullName,
       address: address
@@ -150,20 +153,13 @@ export class AdminService {
           }
         : undefined,
       phone: user.phone ?? undefined,
-      dependants: []
+      dependants: [],
+      membershipType,
+      overrideEmail: user.email,
+      status: dto.status as DbMembershipStatus | undefined
     });
 
-    // If the caller requested a non-default status (e.g. ACTIVE immediately),
-    // override the membership status after creation. processApplication creates
-    // free memberships as ACTIVE and paid ones as PENDING by default.
-    if (dto.status && result.membership) {
-      const membership = await this.membershipsService.findMembershipById((result.membership as { id: string }).id);
-      if (membership.status !== dto.status) {
-        await this.membershipsService.updateStatus(membership.id, dto.status as DbMembershipStatus);
-      }
-    }
-
-    return result;
+    return { membership, paid: false };
   }
 
   regenerateMembershipCard(membershipId: string) {

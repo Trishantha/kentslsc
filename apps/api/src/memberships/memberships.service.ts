@@ -15,7 +15,7 @@ import type { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.j
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 import type { StructuredAddressDto } from '../auth/dto/address.dto.js';
 
-interface CreateMembershipData {
+export interface CreateMembershipData {
   userId: string;
   membershipTypeId: string;
   fullName: string;
@@ -231,7 +231,7 @@ export class MembershipsService {
     return { sessionId: checkout.id, url: checkout.url, paid: true, provider: checkout.provider };
   }
 
-  private async createMembership(data: CreateMembershipData): Promise<Membership> {
+  async createMembership(data: CreateMembershipData): Promise<Membership> {
     const startDate = new Date();
     const endDate = this.computeEndDate(data.membershipType, startDate);
 
