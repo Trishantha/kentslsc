@@ -305,7 +305,8 @@ export class MembershipsService {
 
     try {
       const welcome = await this.aiService.welcome(fullName);
-      const cardLink = cardUrl ? `<p><a href="${this.apiUrl}${cardUrl}">Download your membership card</a></p>` : '';
+      const cardHref = cardUrl?.startsWith('http') ? cardUrl : `${this.apiUrl}${cardUrl ?? ''}`;
+      const cardLink = cardUrl ? `<p><a href="${cardHref}">Download your membership card</a></p>` : '';
       await this.emailService.send({
         to: email,
         subject: 'Welcome to Kent SLSC',
@@ -343,6 +344,55 @@ export class MembershipsService {
     };
   }
 
+  private async resolveCardImageUrl(
+    membershipPublicId: string,
+    storedCardUrl?: string | null
+  ): Promise<string> {
+    const isPublicBucket = this.supabaseStorage.isPublic;
+
+    if (isPublicBucket !== false && storedCardUrl?.startsWith('http')) {
+      // If the bucket is known to be public (or we haven't checked), prefer the
+      // direct public URL. For public buckets this avoids the overhead of
+      // signing and works with custom domains.
+      return storedCardUrl;
+    }
+
+    // The bucket is private or the stored URL is missing/invalid. Generate a
+    // signed URL so the image can be served without making the bucket public.
+    let publicUrl = storedCardUrl;
+    if (!publicUrl?.startsWith('http')) {
+      const membership = await this.prisma.membership.findUnique({
+        where: { membershipId: membershipPublicId },
+        include: { membershipType: true }
+      });
+      if (!membership || membership.deletedAt) {
+        throw new NotFoundException('Membership not found');
+      }
+      const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
+      const user = await this.prisma.user.findUnique({
+        where: { id: membership.userId },
+        select: { name: true }
+      });
+      const updated = await this.generateAndAttachCard(
+        membership,
+        user?.name ?? 'Member',
+        dependants
+      );
+      publicUrl = updated.membershipCardUrl!;
+    }
+
+    if (isPublicBucket === true) {
+      return publicUrl;
+    }
+
+    const signedUrl = await this.supabaseStorage.getSignedUrlForPublicUrl(publicUrl, 86400);
+    if (signedUrl) return signedUrl;
+
+    // Fallback to the public URL if signing fails (e.g. custom domain). This
+    // will work for public buckets and fail visibly for private ones.
+    return publicUrl;
+  }
+
   /**
    * Resolve which card the caller is allowed to see.
    *
@@ -352,16 +402,20 @@ export class MembershipsService {
    */
   async getCardForUser(user: TokenPayload, membershipPublicId?: string) {
     if (!membershipPublicId) {
-      const own = await this.findMyMembership(user.sub);
+      const own = await this.prisma.membership.findFirst({
+        where: { userId: user.sub, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { membershipId: true, membershipCardUrl: true }
+      });
       if (!own) {
         throw new NotFoundException('No membership found');
       }
-      return this.getCardImage(own.membershipId);
+      return this.resolveCardImageUrl(own.membershipId, own.membershipCardUrl);
     }
 
     const membership = await this.prisma.membership.findUnique({
       where: { membershipId: membershipPublicId },
-      select: { userId: true, deletedAt: true }
+      select: { userId: true, deletedAt: true, membershipCardUrl: true }
     });
 
     if (!membership || membership.deletedAt) {
@@ -372,29 +426,7 @@ export class MembershipsService {
       throw new ForbiddenException('You do not have access to this membership card');
     }
 
-    return this.getCardImage(membershipPublicId);
-  }
-
-  async getCardImage(membershipPublicId: string) {
-    const membership = await this.prisma.membership.findUnique({
-      where: { membershipId: membershipPublicId },
-      include: { membershipType: true }
-    });
-
-    if (!membership || membership.deletedAt) {
-      throw new NotFoundException('Membership not found');
-    }
-
-    if (membership.membershipCardUrl?.startsWith('http')) {
-      return membership.membershipCardUrl;
-    }
-
-    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
-    const user = await this.prisma.user.findUnique({ where: { id: membership.userId }, select: { name: true } });
-
-    const updated = await this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
-
-    return updated.membershipCardUrl!;
+    return this.resolveCardImageUrl(membershipPublicId, membership.membershipCardUrl);
   }
 
   async verifyMembership(membershipPublicId: string) {

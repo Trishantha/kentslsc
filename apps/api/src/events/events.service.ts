@@ -253,13 +253,14 @@ export class EventsService {
 
   async listEventTickets(eventId: string) {
     await this.findById(eventId);
-    return this.prisma.ticket.findMany({
+    const tickets = await this.prisma.ticket.findMany({
       where: { eventId, deletedAt: null },
       orderBy: { serialNumber: 'asc' },
       include: {
         user: { select: { id: true, name: true, email: true } }
       }
     });
+    return { tickets };
   }
 
   async getRemainingCapacity(eventId: string) {
@@ -315,6 +316,16 @@ export class EventsService {
     if (!eventId || !userId) return null;
 
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
+
+    // Stripe may retry the webhook; return existing tickets instead of creating duplicates.
+    const existingTickets = await this.prisma.ticket.findMany({
+      where: { stripeSessionId: session.id, deletedAt: null },
+      include: { event: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (existingTickets.length > 0) {
+      return existingTickets;
+    }
+
     const tickets = await this.createTickets(userId, eventId, quantity, session.id, origin);
     return tickets;
   }
@@ -340,6 +351,16 @@ export class EventsService {
       const txRemaining = event.maxTickets ? event.maxTickets - sold : null;
       if (txRemaining !== null && quantity > txRemaining) {
         throw new BadRequestException('Not enough tickets remaining');
+      }
+
+      // Defensive idempotency guard: do not issue tickets twice for the same Stripe session.
+      if (paymentId !== 'free') {
+        const existingForSession = await tx.ticket.count({
+          where: { stripeSessionId: paymentId, deletedAt: null }
+        });
+        if (existingForSession > 0) {
+          throw new BadRequestException('Tickets already issued for this payment session');
+        }
       }
 
       const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];

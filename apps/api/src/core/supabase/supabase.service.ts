@@ -14,6 +14,7 @@ export interface UploadedFileResult {
 export class SupabaseStorageService implements OnModuleInit {
   private readonly logger = new Logger(SupabaseStorageService.name);
   private bucketName = 'KentSLSC';
+  private bucketPublic: boolean | null = null;
 
   constructor(@Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient | null) {}
 
@@ -36,6 +37,7 @@ export class SupabaseStorageService implements OnModuleInit {
         );
         return;
       }
+      this.bucketPublic = bucket.public;
       if (!bucket.public) {
         this.logger.warn(
           `Supabase bucket "${this.bucketName}" is not public. Public file URLs will not work.`
@@ -51,6 +53,57 @@ export class SupabaseStorageService implements OnModuleInit {
 
   get isConfigured(): boolean {
     return this.supabase !== null;
+  }
+
+  get isPublic(): boolean | null {
+    return this.bucketPublic;
+  }
+
+  private get publicUrlPrefix(): string {
+    const baseUrl = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+    if (!baseUrl) return '';
+    return `${baseUrl}/storage/v1/object/public/${this.bucketName}/`;
+  }
+
+  extractPathFromPublicUrl(publicUrl: string): string | null {
+    const prefix = this.publicUrlPrefix;
+    if (!prefix || !publicUrl.startsWith(prefix)) return null;
+    const encodedPath = publicUrl.slice(prefix.length);
+    try {
+      return decodeURIComponent(encodedPath);
+    } catch {
+      return encodedPath;
+    }
+  }
+
+  async getSignedUrl(path: string, expiresInSeconds = 3600): Promise<string> {
+    if (!this.supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
+    const { data, error } = await this.supabase.storage
+      .from(this.bucketName)
+      .createSignedUrl(path, expiresInSeconds);
+
+    if (error) {
+      this.logger.error(`Failed to create signed URL: ${error.message}`);
+      throw new Error(`Failed to create signed URL: ${error.message}`);
+    }
+
+    return data.signedUrl;
+  }
+
+  async getSignedUrlForPublicUrl(
+    publicUrl: string,
+    expiresInSeconds = 3600
+  ): Promise<string | null> {
+    const path = this.extractPathFromPublicUrl(publicUrl);
+    if (!path) return null;
+    try {
+      return await this.getSignedUrl(path, expiresInSeconds);
+    } catch {
+      return null;
+    }
   }
 
   async upload(file: Express.Multer.File): Promise<UploadedFileResult> {

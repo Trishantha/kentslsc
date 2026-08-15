@@ -29,7 +29,9 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
     onError: (err) => setError(getApiErrorMessage(err))
   });
 
-  const cardImageUrl = cardUrl?.startsWith('http') ? cardUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${cardUrl ?? ''}`;
+  const cardImageUrl = cardUrl
+    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
+    : null;
 
   return (
     <div className="max-w-3xl space-y-6">

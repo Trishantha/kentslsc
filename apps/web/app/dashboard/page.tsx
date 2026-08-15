@@ -398,8 +398,7 @@ export default function DashboardPage() {
   });
 
   const cardAssetUrl = membership
-    ? (membership.cardUrl ??
-      `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`)
+    ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}`
     : null;
 
   useEffect(() => {

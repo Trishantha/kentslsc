@@ -88,13 +88,8 @@ export class MembershipsController {
     @Query('membershipId') membershipId: string | undefined,
     @Res({ passthrough: true }) res: Response
   ) {
-    const cardPath = await this.membershipsService.getCardForUser(user, membershipId);
-
-    if (cardPath.startsWith('http')) {
-      return res.redirect(cardPath);
-    }
-
-    throw new NotFoundException('Membership card is not available in storage');
+    const cardUrl = await this.membershipsService.getCardForUser(user, membershipId);
+    return res.redirect(cardUrl);
   }
 
   @Get('verify/:membershipId')
