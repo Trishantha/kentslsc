@@ -260,7 +260,7 @@ async function runMigrations() {
     }
 
     remainingAttempts -= 1;
-    result = runMigrateDeploy();
+    result = await runMigrateDeploy();
   }
 
   if (result.stdout) {

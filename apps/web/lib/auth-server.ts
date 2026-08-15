@@ -30,7 +30,7 @@ export type ServerSession =
  * hour into a 7-day session.
  */
 export async function getServerSession(): Promise<ServerSession> {
-  const cookieHeader = cookies().toString();
+  const cookieHeader = (await cookies()).toString();
   const hasAuthCookie =
     cookieHeader.includes('accessToken=') || cookieHeader.includes('refreshToken=');
   if (!cookieHeader) return { authenticated: false };

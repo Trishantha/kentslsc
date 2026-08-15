@@ -5,6 +5,8 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 
 const PROMOTION_DAYS = 30;
+const STRIPE_TIMEOUT_MS = 30_000;
+const PAYPAL_TIMEOUT_MS = 30_000;
 
 export type PaymentProvider = 'stripe' | 'paypal';
 
@@ -97,7 +99,7 @@ export class PaymentsService {
     }
 
     if (!this.stripe) {
-      this.stripe = new Stripe(secretKey, { apiVersion: '2026-07-29.dahlia' });
+      this.stripe = new Stripe(secretKey, { apiVersion: '2026-07-29.dahlia', timeout: STRIPE_TIMEOUT_MS });
     }
   }
 
@@ -139,7 +141,7 @@ export class PaymentsService {
     }
 
     if (dto.stripeSecretKey !== undefined && dto.stripeSecretKey) {
-      this.stripe = new Stripe(dto.stripeSecretKey, { apiVersion: '2026-07-29.dahlia' });
+      this.stripe = new Stripe(dto.stripeSecretKey, { apiVersion: '2026-07-29.dahlia', timeout: STRIPE_TIMEOUT_MS });
     }
 
     this.paypalApiBaseUrl = dto.paypalApiBaseUrl || this.paypalApiBaseUrl;
@@ -197,6 +199,7 @@ export class PaymentsService {
     const token = await this.getPayPalAccessToken(effective);
 
     const response = await fetch(`${effective.paypalApiBaseUrl}/v2/checkout/orders`, {
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -240,6 +243,7 @@ export class PaymentsService {
 
   private async getPayPalAccessToken(effective: EffectivePaymentSettings) {
     const response = await fetch(`${effective.paypalApiBaseUrl}/v1/oauth2/token`, {
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
       method: 'POST',
       headers: {
         Authorization: `Basic ${Buffer.from(`${effective.paypalClientId!}:${effective.paypalClientSecret!}`).toString('base64')}`,

@@ -1,8 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { routing } from '@/i18n/routing';
-
-const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+import { getFrontendUrl } from '@/lib/env';
 
 interface SitePage {
   slug: string;
@@ -49,11 +48,12 @@ function asArray<T>(value: T[] | { data?: T[] } | null | undefined): T[] {
 
 export const revalidate = 86400;
 
-function withLocales(path: string): string[] {
+function withLocales(baseUrl: string, path: string): string[] {
   return routing.locales.map((locale) => `${baseUrl}/${locale}${path}`);
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl = getFrontendUrl();
   const staticPaths = [
     { path: '/', changeFrequency: 'daily' as const, priority: 1 },
     { path: '/about', changeFrequency: 'monthly' as const, priority: 0.6 },
@@ -68,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const staticRoutes: MetadataRoute.Sitemap = staticPaths.flatMap(({ path, changeFrequency, priority }) =>
-    withLocales(path).map((url) => ({
+    withLocales(baseUrl, path).map((url) => ({
       url,
       lastModified: new Date(),
       changeFrequency,
@@ -94,7 +94,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const pageRoutes: MetadataRoute.Sitemap =
     pageItems.filter((p) => !('isHome' in p && p.isHome)).flatMap((p) =>
-      withLocales(`/${(p as SitePage).slug}`).map((url) => ({
+      withLocales(baseUrl, `/${(p as SitePage).slug}`).map((url) => ({
         url,
         lastModified: new Date((p as SitePage).updatedAt),
         changeFrequency: 'weekly' as const,
@@ -104,7 +104,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const blogRoutes: MetadataRoute.Sitemap =
     blogItems.flatMap((p) =>
-      withLocales(`/blog/${(p as BlogPost).slug}`).map((url) => ({
+      withLocales(baseUrl, `/blog/${(p as BlogPost).slug}`).map((url) => ({
         url,
         lastModified: new Date((p as BlogPost).updatedAt),
         changeFrequency: 'weekly' as const,
@@ -114,7 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const eventRoutes: MetadataRoute.Sitemap =
     eventItems.flatMap((e) =>
-      withLocales(`/events/${(e as Event).id}`).map((url) => ({
+      withLocales(baseUrl, `/events/${(e as Event).id}`).map((url) => ({
         url,
         lastModified: new Date((e as Event).updatedAt),
         changeFrequency: 'weekly' as const,
@@ -124,7 +124,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const directoryRoutes: MetadataRoute.Sitemap =
     businessItems.flatMap((b) =>
-      withLocales(`/directory/${(b as Business).id}`).map((url) => ({
+      withLocales(baseUrl, `/directory/${(b as Business).id}`).map((url) => ({
         url,
         lastModified: new Date((b as Business).updatedAt),
         changeFrequency: 'weekly' as const,
@@ -134,7 +134,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const fundraiserRoutes: MetadataRoute.Sitemap =
     fundraiserItems.flatMap((f) =>
-      withLocales(`/fundraisers/${(f as Fundraiser).id}`).map((url) => ({
+      withLocales(baseUrl, `/fundraisers/${(f as Fundraiser).id}`).map((url) => ({
         url,
         lastModified: new Date((f as Fundraiser).updatedAt),
         changeFrequency: 'weekly' as const,

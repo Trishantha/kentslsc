@@ -3,6 +3,7 @@ import JsonLd from '@/components/JsonLd';
 import EventDetailContent, { type Event } from './EventDetailContent';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { summarizeRichText, stripRichText } from '@/lib/rich-text';
+import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -47,7 +48,7 @@ export default async function EventDetailPage({ params }: Props) {
     return <EventDetailContent id={id} />;
   }
 
-  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const baseUrl = getFrontendUrl();
   const eventSchema = {
     '@context': 'https://schema.org',
     '@type': 'Event',

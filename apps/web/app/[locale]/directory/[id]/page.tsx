@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import JsonLd from '@/components/JsonLd';
 import DirectoryDetailContent, { type Business } from './DirectoryDetailContent';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
+import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -45,7 +46,7 @@ export default async function DirectoryDetailPage({ params }: Props) {
     return <DirectoryDetailContent id={id} />;
   }
 
-  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const baseUrl = getFrontendUrl();
   const localBusinessSchema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',

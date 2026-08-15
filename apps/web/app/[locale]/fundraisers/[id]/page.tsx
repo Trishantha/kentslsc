@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import JsonLd from '@/components/JsonLd';
 import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
+import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
@@ -44,7 +45,7 @@ export default async function FundraiserDetailPage({ params }: Props) {
   const fundraiser = await fetchFundraiser(id);
   if (!fundraiser) notFound();
 
-  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const baseUrl = getFrontendUrl();
   const localePath = locale === 'en' ? '' : `/${locale}`;
   const shareUrl = `${baseUrl}${localePath}/fundraisers/${fundraiser.id}`;
   const fundraiserSchema = {

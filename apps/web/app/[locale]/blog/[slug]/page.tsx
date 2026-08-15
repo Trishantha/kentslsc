@@ -4,6 +4,7 @@ import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
 import { summarizeRichText } from '@/lib/rich-text';
+import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -48,7 +49,7 @@ export default async function BlogPostPage({ params }: Props) {
   const post = await fetchPost(slug);
   if (!post) notFound();
 
-  const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+  const baseUrl = getFrontendUrl();
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',

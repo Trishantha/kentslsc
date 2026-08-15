@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, Ticket } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { TicketCard } from '@/components/ui/TicketCard';
 import type { TicketCardProps } from '@/components/ui/TicketCard';
@@ -41,9 +42,9 @@ export default function TicketsPage() {
         {!isLoading && tickets?.length === 0 && (
           <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center dark:bg-black/20">
             <p className="text-slate-600 dark:text-slate-400">You do not have any tickets yet.</p>
-            <a href="/events" className="btn-primary mt-4 inline-block">
+            <Link href="/events" className="btn-primary mt-4 inline-block">
               Browse events
-            </a>
+            </Link>
           </div>
         )}
       </div>

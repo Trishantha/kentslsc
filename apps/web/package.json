@@ -11,7 +11,7 @@
     "build:clean": "rm -rf .next && NODE_OPTIONS='--max-old-space-size=2560' next build",
     "clean": "rm -rf .next .turbo",
     "start": "next start",
-    "lint": "echo 'lint disabled by project configuration'",
+    "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

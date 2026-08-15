@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-
-const baseUrl = process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'http://localhost:3000';
+import { getFrontendUrl } from '@/lib/env';
 
 export async function GET() {
+  const baseUrl = getFrontendUrl();
   const body = [
     'User-agent: *',
     'Allow: /',

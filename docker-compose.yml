@@ -11,8 +11,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      API_PORT: 3001
       FRONTEND_URL: http://localhost:3000
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      API_PROXY_TARGET: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      # Run API and web as separate child processes so a crash or memory spike in
+      # one side does not take down the other. The proxy routes /api to the unix
+      # socket and everything else to the internal web port.
+      API_MODE: unix
+      WEB_MODE: child
     restart: unless-stopped

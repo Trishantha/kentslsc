@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useClientSearchParams } from '@/hooks/useClientSearchParams';
+import { Link } from '@/i18n/routing';
 
 /**
  * Landing page for the link in the confirmation email.
@@ -69,9 +70,9 @@ export default function VerifyEmailPage() {
         <p className="mt-3 text-slate-700 dark:text-slate-400">
           Your account is fully activated. You can now sign in and use the whole portal.
         </p>
-        <a href="/dashboard" className="btn-primary mt-8 inline-block">
+        <Link href="/dashboard" className="btn-primary mt-8 inline-block">
           Go to my dashboard
-        </a>
+        </Link>
       </Shell>
     );
   }
@@ -86,9 +87,9 @@ export default function VerifyEmailPage() {
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-500">
         Sign in and use &ldquo;Resend the link&rdquo; to get a fresh one.
       </p>
-      <a href="/auth/login" className="btn-primary mt-8 inline-block">
+      <Link href="/auth/login" className="btn-primary mt-8 inline-block">
         Sign in
-      </a>
+      </Link>
     </Shell>
   );
 }

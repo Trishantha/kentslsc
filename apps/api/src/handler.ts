@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { AppModule } from './app.module.js';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
+import { GlobalExceptionFilter } from './core/exceptions/global-exception.filter.js';
 
 const logger = new Logger('Bootstrap');
 const moduleDir = fileURLToPath(new URL('.', import.meta.url));
@@ -18,6 +19,14 @@ export async function createApiApp() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
   const isProduction = configService.get('NODE_ENV') === 'production';
+
+  const frontendUrl = configService.get<string>('FRONTEND_URL') ?? '';
+  if (isProduction && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(frontendUrl)) {
+    throw new Error(
+      `FRONTEND_URL is set to a localhost value (${frontendUrl}) in production. ` +
+        'Set a real public origin to prevent broken callbacks, cards, and email links.'
+    );
+  }
 
   app.use(helmet());
   app.use(cookieParser());
@@ -51,6 +60,7 @@ export async function createApiApp() {
       transform: true
     })
   );
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.setGlobalPrefix('api');
   app.use(
     '/uploads',

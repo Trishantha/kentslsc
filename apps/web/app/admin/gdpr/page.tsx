@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, ShieldCheck, User, Cookie, Database } from 'lucide-react';
+import Link from 'next/link';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
 import type { GdprSettingsInput } from '@kentslsc/shared';
@@ -105,7 +106,7 @@ export default function AdminGdprPage() {
         <h1 className="section-title">GDPR & Privacy</h1>
       </div>
       <p className="mt-2 text-slate-600 dark:text-slate-400">
-        Configure cookie consent, Data Protection Officer details, and GDPR compliance settings. Policy documents are managed separately under <a href="/admin/policy-documents" className="text-neon-blue hover:underline">Policy Documents</a>.
+        Configure cookie consent, Data Protection Officer details, and GDPR compliance settings. Policy documents are managed separately under <Link href="/admin/policy-documents" className="text-neon-blue hover:underline">Policy Documents</Link>.
       </p>
 
       <form

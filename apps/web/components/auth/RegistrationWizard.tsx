@@ -288,9 +288,9 @@ export function RegistrationWizard() {
           <span className="font-medium text-slate-900 dark:text-white">{registeredEmail}</span>.
           Confirm it to unlock the full member portal.
         </p>
-        <a href="/auth/login" className="btn-primary mt-8 inline-block">
+        <Link href="/auth/login" className="btn-primary mt-8 inline-block">
           Go to sign in
-        </a>
+        </Link>
       </div>
     );
   }
