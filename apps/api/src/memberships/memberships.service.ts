@@ -25,6 +25,8 @@ export interface CreateMembershipData {
   membershipType: MembershipType;
   overrideEmail?: string;
   status?: MembershipStatus;
+  paidAt?: Date;
+  paymentMethod?: string;
 }
 
 @Injectable()
@@ -87,6 +89,22 @@ export class MembershipsService {
     }
   }
 
+  private async cancelPreviousMemberships(userId: string, excludeId?: string) {
+    const where: Prisma.MembershipWhereInput = {
+      userId,
+      deletedAt: null,
+      status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+    };
+    if (excludeId) {
+      where.id = { not: excludeId };
+    }
+
+    await this.prisma.membership.updateMany({
+      where,
+      data: { status: MembershipStatus.CANCELLED, updatedAt: new Date() }
+    });
+  }
+
   async findTypes() {
     const types = await this.prisma.membershipType.findMany({
       where: { deletedAt: null },
@@ -131,7 +149,9 @@ export class MembershipsService {
     return {
       ...membership,
       membershipType: this.serializeMembershipType(membership.membershipType),
-      dependants
+      dependants,
+      paidAt: membership.paidAt,
+      paymentMethod: membership.paymentMethod
     };
   }
 
@@ -197,6 +217,7 @@ export class MembershipsService {
     });
 
     if (type.isFree || Number(type.price) === 0) {
+      await this.cancelPreviousMemberships(userId);
       const membership = await this.createMembership({
         userId,
         membershipTypeId: type.id,
@@ -205,7 +226,8 @@ export class MembershipsService {
         phone: dto.phone,
         dependants,
         membershipType: type,
-        overrideEmail: email
+        overrideEmail: email,
+        status: MembershipStatus.ACTIVE
       });
       return { membership, paid: false };
     }
@@ -251,7 +273,9 @@ export class MembershipsService {
         dependantsJson: dependants as unknown as Prisma.InputJsonValue,
         membershipId: membershipPublicId,
         qrCodeValue: qrValue,
-        membershipCardUrl: undefined
+        membershipCardUrl: undefined,
+        paidAt: data.paidAt,
+        paymentMethod: data.paymentMethod
       },
       include: { membershipType: true }
     });
@@ -337,11 +361,25 @@ export class MembershipsService {
   }
 
   async findMyMembership(userId: string) {
-    const membership = await this.prisma.membership.findFirst({
-      where: { userId, deletedAt: null },
+    // Prefer the current effective membership (active or pending). If none
+    // exists, fall back to the latest record so the UI can show a status.
+    let membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+      },
       orderBy: { createdAt: 'desc' },
       include: { membershipType: true }
     });
+
+    if (!membership) {
+      membership = await this.prisma.membership.findFirst({
+        where: { userId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        include: { membershipType: true }
+      });
+    }
 
     if (!membership) {
       return null;
@@ -359,7 +397,9 @@ export class MembershipsService {
         : null,
       qr: membership.qrCodeValue,
       dependantsCount: dependants.length,
-      dependants
+      dependants,
+      paidAt: membership.paidAt,
+      paymentMethod: membership.paymentMethod
     };
   }
 
@@ -524,7 +564,11 @@ export class MembershipsService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      return this.handleMembershipCheckoutCompleted(session.metadata ?? {}, session.customer_email ?? undefined);
+      return this.handleMembershipCheckoutCompleted(
+        session.metadata ?? {},
+        'stripe',
+        session.customer_email ?? undefined
+      );
     }
 
     return { received: true, membershipId: null };
@@ -536,23 +580,46 @@ export class MembershipsService {
       return { received: true, membershipId: null };
     }
 
-    return this.handleMembershipCheckoutCompleted(metadata, payload?.resource?.payer?.email_address ?? undefined);
+    return this.handleMembershipCheckoutCompleted(
+      metadata,
+      'paypal',
+      payload?.resource?.payer?.email_address ?? undefined
+    );
   }
 
   private async handleMembershipCheckoutCompleted(
     metadata: Record<string, string>,
+    paymentMethod: string,
     customerEmail?: string
   ) {
     if (metadata.source !== 'membership') return { received: true, membershipId: null };
+
+    if (!metadata.userId || !metadata.fullName || !metadata.membershipTypeId) {
+      throw new BadRequestException('Missing membership metadata');
+    }
+
+    // If a pending membership record was created by an admin, activate it.
+    if (metadata.membershipId) {
+      const existing = await this.prisma.membership.findUnique({
+        where: { id: metadata.membershipId, deletedAt: null },
+        include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+      });
+      if (existing && existing.status === MembershipStatus.PENDING) {
+        const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);
+        await this.prisma.membership.update({
+          where: { id: existing.id },
+          data: { paidAt: new Date(), paymentMethod }
+        });
+        return { received: true, membershipId: activated.membershipId };
+      }
+      // Fall through to create a new membership if the existing one is missing or not pending.
+    }
 
     const membershipType = await this.prisma.membershipType.findUnique({
       where: { id: metadata.membershipTypeId }
     });
     if (!membershipType || membershipType.deletedAt) {
       throw new BadRequestException('Membership type not found');
-    }
-    if (!metadata.userId || !metadata.fullName) {
-      throw new BadRequestException('Missing membership metadata');
     }
 
     let dependants: DependantInput[] = [];
@@ -574,6 +641,8 @@ export class MembershipsService {
       address = undefined;
     }
 
+    await this.cancelPreviousMemberships(metadata.userId);
+
     const membership = await this.createMembership({
       userId: metadata.userId,
       membershipTypeId: membershipType.id,
@@ -582,7 +651,10 @@ export class MembershipsService {
       phone: metadata.phone || undefined,
       dependants,
       membershipType,
-      overrideEmail: customerEmail
+      overrideEmail: customerEmail,
+      status: MembershipStatus.ACTIVE,
+      paidAt: new Date(),
+      paymentMethod
     });
 
     return { received: true, membershipId: membership.membershipId };

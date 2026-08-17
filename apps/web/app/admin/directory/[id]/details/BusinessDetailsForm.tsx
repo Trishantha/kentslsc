@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,11 +10,12 @@ import {
   directoryCategoryGroups,
   directoryCategoryValues
 } from '@kentslsc/shared';
-import { Loader2, Save, Trash2 } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles, Mail, Banknote, Check, Copy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { formatDate } from '@/lib/utils';
 import type { AdminBusiness } from '../../types';
 
 const businessSchema = z.object({
@@ -103,6 +104,44 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
       router.push('/admin/directory');
     }
   });
+
+  const [promotionLink, setPromotionLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const promoteOfflineMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/directory/businesses/${businessId}/promote-offline`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'business', businessId] });
+    }
+  });
+
+  const sendPromotionLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/directory/businesses/${businessId}/send-promotion-link`);
+      return res.data as { url: string; provider: string };
+    },
+    onSuccess: (data) => {
+      setPromotionLink(data.url);
+      setCopied(false);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'business', businessId] });
+    }
+  });
+
+  const handleCopyPromotionLink = async () => {
+    if (!promotionLink) return;
+    try {
+      await navigator.clipboard.writeText(promotionLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <form
@@ -232,6 +271,101 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
         />
         Paid listing
       </label>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-neon-gold" />
+          <h3 className="text-sm font-semibold">Promotion</h3>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Promoted</span>
+            <span className={business.isPromoted ? 'text-green-400' : 'text-slate-400'}>
+              {business.isPromoted ? 'Yes' : 'No'}
+            </span>
+          </div>
+          {business.promotedUntil && (
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Promoted until</span>
+              <span className="text-slate-300">{formatDate(business.promotedUntil)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Payment</span>
+            <span className="text-slate-300">
+              {business.promotionPaymentMethod ? (
+                <span className="inline-flex items-center gap-1 text-green-400">
+                  <Banknote className="h-3 w-3" /> Paid {business.promotionPaymentMethod}
+                </span>
+              ) : business.isPromoted ? (
+                'No payment recorded'
+              ) : (
+                'Not promoted'
+              )}
+            </span>
+          </div>
+          {business.promotionPaidAt && (
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Paid at</span>
+              <span className="text-slate-300">{formatDate(business.promotionPaidAt)}</span>
+            </div>
+          )}
+        </div>
+
+        {promotionLink ? (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs text-slate-400">
+              The promotion payment link has been emailed to the listing owner. You can also copy it here.
+            </p>
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+              <input
+                type="text"
+                value={promotionLink}
+                readOnly
+                className="flex-1 bg-transparent text-xs text-slate-200 outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleCopyPromotionLink}
+                className="inline-flex items-center gap-1 text-xs text-neon-blue hover:underline"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => promoteOfflineMutation.mutate()}
+              disabled={promoteOfflineMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-neon-gold/10 px-3 py-2 text-xs font-semibold text-neon-gold hover:bg-neon-gold/20 disabled:opacity-60"
+            >
+              {promoteOfflineMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Banknote className="h-3 w-3" />
+              )}
+              Mark promoted offline
+            </button>
+            <button
+              type="button"
+              onClick={() => sendPromotionLinkMutation.mutate()}
+              disabled={sendPromotionLinkMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-2 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20 disabled:opacity-60"
+            >
+              {sendPromotionLinkMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Mail className="h-3 w-3" />
+              )}
+              Send promotion payment link
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-3 pt-2">
         <button

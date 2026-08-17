@@ -46,7 +46,8 @@ describe('MembershipsService', () => {
     },
     membership: {
       count: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
+      updateMany: jest.fn()
     },
     user: {
       findUnique: jest.fn(),
@@ -115,6 +116,16 @@ describe('MembershipsService', () => {
       const result = await service.processApplication('user-1', 'test@example.com', dto);
 
       expect(result).toEqual({ membership: mockCreatedMembership, paid: false });
+      expect(mockPrisma.membership.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: 'user-1',
+            deletedAt: null,
+            status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+          }),
+          data: { status: MembershipStatus.CANCELLED, updatedAt: expect.any(Date) }
+        })
+      );
       expect(mockPrisma.membership.create).toHaveBeenCalled();
       expect(mockSupabaseStorage.uploadBuffer).toHaveBeenCalled();
       expect(mockEmailService.send).toHaveBeenCalled();

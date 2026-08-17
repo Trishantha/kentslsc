@@ -24,6 +24,8 @@ export interface AdminMembership {
   issuedAt?: string;
   membershipCardUrl: string | null;
   qrCodeValue: string | null;
+  paidAt: string | null;
+  paymentMethod: string | null;
   user: { id: string; name: string; email: string };
   membershipType: AdminMembershipType;
   dependants: AdminMembershipDependant[];

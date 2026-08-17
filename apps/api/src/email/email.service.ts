@@ -243,6 +243,28 @@ export class EmailService {
     });
   }
 
+  async sendMembershipPaymentLink(email: string, name: string, membershipTypeName: string, paymentUrl: string) {
+    return this.send({
+      to: email,
+      subject: 'Complete your Kent SLSC membership payment',
+      html: `<p>Hi ${escapeHtml(name)},</p>
+<p>Your membership for <strong>${escapeHtml(membershipTypeName)}</strong> is waiting for payment.</p>
+<p><a href="${paymentUrl}">Pay now</a></p>
+<p>If you have already paid offline, please ignore this email and contact the club admin.</p>`
+    });
+  }
+
+  async sendDirectoryPromotionPaymentLink(email: string, businessName: string, paymentUrl: string) {
+    return this.send({
+      to: email,
+      subject: 'Complete your Kent SLSC directory promotion payment',
+      html: `<p>Hi ${escapeHtml(email)},</p>
+<p>Your directory promotion for <strong>${escapeHtml(businessName)}</strong> is waiting for payment.</p>
+<p><a href="${paymentUrl}">Pay now</a></p>
+<p>If you have already paid offline, please ignore this email and contact the club admin.</p>`
+    });
+  }
+
   async sendContactConfirmation(email: string, name: string) {
     return this.send({
       to: email,

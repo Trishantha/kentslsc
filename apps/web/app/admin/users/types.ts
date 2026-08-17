@@ -17,6 +17,8 @@ export interface MembershipItem {
   qrCodeValue: string | null;
   dependantsJson: unknown;
   createdAt: string;
+  paidAt: string | null;
+  paymentMethod: string | null;
   membershipType: {
     name: string;
     description?: string | null;

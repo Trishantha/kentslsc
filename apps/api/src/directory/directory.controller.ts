@@ -17,6 +17,7 @@ import type { TokenPayload } from '@kentslsc/shared';
 import { RequiresFeature } from '../common/decorators/requires-feature.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { MembershipFeature } from '@kentslsc/shared';
+import Stripe from 'stripe';
 import { DirectoryService } from './directory.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { CreateBusinessListingDto } from './dto/create-business.dto.js';
@@ -138,7 +139,11 @@ export class DirectoryController {
       if (signature) {
         const event = await this.paymentsService.constructEvent(rawBody, signature);
         if (event.type === 'checkout.session.completed') {
-          await this.paymentsService.handleDirectoryPromotion(event.data.object as any);
+          const session = event.data.object as Stripe.Checkout.Session;
+          await this.directoryService.handlePromotionCompleted(
+            session.metadata ?? {},
+            'stripe'
+          );
         }
         return res.json({ received: true });
       }
@@ -146,7 +151,7 @@ export class DirectoryController {
       if (body?.event_type) {
         const metadata = this.paymentsService.extractPayPalMetadata(body);
         if (metadata.type === 'directory_promotion') {
-          await this.directoryService.handlePromotionCompleted(metadata);
+          await this.directoryService.handlePromotionCompleted(metadata, 'paypal');
         }
         if (metadata.type === 'job_publish') {
           await this.directoryService.handleJobPublishCompleted(metadata);

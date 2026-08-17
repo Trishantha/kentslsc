@@ -3,12 +3,23 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CreditCard, Plus, X } from 'lucide-react';
+import { Loader2, CreditCard, Plus, X, Copy, Check, Mail, Banknote } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn, formatDate, formatCurrency } from '@/lib/utils';
 import { MembershipStatus } from '@kentslsc/shared';
 import type { UserDetail } from '../../types';
 import type { AdminMembershipType } from '../../../membership-types/types';
+
+interface AdminMembership {
+  id: string;
+  membershipId: string;
+  status: MembershipStatus;
+  startDate: string;
+  endDate: string;
+  paidAt: string | null;
+  paymentMethod: string | null;
+  membershipType: AdminMembershipType;
+}
 
 export default function UserMembershipsPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +27,9 @@ export default function UserMembershipsPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState('');
   const [status, setStatus] = useState<MembershipStatus>(MembershipStatus.ACTIVE);
+  const [paymentMode, setPaymentMode] = useState<'online' | 'offline'>('online');
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: detail, isLoading } = useQuery<UserDetail>({
@@ -37,16 +51,34 @@ export default function UserMembershipsPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post(`/admin/users/${id}/memberships`, {
+      const payload: {
+        membershipTypeId: string;
+        status: MembershipStatus;
+        paymentMode?: 'online' | 'offline';
+      } = {
         membershipTypeId: selectedTypeId,
         status
-      });
-      return res.data;
+      };
+      const selectedType = types?.find((t) => t.id === selectedTypeId);
+      if (selectedType && !selectedType.isFree && selectedType.price > 0) {
+        payload.paymentMode = paymentMode;
+      }
+      const res = await api.post(`/admin/users/${id}/memberships`, payload);
+      return res.data as {
+        membership: AdminMembership;
+        paid: boolean;
+        paymentMethod?: string;
+        url?: string;
+        provider?: string;
+      };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setError(null);
-      setIsOpen(false);
-      setSelectedTypeId('');
+      setPaymentLink(data.url ?? null);
+      if (!data.url) {
+        setIsOpen(false);
+        setSelectedTypeId('');
+      }
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', id] });
     },
     onError: (err) => setError(getApiErrorMessage(err))
@@ -62,6 +94,37 @@ export default function UserMembershipsPage() {
     }
   });
 
+  const sendLinkMutation = useMutation({
+    mutationFn: async (membershipId: string) => {
+      const res = await api.post(`/admin/memberships/${membershipId}/send-payment-link`);
+      return res.data as { url: string; provider: string };
+    },
+    onSuccess: (data) => {
+      setPaymentLink(data.url);
+      setCopied(false);
+    },
+    onError: (err) => setError(getApiErrorMessage(err))
+  });
+
+  const handleCopy = async () => {
+    if (!paymentLink) return;
+    try {
+      await navigator.clipboard.writeText(paymentLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setSelectedTypeId('');
+    setPaymentLink(null);
+    setCopied(false);
+    setError(null);
+  };
+
   if (isLoading || !detail) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -71,6 +134,8 @@ export default function UserMembershipsPage() {
   }
 
   const availableTypes = (types ?? []).filter((t) => t.hasCapacity !== false);
+  const selectedType = types?.find((t) => t.id === selectedTypeId);
+  const isPaidSelected = selectedType && !selectedType.isFree && selectedType.price > 0;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -133,6 +198,35 @@ export default function UserMembershipsPage() {
                   {formatDate(m.startDate)} – {formatDate(m.endDate)}
                 </p>
                 <p className="mt-1 font-mono text-xs text-slate-500">{m.membershipId}</p>
+                {!m.membershipType.isFree && m.membershipType.price > 0 && (
+                  <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+                    <span className="flex items-center gap-1">
+                      {m.paymentMethod ? (
+                        <>
+                          <Banknote className="h-3 w-3 text-green-400" />
+                          Paid {m.paymentMethod}
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="h-3 w-3 text-yellow-400" />
+                          Unpaid
+                        </>
+                      )}
+                    </span>
+                    {m.paidAt && <span>· {formatDate(m.paidAt)}</span>}
+                    {m.status === 'PENDING' && !m.paymentMethod && (
+                      <button
+                        type="button"
+                        onClick={() => sendLinkMutation.mutate(m.id)}
+                        disabled={sendLinkMutation.isPending}
+                        className="inline-flex items-center gap-1 text-neon-blue hover:underline disabled:opacity-60"
+                      >
+                        <Mail className="h-3 w-3" />
+                        {sendLinkMutation.isPending ? 'Sending…' : 'Send payment link'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -142,7 +236,7 @@ export default function UserMembershipsPage() {
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
+          onClick={handleClose}
         >
           <div
             className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-950 p-6 shadow-2xl"
@@ -152,80 +246,151 @@ export default function UserMembershipsPage() {
               <h3 className="text-lg font-bold">Add or Upgrade Membership</h3>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-slate-200"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">Membership Type</label>
-                {typesLoading ? (
-                  <div className="flex h-10 items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading types...
-                  </div>
-                ) : (
-                  <select
-                    value={selectedTypeId}
-                    onChange={(e) => setSelectedTypeId(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-neon-blue"
+            {paymentLink ? (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-300">
+                  A pending membership has been created and the payment link has been emailed to the member. You can also copy it here.
+                </p>
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <input
+                    type="text"
+                    value={paymentLink}
+                    readOnly
+                    className="flex-1 bg-transparent text-xs text-slate-200 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="inline-flex items-center gap-1 text-xs text-neon-blue hover:underline"
                   >
-                    <option value="">Select a type</option>
-                    {availableTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name} — {type.isFree || type.price === 0 ? 'Free' : `£${type.price}`}
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="rounded-xl bg-neon-blue px-5 py-2.5 text-sm font-semibold text-white hover:bg-neon-blue/90"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-300">Membership Type</label>
+                  {typesLoading ? (
+                    <div className="flex h-10 items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading types…
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedTypeId}
+                      onChange={(e) => setSelectedTypeId(e.target.value)}
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                    >
+                      <option value="">Select a type</option>
+                      {availableTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.name} — {type.isFree || type.price === 0 ? 'Free' : `£${type.price}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {availableTypes.length === 0 && !typesLoading && (
+                    <p className="mt-1 text-xs text-red-400">No available membership types.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-300">Initial Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as MembershipStatus)}
+                    disabled={isPaidSelected}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-neon-blue disabled:opacity-50"
+                  >
+                    {Object.values(MembershipStatus).map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
                   </select>
-                )}
-                {availableTypes.length === 0 && !typesLoading && (
-                  <p className="mt-1 text-xs text-red-400">No available membership types.</p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">Initial Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as MembershipStatus)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-neon-blue"
-                >
-                  {Object.values(MembershipStatus).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {error && (
-                <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400">
-                  {error}
+                  {isPaidSelected && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Status is fixed for paid memberships: pending for online payment, active for offline payment.
+                    </p>
+                  )}
                 </div>
-              )}
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-400 hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => createMutation.mutate()}
-                  disabled={!selectedTypeId || createMutation.isPending}
-                  className="inline-flex items-center gap-2 rounded-xl bg-neon-blue px-5 py-2.5 text-sm font-semibold text-white transition-transform hover:scale-[1.02] disabled:opacity-60"
-                >
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  <CreditCard className="h-4 w-4" />
-                  Create Membership
-                </button>
+                {isPaidSelected && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">Payment</label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMode('online')}
+                        className={cn(
+                          'flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors',
+                          paymentMode === 'online'
+                            ? 'border-neon-blue bg-neon-blue/10 text-neon-blue'
+                            : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                        )}
+                      >
+                        Send payment link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMode('offline')}
+                        className={cn(
+                          'flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors',
+                          paymentMode === 'offline'
+                            ? 'border-neon-blue bg-neon-blue/10 text-neon-blue'
+                            : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                        )}
+                      >
+                        Paid offline
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-400 hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => createMutation.mutate()}
+                    disabled={!selectedTypeId || createMutation.isPending}
+                    className="inline-flex items-center gap-2 rounded-xl bg-neon-blue px-5 py-2.5 text-sm font-semibold text-white transition-transform hover:scale-[1.02] disabled:opacity-60"
+                  >
+                    {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    <CreditCard className="h-4 w-4" />
+                    Create Membership
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

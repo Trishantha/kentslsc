@@ -4,7 +4,6 @@ import Stripe from 'stripe';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 
-const PROMOTION_DAYS = 30;
 const STRIPE_TIMEOUT_MS = 30_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
 
@@ -288,18 +287,5 @@ export class PaymentsService {
 
   extractPayPalPaymentId(payload: any): string | null {
     return payload?.resource?.id ?? payload?.id ?? null;
-  }
-
-  async handleDirectoryPromotion(session: Stripe.Checkout.Session) {
-    const businessListingId = session.metadata?.businessListingId;
-    if (!businessListingId) return;
-
-    const promotedUntil = new Date();
-    promotedUntil.setDate(promotedUntil.getDate() + PROMOTION_DAYS);
-
-    await this.prisma.businessListing.updateMany({
-      where: { id: businessListingId, deletedAt: null },
-      data: { isPromoted: true, promotedUntil }
-    });
   }
 }

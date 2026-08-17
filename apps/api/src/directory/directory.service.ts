@@ -5,6 +5,7 @@ import { UserRole } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
+import { EmailService } from '../email/email.service.js';
 import { CreateBusinessListingDto } from './dto/create-business.dto.js';
 import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
 import { CreateJobAdDto } from './dto/create-job.dto.js';
@@ -18,8 +19,13 @@ export class DirectoryService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly paymentsService: PaymentsService,
+    private readonly emailService: EmailService,
     private readonly configService: ConfigService
   ) {}
+
+  private get frontendUrl(): string {
+    return this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+  }
 
   private isOwnerOrAdmin(recordOwnerId: string, user: TokenPayload) {
     return user.role === UserRole.ADMIN || recordOwnerId === user.sub;
@@ -293,7 +299,58 @@ export class DirectoryService {
     return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
   }
 
-  async handlePromotionCompleted(metadata: Record<string, string>) {
+  async promoteBusinessOffline(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id, deletedAt: null }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+
+    const promotedUntil = new Date();
+    promotedUntil.setDate(promotedUntil.getDate() + 30);
+
+    await this.prisma.businessListing.update({
+      where: { id },
+      data: {
+        isPromoted: true,
+        promotedUntil,
+        promotionPaidAt: new Date(),
+        promotionPaymentMethod: 'offline'
+      }
+    });
+
+    return { received: true, promotedUntil };
+  }
+
+  async sendPromotionLink(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id, deletedAt: null },
+      include: { owner: { select: { email: true, name: true } } }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+
+    const checkout = await this.paymentsService.createCheckout({
+      amount: PROMOTION_PRICE_PENCE,
+      currency: 'gbp',
+      description: `Promote ${listing.businessName} for 30 days`,
+      customerEmail: listing.owner.email ?? undefined,
+      successUrl: `${this.frontendUrl}/directory/${id}?promoted=success`,
+      cancelUrl: `${this.frontendUrl}/directory/${id}?promoted=cancel`,
+      metadata: {
+        type: 'directory_promotion',
+        businessListingId: id
+      }
+    });
+
+    await this.emailService.sendDirectoryPromotionPaymentLink(
+      listing.owner.email,
+      listing.businessName,
+      checkout.url
+    );
+
+    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+  }
+
+  async handlePromotionCompleted(metadata: Record<string, string>, paymentMethod?: string) {
     const businessListingId = metadata.businessListingId;
     if (!businessListingId || metadata.type !== 'directory_promotion') return null;
 
@@ -302,7 +359,12 @@ export class DirectoryService {
 
     await this.prisma.businessListing.updateMany({
       where: { id: businessListingId, deletedAt: null },
-      data: { isPromoted: true, promotedUntil }
+      data: {
+        isPromoted: true,
+        promotedUntil,
+        promotionPaidAt: paymentMethod ? new Date() : undefined,
+        promotionPaymentMethod: paymentMethod ?? undefined
+      }
     });
 
     return { received: true };

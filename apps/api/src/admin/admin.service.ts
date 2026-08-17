@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
@@ -7,6 +8,8 @@ import { DirectoryService } from '../directory/directory.service.js';
 import { FundraisingService } from '../fundraising/fundraising.service.js';
 import { BlogService } from '../blog/blog.service.js';
 import { CommitteeService } from '../committee/committee.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
+import { EmailService } from '../email/email.service.js';
 import type { TokenPayload } from '@kentslsc/shared';
 import {
   MembershipStatus as MembershipStatusDto,
@@ -28,8 +31,15 @@ export class AdminService {
     private readonly directoryService: DirectoryService,
     private readonly fundraisingService: FundraisingService,
     private readonly blogService: BlogService,
-    private readonly committeeService: CommitteeService
+    private readonly committeeService: CommitteeService,
+    private readonly paymentsService: PaymentsService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService
   ) {}
+
+  private get frontendUrl(): string {
+    return this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+  }
 
   async getDashboardStats() {
     const [
@@ -131,16 +141,22 @@ export class AdminService {
     const fullName = dto.fullName?.trim() || `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.name;
     const address = user.address as { buildingStreet?: string; locality?: string; townCity?: string; postcode?: string } | null;
 
-    // Cancel any existing active memberships so the new one is the effective
-    // membership. This makes "upgrade" behave as admins expect.
+    const membershipType = await this.membershipsService.findTypeById(dto.membershipTypeId);
+    const isPaidType = !membershipType.isFree && Number(membershipType.price) > 0;
+    const paymentMode = dto.paymentMode ?? (isPaidType ? 'online' : undefined);
+
+    // Cancel any existing effective memberships so the new one is the only one
+    // that counts. This makes "upgrade" behave as admins expect.
     await this.prisma.membership.updateMany({
-      where: { userId, deletedAt: null, status: DbMembershipStatus.ACTIVE },
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING] }
+      },
       data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
     });
 
-    const membershipType = await this.membershipsService.findTypeById(dto.membershipTypeId);
-
-    const membership = await this.membershipsService.createMembership({
+    const baseData = {
       userId: user.id,
       membershipTypeId: dto.membershipTypeId,
       fullName,
@@ -155,11 +171,111 @@ export class AdminService {
       phone: user.phone ?? undefined,
       dependants: [],
       membershipType,
-      overrideEmail: user.email,
-      status: dto.status as DbMembershipStatus | undefined
+      overrideEmail: user.email
+    };
+
+    if (!isPaidType) {
+      const membership = await this.membershipsService.createMembership({
+        ...baseData,
+        status: dto.status as DbMembershipStatus | undefined
+      });
+      return { membership, paid: false };
+    }
+
+    if (paymentMode === 'offline') {
+      const membership = await this.membershipsService.createMembership({
+        ...baseData,
+        status: DbMembershipStatus.ACTIVE,
+        paidAt: new Date(),
+        paymentMethod: 'offline'
+      });
+      return { membership, paid: true, paymentMethod: 'offline' };
+    }
+
+    // Paid + online: create a pending record and send a payment link.
+    const membership = await this.membershipsService.createMembership({
+      ...baseData,
+      status: DbMembershipStatus.PENDING
     });
 
-    return { membership, paid: false };
+    const checkout = await this.paymentsService.createCheckout({
+      amount: Math.round(Number(membershipType.price) * 100),
+      currency: 'gbp',
+      description: membershipType.name,
+      customerEmail: user.email,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
+      cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
+      metadata: {
+        source: 'membership',
+        membershipId: membership.id,
+        userId: user.id,
+        membershipTypeId: membershipType.id,
+        fullName,
+        address: address ? JSON.stringify(address) : '',
+        phone: user.phone ?? '',
+        dependants: '[]'
+      }
+    });
+
+    await this.emailService.sendMembershipPaymentLink(
+      user.email,
+      fullName,
+      membershipType.name,
+      checkout.url
+    );
+
+    return {
+      membership,
+      paid: true,
+      paymentMethod: checkout.provider,
+      url: checkout.url,
+      provider: checkout.provider
+    };
+  }
+
+  async sendMembershipPaymentLink(membershipId: string) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id: membershipId, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } } }
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+    if (membership.status !== DbMembershipStatus.PENDING) {
+      throw new BadRequestException('Only pending memberships can be sent a payment link');
+    }
+    if (membership.membershipType.isFree || Number(membership.membershipType.price) === 0) {
+      throw new BadRequestException('Free memberships do not require payment');
+    }
+
+    const user = membership.user;
+    const fullName = user.name;
+
+    const checkout = await this.paymentsService.createCheckout({
+      amount: Math.round(Number(membership.membershipType.price) * 100),
+      currency: 'gbp',
+      description: membership.membershipType.name,
+      customerEmail: user.email,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
+      cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
+      metadata: {
+        source: 'membership',
+        membershipId: membership.id,
+        userId: user.id,
+        membershipTypeId: membership.membershipType.id,
+        fullName,
+        address: '',
+        phone: '',
+        dependants: '[]'
+      }
+    });
+
+    await this.emailService.sendMembershipPaymentLink(
+      user.email,
+      fullName,
+      membership.membershipType.name,
+      checkout.url
+    );
+
+    return { url: checkout.url, provider: checkout.provider };
   }
 
   regenerateMembershipCard(membershipId: string) {
@@ -196,6 +312,14 @@ export class AdminService {
 
   removeBusiness(user: TokenPayload, id: string) {
     return this.directoryService.deleteBusiness(user, id);
+  }
+
+  promoteBusinessOffline(id: string) {
+    return this.directoryService.promoteBusinessOffline(id);
+  }
+
+  sendPromotionLink(id: string) {
+    return this.directoryService.sendPromotionLink(id);
   }
 
   listJobs() {

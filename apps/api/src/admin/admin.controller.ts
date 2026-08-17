@@ -285,6 +285,12 @@ export class AdminController {
     return this.adminService.regenerateMembershipCard(membershipId);
   }
 
+  @Post('memberships/:id/send-payment-link')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  sendMembershipPaymentLink(@Param('id') membershipId: string) {
+    return this.adminService.sendMembershipPaymentLink(membershipId);
+  }
+
   // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------
@@ -346,6 +352,18 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_DIRECTORY)
   removeBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.adminService.removeBusiness(user, id);
+  }
+
+  @Post('directory/businesses/:id/promote-offline')
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
+  promoteBusinessOffline(@Param('id') id: string) {
+    return this.adminService.promoteBusinessOffline(id);
+  }
+
+  @Post('directory/businesses/:id/send-promotion-link')
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
+  sendPromotionLink(@Param('id') id: string) {
+    return this.adminService.sendPromotionLink(id);
   }
 
   @Get('directory/jobs')

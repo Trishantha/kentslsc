@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { MembershipStatus } from '@kentslsc/shared';
 
 export class AdminCreateMembershipDto {
@@ -13,4 +13,8 @@ export class AdminCreateMembershipDto {
   @IsOptional()
   @IsEnum(MembershipStatus)
   declare status?: MembershipStatus;
+
+  @IsOptional()
+  @IsIn(['online', 'offline'])
+  declare paymentMode?: 'online' | 'offline';
 }

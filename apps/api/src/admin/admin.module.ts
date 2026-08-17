@@ -6,6 +6,7 @@ import { MembershipsModule } from '../memberships/memberships.module.js';
 import { EventsModule } from '../events/events.module.js';
 import { DirectoryModule } from '../directory/directory.module.js';
 import { FundraisingModule } from '../fundraising/fundraising.module.js';
+import { PaymentsModule } from '../payments/payments.module.js';
 import { BlogModule } from '../blog/blog.module.js';
 import { CommitteeModule } from '../committee/committee.module.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -20,6 +21,7 @@ import { AdminUsersService } from './admin-users.service.js';
     EventsModule,
     DirectoryModule,
     FundraisingModule,
+    PaymentsModule,
     BlogModule,
     CommitteeModule,
     // AuthModule exports CredentialsService (set-password links) and

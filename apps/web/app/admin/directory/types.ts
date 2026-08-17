@@ -12,6 +12,8 @@ export interface AdminBusiness {
   isPaid: boolean;
   isPromoted?: boolean;
   promotedUntil?: string | null;
+  promotionPaidAt?: string | null;
+  promotionPaymentMethod?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

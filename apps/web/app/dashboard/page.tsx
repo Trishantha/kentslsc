@@ -47,6 +47,8 @@ interface MembershipResponse {
   qr: string | null;
   dependantsCount: number;
   dependants: { name: string; relationship: string }[];
+  paidAt: string | null;
+  paymentMethod: string | null;
   membershipType: {
     name: string;
     description?: string | null;
@@ -501,6 +503,20 @@ export default function DashboardPage() {
                       {membership.status}
                     </span>
                   </div>
+                  {!membership.membershipType.isFree && (
+                    <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">
+                      <span className="text-slate-700 dark:text-slate-400">Payment</span>
+                      {membership.paymentMethod ? (
+                        <span className="text-sm font-semibold text-green-400">
+                          Paid {membership.paymentMethod}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold text-yellow-400">
+                          Payment pending
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">
                     <span className="text-slate-700 dark:text-slate-400">Membership ID</span>
                     <span className="font-mono font-semibold">{membership.membershipId}</span>

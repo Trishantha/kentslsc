@@ -12,7 +12,10 @@ import {
   Calendar,
   Mail,
   CreditCard,
-  Hash
+  Hash,
+  Banknote,
+  Copy,
+  Check
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -29,6 +32,8 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(membership.status);
   const [error, setError] = useState<string | null>(null);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const statusMutation = useMutation({
     mutationFn: async (nextStatus: string) => {
@@ -41,6 +46,30 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
     },
     onError: (err) => setError(getApiErrorMessage(err))
   });
+
+  const sendLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/memberships/${membership.id}/send-payment-link`);
+      return res.data as { url: string; provider: string };
+    },
+    onSuccess: (data) => {
+      setPaymentLink(data.url);
+      setCopied(false);
+      setError(null);
+    },
+    onError: (err) => setError(getApiErrorMessage(err))
+  });
+
+  const handleCopy = async () => {
+    if (!paymentLink) return;
+    try {
+      await navigator.clipboard.writeText(paymentLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   const handleApprove = () => statusMutation.mutate('ACTIVE');
   const handleReject = () => statusMutation.mutate('CANCELLED');
@@ -103,6 +132,23 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
               <p className="font-mono text-sm">{membership.membershipId}</p>
             </div>
           </div>
+
+          {membership.membershipType.isFree === false && typeof membership.membershipType.price === 'number' && membership.membershipType.price > 0 && (
+            <div className="flex items-start gap-3">
+              <Banknote className="mt-0.5 h-4 w-4 text-slate-500" />
+              <div>
+                <p className="text-xs text-slate-500">Payment</p>
+                {membership.paymentMethod ? (
+                  <p className="text-sm font-medium text-green-400">
+                    Paid {membership.paymentMethod}
+                    {membership.paidAt && ` · ${formatDate(membership.paidAt)}`}
+                  </p>
+                ) : (
+                  <p className="text-sm font-medium text-yellow-400">Unpaid</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -158,6 +204,44 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
               <XCircle className="h-4 w-4" />
               Reject
             </button>
+          </div>
+        )}
+
+        {membership.status === 'PENDING' && membership.membershipType.isFree === false && typeof membership.membershipType.price === 'number' && membership.membershipType.price > 0 && !membership.paymentMethod && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => sendLinkMutation.mutate()}
+                disabled={sendLinkMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20 disabled:opacity-50"
+              >
+                {sendLinkMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+                Send payment link
+              </button>
+            </div>
+            {paymentLink && (
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+                <input
+                  type="text"
+                  value={paymentLink}
+                  readOnly
+                  className="flex-1 bg-transparent text-xs text-slate-200 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-1 text-xs text-neon-blue hover:underline"
+                >
+                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
