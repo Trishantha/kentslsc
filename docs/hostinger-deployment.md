@@ -120,6 +120,24 @@ SUPABASE_BUCKET=KentSLSC
 
 If you are locked out of the admin account, no admin account exists, or you cannot run a CLI reset, set `ADMIN_EMERGENCY_PASSWORD` in the backend environment, restart/redeploy the API, and log in with the email in `ADMIN_EMERGENCY_EMAIL` (default `admin@kentslsc.org`) and that password. The API will create the account if it is missing, or reset the password and clear lockouts if it exists. Remove the variable and change the password from the admin UI immediately after logging in.
 
+## Restarting the API after environment-variable changes
+
+Hostinger does **not** restart the backend process when you edit environment variables. You must either:
+
+1. Click **Restart** / **Redeploy** in the Hostinger backend app panel, or
+2. Use the admin restart endpoint: `POST /api/admin/restart`.
+
+The restart endpoint is admin-only (`@Roles(UserRole.ADMIN)`). When called it sends `SIGTERM` to the API process, reusing the existing graceful-shutdown path. Hostinger's process manager then starts a new process with the latest environment variables.
+
+Example using `curl`:
+
+```bash
+curl -X POST https://your-api-domain.com/api/admin/restart \
+  -H "Authorization: Bearer <admin-jwt-token>"
+```
+
+Use this whenever you change `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, or any other backend environment variable and want the change to take effect without a full redeploy.
+
 ## Why the Git import screen looked wrong
 
 Hostinger’s Git deployment screen only selects:

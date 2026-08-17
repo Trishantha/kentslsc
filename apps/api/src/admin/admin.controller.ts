@@ -3,6 +3,9 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
   Param,
   Patch,
   Post,
@@ -55,6 +58,8 @@ import {
 @ApiBearerAuth()
 @Controller('admin')
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
     private readonly adminService: AdminService,
     private readonly adminUsers: AdminUsersService
@@ -575,6 +580,32 @@ export class AdminController {
     @Body() dto: UpdateContactStatusDto
   ) {
     return this.adminService.updateContactStatus(id, dto.status);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Server lifecycle
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Gracefully restart the API process.
+   *
+   * Hostinger's process manager will restart the app after the process exits,
+   * which picks up any newly saved environment variables (e.g. Supabase keys).
+   * This reuses the existing SIGTERM shutdown path so database connections,
+   * sockets, and child processes are cleaned up correctly.
+   */
+  @Post('restart')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.ACCEPTED)
+  restart() {
+    this.logger.log('Admin restart requested; shutting down so Hostinger can restart the process');
+
+    // Give the HTTP response time to flush before tearing down the process.
+    setTimeout(() => {
+      process.kill(process.pid, 'SIGTERM');
+    }, 500);
+
+    return { message: 'Restart initiated' };
   }
 
 }
