@@ -411,6 +411,9 @@ export default function DashboardPage() {
       setCardError(false);
       setCardRetryCount(0);
       setCardRetry(Date.now());
+    },
+    onError: () => {
+      setCardError(true);
     }
   });
 
@@ -558,30 +561,46 @@ export default function DashboardPage() {
                       />
                     </div>
                     {cardError && (
-                      <div className="text-center">
+                      <div className="flex flex-col items-center gap-3 text-center">
                         <p className="text-sm text-red-400">
-                          Could not load the membership card.
+                          Could not load the membership card. The stored card may be missing or broken.
                         </p>
-                        {cardRetryCount >= 2 && (
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                          {cardRetryCount >= 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCardError(false);
+                                setCardRetryCount(0);
+                                setCardRetry(Date.now());
+                              }}
+                              className="inline-flex items-center text-sm font-medium text-neon-blue hover:underline"
+                            >
+                              <RefreshCw className="mr-1 h-4 w-4" /> Retry
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              setCardError(false);
-                              setCardRetryCount(0);
-                              setCardRetry(Date.now());
-                            }}
-                            className="mt-2 inline-flex items-center text-sm font-medium text-neon-blue hover:underline"
+                            onClick={() => regenerateCard.mutate()}
+                            disabled={regenerateCard.isPending}
+                            className="inline-flex items-center text-sm font-medium text-neon-gold hover:underline disabled:opacity-50"
                           >
-                            <RefreshCw className="mr-1 h-4 w-4" /> Retry
+                            {regenerateCard.isPending ? (
+                              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-1 h-4 w-4" />
+                            )}
+                            Regenerate card
                           </button>
-                        )}
+                        </div>
                       </div>
                     )}
                     <div className="flex flex-wrap justify-center gap-3">
                       <a
                         href={cardAssetUrl}
                         download={`kent-slsc-card-${membership.membershipId}.png`}
-                        className="btn-primary inline-flex"
+                        className={`btn-primary inline-flex ${cardError ? 'pointer-events-none opacity-50' : ''}`}
+                        aria-disabled={cardError}
                       >
                         <Download className="mr-2 h-4 w-4" /> Download Card
                       </a>
@@ -599,6 +618,11 @@ export default function DashboardPage() {
                     <p className="text-slate-700 dark:text-slate-400">
                       Your digital membership card is not available yet. This can happen while the card is being generated or if storage is temporarily unavailable.
                     </p>
+                    {regenerateCard.isError && (
+                      <p className="text-sm text-red-400">
+                        Could not generate the card. Please check that storage is configured and try again.
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => regenerateCard.mutate()}
