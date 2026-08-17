@@ -469,6 +469,26 @@ export class MembershipsService {
     return this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
   }
 
+  async regenerateMyCard(userId: string) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { userId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: { membershipType: true }
+    });
+
+    if (!membership) {
+      throw new NotFoundException('No membership found');
+    }
+
+    const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true }
+    });
+
+    return this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
+  }
+
   async updateStatus(id: string, status: MembershipStatus) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, deletedAt: null },

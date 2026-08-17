@@ -119,6 +119,12 @@ export class MembershipsController {
     return this.membershipsService.regenerateCard(dto.membershipId);
   }
 
+  @Post('me/regenerate-card')
+  @ApiBearerAuth()
+  async regenerateMyCard(@CurrentUser() user: TokenPayload) {
+    return this.membershipsService.regenerateMyCard(user.sub);
+  }
+
   @Post('webhook')
   @Public()
   @HttpCode(HttpStatus.OK)

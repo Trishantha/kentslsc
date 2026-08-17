@@ -239,5 +239,11 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
   <text x="525" y="565" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="500" fill="#64748b" letter-spacing="1.5">KENT SRI LANKAN SOCIAL CLUB</text>
 </svg>`;
 
-  return sharp(Buffer.from(svg), { density: 144 }).png().toBuffer();
+  try {
+    return sharp(Buffer.from(svg), { density: 96 })
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
+  } catch (err) {
+    throw new Error(`Card generation failed for ${details.membershipId}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

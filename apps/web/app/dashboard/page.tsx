@@ -25,7 +25,8 @@ import {
   ArrowRight,
   User,
   Mail,
-  Save
+  Save,
+  RefreshCw
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -382,6 +383,7 @@ function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
 }
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
   const [showQr, setShowQr] = useState(false);
   const [cardError, setCardError] = useState(false);
   const [cardRetry, setCardRetry] = useState(Date.now);
@@ -399,14 +401,30 @@ export default function DashboardPage() {
     retry: false
   });
 
+  const regenerateCard = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/membership/me/regenerate-card');
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-membership'] });
+      setCardError(false);
+      setCardRetryCount(0);
+      setCardRetry(Date.now());
+    }
+  });
+
   const cardAssetUrl = membership?.cardUrl
     ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}&t=${cardRetry}`
     : null;
 
+  // Reset error/retry state only when the stored card URL actually changes,
+  // not when the cache-busting timestamp changes. This prevents an infinite
+  // retry loop that causes the screen to flicker while the image keeps reloading.
   useEffect(() => {
     setCardError(false);
     setCardRetryCount(0);
-  }, [cardAssetUrl]);
+  }, [membership?.cardUrl, membership?.membershipId]);
 
   return (
     <div className="px-4 py-16 md:px-6">
@@ -525,6 +543,7 @@ export default function DashboardPage() {
                     <div className="relative overflow-hidden rounded-2xl border border-slate-300 shadow-xl dark:border-white/10">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
+                        key={cardAssetUrl}
                         src={cardAssetUrl}
                         alt="Membership card"
                         className="max-h-72 w-auto object-contain"
@@ -535,13 +554,28 @@ export default function DashboardPage() {
                             setCardRetry(Date.now());
                           }
                         }}
+                        onLoad={() => setCardError(false)}
                       />
                     </div>
                     {cardError && (
-                      <p className="text-sm text-red-400">
-                        Could not load the membership card. Please try refreshing, or contact support if the
-                        problem persists.
-                      </p>
+                      <div className="text-center">
+                        <p className="text-sm text-red-400">
+                          Could not load the membership card.
+                        </p>
+                        {cardRetryCount >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCardError(false);
+                              setCardRetryCount(0);
+                              setCardRetry(Date.now());
+                            }}
+                            className="mt-2 inline-flex items-center text-sm font-medium text-neon-blue hover:underline"
+                          >
+                            <RefreshCw className="mr-1 h-4 w-4" /> Retry
+                          </button>
+                        )}
+                      </div>
                     )}
                     <div className="flex flex-wrap justify-center gap-3">
                       <a
@@ -561,10 +595,23 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-2xl border border-slate-300 bg-slate-200/50 p-8 text-center dark:border-white/10 dark:bg-white/5">
+                  <div className="mt-6 flex flex-col items-center gap-4 rounded-2xl border border-slate-300 bg-slate-200/50 p-8 text-center dark:border-white/10 dark:bg-white/5">
                     <p className="text-slate-700 dark:text-slate-400">
-                      Your digital membership card will appear here once your membership is active.
+                      Your digital membership card is not available yet. This can happen while the card is being generated or if storage is temporarily unavailable.
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => regenerateCard.mutate()}
+                      disabled={regenerateCard.isPending}
+                      className="btn-primary inline-flex items-center disabled:opacity-50"
+                    >
+                      {regenerateCard.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      Generate card
+                    </button>
                   </div>
                 )}
               </motion.div>
