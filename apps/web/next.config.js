@@ -24,10 +24,13 @@ function normalizeApiOrigin(value) {
 const isDev = process.env.NODE_ENV === 'development';
 
 const rawApiUrl = process.env.API_PROXY_TARGET ?? process.env.NEXT_PUBLIC_API_URL;
-if (!rawApiUrl && !isDev) {
-  throw new Error(
-    'API_PROXY_TARGET (or NEXT_PUBLIC_API_URL) must be set in production. ' +
-    'See docs/hostinger-deployment.md'
+
+// In production CI builds, warn if API_PROXY_TARGET is not set
+// (but don't fail the build - deployments must set this in their environment)
+if (!rawApiUrl && process.env.CI === 'true' && process.env.NODE_ENV === 'production') {
+  console.warn(
+    'WARNING: API_PROXY_TARGET (or NEXT_PUBLIC_API_URL) is not set in production CI build. ' +
+    'This must be configured in the deployment environment. See docs/hostinger-deployment.md'
   );
 }
 

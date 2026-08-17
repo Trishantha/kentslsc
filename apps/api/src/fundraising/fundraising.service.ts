@@ -41,7 +41,7 @@ export class FundraisingService {
 
   async listActive(category?: string, page = 1, limit = 20) {
     const now = new Date();
-    const where: any = {
+    const where: Record<string, unknown> = {
       status: FundraiserStatus.ACTIVE,
       isActive: true,
       deletedAt: null,
@@ -357,12 +357,16 @@ export class FundraisingService {
     });
   }
 
-  async handlePayPalCompleted(payload: any) {
+  async handlePayPalCompleted(payload: Record<string, unknown>) {
     const metadata = this.payments.extractPayPalMetadata(payload);
     if (!metadata.fundraiserId || metadata.type !== 'donation') return null;
 
     const amount = Number(metadata.amount || '0') / 100;
     if (amount <= 0) return null;
+
+    const resource = payload?.resource as Record<string, unknown>;
+    const payer = resource?.payer as Record<string, unknown>;
+    const emailAddress = payer?.email_address as string | undefined;
 
     return this.recordDonation({
       fundraiserId: metadata.fundraiserId,
@@ -371,7 +375,7 @@ export class FundraisingService {
       displayName: metadata.displayName ?? null,
       message: metadata.message ?? null,
       isAnonymous: metadata.isAnonymous === 'true',
-      donorEmail: payload?.resource?.payer?.email_address ?? null,
+      donorEmail: emailAddress ?? null,
       paymentId: this.payments.extractPayPalPaymentId(payload)
     });
   }
@@ -478,10 +482,10 @@ export class FundraisingService {
   private toResponse(item: any) {
     return {
       ...item,
-      targetAmount: Number(item.targetAmount),
-      raisedAmount: Number(item.raisedAmount),
+      targetAmount: Number(item.targetAmount ?? 0),
+      raisedAmount: Number(item.raisedAmount ?? 0),
       donations: item.donations
-        ? item.donations.map((d: any) => ({ ...d, amount: Number(d.amount) }))
+        ? (item.donations as Array<Record<string, unknown>>).map((d: Record<string, unknown>) => ({ ...d, amount: Number(d.amount ?? 0) }))
         : undefined
     };
   }

@@ -59,7 +59,7 @@ describe('AuthBootstrapService', () => {
   it('should reset the admin password and clear lockout when emergency password is set', async () => {
     jest
       .spyOn(config, 'get')
-      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'testpassword123' : undefined));
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(mockUser);
 
     await service.onModuleInit();
@@ -81,7 +81,7 @@ describe('AuthBootstrapService', () => {
     jest
       .spyOn(config, 'get')
       .mockImplementation((key: string) =>
-        key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : key === 'ADMIN_EMERGENCY_EMAIL' ? 'info@kentslsc.org' : undefined
+        key === 'ADMIN_EMERGENCY_PASSWORD' ? 'testpassword123' : key === 'ADMIN_EMERGENCY_EMAIL' ? 'info@kentslsc.org' : undefined
       );
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
 
@@ -100,7 +100,7 @@ describe('AuthBootstrapService', () => {
   });
 
   it('should create the default admin account when no email is configured', async () => {
-    jest.spyOn(config, 'get').mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+    jest.spyOn(config, 'get').mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'testpassword123' : undefined));
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
 
     await service.onModuleInit();
@@ -115,7 +115,7 @@ describe('AuthBootstrapService', () => {
   it('should warn when the target user is not an admin', async () => {
     jest
       .spyOn(config, 'get')
-      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'testpassword123' : undefined));
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue({
       ...mockUser,
       role: UserRole.MEMBER

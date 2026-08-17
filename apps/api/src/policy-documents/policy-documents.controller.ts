@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Put, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PolicyDocumentsService } from './policy-documents.service.js';
 import { UpdatePolicyDocumentDto } from './dto/update-policy-document.dto.js';
@@ -43,9 +44,10 @@ export class PolicyDocumentsController {
   upsert(
     @Param('type') type: PolicyDocumentType,
     @Body() dto: UpdatePolicyDocumentDto,
-    @Req() req: any
+    @Req() req: Request
   ) {
-    const updatedBy = req.user?.email ?? req.user?.id;
+    const user = req.user as Record<string, unknown> | undefined;
+    const updatedBy = (user?.email as string) ?? (user?.id as string);
     return this.service.upsert(type, dto, updatedBy);
   }
 }

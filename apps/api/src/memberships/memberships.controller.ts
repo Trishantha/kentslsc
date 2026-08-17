@@ -125,7 +125,7 @@ export class MembershipsController {
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
-    @Body() body: any
+    @Body() body: Record<string, unknown>
   ) {
     try {
       if (signature) {

@@ -25,7 +25,7 @@ export class UpdatePageDto {
   declare ogImageUrl?: string;
 
   @IsOptional()
-  declare blocks?: any;
+  declare blocks?: Array<Record<string, unknown>>;
 
   @IsOptional()
   @IsBoolean()

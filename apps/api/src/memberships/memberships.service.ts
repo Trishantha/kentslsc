@@ -500,13 +500,17 @@ export class MembershipsService {
     return { received: true, membershipId: null };
   }
 
-  async handlePayPalWebhook(payload: any) {
+  async handlePayPalWebhook(payload: Record<string, unknown>) {
     const metadata = this.paymentsService.extractPayPalMetadata(payload);
     if (!metadata.source || metadata.source !== 'membership') {
       return { received: true, membershipId: null };
     }
 
-    return this.handleMembershipCheckoutCompleted(metadata, payload?.resource?.payer?.email_address ?? undefined);
+    const resource = payload?.resource as Record<string, unknown>;
+    const payer = resource?.payer as Record<string, unknown>;
+    const emailAddress = payer?.email_address as string | undefined;
+
+    return this.handleMembershipCheckoutCompleted(metadata, emailAddress ?? undefined);
   }
 
   private async handleMembershipCheckoutCompleted(

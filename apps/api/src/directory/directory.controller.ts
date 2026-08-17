@@ -131,14 +131,14 @@ export class DirectoryController {
   async webhook(
     @Headers('stripe-signature') signature: string,
     @RawBody() rawBody: Buffer,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
     @Res() res: Response
   ) {
     try {
       if (signature) {
         const event = await this.paymentsService.constructEvent(rawBody, signature);
         if (event.type === 'checkout.session.completed') {
-          await this.paymentsService.handleDirectoryPromotion(event.data.object as any);
+          await this.paymentsService.handleDirectoryPromotion(event.data.object as unknown as Record<string, unknown>);
         }
         return res.json({ received: true });
       }
