@@ -1,21 +1,12 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Ticket } from 'lucide-react';
-import { Info, Banknote, Sparkles } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Ticket, Info, Banknote, Sparkles, Loader2 } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import type { AdminMembershipType } from '../types';
-
-interface MembershipTypeDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getMembershipType(id: string): Promise<AdminMembershipType | null> {
-  const types = await fetchWithOriginFallback<AdminMembershipType[]>('/api/membership/types');
-  if (!types) return null;
-  return types.find((t) => t.id === id) ?? null;
-}
 
 const tabs = [
   { href: 'details', label: 'Details', icon: Info },
@@ -23,10 +14,52 @@ const tabs = [
   { href: 'features', label: 'Features', icon: Sparkles }
 ];
 
-export default async function MembershipTypeDetailLayout({ children, params }: MembershipTypeDetailLayoutProps) {
-  const { id } = await params;
-  const type = await getMembershipType(id);
-  if (!type) notFound();
+interface MembershipTypeDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function MembershipTypeDetailLayout({ children }: MembershipTypeDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: membershipType,
+    isLoading,
+    error
+  } = useQuery<AdminMembershipType>({
+    queryKey: ['admin', 'membership-types', id],
+    queryFn: async () => {
+      const res = await api.get<AdminMembershipType[]>('/membership/types');
+      const type = res.data.find((t) => t.id === id);
+      if (!type) throw new Error('Membership type not found.');
+      return type;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !membershipType) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load membership type</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Membership type not found.'}
+        </p>
+        <Link
+          href="/admin/membership-types"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to membership types
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -39,13 +72,13 @@ export default async function MembershipTypeDetailLayout({ children, params }: M
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="section-title">{type.name}</h1>
+            <h1 className="section-title">{membershipType.name}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <Ticket className="h-3.5 w-3.5" />
-              <span>{type.isFree || type.price === 0 ? 'Free' : `£${type.price}`}</span>
+              <span>{membershipType.isFree || membershipType.price === 0 ? 'Free' : `£${membershipType.price}`}</span>
               <span>·</span>
-              <span>{type.isFree ? 'Lifetime' : `${type.durationMonths} months`}</span>
-              {type.autoActivate && (
+              <span>{membershipType.isFree ? 'Lifetime' : `${membershipType.durationMonths} months`}</span>
+              {membershipType.autoActivate && (
                 <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-semibold text-green-400">
                   Auto-activate
                 </span>

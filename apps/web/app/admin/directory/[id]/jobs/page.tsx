@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,12 +25,8 @@ const jobSchema = z.object({
 
 type JobForm = z.infer<typeof jobSchema>;
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function DirectoryJobsPage({ params }: Props) {
-  const { id: businessId } = use(params);
+export default function DirectoryJobsPage() {
+  const { id: businessId } = useParams<{ id: string }>();
   const [editing, setEditing] = useState<AdminJob | null>(null);
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();

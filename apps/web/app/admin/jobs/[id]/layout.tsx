@@ -1,31 +1,62 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Briefcase, Building2 } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Briefcase, Building2, Info, Users, Loader2 } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
-import { Info, Users } from 'lucide-react';
 import type { AdminJob } from '../types';
-
-interface JobDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getJob(id: string): Promise<AdminJob | null> {
-  const jobs = await fetchWithOriginFallback<AdminJob[]>('/api/admin/directory/jobs');
-  if (!jobs) return null;
-  return jobs.find((j) => j.id === id) ?? null;
-}
 
 const tabs = [
   { href: 'details', label: 'Details', icon: Info },
   { href: 'applications', label: 'Applications', icon: Users }
 ];
 
-export default async function JobDetailLayout({ children, params }: JobDetailLayoutProps) {
-  const { id } = await params;
-  const job = await getJob(id);
-  if (!job) notFound();
+interface JobDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function JobDetailLayout({ children }: JobDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: job,
+    isLoading,
+    error
+  } = useQuery<AdminJob | null>({
+    queryKey: ['admin', 'jobs', id],
+    queryFn: async () => {
+      const res = await api.get<AdminJob[]>('/admin/directory/jobs');
+      return res.data.find((j) => j.id === id) ?? null;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !job) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load job</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Job not found.'}
+        </p>
+        <Link
+          href="/admin/jobs"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to jobs
+        </Link>
+      </div>
+    );
+  }
 
   const hasClosed = job.closingDate ? new Date(job.closingDate) < new Date() : false;
 

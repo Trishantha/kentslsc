@@ -1,28 +1,61 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Users } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Users, Info, Loader2 } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
-import { Info } from 'lucide-react';
 import type { AdminCommitteeMember } from '../page';
-
-interface CommitteeDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getCommitteeMember(id: string): Promise<AdminCommitteeMember | null> {
-  return fetchWithOriginFallback(`/api/admin/committee/${id}`);
-}
 
 const tabs = [
   { href: 'details', label: 'Details', icon: Info }
 ];
 
-export default async function CommitteeDetailLayout({ children, params }: CommitteeDetailLayoutProps) {
-  const { id } = await params;
-  const member = await getCommitteeMember(id);
-  if (!member) notFound();
+interface CommitteeDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function CommitteeDetailLayout({ children }: CommitteeDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: member,
+    isLoading,
+    error
+  } = useQuery<AdminCommitteeMember>({
+    queryKey: ['admin', 'committee', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/committee/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !member) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load committee member</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Committee member not found.'}
+        </p>
+        <Link
+          href="/admin/committee"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to committee
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>

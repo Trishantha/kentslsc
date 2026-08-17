@@ -1,20 +1,43 @@
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { CommitteeDetailsForm } from './CommitteeDetailsForm';
 import type { AdminCommitteeMember } from '../../page';
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
+export default function CommitteeDetailsPage() {
+  const { id } = useParams<{ id: string }>();
 
-async function getCommitteeMember(id: string): Promise<AdminCommitteeMember | null> {
-  return fetchWithOriginFallback(`/api/admin/committee/${id}`);
-}
+  const {
+    data: member,
+    isLoading,
+    error
+  } = useQuery<AdminCommitteeMember>({
+    queryKey: ['admin', 'committee', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/committee/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
 
-export default async function CommitteeDetailsPage({ params }: Props) {
-  const { id } = await params;
-  const member = await getCommitteeMember(id);
-  if (!member) notFound();
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !member) {
+    return (
+      <div className="glass-card p-6 text-center text-red-400">
+        <p>{error ? getApiErrorMessage(error) : 'Committee member not found.'}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl">

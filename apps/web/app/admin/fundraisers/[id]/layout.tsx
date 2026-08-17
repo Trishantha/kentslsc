@@ -1,20 +1,22 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Calendar, HeartHandshake } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  Calendar,
+  HeartHandshake,
+  Info,
+  Banknote,
+  Megaphone,
+  ShieldAlert,
+  Loader2
+} from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
-import { Info, Banknote, Megaphone, ShieldAlert } from 'lucide-react';
 import type { AdminFundraiser } from '../types';
 import { FUNDRAISER_CATEGORIES, FUNDRAISER_STATUS_COLORS } from '../types';
-
-interface FundraiserDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getFundraiser(id: string): Promise<AdminFundraiser | null> {
-  return fetchWithOriginFallback(`/api/fundraisers/${id}`);
-}
 
 const tabs = [
   { href: 'overview', label: 'Overview', icon: Info },
@@ -23,10 +25,50 @@ const tabs = [
   { href: 'moderation', label: 'Moderation', icon: ShieldAlert }
 ];
 
-export default async function FundraiserDetailLayout({ children, params }: FundraiserDetailLayoutProps) {
-  const { id } = await params;
-  const fundraiser = await getFundraiser(id);
-  if (!fundraiser) notFound();
+interface FundraiserDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function FundraiserDetailLayout({ children }: FundraiserDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: fundraiser,
+    isLoading,
+    error
+  } = useQuery<AdminFundraiser>({
+    queryKey: ['admin', 'fundraisers', id],
+    queryFn: async () => {
+      const res = await api.get(`/fundraisers/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !fundraiser) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load fundraiser</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Fundraiser not found.'}
+        </p>
+        <Link
+          href="/admin/fundraisers"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to fundraisers
+        </Link>
+      </div>
+    );
+  }
 
   const hasEnded = new Date(fundraiser.endDate) < new Date();
 

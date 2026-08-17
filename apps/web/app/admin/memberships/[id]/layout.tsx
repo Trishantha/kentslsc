@@ -1,31 +1,62 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, CreditCard, Info, User } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, CreditCard, Info, Loader2, User } from 'lucide-react';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import type { AdminMembership } from '../types';
-
-interface MembershipDetailLayoutProps {
-  children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getMembership(id: string): Promise<AdminMembership | null> {
-  return fetchWithOriginFallback(`/api/admin/memberships/${id}`);
-}
 
 const tabs = [
   { href: 'details', label: 'Details', icon: Info },
   { href: 'card', label: 'Card', icon: CreditCard }
 ];
 
-export default async function MembershipDetailLayout({
-  children,
-  params
-}: MembershipDetailLayoutProps) {
-  const { id } = await params;
-  const membership = await getMembership(id);
-  if (!membership) notFound();
+interface MembershipDetailLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function MembershipDetailLayout({ children }: MembershipDetailLayoutProps) {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data: membership,
+    isLoading,
+    error
+  } = useQuery<AdminMembership>({
+    queryKey: ['admin', 'memberships', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/memberships/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
+
+  if (error || !membership) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <h2 className="text-xl font-semibold text-red-400">Could not load membership</h2>
+        <p className="mt-2 text-slate-500">
+          {error ? getApiErrorMessage(error) : 'Membership not found.'}
+        </p>
+        <Link
+          href="/admin/memberships"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to memberships
+        </Link>
+      </div>
+    );
+  }
 
   const isExpired = membership.endDate ? new Date(membership.endDate) < new Date() : false;
 

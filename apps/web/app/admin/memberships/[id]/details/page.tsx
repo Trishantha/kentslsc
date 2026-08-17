@@ -1,20 +1,31 @@
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { MembershipDetailsForm } from './MembershipDetailsForm';
 import type { AdminMembership } from '../../types';
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
+export default function MembershipDetailsPage() {
+  const { id } = useParams<{ id: string }>();
 
-async function getMembership(id: string): Promise<AdminMembership | null> {
-  return fetchWithOriginFallback(`/api/admin/memberships/${id}`);
-}
+  const { data: membership, isLoading } = useQuery<AdminMembership>({
+    queryKey: ['admin', 'memberships', id],
+    queryFn: async () => {
+      const res = await api.get(`/admin/memberships/${id}`);
+      return res.data;
+    },
+    enabled: !!id
+  });
 
-export default async function MembershipDetailsPage({ params }: Props) {
-  const { id } = await params;
-  const membership = await getMembership(id);
-  if (!membership) notFound();
+  if (isLoading || !membership) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
+      </div>
+    );
+  }
 
   return <MembershipDetailsForm membership={membership} />;
 }
