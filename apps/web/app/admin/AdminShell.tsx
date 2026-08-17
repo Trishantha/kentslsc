@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 import { Permission } from '@kentslsc/shared';
 import type { AuthUser } from '@/hooks/useAuth';
+import { PageTransitionLoader } from '@/components/PageTransitionLoader';
 import {
   LayoutDashboard,
   Users,
@@ -35,6 +38,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: Permission | Permission[];
+  prefetch?: (queryClient: ReturnType<typeof useQueryClient>) => void;
 }
 
 interface NavGroup {
@@ -43,12 +47,139 @@ interface NavGroup {
   items: NavItem[];
 }
 
+function prefetchDashboard(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/dashboard');
+      return data;
+    }
+  });
+}
+
+function prefetchUsers(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'users', 'ALL', 1],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/users?page=1&limit=50');
+      return data;
+    }
+  });
+}
+
+function prefetchEvents(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'events'],
+    queryFn: async () => {
+      const { data } = await api.get('/events/admin');
+      return data;
+    }
+  });
+}
+
+function prefetchMemberships(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'memberships', 'PENDING'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/memberships?page=1&limit=100&status=PENDING');
+      return data;
+    }
+  });
+}
+
+function prefetchMembershipTypes(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'membership-types'],
+    queryFn: async () => {
+      const { data } = await api.get('/membership/types');
+      return data;
+    }
+  });
+}
+
+function prefetchDirectory(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'businesses'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/directory/businesses');
+      return data;
+    }
+  });
+}
+
+function prefetchJobs(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'jobs'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/directory/jobs');
+      return data;
+    }
+  });
+}
+
+function prefetchFundraisers(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'fundraisers', 'stats'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/fundraisers/stats');
+      return data;
+    }
+  });
+  qc.prefetchQuery({
+    queryKey: ['admin', 'fundraisers', 'all'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/fundraisers');
+      return data;
+    }
+  });
+}
+
+function prefetchBlog(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'blog'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/blog/posts');
+      return data;
+    }
+  });
+}
+
+function prefetchContact(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'contact-messages'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/contact-messages');
+      return data;
+    }
+  });
+}
+
+function prefetchForum(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['admin', 'forum', 'flagged'],
+    queryFn: async () => {
+      const { data } = await api.get('/admin/forum/flagged');
+      return data;
+    }
+  });
+}
+
+function prefetchPayments(qc: ReturnType<typeof useQueryClient>) {
+  qc.prefetchQuery({
+    queryKey: ['payments-settings'],
+    queryFn: async () => {
+      const { data } = await api.get('/payments/settings');
+      return data;
+    }
+  });
+}
+
 const navGroups: NavGroup[] = [
   {
     label: 'Overview',
     icon: LayoutDashboard,
     items: [
-      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: Permission.VIEW_ADMIN_DASHBOARD }
+      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: Permission.VIEW_ADMIN_DASHBOARD, prefetch: prefetchDashboard }
     ]
   },
   {
@@ -57,36 +188,36 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/hero', label: 'Hero', icon: FileText, permission: Permission.MANAGE_HERO },
       { href: '/admin/pages', label: 'Pages', icon: FileText, permission: Permission.MANAGE_PAGES },
-      { href: '/admin/blog', label: 'Blog', icon: Newspaper, permission: Permission.MANAGE_BLOG }
+      { href: '/admin/blog', label: 'Blog', icon: Newspaper, permission: Permission.MANAGE_BLOG, prefetch: prefetchBlog }
     ]
   },
   {
     label: 'Community',
     icon: Calendar,
     items: [
-      { href: '/admin/events', label: 'Events', icon: Calendar, permission: Permission.MANAGE_EVENTS },
-      { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake, permission: Permission.MANAGE_FUNDRAISERS },
-      { href: '/admin/directory', label: 'Directory', icon: Building2, permission: Permission.MANAGE_DIRECTORY },
-      { href: '/admin/jobs', label: 'Jobs', icon: Briefcase, permission: Permission.MANAGE_JOBS },
-      { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning, permission: Permission.MANAGE_FORUM },
-      { href: '/admin/contact', label: 'Contact Messages', icon: Mail, permission: Permission.MANAGE_CONTACT_MESSAGES }
+      { href: '/admin/events', label: 'Events', icon: Calendar, permission: Permission.MANAGE_EVENTS, prefetch: prefetchEvents },
+      { href: '/admin/fundraisers', label: 'Fundraisers', icon: HeartHandshake, permission: Permission.MANAGE_FUNDRAISERS, prefetch: prefetchFundraisers },
+      { href: '/admin/directory', label: 'Directory', icon: Building2, permission: Permission.MANAGE_DIRECTORY, prefetch: prefetchDirectory },
+      { href: '/admin/jobs', label: 'Jobs', icon: Briefcase, permission: Permission.MANAGE_JOBS, prefetch: prefetchJobs },
+      { href: '/admin/forum', label: 'Forum Moderation', icon: MessageSquareWarning, permission: Permission.MANAGE_FORUM, prefetch: prefetchForum },
+      { href: '/admin/contact', label: 'Contact Messages', icon: Mail, permission: Permission.MANAGE_CONTACT_MESSAGES, prefetch: prefetchContact }
     ]
   },
   {
     label: 'Membership',
     icon: Users,
     items: [
-      { href: '/admin/users', label: 'Users', icon: Users, permission: Permission.MANAGE_USERS },
+      { href: '/admin/users', label: 'Users', icon: Users, permission: Permission.MANAGE_USERS, prefetch: prefetchUsers },
       { href: '/admin/roles', label: 'Roles', icon: Shield, permission: Permission.MANAGE_USERS },
-      { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS },
-      { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS }
+      { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMembershipTypes },
+      { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMemberships }
     ]
   },
   {
     label: 'Finance',
     icon: CreditCard,
     items: [
-      { href: '/admin/payments', label: 'Payments', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS }
+      { href: '/admin/payments', label: 'Payments', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS, prefetch: prefetchPayments }
     ]
   },
   {
@@ -130,6 +261,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const visibleGroups = useMemo(() => filterGroups(user ?? null), [user]);
@@ -183,6 +315,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      <PageTransitionLoader minDuration={200} />
       <aside className="sticky top-[68px] z-30 w-full border-b border-white/10 bg-slate-900/80 backdrop-blur-lg md:fixed md:top-[68px] md:flex md:h-[calc(100vh-68px)] md:w-64 md:flex-col md:border-b-0 md:border-r">
         <div className="flex items-center justify-between px-4 py-4 md:p-6">
           <Link href="/admin" className="text-xl font-extrabold gradient-text">
@@ -231,6 +364,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         <Link
                           key={item.href}
                           href={item.href}
+                          onMouseEnter={() => item.prefetch?.(queryClient)}
+                          onFocus={() => item.prefetch?.(queryClient)}
                           className={cn(
                             'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium transition-colors',
                             active

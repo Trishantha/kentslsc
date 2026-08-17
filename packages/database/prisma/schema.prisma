@@ -430,11 +430,43 @@ model JobAd {
   deletedAt         DateTime? @map("deleted_at")
 
   businessListing BusinessListing? @relation(fields: [businessListingId], references: [id])
+  jobApplications JobApplication[]
 
   @@index([businessListingId])
   @@index([closingDate])
   @@index([isPublished])
   @@map("job_ads")
+}
+
+enum JobApplicationStatus {
+  SUBMITTED
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+  HIRED
+
+  @@map("job_application_status")
+}
+
+model JobApplication {
+  id          String                  @id @default(uuid())
+  jobAdId     String                  @map("job_ad_id")
+  name        String
+  email       String
+  phone       String?
+  coverLetter String?                 @map("cover_letter")
+  cvUrl       String?                 @map("cv_url")
+  status      JobApplicationStatus    @default(SUBMITTED)
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  deletedAt   DateTime?               @map("deleted_at")
+
+  jobAd JobAd @relation(fields: [jobAdId], references: [id], onDelete: Cascade)
+
+  @@index([jobAdId])
+  @@index([email])
+  @@index([status])
+  @@map("job_applications")
 }
 
 model ForumCategory {

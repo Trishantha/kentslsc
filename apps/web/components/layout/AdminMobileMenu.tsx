@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -19,6 +20,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: unknown;
+  prefetch?: (queryClient: ReturnType<typeof useQueryClient>) => void;
 }
 
 export interface NavGroup {
@@ -41,6 +43,7 @@ export function AdminMobileMenu({ isOpen, onClose, groups }: AdminMobileMenuProp
   const pathname = usePathname();
   const { data: user } = useAuth();
   const signOut = useSignOut();
+  const queryClient = useQueryClient();
 
   const initiallyOpen = useMemo(() => {
     return groups
@@ -194,6 +197,7 @@ export function AdminMobileMenu({ isOpen, onClose, groups }: AdminMobileMenuProp
                                     key={item.href}
                                     href={item.href}
                                     onClick={onClose}
+                                    onTouchStart={() => item.prefetch?.(queryClient)}
                                     className={cn(
                                       'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                                       active

@@ -4,8 +4,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { SiteLogoLoader } from '@/components/ui/SiteLogoLoader';
 import { useNavigationLoading } from '@/hooks/useNavigationLoading';
 
-export function PageTransitionLoader() {
-  const isLoading = useNavigationLoading();
+interface PageTransitionLoaderProps {
+  minDuration?: number;
+}
+
+export function PageTransitionLoader({ minDuration }: PageTransitionLoaderProps = {}) {
+  const isLoading = useNavigationLoading(minDuration);
 
   return (
     <AnimatePresence>
