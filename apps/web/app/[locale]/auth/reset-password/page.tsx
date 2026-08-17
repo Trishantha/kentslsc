@@ -99,7 +99,7 @@ export default function ResetPasswordPage() {
     <Wrapper>
       <h1 className="text-2xl font-bold">Choose a new password</h1>
       <p className="mt-2 text-slate-700 dark:text-slate-400">
-        At least 12 characters, with upper and lower case letters and a number.
+        At least 8 characters, with upper and lower case letters and a number.
       </p>
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
         <div>

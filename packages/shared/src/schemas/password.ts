@@ -8,7 +8,7 @@ import { z } from 'zod';
  * Lives in its own module because both auth.ts and memberships.ts need it and
  * auth.ts already imports from memberships.ts — importing back would be a cycle.
  */
-export const PASSWORD_MIN_LENGTH = 12;
+export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
 export const passwordSchema = z

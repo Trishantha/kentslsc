@@ -269,16 +269,26 @@ export class MembershipsService {
     memberName: string,
     dependants: DependantInput[]
   ): Promise<Membership & { membershipType: MembershipType }> {
-    const cardBuffer = await generateCardBuffer({
-      membershipId: membership.membershipId,
-      memberName,
-      membershipTypeName: membership.membershipType.name,
-      isFree: membership.membershipType.isFree,
-      startDate: membership.startDate,
-      endDate: membership.endDate,
-      dependantsCount: dependants.length,
-      qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
-    });
+    let cardBuffer: Buffer;
+    try {
+      cardBuffer = await generateCardBuffer({
+        membershipId: membership.membershipId,
+        memberName,
+        membershipTypeName: membership.membershipType.name,
+        isFree: membership.membershipType.isFree,
+        startDate: membership.startDate,
+        endDate: membership.endDate,
+        dependantsCount: dependants.length,
+        qrValue: membership.qrCodeValue ?? `${this.frontendUrl}/membership/verify/${membership.membershipId}`
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Failed to generate membership card for ${membership.membershipId}: ${message}. ` +
+          'Membership will be active without a card until generation is fixed.'
+      );
+      return membership;
+    }
 
     try {
       const { url: cardUrl } = await this.supabaseStorage.uploadBuffer({
