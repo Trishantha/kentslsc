@@ -291,6 +291,15 @@ async function runMigrations() {
     return /\bP1001\b/.test(combined) || /Can't reach database server/.test(combined);
   };
 
+  // Prisma P3005 means the database schema is not empty. This happens when an
+  // existing database is connected to a fresh migration history. The app can usually
+  // still serve traffic because the schema objects already exist, but new migrations
+  // will not be applied automatically until the baseline is resolved.
+  const isBaselineError = (stdout, stderr) => {
+    const combined = `${stdout || ''}${stderr || ''}`;
+    return /\bP3005\b/.test(combined) || /database schema is not empty/.test(combined);
+  };
+
   if (result.status !== 0) {
     // If the migration command could not be spawned due to resource limits, do not
     // crash the unified server in a loop. On shared hosts the account process cap
@@ -311,6 +320,18 @@ async function runMigrations() {
           'The unified server will continue starting so the proxy and health endpoint are available. ' +
           'Investigate the DATABASE_URL network path / Supabase IP allow-list; ' +
           'set SKIP_MIGRATIONS=true to silence this warning.'
+      );
+      return;
+    }
+
+    if (isBaselineError(result.stdout, result.stderr)) {
+      console.warn(
+        'WARNING: Database migration failed with Prisma P3005 (database schema is not empty). ' +
+          'This usually means the production database already contains the schema but the migration ' +
+          'history has not been baselined. The unified server will continue starting so the site ' +
+          'remains available, but new migrations will NOT run automatically until this is resolved. ' +
+          'Baseline the database by running: pnpm --filter @kentslsc/database exec prisma migrate resolve --applied <first-migration-name> ' +
+          'Or set SKIP_MIGRATIONS=true to silence this warning.'
       );
       return;
     }

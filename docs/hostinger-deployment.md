@@ -159,6 +159,35 @@ It does not configure runtime variables for a full Node app. If the deployment i
 
 ## Troubleshooting
 
+### Deployment logs show `P3005: The database schema is not empty`
+
+This error means the production database already contains tables, but Prisma's migration history has not been baselined for it. Starting with the latest code, the unified server detects P3005, logs a warning, and continues startup so the site stays online. However, new migrations will not be applied automatically until you resolve the baseline.
+
+To fix it:
+
+1. Find the first migration folder name:
+
+   ```bash
+   ls packages/database/prisma/migrations
+   ```
+
+2. Run the baseline command against the production database (from your local machine or any shell with `DATABASE_URL` set):
+
+   ```bash
+   pnpm --filter @kentslsc/database exec prisma migrate resolve --applied <first-migration-name>
+   ```
+
+   Example:
+
+   ```bash
+   DATABASE_URL="postgresql://postgres:...:5432/postgres" \
+     pnpm --filter @kentslsc/database exec prisma migrate resolve --applied 20240101000000_init
+   ```
+
+3. Remove `SKIP_MIGRATIONS=true` from the backend environment variables (if you added it as a workaround) and restart the backend app.
+
+As a temporary workaround, you can set `SKIP_MIGRATIONS=true` in the backend environment variables and restart. This lets the API start without running migrations, but future migrations will not be applied automatically.
+
 ### Contact form returns "We are unable to save your message right now" (HTTP 503)
 
 The most common cause is a missing database migration. If the `contact_messages` table does not have the `consent` column (added in `20260813150000_add_contact_consent`), the API throws a 503 when trying to save the message.
