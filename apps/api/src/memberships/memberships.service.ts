@@ -105,6 +105,22 @@ export class MembershipsService {
     });
   }
 
+  private async cancelPreviousPendingMemberships(userId: string, excludeId?: string) {
+    const where: Prisma.MembershipWhereInput = {
+      userId,
+      deletedAt: null,
+      status: MembershipStatus.PENDING
+    };
+    if (excludeId) {
+      where.id = { not: excludeId };
+    }
+
+    await this.prisma.membership.updateMany({
+      where,
+      data: { status: MembershipStatus.CANCELLED, updatedAt: new Date() }
+    });
+  }
+
   async findTypes() {
     const types = await this.prisma.membershipType.findMany({
       where: { deletedAt: null },
@@ -232,6 +248,21 @@ export class MembershipsService {
       return { membership, paid: false };
     }
 
+    // Paid application: create a pending membership so admins can see the attempt,
+    // send payment reminders, and the webhook can activate the exact record.
+    await this.cancelPreviousPendingMemberships(userId);
+    const pendingMembership = await this.createMembership({
+      userId,
+      membershipTypeId: type.id,
+      fullName: dto.fullName,
+      address: dto.address,
+      phone: dto.phone,
+      dependants,
+      membershipType: type,
+      overrideEmail: email,
+      status: MembershipStatus.PENDING
+    });
+
     const checkout = await this.paymentsService.createCheckout({
       amount: Math.round(Number(type.price) * 100),
       currency: 'gbp',
@@ -241,6 +272,7 @@ export class MembershipsService {
       cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
       metadata: {
         source: 'membership',
+        membershipId: pendingMembership.id,
         userId,
         membershipTypeId: type.id,
         fullName: dto.fullName,
@@ -442,11 +474,25 @@ export class MembershipsService {
    */
   async getCardForUser(user: TokenPayload, membershipPublicId?: string) {
     if (!membershipPublicId) {
-      const own = await this.prisma.membership.findFirst({
-        where: { userId: user.sub, deletedAt: null },
+      // Match the dashboard's definition of "current" membership.
+      let own = await this.prisma.membership.findFirst({
+        where: {
+          userId: user.sub,
+          deletedAt: null,
+          status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+        },
         orderBy: { createdAt: 'desc' },
         select: { membershipId: true, membershipCardUrl: true }
       });
+
+      if (!own) {
+        own = await this.prisma.membership.findFirst({
+          where: { userId: user.sub, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: { membershipId: true, membershipCardUrl: true }
+        });
+      }
+
       if (!own) {
         throw new NotFoundException('No membership found');
       }
@@ -510,11 +556,25 @@ export class MembershipsService {
   }
 
   async regenerateMyCard(userId: string) {
-    const membership = await this.prisma.membership.findFirst({
-      where: { userId, deletedAt: null },
+    // Match the dashboard's definition of "current" membership: prefer the
+    // active/pending record, then fall back to the latest record of any status.
+    let membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+      },
       orderBy: { createdAt: 'desc' },
       include: { membershipType: true }
     });
+
+    if (!membership) {
+      membership = await this.prisma.membership.findFirst({
+        where: { userId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        include: { membershipType: true }
+      });
+    }
 
     if (!membership) {
       throw new NotFoundException('No membership found');
@@ -535,6 +595,12 @@ export class MembershipsService {
       include: { membershipType: true, user: { select: { email: true, name: true } } }
     });
     if (!membership) throw new NotFoundException('Membership not found');
+
+    // When activating a membership, make it the only effective one for the user.
+    // This prevents upgrades from leaving stale active/pending records behind.
+    if (status === MembershipStatus.ACTIVE) {
+      await this.cancelPreviousMemberships(membership.userId, id);
+    }
 
     const data: Prisma.MembershipUpdateInput = { status };
     if (status === MembershipStatus.ACTIVE) {
@@ -564,14 +630,18 @@ export class MembershipsService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      return this.handleMembershipCheckoutCompleted(
-        session.metadata ?? {},
-        'stripe',
-        session.customer_email ?? undefined
-      );
+      return this.handleCheckoutSessionCompleted(session);
     }
 
     return { received: true, membershipId: null };
+  }
+
+  async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+    return this.handleMembershipCheckoutCompleted(
+      session.metadata ?? {},
+      'stripe',
+      session.customer_email ?? undefined
+    );
   }
 
   async handlePayPalWebhook(payload: any) {
@@ -598,13 +668,14 @@ export class MembershipsService {
       throw new BadRequestException('Missing membership metadata');
     }
 
-    // If a pending membership record was created by an admin, activate it.
+    // If a pending membership record exists (admin-created or self-service), activate it.
     if (metadata.membershipId) {
       const existing = await this.prisma.membership.findUnique({
         where: { id: metadata.membershipId, deletedAt: null },
         include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
       });
       if (existing && existing.status === MembershipStatus.PENDING) {
+        await this.cancelPreviousMemberships(metadata.userId, existing.id);
         const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);
         await this.prisma.membership.update({
           where: { id: existing.id },

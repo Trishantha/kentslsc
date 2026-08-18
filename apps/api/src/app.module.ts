@@ -19,6 +19,7 @@ import { BlogModule } from './blog/blog.module.js';
 import { ContactModule } from './contact/contact.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
+import { StripeWebhookModule } from './payments/stripe-webhook.module.js';
 import { EmailModule } from './email/email.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { PagesModule } from './pages/pages.module.js';
@@ -67,6 +68,7 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     ContactModule,
     AiModule,
     PaymentsModule,
+    StripeWebhookModule,
     EmailModule,
     AdminModule,
     PagesModule,

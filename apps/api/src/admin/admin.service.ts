@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UsersService } from '../users/users.service.js';
@@ -23,6 +23,8 @@ import type { AdminCreateMembershipDto } from './dto/create-user-membership.dto.
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
@@ -276,6 +278,50 @@ export class AdminService {
     );
 
     return { url: checkout.url, provider: checkout.provider };
+  }
+
+  async sendPaymentRemindersToPending() {
+    const pending = await this.prisma.membership.findMany({
+      where: {
+        deletedAt: null,
+        status: DbMembershipStatus.PENDING,
+        paidAt: null,
+        paymentMethod: null,
+        membershipType: { isFree: false, price: { gt: 0 } }
+      },
+      include: {
+        membershipType: true,
+        user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } }
+      }
+    });
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const membership of pending) {
+      const type = membership.membershipType;
+      // Defensive guard: even if the query is mocked or drifts, only remind
+      // memberships that are still pending, paid, and not free.
+      if (
+        type.isFree ||
+        Number(type.price) === 0 ||
+        membership.paidAt ||
+        membership.paymentMethod
+      ) {
+        continue;
+      }
+      try {
+        await this.sendMembershipPaymentLink(membership.id);
+        sent += 1;
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send payment reminder for pending membership ${membership.id}: ${(err as Error).message}`
+        );
+        failed += 1;
+      }
+    }
+
+    return { sent, failed, total: sent + failed };
   }
 
   regenerateMembershipCard(membershipId: string) {

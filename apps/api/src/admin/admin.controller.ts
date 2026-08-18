@@ -296,6 +296,12 @@ export class AdminController {
     return this.adminService.sendMembershipPaymentLink(membershipId);
   }
 
+  @Post('memberships/send-payment-reminders')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  sendPaymentRemindersToPending() {
+    return this.adminService.sendPaymentRemindersToPending();
+  }
+
   // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------

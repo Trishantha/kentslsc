@@ -31,6 +31,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'events/events.controller.ts::webhook',
   'fundraising/fundraising.controller.ts::webhook',
   'memberships/memberships.controller.ts::webhook',
+  'payments/stripe-webhook.controller.ts::handleWebhook',
 
   // Anonymous auth surface
   'auth/auth.controller.ts::features',

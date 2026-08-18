@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ElementType } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -386,10 +387,19 @@ function UpgradePrompt({ membership }: { membership: MembershipResponse }) {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [showQr, setShowQr] = useState(false);
   const [cardError, setCardError] = useState(false);
   const [cardRetry, setCardRetry] = useState(Date.now);
   const [cardRetryCount, setCardRetryCount] = useState(0);
+
+  // Refetch membership details after an upgrade redirect so the UI doesn't
+  // show stale/cached data from before the membership changed.
+  useEffect(() => {
+    if (searchParams.get('membership')) {
+      queryClient.invalidateQueries({ queryKey: ['my-membership'] });
+    }
+  }, [searchParams, queryClient]);
 
   const {
     data: membership,

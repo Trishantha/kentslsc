@@ -21,6 +21,13 @@ interface MembershipType {
   features: MembershipFeature[];
 }
 
+interface MyMembership {
+  id: string;
+  membershipId: string;
+  status: string;
+  membershipType: MembershipType;
+}
+
 function formatPrice(type: MembershipType) {
   if (type.isFree || type.price === 0) return 'Free';
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
@@ -28,13 +35,24 @@ function formatPrice(type: MembershipType) {
 
 export default function MembershipPlansPage() {
   const { data: user } = useAuth();
-  const { data: types = [], isLoading } = useQuery<MembershipType[]>({
+  const { data: types = [], isLoading: typesLoading } = useQuery<MembershipType[]>({
     queryKey: ['membership-types'],
     queryFn: async () => {
       const res = await api.get('/membership/types');
       return res.data;
     }
   });
+  const { data: currentMembership, isLoading: membershipLoading } = useQuery<MyMembership | null>({
+    queryKey: ['my-membership'],
+    queryFn: async () => {
+      const res = await api.get('/membership/me');
+      return res.data;
+    },
+    enabled: !!user,
+    retry: false
+  });
+
+  const isLoading = typesLoading || membershipLoading;
 
   return (
     <div className="px-4 py-14 md:px-6 md:py-16">
@@ -63,13 +81,47 @@ export default function MembershipPlansPage() {
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {types.map((type) => {
               const atCapacity = type.hasCapacity === false;
-              const detailsHref = user ? '/dashboard' : `/auth/register?type=${type.id}`;
+              const currentTypeId = currentMembership?.membershipType?.id;
+              const isMember = Boolean(
+                user &&
+                  currentMembership &&
+                  (currentMembership.status === 'ACTIVE' || currentMembership.status === 'PENDING')
+              );
+              const isCurrent = isMember && type.id === currentTypeId;
+              const isUpgrade = isMember && type.price > (currentMembership?.membershipType?.price ?? 0);
+
+              let ctaText: string;
+              let ctaHref: string;
+              let ctaDisabled = false;
+
+              if (!user) {
+                ctaText = 'Become a member';
+                ctaHref = `/auth/register?type=${type.id}`;
+              } else if (!isMember) {
+                ctaText = 'Become a member';
+                ctaHref = '/dashboard';
+              } else if (isCurrent) {
+                ctaText = 'Current plan';
+                ctaHref = '/dashboard';
+                ctaDisabled = true;
+              } else if (isUpgrade) {
+                ctaText = 'Upgrade';
+                ctaHref = '/dashboard';
+              } else {
+                ctaText = 'Switch plan';
+                ctaHref = '/dashboard';
+              }
+
               const waitlistHref = `/contact?subject=${encodeURIComponent(`Membership waitlist: ${type.name}`)}&message=${encodeURIComponent(`Please add me to the waitlist for ${type.name}.`)}`;
               return (
                 <div key={type.id} className="glass-card flex flex-col p-6">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-xl font-bold">{type.name}</h2>
-                    {atCapacity ? (
+                    {isCurrent ? (
+                      <span className="rounded-full bg-neon-blue/20 px-2 py-1 text-[10px] font-semibold uppercase text-neon-blue">
+                        Current
+                      </span>
+                    ) : atCapacity ? (
                       <span className="rounded-full bg-red-500/20 px-2 py-1 text-[10px] font-semibold uppercase text-red-400">
                         Full
                       </span>
@@ -100,7 +152,7 @@ export default function MembershipPlansPage() {
                     {type.features.length === 0 && <li>No included features listed.</li>}
                   </ul>
 
-                  {atCapacity ? (
+                  {atCapacity && !isCurrent ? (
                     <div className="mt-5 space-y-2">
                       <p className="text-xs text-slate-600 dark:text-slate-400">This category is currently full.</p>
                       <Link
@@ -112,10 +164,11 @@ export default function MembershipPlansPage() {
                     </div>
                   ) : (
                     <Link
-                      href={detailsHref}
-                      className="mt-5 inline-flex items-center justify-center rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-neon-blue/90"
+                      href={ctaHref}
+                      aria-disabled={ctaDisabled}
+                      className={`mt-5 inline-flex items-center justify-center rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-neon-blue/90 ${ctaDisabled ? 'pointer-events-none opacity-70' : ''}`}
                     >
-                      Become a member
+                      {ctaText}
                     </Link>
                   )}
                 </div>
