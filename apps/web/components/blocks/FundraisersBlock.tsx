@@ -28,7 +28,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
     queryKey: ['blocks', 'fundraisers', limit],
     queryFn: async () => {
       const { data } = await api.get('/fundraisers', { params: { limit } });
-      return data ?? [];
+      return data?.items ?? [];
     }
   });
 

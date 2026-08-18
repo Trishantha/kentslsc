@@ -173,7 +173,7 @@ export default function HomePageContent() {
     queryKey: ['fundraisers'],
     queryFn: async () => {
       const { data } = await api.get('/fundraisers');
-      return data ?? [];
+      return data?.items ?? [];
     }
   });
 

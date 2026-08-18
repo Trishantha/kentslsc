@@ -38,10 +38,15 @@ async function fetchJson<T>(path: string): Promise<T | null> {
   return fetchWithOriginFallback<T>(`/api${path}`, { next: { revalidate: 86400 } });
 }
 
-function asArray<T>(value: T[] | { data?: T[] } | null | undefined): T[] {
+function asArray<T>(value: T[] | { data?: T[] } | { items?: T[] } | null | undefined): T[] {
   if (Array.isArray(value)) return value;
-  if (value && typeof value === 'object' && 'data' in value && Array.isArray((value as { data?: T[] }).data)) {
-    return (value as { data?: T[] }).data ?? [];
+  if (value && typeof value === 'object') {
+    if ('data' in value && Array.isArray((value as { data?: T[] }).data)) {
+      return (value as { data?: T[] }).data ?? [];
+    }
+    if ('items' in value && Array.isArray((value as { items?: T[] }).items)) {
+      return (value as { items?: T[] }).items ?? [];
+    }
   }
   return [];
 }
