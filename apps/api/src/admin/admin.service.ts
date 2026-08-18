@@ -147,17 +147,6 @@ export class AdminService {
     const isPaidType = !membershipType.isFree && Number(membershipType.price) > 0;
     const paymentMode = dto.paymentMode ?? (isPaidType ? 'online' : undefined);
 
-    // Cancel any existing effective memberships so the new one is the only one
-    // that counts. This makes "upgrade" behave as admins expect.
-    await this.prisma.membership.updateMany({
-      where: {
-        userId,
-        deletedAt: null,
-        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING] }
-      },
-      data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
-    });
-
     const baseData = {
       userId: user.id,
       membershipTypeId: dto.membershipTypeId,
@@ -176,29 +165,48 @@ export class AdminService {
       overrideEmail: user.email
     };
 
+    let membership: Awaited<ReturnType<typeof this.membershipsService.createMembership>>;
+
     if (!isPaidType) {
-      const membership = await this.membershipsService.createMembership({
+      membership = await this.membershipsService.createMembership({
         ...baseData,
         status: dto.status as DbMembershipStatus | undefined
       });
-      return { membership, paid: false };
-    }
-
-    if (paymentMode === 'offline') {
-      const membership = await this.membershipsService.createMembership({
+    } else if (paymentMode === 'offline') {
+      membership = await this.membershipsService.createMembership({
         ...baseData,
         status: DbMembershipStatus.ACTIVE,
         paidAt: new Date(),
         paymentMethod: 'offline'
       });
-      return { membership, paid: true, paymentMethod: 'offline' };
+    } else {
+      // Paid + online: create a pending record and send a payment link.
+      membership = await this.membershipsService.createMembership({
+        ...baseData,
+        status: DbMembershipStatus.PENDING
+      });
     }
 
-    // Paid + online: create a pending record and send a payment link.
-    const membership = await this.membershipsService.createMembership({
-      ...baseData,
-      status: DbMembershipStatus.PENDING
+    // Cancel previous effective memberships only after the new record has been
+    // created successfully. This avoids leaving the user with no effective
+    // membership if creation fails part-way through.
+    await this.prisma.membership.updateMany({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING] },
+        id: { not: membership.id }
+      },
+      data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
     });
+
+    if (!isPaidType) {
+      return { membership, paid: false };
+    }
+
+    if (paymentMode === 'offline') {
+      return { membership, paid: true, paymentMethod: 'offline' };
+    }
 
     const checkout = await this.paymentsService.createCheckout({
       amount: Math.round(Number(membershipType.price) * 100),

@@ -384,7 +384,9 @@
     "listView": "List",
     "calendarView": "Calendar",
     "viewDetails": "විස්තර බලන්න",
-    "noEvents": "වැඩසටහන් හමු නොවිණි. ඉක්මනින් නැවත පරීක්ෂා කරන්න!"
+    "noEvents": "වැඩසටහන් හමු නොවිණි. ඉක්මනින් නැවත පරීක්ෂා කරන්න!",
+    "soldOut": "Sold out",
+    "remaining": "{count} left"
   },
   "directory": {
     "title": "ව්යාපාර නාමාවලිය",
@@ -466,7 +468,9 @@
     "purchaseFailed": "මිලදී ගැනීම අසාර්ථක විය",
     "reserveTickets": "ප්රවේශපත් වෙන්කරවා ගන්න",
     "buyFor": "{amount} සඳහා මිල දී ගන්න",
-    "loginToBuy": "ටිකට් මිලදී ගැනීමට ලොග් වන්න"
+    "loginToBuy": "ටිකට් මිලදී ගැනීමට ලොග් වන්න",
+    "addToCalendar": "Add to calendar",
+    "downloadIcs": "Download .ics"
   },
   "directoryDetail": {
     "backToDirectory": "නාමාවලිය වෙත ආපසු",

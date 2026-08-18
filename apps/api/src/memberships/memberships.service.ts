@@ -65,6 +65,24 @@ export class MembershipsService {
     return endDate;
   }
 
+  private async resolveMemberName(
+    userId: string,
+    providedName?: string
+  ): Promise<string> {
+    const trimmed = providedName?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, firstName: true, lastName: true }
+    });
+
+    const builtName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
+    return builtName || user?.name?.trim() || 'Member';
+  }
+
   private serializeMembershipType(type: MembershipType) {
     return {
       ...type,
@@ -233,7 +251,8 @@ export class MembershipsService {
     });
 
     if (type.isFree || Number(type.price) === 0) {
-      await this.cancelPreviousMemberships(userId);
+      // Create the new membership before cancelling the old one so a failure
+      // after cancellation never leaves the user with no effective membership.
       const membership = await this.createMembership({
         userId,
         membershipTypeId: type.id,
@@ -245,6 +264,7 @@ export class MembershipsService {
         overrideEmail: email,
         status: MembershipStatus.ACTIVE
       });
+      await this.cancelPreviousMemberships(userId, membership.id);
       return { membership, paid: false };
     }
 
@@ -313,8 +333,9 @@ export class MembershipsService {
     });
 
     if (status === MembershipStatus.ACTIVE) {
-      membership = await this.generateAndAttachCard(membership, data.fullName, dependants);
-      await this.sendWelcomeEmail(data.userId, data.fullName, data.overrideEmail, membership.membershipCardUrl);
+      const memberName = await this.resolveMemberName(data.userId, data.fullName);
+      membership = await this.generateAndAttachCard(membership, memberName, dependants);
+      await this.sendWelcomeEmail(data.userId, memberName, data.overrideEmail, membership.membershipCardUrl);
     }
 
     return membership;
@@ -550,9 +571,9 @@ export class MembershipsService {
     }
 
     const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
-    const user = await this.prisma.user.findUnique({ where: { id: membership.userId }, select: { name: true } });
+    const memberName = await this.resolveMemberName(membership.userId);
 
-    return this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
+    return this.generateAndAttachCard(membership, memberName, dependants);
   }
 
   async regenerateMyCard(userId: string) {
@@ -581,12 +602,9 @@ export class MembershipsService {
     }
 
     const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true }
-    });
+    const memberName = await this.resolveMemberName(userId);
 
-    return this.generateAndAttachCard(membership, user?.name ?? 'Member', dependants);
+    return this.generateAndAttachCard(membership, memberName, dependants);
   }
 
   async updateStatus(id: string, status: MembershipStatus) {
@@ -616,10 +634,11 @@ export class MembershipsService {
       include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
     });
 
-    if (status === MembershipStatus.ACTIVE && !updated.membershipCardUrl) {
+    if (status === MembershipStatus.ACTIVE) {
       const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
-      const withCard = await this.generateAndAttachCard(updated, updated.user.name, dependants);
-      await this.sendWelcomeEmail(updated.userId, updated.user.name, updated.user.email, withCard.membershipCardUrl);
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
     }
 
     return updated;

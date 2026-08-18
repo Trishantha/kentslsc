@@ -92,7 +92,7 @@ export default function EventCalendar({ events }: Props) {
   const prevMonth = () => setMonth((m) => m - 1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">
           {monthLabels[currentMonthDate.getMonth()]} {currentMonthDate.getFullYear()}
@@ -117,7 +117,7 @@ export default function EventCalendar({ events }: Props) {
 
       <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
         {weekdayLabels.map((day) => (
-          <div key={day} className="py-2">
+          <div key={day} className="py-1">
             {day}
           </div>
         ))}
@@ -136,7 +136,7 @@ export default function EventCalendar({ events }: Props) {
               key={index}
               onClick={() => setSelectedDay(day)}
               className={cn(
-                'relative flex aspect-square flex-col items-center justify-start rounded-xl border p-2 transition hover:bg-white/5',
+                'relative flex min-h-[4.5rem] flex-col items-start rounded-lg border p-1.5 text-left transition hover:bg-white/5 sm:min-h-[5.5rem] sm:p-2',
                 isCurrentMonth
                   ? 'border-white/10 bg-white/5'
                   : 'border-transparent text-slate-500 dark:text-slate-500',
@@ -144,21 +144,30 @@ export default function EventCalendar({ events }: Props) {
                 isSelected && 'bg-white/10'
               )}
             >
-              <span className={cn('text-sm font-medium', isCurrentMonth ? '' : 'opacity-60')}>
+              <span
+                className={cn(
+                  'self-center text-xs font-medium sm:text-sm',
+                  isCurrentMonth ? '' : 'opacity-60'
+                )}
+              >
                 {day.getDate()}
               </span>
-              <div className="mt-1 flex flex-wrap justify-center gap-0.5">
-                {dayEvents.slice(0, 3).map((event) => (
+              <div className="mt-1 flex w-full flex-col gap-0.5">
+                {dayEvents.slice(0, 2).map((event) => (
                   <span
                     key={event.id}
                     className={cn(
-                      'h-1.5 w-1.5 rounded-full',
+                      'block truncate rounded px-1 py-0.5 text-[10px] font-medium leading-tight',
                       eventCategoryColors[event.category as EventCategory] ?? eventCategoryColors[EventCategory.OTHER]
                     )}
-                  />
+                  >
+                    {event.title}
+                  </span>
                 ))}
-                {dayEvents.length > 3 && (
-                  <span className="text-[10px] leading-3 text-slate-500">+</span>
+                {dayEvents.length > 2 && (
+                  <span className="text-[10px] leading-3 text-slate-500 dark:text-slate-400">
+                    +{dayEvents.length - 2} more
+                  </span>
                 )}
               </div>
             </button>

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, MapPin, Search, List } from 'lucide-react';
+import { Calendar, Search, List } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import EventCalendar from '@/components/events/EventCalendar';
+import EventLocationLink from '@/components/events/EventLocationLink';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 interface Event {
@@ -187,10 +188,7 @@ export default function EventsPage() {
                       {formatDate(event.startDatetime)}
                     </div>
                     {event.location && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-neon-gold" />
-                        {event.location}
-                      </div>
+                      <EventLocationLink location={event.location} />
                     )}
                     <div className="font-medium text-slate-800 dark:text-slate-200">
                       {event.isFree || Number(event.ticketPrice) === 0 ? tCommon('free') : formatCurrency(event.ticketPrice)}

@@ -384,7 +384,9 @@
     "listView": "List",
     "calendarView": "Calendar",
     "viewDetails": "விவரங்களைக் காண்க",
-    "noEvents": "நிகழ்வுகள் எதுவும் இல்லை. விரைவில் மீண்டும் பார்க்கவும்!"
+    "noEvents": "நிகழ்வுகள் எதுவும் இல்லை. விரைவில் மீண்டும் பார்க்கவும்!",
+    "soldOut": "Sold out",
+    "remaining": "{count} left"
   },
   "directory": {
     "title": "வணிக அடைவு",
@@ -466,7 +468,9 @@
     "purchaseFailed": "வாங்க முடியவில்லை",
     "reserveTickets": "டிக்கெட்டுகளை முன்பதிவு செய்யுங்கள்",
     "buyFor": "{amount}க்கு வாங்கவும்",
-    "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக"
+    "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக",
+    "addToCalendar": "Add to calendar",
+    "downloadIcs": "Download .ics"
   },
   "directoryDetail": {
     "backToDirectory": "கோப்பகத்திற்குத் திரும்பு",

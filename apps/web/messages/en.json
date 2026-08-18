@@ -384,7 +384,9 @@
     "listView": "List",
     "calendarView": "Calendar",
     "viewDetails": "View Details",
-    "noEvents": "No events found. Check back soon!"
+    "noEvents": "No events found. Check back soon!",
+    "soldOut": "Sold out",
+    "remaining": "{count} left"
   },
   "directory": {
     "title": "Business Directory",
@@ -466,7 +468,9 @@
     "purchaseFailed": "Purchase failed",
     "reserveTickets": "Reserve tickets",
     "buyFor": "Buy for {amount}",
-    "loginToBuy": "Log in to buy tickets"
+    "loginToBuy": "Log in to buy tickets",
+    "addToCalendar": "Add to calendar",
+    "downloadIcs": "Download .ics"
   },
   "directoryDetail": {
     "backToDirectory": "Back to directory",

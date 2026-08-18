@@ -22,7 +22,6 @@ import {
   MessageSquareWarning,
   Mail,
   FileText,
-  Menu,
   Loader2,
   Globe,
   Settings,
@@ -32,6 +31,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
+import { AdminHeader } from './AdminHeader';
 
 interface NavItem {
   href: string;
@@ -314,21 +314,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen flex-col">
       <PageTransitionLoader minDuration={200} />
-      <aside className="sticky top-[68px] z-30 w-full border-b border-white/10 bg-slate-900/80 backdrop-blur-lg md:fixed md:top-[68px] md:flex md:h-[calc(100vh-68px)] md:w-64 md:flex-col md:border-b-0 md:border-r">
+      <AdminHeader onMenuOpen={() => setMobileMenuOpen(true)} />
+      <aside className="hidden md:fixed md:top-[68px] md:z-30 md:flex md:h-[calc(100vh-68px)] md:w-64 md:flex-col md:border-b-0 md:border-r md:border-white/10 md:bg-slate-900/80 md:backdrop-blur-lg">
         <div className="flex items-center justify-between px-4 py-4 md:p-6">
           <Link href="/admin" className="text-xl font-extrabold gradient-text">
             Admin
           </Link>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(true)}
-            className="rounded-lg p-2 text-slate-300 hover:bg-white/10 md:hidden"
-            aria-label="Open admin menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
         </div>
         <nav className="hidden flex-col gap-1 px-4 pb-4 md:flex md:flex-1 md:overflow-y-auto md:pb-0">
           {visibleGroups.map((group) => {
@@ -385,7 +378,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </aside>
-      <main className="flex-1 p-4 pt-20 md:ml-64 md:p-8 md:pt-8">
+      <main className="flex-1 p-4 pt-20 md:ml-64 md:p-8 md:pt-24">
         {children}
       </main>
       <AdminMobileMenu

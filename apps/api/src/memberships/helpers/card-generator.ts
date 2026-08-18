@@ -198,9 +198,6 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
   <text x="525" y="82" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="800" fill="${palette.accentLight}" letter-spacing="3">${escapeXml(typeLabel)}</text>
   <text x="525" y="102" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="600" fill="${palette.accent}" letter-spacing="4" opacity="0.9">MEMBERSHIP CARD</text>
 
-  <!-- Club logo ring -->
-  <circle cx="180" cy="250" r="115" fill="#ffffff" fill-opacity="0.06" stroke="${palette.ring}" stroke-width="3.5"/>
-  <circle cx="180" cy="250" r="108" fill="#0f172a" fill-opacity="0.35"/>
   ${logoDataUrl
     ? `<image x="70" y="140" width="220" height="220" href="${logoDataUrl}" clip-path="url(#logoClip)"/>`
     : `<text x="180" y="260" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="900" fill="${palette.accent}">K</text><text x="180" y="310" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="${palette.accentLight}">KENT SLSC</text>`}

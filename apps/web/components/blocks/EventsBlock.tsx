@@ -3,9 +3,10 @@
 import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import EventLocationLink from '@/components/events/EventLocationLink';
 import type { EventsBlock } from '@kentslsc/shared';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
@@ -95,10 +96,7 @@ export default function EventsBlockComponent({ block }: Props) {
                           {formatDate(event.startDatetime)}
                         </div>
                         {event.location && (
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-neon-gold" />
-                            {event.location}
-                          </div>
+                          <EventLocationLink location={event.location} />
                         )}
                       </div>
                       <div className="mt-3 font-medium">

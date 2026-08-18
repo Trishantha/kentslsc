@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Calendar, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
+import { Calendar, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import EventLocationLink from '@/components/events/EventLocationLink';
+import AddToCalendar from '@/components/events/AddToCalendar';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 export interface Event {
@@ -152,11 +154,21 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
                 {formatDate(event.startDatetime)}
               </div>
               {event.location && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-neon-gold" />
-                  {event.location}
-                </div>
+                <EventLocationLink location={event.location} />
               )}
+            </div>
+
+            <div className="mt-4">
+              <AddToCalendar
+                event={{
+                  id: event.id,
+                  title: event.title,
+                  description: event.description,
+                  location: event.location,
+                  startDatetime: event.startDatetime,
+                  endDatetime: event.endDatetime
+                }}
+              />
             </div>
 
             {event.description && (
