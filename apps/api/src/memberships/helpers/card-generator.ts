@@ -1,11 +1,58 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'node:module';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
 
+const require = createRequire(import.meta.url);
+
 const CARD_WIDTH = 1050;
 const CARD_HEIGHT = 600;
+
+interface EmbeddedFont {
+  family: string;
+  weight: number;
+  dataUrl: string;
+}
+
+let embeddedFontCache: EmbeddedFont[] | null = null;
+
+async function loadEmbeddedFonts(): Promise<EmbeddedFont[]> {
+  if (embeddedFontCache) {
+    return embeddedFontCache;
+  }
+
+  const weights = [
+    { weight: 400, file: 'inter-latin-400-normal.woff' },
+    { weight: 700, file: 'inter-latin-700-normal.woff' },
+    { weight: 900, file: 'inter-latin-900-normal.woff' }
+  ] as const;
+
+  const fonts = await Promise.all(
+    weights.map(async ({ weight, file }) => {
+      const fontPath = require.resolve(`@fontsource/inter/files/${file}`);
+      const buffer = await readFile(fontPath);
+      return {
+        family: 'EmbeddedInter',
+        weight,
+        dataUrl: `data:font/woff;charset=utf-8;base64,${buffer.toString('base64')}`
+      };
+    })
+  );
+
+  embeddedFontCache = fonts;
+  return fonts;
+}
+
+function buildFontFaceCss(fonts: EmbeddedFont[]): string {
+  return fonts
+    .map(
+      (font) =>
+        `@font-face { font-family: '${font.family}'; src: url('${font.dataUrl}') format('woff'); font-weight: ${font.weight}; font-style: normal; }`
+    )
+    .join('\n    ');
+}
 
 interface TierPalette {
   name: string;
@@ -120,14 +167,18 @@ export interface CardDetails {
 }
 
 export async function generateCardBuffer(details: CardDetails): Promise<Buffer> {
-  const [qrDataUrl, logoDataUrl] = await Promise.all([
+  const [qrDataUrl, logoDataUrl, embeddedFonts] = await Promise.all([
     QRCode.toDataURL(details.qrValue, {
       width: 170,
       margin: 1,
       type: 'image/png'
     }),
-    loadLogoDataUrl()
+    loadLogoDataUrl(),
+    loadEmbeddedFonts()
   ]);
+
+  const fontFaceCss = buildFontFaceCss(embeddedFonts);
+  const cardFontFamily = "'EmbeddedInter', 'Inter', system-ui, sans-serif";
 
   const startDate = details.startDate.toLocaleDateString('en-GB');
   const endDate = details.endDate.toLocaleDateString('en-GB');
@@ -137,6 +188,10 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}">
   <defs>
+    <style>
+    ${fontFaceCss}
+    </style>
+
     <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="${palette.gradientStart}"/>
       <stop offset="100%" stop-color="${palette.gradientEnd}"/>
@@ -195,25 +250,25 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
 
   <!-- Top membership-type banner -->
   <path d="M 32 60 A 28 28 0 0 1 60 32 L 990 32 A 28 28 0 0 1 1018 60 L 1018 112 L 32 112 Z" fill="url(#bannerGradient)" stroke="${palette.accent}" stroke-width="1.5" stroke-opacity="0.35"/>
-  <text x="525" y="82" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="800" fill="${palette.accentLight}" letter-spacing="3">${escapeXml(typeLabel)}</text>
-  <text x="525" y="102" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="600" fill="${palette.accent}" letter-spacing="4" opacity="0.9">MEMBERSHIP CARD</text>
+  <text x="525" y="82" text-anchor="middle" font-family="${cardFontFamily}" font-size="22" font-weight="800" fill="${palette.accentLight}" letter-spacing="3">${escapeXml(typeLabel)}</text>
+  <text x="525" y="102" text-anchor="middle" font-family="${cardFontFamily}" font-size="10" font-weight="600" fill="${palette.accent}" letter-spacing="4" opacity="0.9">MEMBERSHIP CARD</text>
 
   ${logoDataUrl
     ? `<image x="70" y="140" width="220" height="220" href="${logoDataUrl}" clip-path="url(#logoClip)"/>`
-    : `<text x="180" y="260" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="900" fill="${palette.accent}">K</text><text x="180" y="310" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="${palette.accentLight}">KENT SLSC</text>`}
+    : `<text x="180" y="260" text-anchor="middle" font-family="${cardFontFamily}" font-size="72" font-weight="900" fill="${palette.accent}">K</text><text x="180" y="310" text-anchor="middle" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="${palette.accentLight}">KENT SLSC</text>`}
 
   <!-- Member details -->
-  <text x="340" y="170" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="${palette.accent}" letter-spacing="2">MEMBER NAME</text>
-  <text x="340" y="218" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="#ffffff">${escapeXml(details.memberName)}</text>
+  <text x="340" y="170" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="${palette.accent}" letter-spacing="2">MEMBER NAME</text>
+  <text x="340" y="218" font-family="${cardFontFamily}" font-size="42" font-weight="800" fill="#ffffff">${escapeXml(details.memberName)}</text>
 
-  <text x="340" y="290" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">MEMBERSHIP ID</text>
-  <text x="340" y="325" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="700" fill="#ffffff" letter-spacing="1">${escapeXml(details.membershipId)}</text>
+  <text x="340" y="290" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">MEMBERSHIP ID</text>
+  <text x="340" y="325" font-family="${cardFontFamily}" font-size="24" font-weight="700" fill="#ffffff" letter-spacing="1">${escapeXml(details.membershipId)}</text>
 
-  <text x="340" y="400" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">VALID THROUGH</text>
-  <text x="340" y="435" font-family="Inter, system-ui, sans-serif" font-size="19" font-weight="600" fill="#ffffff">${escapeXml(startDate)} – ${escapeXml(endDate)}</text>
+  <text x="340" y="400" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">VALID THROUGH</text>
+  <text x="340" y="435" font-family="${cardFontFamily}" font-size="19" font-weight="600" fill="#ffffff">${escapeXml(startDate)} – ${escapeXml(endDate)}</text>
 
-  <text x="680" y="400" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">DEPENDANTS</text>
-  <text x="680" y="435" font-family="Inter, system-ui, sans-serif" font-size="19" font-weight="600" fill="#ffffff">${details.dependantsCount}</text>
+  <text x="680" y="400" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">DEPENDANTS</text>
+  <text x="680" y="435" font-family="${cardFontFamily}" font-size="19" font-weight="600" fill="#ffffff">${details.dependantsCount}</text>
 
   <!-- QR code panel -->
   <rect x="790" y="150" width="190" height="190" rx="18" fill="#ffffff"/>
@@ -226,14 +281,14 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
     <circle r="46" fill="url(#holoShine)" opacity="0.35"/>
     <line x1="-46" y1="-46" x2="46" y2="46" stroke="url(#holoShine)" stroke-width="16" opacity="0.45" stroke-linecap="round"/>
     <use href="#holoStar" fill="#ffffff" opacity="0.95"/>
-    <text y="-4" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="9" font-weight="900" fill="#0f172a" letter-spacing="1">KENT SLSC</text>
-    <text y="12" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="900" fill="#0f172a" letter-spacing="1.5">AUTHENTIC</text>
+    <text y="-4" text-anchor="middle" font-family="${cardFontFamily}" font-size="9" font-weight="900" fill="#0f172a" letter-spacing="1">KENT SLSC</text>
+    <text y="12" text-anchor="middle" font-family="${cardFontFamily}" font-size="11" font-weight="900" fill="#0f172a" letter-spacing="1.5">AUTHENTIC</text>
   </g>
 
-  <text x="885" y="502" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#94a3b8" letter-spacing="1">Scan to verify</text>
+  <text x="885" y="502" text-anchor="middle" font-family="${cardFontFamily}" font-size="12" fill="#94a3b8" letter-spacing="1">Scan to verify</text>
 
   <!-- Footer strip -->
-  <text x="525" y="565" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="500" fill="#64748b" letter-spacing="1.5">KENT SRI LANKAN SOCIAL CLUB</text>
+  <text x="525" y="565" text-anchor="middle" font-family="${cardFontFamily}" font-size="11" font-weight="500" fill="#64748b" letter-spacing="1.5">KENT SRI LANKAN SOCIAL CLUB</text>
 </svg>`;
 
   try {
