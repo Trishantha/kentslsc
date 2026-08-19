@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, use, useCallback } from 'react';
+import { useState, use } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 import {
   Loader2,
   QrCode,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { formatDate, cn } from '@/lib/utils';
+import { useHtml5QrScanner } from '@/hooks/useHtml5QrScanner';
 import type { AdminEvent } from '../../page';
 
 interface TicketPreview {
@@ -43,15 +43,10 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-type CameraState = 'idle' | 'requesting' | 'allowed' | 'denied' | 'unsupported' | 'error';
-
 export default function EventScannerPage({ params }: Props) {
   const { id: eventId } = use(params);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
-  const [cameraState, setCameraState] = useState<CameraState>('idle');
-  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const { data: event } = useQuery<AdminEvent>({
     queryKey: ['admin', 'event', eventId],
@@ -81,91 +76,12 @@ export default function EventScannerPage({ params }: Props) {
     }
   });
 
-  const requestCamera = useCallback(async () => {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraState('unsupported');
-      setCameraError('Your browser does not support camera access. Use manual entry instead.');
-      return;
+  const { cameraState, cameraError, retry: retryCamera } = useHtml5QrScanner({
+    enabled: mode === 'camera' && !preview && !previewLoading,
+    onScan: (decodedText) => {
+      lookup(decodedText);
     }
-
-    setCameraState('requesting');
-    setCameraError(null);
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      // Release the stream immediately; the scanner will request it again itself.
-      stream.getTracks().forEach((track) => track.stop());
-      setCameraState('allowed');
-    } catch (err) {
-      const error = err as Error;
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setCameraState('denied');
-        setCameraError('Camera permission was denied. Please allow camera access in your browser settings and try again, or use manual entry.');
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setCameraState('unsupported');
-        setCameraError('No camera found on this device. Use manual entry instead.');
-      } else {
-        setCameraState('error');
-        setCameraError(error.message || 'Could not start the camera. Use manual entry instead.');
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (mode !== 'camera' || cameraState !== 'allowed' || preview || previewLoading) return;
-
-    let active = true;
-
-    const startScanner = async () => {
-      try {
-        const scanner = new Html5QrcodeScanner(
-          'qr-reader',
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            rememberLastUsedCamera: true,
-            aspectRatio: 1,
-            videoConstraints: { facingMode: 'environment' }
-          },
-          false
-        );
-
-        if (!active) {
-          scanner.clear().catch(() => undefined);
-          return;
-        }
-
-        scannerRef.current = scanner;
-
-        scanner.render(
-          (decodedText) => {
-            scanner.pause();
-            lookup(decodedText);
-          },
-          () => {
-            // Failures (no QR in frame) are normal; ignore.
-          }
-        );
-      } catch (err) {
-        setCameraState('error');
-        setCameraError((err as Error).message || 'Failed to start the QR scanner.');
-      }
-    };
-
-    startScanner();
-
-    return () => {
-      active = false;
-      scannerRef.current?.clear().catch(() => undefined);
-      scannerRef.current = null;
-    };
-  }, [mode, cameraState, preview, previewLoading, lookup]);
-
-  useEffect(() => {
-    if (mode === 'camera') {
-      requestCamera();
-    }
-  }, [mode, requestCamera]);
+  });
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,17 +98,14 @@ export default function EventScannerPage({ params }: Props) {
     resetPreview();
     checkIn.reset();
     setManualCode('');
-    scannerRef.current?.resume();
+    retryCamera();
   };
 
   const handleSwitchMode = (next: 'camera' | 'manual') => {
     setMode(next);
     resetPreview();
+    checkIn.reset();
     setManualCode('');
-    if (next === 'manual') {
-      scannerRef.current?.clear().catch(() => undefined);
-      scannerRef.current = null;
-    }
   };
 
   const isWrongEvent = preview && preview.event.id !== eventId;
@@ -239,20 +152,18 @@ export default function EventScannerPage({ params }: Props) {
 
       <div className="mt-6">
         {mode === 'camera' && !preview && !previewLoading && (
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            <div id="qr-reader" />
+
             {cameraState === 'requesting' && (
-              <div className="flex h-64 flex-col items-center justify-center gap-3 text-slate-400">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/5 text-slate-400">
                 <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
                 <p className="text-sm">Requesting camera permission…</p>
               </div>
             )}
 
-            {cameraState === 'allowed' && (
-              <div id="qr-reader" />
-            )}
-
             {(cameraState === 'idle' || cameraBlocked) && (
-              <div className="flex h-64 flex-col items-center justify-center gap-4 p-6 text-center">
+              <div className="absolute inset-0 flex h-64 flex-col items-center justify-center gap-4 p-6 text-center">
                 {cameraState === 'denied' ? (
                   <CameraOff className="h-12 w-12 text-rose-500" />
                 ) : cameraState === 'unsupported' ? (
@@ -275,7 +186,7 @@ export default function EventScannerPage({ params }: Props) {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={requestCamera}
+                    onClick={retryCamera}
                     className="btn-primary inline-flex items-center gap-2"
                   >
                     <RefreshCw className="h-4 w-4" />

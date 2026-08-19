@@ -138,6 +138,13 @@ export class TicketsController {
     return { ...ticket, qrDataUrl };
   }
 
+  @Get('validate/:qrCodeValue')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  validatePreview(@Param('qrCodeValue') qrCodeValue: string) {
+    return this.eventsService.previewTicket(qrCodeValue);
+  }
+
   @Post('validate')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
