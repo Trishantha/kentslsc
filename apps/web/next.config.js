@@ -55,18 +55,13 @@ const apiPort = (() => {
 })();
 const supabaseHostname = hostnameFromEnvUrl('SUPABASE_URL');
 
-const remotePatterns = [
-  {
-    protocol: 'https',
-    hostname: '**'
-  }
-];
+const remotePatterns = [];
 
 if (isDev) {
-  remotePatterns.push({
-    protocol: 'http',
-    hostname: 'localhost'
-  });
+  remotePatterns.push(
+    { protocol: 'http', hostname: 'localhost' },
+    { protocol: 'https', hostname: 'localhost' }
+  );
 }
 
 if (supabaseHostname) {
@@ -75,6 +70,9 @@ if (supabaseHostname) {
     hostname: supabaseHostname
   });
 }
+
+// Fallback for local/dev: only allow localhost by default. Add production image
+// hosts explicitly above; a wildcard pattern weakens SSRF/CSW protection.
 
 const securityHeaders = [
   {
@@ -102,11 +100,11 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
-      "font-src 'self'",
-      `connect-src 'self' https:${isDev ? ` ws://localhost:3000 wss://localhost:3000 ${apiProtocol}://${apiHostname}:${apiPort}` : ''}`,
-      "media-src 'self' https:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      `img-src 'self' data: blob:${supabaseHostname ? ` https://${supabaseHostname}` : ''}`,
+      "font-src 'self' https://fonts.gstatic.com",
+      `connect-src 'self'${supabaseHostname ? ` https://${supabaseHostname}` : ''}${isDev ? ' ws://localhost:3000 wss://localhost:3000' : ''}`,
+      `media-src 'self'${supabaseHostname ? ` https://${supabaseHostname}` : ''}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'"

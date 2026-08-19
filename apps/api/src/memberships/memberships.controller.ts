@@ -17,6 +17,7 @@ import {
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MembershipsService } from './memberships.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -31,7 +32,10 @@ import { RegenerateCardDto } from './dto/regenerate-card.dto.js';
 export class MembershipsController {
   private readonly logger = new Logger(MembershipsController.name);
 
-  constructor(private readonly membershipsService: MembershipsService) {}
+  constructor(
+    private readonly membershipsService: MembershipsService,
+    private readonly paymentsService: PaymentsService
+  ) {}
 
   @Get('types')
   @Public()
@@ -130,6 +134,7 @@ export class MembershipsController {
   @HttpCode(HttpStatus.OK)
   async webhook(
     @Headers('stripe-signature') signature: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @RawBody() rawBody: Buffer,
     @Body() body: any
   ) {
@@ -137,6 +142,7 @@ export class MembershipsController {
       if (signature) {
         return await this.membershipsService.handleWebhook(rawBody, signature);
       }
+      await this.paymentsService.verifyPayPalWebhook(rawBody, headers);
       return await this.membershipsService.handlePayPalWebhook(body);
     } catch (error) {
       // A bad or missing signature is a client error, not a server fault. Left

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 
@@ -84,10 +85,11 @@ export class PaymentsService {
         persisted?.stripePublishableKey ?? this.configService.get<string>('STRIPE_PUBLISHABLE_KEY') ?? undefined,
       paypalClientId: persisted?.paypalClientId ?? this.configService.get<string>('PAYPAL_CLIENT_ID') ?? undefined,
       paypalClientSecret: persisted?.paypalClientSecret ?? this.configService.get<string>('PAYPAL_CLIENT_SECRET') ?? undefined,
-      paypalApiBaseUrl:
+      paypalApiBaseUrl: this.validatePayPalApiBaseUrl(
         persisted?.paypalApiBaseUrl ??
         this.configService.get<string>('PAYPAL_API_BASE_URL') ??
         'https://api-m.sandbox.paypal.com'
+      )
     };
   }
 
@@ -125,7 +127,11 @@ export class PaymentsService {
       ...(dto.stripePublishableKey !== undefined && { stripePublishableKey: dto.stripePublishableKey || null }),
       ...(dto.paypalClientId !== undefined && { paypalClientId: dto.paypalClientId || null }),
       ...(dto.paypalClientSecret !== undefined && { paypalClientSecret: dto.paypalClientSecret || null }),
-      ...(dto.paypalApiBaseUrl !== undefined && { paypalApiBaseUrl: dto.paypalApiBaseUrl || null })
+      ...(dto.paypalApiBaseUrl !== undefined && {
+        paypalApiBaseUrl: dto.paypalApiBaseUrl
+          ? this.validatePayPalApiBaseUrl(dto.paypalApiBaseUrl)
+          : null
+      })
     };
 
     if (existing) {
@@ -272,6 +278,112 @@ export class PaymentsService {
       throw new Error('Stripe webhook secret is not configured.');
     }
     return this.stripe!.webhooks.constructEvent(payload, signature, webhookSecret);
+  }
+
+  private readonly allowedPayPalUrls = [
+    'https://api-m.sandbox.paypal.com',
+    'https://api-m.paypal.com'
+  ];
+
+  private isValidPayPalApiBaseUrl(url: string | null | undefined): boolean {
+    return !!url && this.allowedPayPalUrls.includes(url);
+  }
+
+  private validatePayPalApiBaseUrl(url: string): string {
+    return this.isValidPayPalApiBaseUrl(url) ? url : 'https://api-m.sandbox.paypal.com';
+  }
+
+  private isTrustedPayPalCertUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return (
+        (parsed.hostname === 'api-m.paypal.com' || parsed.hostname === 'api-m.sandbox.paypal.com') &&
+        parsed.pathname.startsWith('/v1/notifications/certs/')
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private mapPayPalAuthAlgo(algo: string): string {
+    if (algo === 'SHA256withRSA') return 'RSA-SHA256';
+    throw new Error(`Unsupported PayPal signature algorithm: ${algo}`);
+  }
+
+  private crc32(buffer: Buffer): string {
+    const table = PaymentsService.crc32Table;
+    let crc = -1;
+    for (let i = 0; i < buffer.length; i++) {
+      const byte = buffer.readUInt8(i);
+      const idx = (crc ^ byte) & 0xff;
+      crc = ((table[idx] ?? 0) ^ (crc >>> 8)) | 0;
+    }
+    return ((crc ^ -1) >>> 0).toString();
+  }
+
+  private static readonly crc32Table = (() => {
+    const table = new Int32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let j = 0; j < 8; j++) {
+        c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      }
+      table[i] = c;
+    }
+    return table;
+  })();
+
+  private getPayPalHeader(
+    headers: Record<string, string | string[] | undefined>,
+    name: string
+  ): string | undefined {
+    const value = headers[name] ?? headers[name.toLowerCase()];
+    return Array.isArray(value) ? value[0] : value;
+  }
+
+  async verifyPayPalWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string | string[] | undefined>
+  ): Promise<void> {
+    const webhookId = this.configService.get<string>('PAYPAL_WEBHOOK_ID');
+    if (!webhookId) {
+      throw new Error('PayPal webhook ID is not configured.');
+    }
+
+    const transmissionId = this.getPayPalHeader(headers, 'paypal-transmission-id');
+    const transmissionTime = this.getPayPalHeader(headers, 'paypal-transmission-time');
+    const certUrl = this.getPayPalHeader(headers, 'paypal-cert-url');
+    const authAlgo = this.getPayPalHeader(headers, 'paypal-auth-algo');
+    const transmissionSig = this.getPayPalHeader(headers, 'paypal-transmission-sig');
+
+    if (!transmissionId || !transmissionTime || !certUrl || !authAlgo || !transmissionSig) {
+      throw new Error('Missing PayPal webhook signature headers.');
+    }
+
+    if (!this.isTrustedPayPalCertUrl(certUrl)) {
+      throw new Error('Untrusted PayPal certificate URL.');
+    }
+
+    const expectedSig = `${transmissionId}|${transmissionTime}|${webhookId}|${this.crc32(rawBody)}`;
+
+    let certPem: string;
+    try {
+      const response = await fetch(certUrl, { signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS) });
+      if (!response.ok) throw new Error('Failed to fetch PayPal certificate.');
+      certPem = await response.text();
+    } catch {
+      throw new Error('Failed to fetch PayPal certificate.');
+    }
+
+    const algorithm = this.mapPayPalAuthAlgo(authAlgo);
+    const verifier = crypto.createVerify(algorithm);
+    verifier.update(expectedSig);
+    verifier.end();
+
+    const isValid = verifier.verify(certPem, transmissionSig, 'base64');
+    if (!isValid) {
+      throw new Error('PayPal webhook signature verification failed.');
+    }
   }
 
   extractPayPalMetadata(payload: any): Record<string, string> {

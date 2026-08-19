@@ -85,8 +85,8 @@ export class DirectoryController {
   @Post('businesses/:id/summarise')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
   @ApiBearerAuth()
-  summariseBusiness(@CurrentUser() _user: TokenPayload, @Param('id') id: string) {
-    return this.directoryService.summariseBusiness(id);
+  summariseBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.directoryService.summariseBusiness(user, id);
   }
 
   @Get('jobs')
@@ -131,6 +131,7 @@ export class DirectoryController {
   @Public()
   async webhook(
     @Headers('stripe-signature') signature: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @RawBody() rawBody: Buffer,
     @Body() body: any,
     @Res() res: Response
@@ -149,6 +150,7 @@ export class DirectoryController {
       }
 
       if (body?.event_type) {
+        await this.paymentsService.verifyPayPalWebhook(rawBody, headers);
         const metadata = this.paymentsService.extractPayPalMetadata(body);
         if (metadata.type === 'directory_promotion') {
           await this.directoryService.handlePromotionCompleted(metadata, 'paypal');
@@ -161,7 +163,7 @@ export class DirectoryController {
 
       return res.status(400).send('Webhook payload not recognised');
     } catch (err) {
-      return res.status(400).send(`Webhook error: ${(err as Error).message}`);
+      return res.status(400).send('Webhook processing failed');
     }
   }
 }

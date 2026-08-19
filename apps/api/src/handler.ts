@@ -18,6 +18,9 @@ const moduleDir = fileURLToPath(new URL('.', import.meta.url));
 export async function createApiApp() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
+  if (configService.get<string>('TRUST_PROXY') === 'true') {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
   const isProduction = configService.get('NODE_ENV') === 'production';
 
   const frontendUrl = configService.get<string>('FRONTEND_URL') ?? '';

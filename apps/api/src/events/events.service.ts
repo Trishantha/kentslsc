@@ -111,7 +111,7 @@ export class EventsService {
     return event;
   }
 
-  async findByIdWithTicketCount(id: string) {
+  async findByIdWithTicketCount(id: string, requirePublished = false) {
     const event = await this.prisma.event.findUnique({
       where: { id, deletedAt: null },
       include: {
@@ -125,6 +125,9 @@ export class EventsService {
       }
     });
     if (!event) throw new NotFoundException('Event not found');
+    if (requirePublished && !event.isPublished) {
+      throw new NotFoundException('Event not found');
+    }
     return event;
   }
 

@@ -687,22 +687,27 @@ export class MembershipsService {
       throw new BadRequestException('Missing membership metadata');
     }
 
-    // If a pending membership record exists (admin-created or self-service), activate it.
+    // If a membership record already exists for this checkout, ensure it is active
+    // and return it. This makes webhook processing idempotent across retries.
     if (metadata.membershipId) {
       const existing = await this.prisma.membership.findUnique({
         where: { id: metadata.membershipId, deletedAt: null },
         include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
       });
-      if (existing && existing.status === MembershipStatus.PENDING) {
-        await this.cancelPreviousMemberships(metadata.userId, existing.id);
-        const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);
-        await this.prisma.membership.update({
-          where: { id: existing.id },
-          data: { paidAt: new Date(), paymentMethod }
-        });
-        return { received: true, membershipId: activated.membershipId };
+      if (existing) {
+        if (existing.status === MembershipStatus.PENDING) {
+          await this.cancelPreviousMemberships(metadata.userId, existing.id);
+          const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);
+          await this.prisma.membership.update({
+            where: { id: existing.id },
+            data: { paidAt: new Date(), paymentMethod }
+          });
+          return { received: true, membershipId: activated.membershipId };
+        }
+        // Already active (or cancelled/etc.) — do not create a duplicate.
+        return { received: true, membershipId: existing.membershipId };
       }
-      // Fall through to create a new membership if the existing one is missing or not pending.
+      // Fall through to create a new membership if the referenced one is missing.
     }
 
     const membershipType = await this.prisma.membershipType.findUnique({

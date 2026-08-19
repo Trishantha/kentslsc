@@ -1,4 +1,9 @@
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsIn, IsUrl } from 'class-validator';
+
+const ALLOWED_PAYPAL_URLS = [
+  'https://api-m.sandbox.paypal.com',
+  'https://api-m.paypal.com'
+];
 
 export class UpdatePaymentSettingsDto {
   @IsOptional()
@@ -27,6 +32,7 @@ export class UpdatePaymentSettingsDto {
   declare paypalClientSecret?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUrl()
+  @IsIn(ALLOWED_PAYPAL_URLS, { message: 'PAYPAL_API_BASE_URL must be an official PayPal API host' })
   declare paypalApiBaseUrl?: string;
 }

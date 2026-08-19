@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { TokenPayload } from '@kentslsc/shared';
+import { accessTokenCookieName } from './auth-cookies.js';
 import { TokenValidationService } from './token-validation.service.js';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 
@@ -13,7 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     configService: ConfigService,
     private readonly tokenValidation: TokenValidationService
   ) {
-    const cookieExtractor = (req: Request) => req?.cookies?.accessToken ?? null;
+    const cookieExtractor = (req: Request) => req?.cookies?.[accessTokenCookieName()] ?? null;
 
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([

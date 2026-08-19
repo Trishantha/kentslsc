@@ -388,33 +388,53 @@ export class FundraisingService {
   }) {
     const { fundraiserId, amount, userId, displayName, message, isAnonymous, donorEmail, paymentId } = input;
 
+    if (paymentId) {
+      const existing = await this.prisma.donation.findFirst({
+        where: { fundraiserId, paymentId }
+      });
+      if (existing) {
+        this.logger.warn(`Duplicate donation webhook ignored for payment ${paymentId}`);
+        return { received: true, donationId: existing.id };
+      }
+    }
+
     let prevRaised = 0;
     let targetAmount = 0;
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.donation.create({
-        data: {
-          fundraiserId,
-          userId,
-          amount,
-          paymentId,
-          displayName,
-          message,
-          isAnonymous,
-          donorEmail,
-          isVerified: true
-        }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.donation.create({
+          data: {
+            fundraiserId,
+            userId,
+            amount,
+            paymentId,
+            displayName,
+            message,
+            isAnonymous,
+            donorEmail,
+            isVerified: true
+          }
+        });
+        const updated = await tx.fundraiser.update({
+          where: { id: fundraiserId },
+          data: {
+            raisedAmount: { increment: amount },
+            totalDonors: { increment: 1 }
+          }
+        });
+        prevRaised = Number(updated.raisedAmount) - amount;
+        targetAmount = Number(updated.targetAmount);
       });
-      const updated = await tx.fundraiser.update({
-        where: { id: fundraiserId },
-        data: {
-          raisedAmount: { increment: amount },
-          totalDonors: { increment: 1 }
-        }
-      });
-      prevRaised = Number(updated.raisedAmount) - amount;
-      targetAmount = Number(updated.targetAmount);
-    });
+    } catch (err) {
+      // A unique constraint violation on paymentId means another concurrent
+      // webhook already recorded this donation; treat it as already processed.
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
+        this.logger.warn(`Duplicate donation webhook ignored for payment ${paymentId} (race)`);
+        return { received: true };
+      }
+      throw err;
+    }
 
     // Send thank-you email to donor
     if (donorEmail) {
@@ -428,6 +448,8 @@ export class FundraisingService {
         await this.checkMilestones(fundraiserId, prevRaised, newRaised, targetAmount, fundraiser.organizer.email, fundraiser.title, fundraiser.organizer.name);
       }
     }
+
+    return { received: true };
   }
 
   async getStats() {

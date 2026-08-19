@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException
 } from '@nestjs/common';
@@ -37,7 +38,11 @@ export class AdminUsersService {
    * cookies unconditionally — so an admin creating an account for someone else
    * got logged out of their own and into the new one.
    */
-  async createUser(actor: { sub: string }, dto: AdminCreateUserDto, ctx: RequestContext = {}) {
+  async createUser(actor: { sub: string; role: UserRole }, dto: AdminCreateUserDto, ctx: RequestContext = {}) {
+    if (dto.role === UserRole.ADMIN && actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can create admin accounts.');
+    }
+
     const email = dto.email.toLowerCase().trim();
 
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -186,12 +191,15 @@ export class AdminUsersService {
     return updated;
   }
 
-  async forceLogout(targetUserId: string, ctx: RequestContext = {}) {
+  async forceLogout(actor: { sub: string; role: UserRole }, targetUserId: string, ctx: RequestContext = {}) {
     const target = await this.prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, email: true }
+      select: { id: true, email: true, role: true }
     });
     if (!target) throw new NotFoundException('User not found');
+    if (target.role === UserRole.ADMIN && actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can force-logout admin users.');
+    }
 
     const revoked = await this.sessions.revokeAllForUser(targetUserId, 'admin_force_logout');
     await this.sessions.recordEvent({

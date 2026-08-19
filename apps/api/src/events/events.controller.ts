@@ -57,7 +57,7 @@ export class EventsController {
   @Get(':id')
   @Public()
   findOne(@Param('id') id: string) {
-    return this.eventsService.findByIdWithTicketCount(id);
+    return this.eventsService.findByIdWithTicketCount(id, true);
   }
 
   @Post()

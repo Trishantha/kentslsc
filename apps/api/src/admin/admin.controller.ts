@@ -228,8 +228,8 @@ export class AdminController {
 
   @Post('users/:id/force-logout')
   @RequirePermission(Permission.MANAGE_USERS)
-  forceLogout(@Param('id') id: string, @Req() req: Request) {
-    return this.adminUsers.forceLogout(id, this.context(req));
+  forceLogout(@CurrentUser() actor: TokenPayload, @Param('id') id: string, @Req() req: Request) {
+    return this.adminUsers.forceLogout(actor, id, this.context(req));
   }
 
   @Get('dashboard')

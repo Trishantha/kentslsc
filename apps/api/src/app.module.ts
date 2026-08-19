@@ -36,6 +36,8 @@ import { RolesGuard } from './common/guards/roles.guard.js';
 import { PermissionGuard } from './common/guards/permission.guard.js';
 import { FeatureGuard } from './common/guards/feature.guard.js';
 import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
+import { CsrfModule } from './csrf/csrf.module.js';
+import { CsrfGuard } from './csrf/csrf.guard.js';
 
 @Module({
   imports: [
@@ -80,7 +82,8 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     GdprSettingsModule,
     // Provides FeatureGuard + MembershipFeaturesService to the global guard above.
     AuthorizationModule,
-    PermissionsModule
+    PermissionsModule,
+    CsrfModule
   ],
   controllers: [AppController],
   providers: [
@@ -91,6 +94,7 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
     // a single forgotten decorator silently published an endpoint.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: EmailVerifiedGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },

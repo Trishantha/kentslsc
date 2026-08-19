@@ -92,6 +92,7 @@ export class DirectoryService {
   }
 
   async createBusiness(user: TokenPayload, dto: CreateBusinessListingDto) {
+    const isAdmin = user.role === UserRole.ADMIN;
     return this.prisma.businessListing.create({
       data: {
         ownerUserId: user.sub,
@@ -104,7 +105,7 @@ export class DirectoryService {
         phone: dto.phone,
         address: dto.address,
         category: dto.category,
-        isPaid: dto.isPaid ?? false
+        isPaid: isAdmin ? dto.isPaid : false
       }
     });
   }
@@ -116,6 +117,7 @@ export class DirectoryService {
       throw new ForbiddenException('You do not have permission to update this listing');
     }
 
+    const isAdmin = user.role === UserRole.ADMIN;
     const updated = await this.prisma.businessListing.update({
       where: { id },
       data: {
@@ -128,12 +130,12 @@ export class DirectoryService {
         phone: dto.phone,
         address: dto.address,
         category: dto.category,
-        isPaid: dto.isPaid
+        ...(isAdmin && { isPaid: dto.isPaid })
       }
     });
 
     if (dto.description) {
-      this.summariseBusiness(id).catch(() => undefined);
+      this.summariseBusiness(user, id).catch(() => undefined);
     }
 
     return updated;
@@ -149,9 +151,12 @@ export class DirectoryService {
     return { success: true };
   }
 
-  async summariseBusiness(id: string) {
+  async summariseBusiness(user: TokenPayload, id: string) {
     const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
     if (!listing) throw new NotFoundException('Business listing not found');
+    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
+      throw new ForbiddenException('You do not have permission to summarise this listing');
+    }
 
     const content = [listing.businessName, listing.description, listing.servicesText]
       .filter(Boolean)
@@ -188,11 +193,12 @@ export class DirectoryService {
   }
 
   async findJobs(businessListingId?: string) {
-    const where: { deletedAt: null; isPublished?: boolean; businessListingId?: string } = { deletedAt: null };
+    const where: { deletedAt: null; isPublished: boolean; businessListingId?: string } = {
+      deletedAt: null,
+      isPublished: true
+    };
     if (businessListingId) {
       where.businessListingId = businessListingId;
-    } else {
-      where.isPublished = true;
     }
 
     return this.prisma.jobAd.findMany({
@@ -211,6 +217,7 @@ export class DirectoryService {
       throw new ForbiddenException('You do not have permission to post jobs for this business');
     }
 
+    const isAdmin = user.role === UserRole.ADMIN;
     return this.prisma.jobAd.create({
       data: {
         businessListingId: dto.businessListingId,
@@ -220,7 +227,7 @@ export class DirectoryService {
         salaryRange: dto.salaryRange,
         contactEmail: dto.contactEmail,
         closingDate: dto.closingDate,
-        isPublished: dto.isPublished ?? false
+        isPublished: isAdmin ? dto.isPublished : false
       }
     });
   }
@@ -245,6 +252,7 @@ export class DirectoryService {
       }
     }
 
+    const isAdmin = user.role === UserRole.ADMIN;
     return this.prisma.jobAd.update({
       where: { id },
       data: {
@@ -255,7 +263,7 @@ export class DirectoryService {
         salaryRange: dto.salaryRange,
         contactEmail: dto.contactEmail,
         closingDate: dto.closingDate,
-        isPublished: dto.isPublished
+        ...(isAdmin && { isPublished: dto.isPublished })
       }
     });
   }

@@ -4,6 +4,7 @@ import { HeroConfigService } from './hero-config.service.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Permission } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
+import { UpdateHeroConfigDto } from './dto/update-hero-config.dto.js';
 
 @ApiTags('Hero Config')
 @Controller('hero-config')
@@ -19,15 +20,7 @@ export class HeroConfigController {
   @Put()
   @RequirePermission(Permission.MANAGE_HERO)
   @ApiBearerAuth()
-  update(@Body() dto: {
-    mediaType?: string;
-    imageUrl?: string;
-    videoUrl?: string;
-    overlayStyle?: string;
-    overlayOpacity?: number;
-    videoOverlayOpacity?: number;
-    videoPlaybackRate?: number;
-  }) {
+  update(@Body() dto: UpdateHeroConfigDto) {
     return this.heroConfigService.update(dto);
   }
 }

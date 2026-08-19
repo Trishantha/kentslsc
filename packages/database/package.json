@@ -7,7 +7,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "prisma generate && tsc && cp -r prisma dist/prisma || true",
+    "build": "prisma generate && tsc && rm -rf dist/prisma && mkdir -p dist/prisma && cp prisma/schema.prisma dist/prisma/schema.prisma",
     "clean": "rm -rf dist .turbo",
     "generate": "dotenv -e ../../.env -- prisma generate",
     "migrate": "dotenv -e ../../.env -- prisma migrate dev",

@@ -575,6 +575,7 @@ model Donation {
   fundraiser  Fundraiser  @relation(fields: [fundraiserId], references: [id])
   user        User?       @relation(fields: [userId], references: [id])
 
+  @@unique([fundraiserId, paymentId])
   @@index([fundraiserId])
   @@index([userId])
   @@index([paymentId])

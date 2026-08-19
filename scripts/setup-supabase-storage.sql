@@ -26,24 +26,25 @@ create policy "KentSLSC public read"
   using (bucket_id = 'KentSLSC');
 
 -- Allow authenticated users to upload files to the KentSLSC bucket.
--- The production application performs uploads through the NestJS backend using the
--- service_role key, but this policy enables direct authenticated uploads if needed.
-create policy "KentSLSC authenticated upload"
+-- Objects must be owned by the requesting Supabase auth user. The production
+-- application uploads through the NestJS backend with the service_role key, which
+-- bypasses RLS, so this policy is defense-in-depth for any direct client uploads.
+create policy "KentSLSC authenticated upload own objects"
   on storage.objects
   for insert
   to authenticated
-  with check (bucket_id = 'KentSLSC');
+  with check (bucket_id = 'KentSLSC' and owner = auth.uid());
 
--- Allow authenticated users to update their own objects.
-create policy "KentSLSC authenticated update"
+-- Allow authenticated users to update their own objects only.
+create policy "KentSLSC authenticated update own objects"
   on storage.objects
   for update
   to authenticated
-  using (bucket_id = 'KentSLSC');
+  using (bucket_id = 'KentSLSC' and owner = auth.uid());
 
--- Allow authenticated users to delete objects in the KentSLSC bucket.
-create policy "KentSLSC authenticated delete"
+-- Allow authenticated users to delete their own objects only.
+create policy "KentSLSC authenticated delete own objects"
   on storage.objects
   for delete
   to authenticated
-  using (bucket_id = 'KentSLSC');
+  using (bucket_id = 'KentSLSC' and owner = auth.uid());

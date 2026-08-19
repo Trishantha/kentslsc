@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
+import { refreshTokenCookieName } from '@kentslsc/shared';
 import { routing } from './i18n/routing';
 import { safeRedirect } from './lib/safe-redirect';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -27,7 +30,7 @@ export function middleware(request: NextRequest) {
   // Presence of a refresh cookie is the signal that a session exists at all.
   // The access cookie lasts 15 minutes while the session lasts 7 days, so keying
   // on accessToken bounced still-valid sessions to login on every hard navigation.
-  const hasSession = Boolean(request.cookies.get('refreshToken')?.value);
+  const hasSession = Boolean(request.cookies.get(refreshTokenCookieName(isProduction))?.value);
 
   // A signed-in user has no business on the login or registration page. Blocking
   // it here is what stops an admin from walking into the registration wizard and

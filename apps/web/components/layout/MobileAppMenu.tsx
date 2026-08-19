@@ -283,7 +283,7 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
               </div>
 
               {/* Admin link */}
-              {user?.role === 'ADMIN' && (
+              {(user?.role === 'ADMIN' || (user?.permissions?.length ?? 0) > 0) && (
                 <NextLink
                   href="/admin"
                   onClick={onClose}

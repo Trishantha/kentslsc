@@ -27,6 +27,8 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
   const compact = scrolled || isAdmin || pathname !== '/';
   const { data: user } = useAuth();
   const signOut = useSignOut();
+  const canAccessAdmin =
+    user && (user.role === 'ADMIN' || user.permissions.length > 0);
 
   const publicNavLinks = [
     { href: '/', label: t('home') },
@@ -130,6 +132,14 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               <NextLink href="/dashboard" className="btn-primary whitespace-nowrap px-4 py-2 text-xs">
                 {t('dashboard')}
               </NextLink>
+              {canAccessAdmin && (
+                <NextLink
+                  href="/admin"
+                  className="whitespace-nowrap rounded-xl border border-neon-gold/60 px-4 py-2 text-xs font-semibold text-amber-900 transition-transform hover:scale-105 dark:text-neon-gold"
+                >
+                  {t('adminDashboard')}
+                </NextLink>
+              )}
               <button
                 onClick={() => signOut.mutate()}
                 disabled={signOut.isPending}

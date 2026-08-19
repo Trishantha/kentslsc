@@ -11,6 +11,7 @@
     "forum": "Forum",
     "membership": "Membership",
     "dashboard": "Dashboard",
+    "adminDashboard": "Admin Dashboard",
     "login": "Login",
     "logout": "Sign out",
     "loggingOut": "Signing out...",

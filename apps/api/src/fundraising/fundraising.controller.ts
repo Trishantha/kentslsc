@@ -119,6 +119,7 @@ export class FundraisingController {
   @Public()
   async webhook(
     @Headers('stripe-signature') signature: string,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @RawBody() rawBody: Buffer,
     @Body() body: any,
     @Res() res: Response
@@ -135,13 +136,14 @@ export class FundraisingController {
       }
 
       if (body?.event_type) {
+        await this.paymentsService.verifyPayPalWebhook(rawBody, headers);
         await this.fundraisingService.handlePayPalCompleted(body);
         return res.json({ received: true });
       }
 
       return res.status(400).send('Webhook payload not recognised');
     } catch (err) {
-      return res.status(400).send(`Webhook error: ${(err as Error).message}`);
+      return res.status(400).send('Webhook processing failed');
     }
   }
 }

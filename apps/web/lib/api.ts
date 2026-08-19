@@ -22,6 +22,25 @@ export const api = axios.create({
   withCredentials: true
 });
 
+function getCookieValue(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(
+    new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
+  );
+  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+}
+
+api.interceptors.request.use((config) => {
+  const method = config.method?.toLowerCase();
+  if (method && !['get', 'head', 'options'].includes(method)) {
+    const csrfToken = getCookieValue('csrfToken');
+    if (csrfToken) {
+      config.headers.set('X-CSRF-Token', csrfToken);
+    }
+  }
+  return config;
+});
+
 // These endpoints are allowed to return 401 for anonymous users on public pages.
 // They should not trigger a forced redirect to the login page.
 const optionalAuthEndpoints = [

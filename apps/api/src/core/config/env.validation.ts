@@ -3,11 +3,15 @@ import { z } from '@kentslsc/shared';
 export const envValidationSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(4000),
+  // Trust X-Forwarded-For when running behind a reverse proxy (Hostinger, Vercel,
+  // etc.). Without this the throttler sees every request as the proxy IP. Only
+  // enable in deployed environments where the proxy strips untrusted headers.
+  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   API_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().url().optional(),
-  JWT_SECRET: z.string().min(16),
-  JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_SECRET: z.string().min(32),
+  JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
   // Optional third-party service keys. The API will start without them and
@@ -20,7 +24,8 @@ export const envValidationSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
-  PAYPAL_API_BASE_URL: z.string().url().optional().default('https://api-m.sandbox.paypal.com'),
+  PAYPAL_WEBHOOK_ID: z.string().optional(),
+  PAYPAL_API_BASE_URL: z.enum(['https://api-m.sandbox.paypal.com', 'https://api-m.paypal.com']).optional().default('https://api-m.sandbox.paypal.com'),
   EMAIL_HOST: z.string().optional(),
   EMAIL_PORT: z.coerce.number().default(587),
   EMAIL_USER: z.string().optional(),

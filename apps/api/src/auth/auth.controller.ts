@@ -37,7 +37,8 @@ import { UserRole, type TokenPayload } from '@kentslsc/shared';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PermissionsService } from '../permissions/permissions.service.js';
-import { authCookieOptions } from './auth-cookies.js';
+import { authCookieOptions, accessTokenCookieName, refreshTokenCookieName } from './auth-cookies.js';
+import { CsrfService } from '../csrf/csrf.service.js';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -54,7 +55,8 @@ export class AuthController {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-    private readonly permissionsService: PermissionsService
+    private readonly permissionsService: PermissionsService,
+    private readonly csrfService: CsrfService
   ) {}
 
   @Post('register')
@@ -68,7 +70,7 @@ export class AuthController {
     // Registration must never touch an existing session. Previously this handler
     // set cookies unconditionally, so an admin who submitted the signup form was
     // silently swapped into the new GUEST account they had just created.
-    const existing = req.cookies?.accessToken as string | undefined;
+    const existing = req.cookies?.[accessTokenCookieName()] as string | undefined;
     if (existing) {
       if (await this.hasValidAccessToken(existing)) {
         throw new ConflictException({
@@ -126,11 +128,10 @@ export class AuthController {
   @Throttle({ default: { limit: 60, ttl: 300_000 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
-    @Body('refreshToken') bodyRefreshToken: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response
   ) {
-    const refreshToken = bodyRefreshToken || req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.[refreshTokenCookieName()];
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -204,18 +205,22 @@ export class AuthController {
    */
   @Get('session')
   @Public()
-  async session(@Req() req: Request) {
+  async session(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
     const anonymous = { authenticated: false } as const;
 
-    const accessToken = req.cookies?.accessToken as string | undefined;
+    const accessToken = req.cookies?.[accessTokenCookieName()] as string | undefined;
     if (accessToken) {
       const payload = await this.verifyToken(accessToken, 'JWT_SECRET');
       if (payload && (payload.typ ?? 'access') === 'access') {
+        this.ensureCsrfCookie(res);
         return this.describeSession(payload);
       }
     }
 
-    const refreshToken = req.cookies?.refreshToken as string | undefined;
+    const refreshToken = req.cookies?.[refreshTokenCookieName()] as string | undefined;
     if (refreshToken) {
       const payload = await this.verifyToken(refreshToken, 'JWT_REFRESH_SECRET');
       if (payload && (payload.typ ?? 'refresh') === 'refresh') {
@@ -227,12 +232,20 @@ export class AuthController {
             })
           : null;
         if (session && !session.revokedAt && session.expiresAt > new Date()) {
+          this.ensureCsrfCookie(res);
           return this.describeSession(payload);
         }
       }
     }
 
     return anonymous;
+  }
+
+  private ensureCsrfCookie(res: Response) {
+    res.cookie(this.csrfService.getCookieName(), this.csrfService.generateToken(), {
+      ...this.csrfService.getCookieOptions(),
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -406,12 +419,16 @@ export class AuthController {
   }
 
   private setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }) {
-    res.cookie('accessToken', tokens.accessToken, {
+    res.cookie(accessTokenCookieName(), tokens.accessToken, {
       ...authCookieOptions(),
       maxAge: 15 * 60 * 1000 // 15 minutes
     });
-    res.cookie('refreshToken', tokens.refreshToken, {
+    res.cookie(refreshTokenCookieName(), tokens.refreshToken, {
       ...authCookieOptions(),
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+    res.cookie(this.csrfService.getCookieName(), this.csrfService.generateToken(), {
+      ...this.csrfService.getCookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
   }
@@ -419,7 +436,8 @@ export class AuthController {
   private clearAuthCookies(res: Response) {
     // clearCookie only matches a cookie whose attributes agree, so these options
     // must stay in step with the ones used to set them.
-    res.clearCookie('accessToken', authCookieOptions());
-    res.clearCookie('refreshToken', authCookieOptions());
+    res.clearCookie(accessTokenCookieName(), authCookieOptions());
+    res.clearCookie(refreshTokenCookieName(), authCookieOptions());
+    res.clearCookie(this.csrfService.getCookieName(), this.csrfService.getCookieOptions());
   }
 }

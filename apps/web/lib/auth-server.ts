@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getApiOriginCandidates } from './api-base';
-import type { Permission } from '@kentslsc/shared';
+import { accessTokenCookieName, refreshTokenCookieName, type Permission } from '@kentslsc/shared';
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
 
@@ -32,7 +34,8 @@ export type ServerSession =
 export async function getServerSession(): Promise<ServerSession> {
   const cookieHeader = (await cookies()).toString();
   const hasAuthCookie =
-    cookieHeader.includes('accessToken=') || cookieHeader.includes('refreshToken=');
+    cookieHeader.includes(`${accessTokenCookieName(isProduction)}=`) ||
+    cookieHeader.includes(`${refreshTokenCookieName(isProduction)}=`);
   if (!cookieHeader) return { authenticated: false };
 
   const origins = await getApiOriginCandidates();

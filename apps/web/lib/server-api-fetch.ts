@@ -20,10 +20,23 @@ async function getIncomingCookieHeader(): Promise<string | undefined> {
   }
 }
 
+function getCsrfToken(cookieHeader: string): string | undefined {
+  const match = cookieHeader.match(/(?:^|;\s*)csrfToken=([^;]*)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+}
+
 function mergeCookieHeader(options: RequestInit, cookieHeader: string): RequestInit {
   const headers = new Headers(options.headers);
   if (!headers.has('cookie')) {
     headers.set('cookie', cookieHeader);
+  }
+  // Forward the CSRF double-submit token for any server-side state-changing call.
+  const method = (options.method ?? 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !headers.has('x-csrf-token')) {
+    const csrfToken = getCsrfToken(cookieHeader);
+    if (csrfToken) {
+      headers.set('x-csrf-token', csrfToken);
+    }
   }
   return { ...options, headers };
 }
