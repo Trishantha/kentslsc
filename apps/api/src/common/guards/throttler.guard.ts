@@ -19,7 +19,17 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     }
 
     const { req } = this.getRequestResponse(context);
-    return isLocalAddress(req?.ip);
+    if (!req) {
+      return false;
+    }
+
+    const candidates = [
+      req.ip,
+      req.socket?.remoteAddress,
+      req.connection?.remoteAddress
+    ].filter((ip): ip is string => typeof ip === 'string' && ip.length > 0);
+
+    return candidates.some((ip) => isLocalAddress(ip));
   }
 }
 
