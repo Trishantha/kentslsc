@@ -1,5 +1,14 @@
 import { getApiOriginCandidates } from './api-base';
 
+function formatFetchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = (error as Error & { cause?: Error }).cause;
+  if (cause) {
+    return `${error.message} (cause: ${cause.message})`;
+  }
+  return error.message;
+}
+
 export interface FetchWithRetryOptions extends RequestInit {
   retries?: number;
   retryDelayMs?: number;
@@ -57,13 +66,13 @@ export async function fetchWithRetryResult(
       }
 
       console.warn(
-        `Server fetch attempt ${attempt}/${retries} failed for ${url}: ${(error as Error).message}. Retrying in ${retryDelayMs}ms...`
+        `Server fetch attempt ${attempt}/${retries} failed for ${url}: ${formatFetchError(error)}. Retrying in ${retryDelayMs}ms...`
       );
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
   }
 
-  console.error(`Server fetch failed after ${retries} attempts for ${url}`, lastError);
+  console.error(`Server fetch failed after ${retries} attempts for ${url}: ${formatFetchError(lastError)}`);
   return { ok: false, status: null, error: lastError };
 }
 
@@ -107,7 +116,7 @@ export async function fetchApiWithOriginFallback(
       origin,
       error: result.ok
         ? `HTTP ${result.response.status} (${isJson ? 'json' : contentType || 'unknown content-type'})`
-        : String(result.error ?? 'no response')
+        : formatFetchError(result.error ?? 'no response')
     });
   }
 

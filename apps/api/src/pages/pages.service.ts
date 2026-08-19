@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { pageBlocksSchema } from '@kentslsc/shared';
 import type { SitePageInput, SitePageUpdateInput } from '@kentslsc/shared';
+import type { SitePage } from '@kentslsc/database';
 
 @Injectable()
 export class PagesService {
@@ -32,14 +34,30 @@ export class PagesService {
     return page;
   }
 
-  async findHomePage() {
+  async findHomePage(): Promise<SitePage> {
     const page = await this.prisma.sitePage.findFirst({
       where: { isHome: true, isPublished: true }
     });
-    if (!page) {
-      throw new NotFoundException('Home page not found');
+    if (page) {
+      return page;
     }
-    return page;
+
+    // Return a safe default so a fresh deployment (or unseeded database) still
+    // renders the fallback home-page content instead of surfacing a 404 to the
+    // frontend and triggering noisy fallback-to-public fetch attempts.
+    const now = new Date();
+    return {
+      id: randomUUID(),
+      slug: 'home',
+      title: 'Home',
+      isHome: true,
+      isPublished: true,
+      metaDescription: '',
+      ogImageUrl: null,
+      blocks: [],
+      createdAt: now,
+      updatedAt: now
+    } as SitePage;
   }
 
   async listAdmin() {
