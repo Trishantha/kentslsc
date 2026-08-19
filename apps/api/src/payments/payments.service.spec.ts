@@ -318,6 +318,32 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('getStripePublishableKey', () => {
+    it('returns the publishable key from environment', async () => {
+      const customConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'STRIPE_PUBLISHABLE_KEY') return 'pk_test_456';
+          return undefined;
+        })
+      };
+      const service = new PaymentsService(customConfig as any, mockPrisma as any);
+      const key = await service.getStripePublishableKey();
+      expect(key).toBe('pk_test_456');
+    });
+
+    it('returns null when a secret key is configured as the publishable key', async () => {
+      const customConfig = {
+        get: jest.fn((key: string) => {
+          if (key === 'STRIPE_PUBLISHABLE_KEY') return 'sk_test_456';
+          return undefined;
+        })
+      };
+      const service = new PaymentsService(customConfig as any, mockPrisma as any);
+      const key = await service.getStripePublishableKey();
+      expect(key).toBeNull();
+    });
+  });
+
   describe('getPublicPaymentSettings', () => {
     it('returns provider and fee config without secrets', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);

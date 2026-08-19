@@ -219,7 +219,15 @@ export class PaymentsService {
 
   async getStripePublishableKey() {
     const effective = await this.getEffectiveSettings();
-    return effective.stripePublishableKey ?? null;
+    const key = effective.stripePublishableKey;
+    if (key && key.startsWith('sk_')) {
+      this.logger.error(
+        'STRIPE_PUBLISHABLE_KEY is set to a secret key (starts with sk_). ' +
+          'Stripe.js requires a publishable key (pk_). The checkout page will not load.'
+      );
+      return null;
+    }
+    return key ?? null;
   }
 
   async getCheckoutSession(sessionId: string) {
