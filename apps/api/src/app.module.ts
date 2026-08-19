@@ -38,6 +38,7 @@ import { FeatureGuard } from './common/guards/feature.guard.js';
 import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
 import { CsrfModule } from './csrf/csrf.module.js';
 import { CsrfGuard } from './csrf/csrf.guard.js';
+import { AppThrottlerGuard } from './common/guards/throttler.guard.js';
 
 @Module({
   imports: [
@@ -92,7 +93,7 @@ import { CsrfGuard } from './csrf/csrf.guard.js';
     // route requires a valid session unless explicitly marked @Public().
     // Previously guards were opt-in per handler (~63 @UseGuards call sites), so
     // a single forgotten decorator silently published an endpoint.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: EmailVerifiedGuard },

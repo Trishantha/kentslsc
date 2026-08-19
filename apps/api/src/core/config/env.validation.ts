@@ -6,7 +6,8 @@ export const envValidationSchema = z.object({
   // Trust X-Forwarded-For when running behind a reverse proxy (Hostinger, Vercel,
   // etc.). Without this the throttler sees every request as the proxy IP. Only
   // enable in deployed environments where the proxy strips untrusted headers.
-  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  // When omitted, handler.ts defaults this to true in production.
+  TRUST_PROXY: z.enum(['true', 'false']).optional(),
   API_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().url().optional(),

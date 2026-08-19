@@ -18,10 +18,15 @@ const moduleDir = fileURLToPath(new URL('.', import.meta.url));
 export async function createApiApp() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
-  if (configService.get<string>('TRUST_PROXY') === 'true') {
+  const isProduction = configService.get('NODE_ENV') === 'production';
+  const trustProxy = configService.get<string>('TRUST_PROXY');
+  // Default to trusting X-Forwarded-* headers in production because the API runs
+  // behind Hostinger's reverse proxy. The throttler and security features depend
+  // on seeing the real client IP, not the proxy's. Operators can still opt out
+  // by setting TRUST_PROXY=false explicitly.
+  if (trustProxy === 'true' || (trustProxy === undefined && isProduction)) {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
-  const isProduction = configService.get('NODE_ENV') === 'production';
 
   const frontendUrl = configService.get<string>('FRONTEND_URL') ?? '';
   if (isProduction && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(frontendUrl)) {

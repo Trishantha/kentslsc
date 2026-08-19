@@ -133,6 +133,18 @@ async function main() {
     }
   });
 
+  const homePage = await prisma.sitePage.upsert({
+    where: { slug: 'home' },
+    update: {},
+    create: {
+      slug: 'home',
+      title: 'Home',
+      isHome: true,
+      isPublished: true,
+      blocks: []
+    }
+  });
+
   const committeeRoles = [
     { roleKey: 'president', position: 'President' },
     { roleKey: 'vicePresident', position: 'Vice President' },
@@ -159,6 +171,7 @@ async function main() {
     admin: admin.email,
     membershipTypes: [freeType.name, paidType.name, familyType.name],
     heroConfig: heroConfig.id,
+    homePage: homePage.slug,
     committeeRoles: committeeRoles.map((r) => r.roleKey)
   });
 }
