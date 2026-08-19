@@ -63,18 +63,27 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
         {cardImageUrl ? (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={cardImageUrl}
-                alt={`Membership card for ${membership.user.name}`}
-                className="mx-auto max-h-[420px] w-auto rounded-lg object-contain"
-                onError={() => {
-                  if (imageRetryCount < 2) {
-                    setImageRetryCount((c) => c + 1);
-                    setImageRetry(Date.now());
-                  }
-                }}
-              />
+              <div className="relative mx-auto inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cardImageUrl}
+                  alt={`Membership card for ${membership.user.name}`}
+                  className="max-h-[420px] w-auto rounded-lg object-contain"
+                  onError={() => {
+                    if (imageRetryCount < 2) {
+                      setImageRetryCount((c) => c + 1);
+                      setImageRetry(Date.now());
+                    }
+                  }}
+                />
+                {/* Animated holographic shine over the auth seal */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute left-[84.3%] top-[70%] aspect-square w-[9.9%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full"
+                >
+                  <div className="h-full w-full motion-safe:animate-[spin_3s_linear_infinite] rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,rgba(255,255,255,0.45)_40deg,transparent_80deg)]" />
+                </div>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               <a

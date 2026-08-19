@@ -15,7 +15,8 @@ function createMockMembership(overrides: Partial<Record<string, unknown>> = {}) 
       id: 'type-paid',
       name: 'Paid Membership',
       price: 10,
-      isFree: false
+      isFree: false,
+      durationMonths: 12
     },
     user: {
       id: 'user-1',
@@ -32,17 +33,22 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
   const mockPrisma: any = {
     membership: {
       findMany: jest.fn(),
-      findUnique: jest.fn()
+      findUnique: jest.fn(),
+      update: jest.fn()
     }
   };
 
   const mockPaymentsService: any = {
-    createCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+    createSubscriptionCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
       id: 'cs_test_123',
       url: 'https://checkout.stripe.test/pay',
       provider: 'stripe'
     }),
-    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
+    syncMembershipTypePrice: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      productId: 'prod_test',
+      priceId: 'price_test'
+    }),
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1')
   };
 
   const mockEmailService: any = {
@@ -98,9 +104,9 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     const result = await service.sendPaymentRemindersToPending();
 
     expect(result).toEqual({ sent: 2, failed: 0, total: 2 });
-    expect(mockPaymentsService.createCheckout).toHaveBeenCalledTimes(2);
+    expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledTimes(2);
     expect(mockEmailService.sendMembershipPaymentLink).toHaveBeenCalledTimes(2);
-    expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+    expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
       expect.objectContaining({ customer: 'cus_test_user_1' })
     );
   });
@@ -119,7 +125,7 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     const result = await service.sendPaymentRemindersToPending();
 
     expect(result).toEqual({ sent: 1, failed: 0, total: 1 });
-    expect(mockPaymentsService.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledTimes(1);
   });
 
   it('counts individual failures without stopping the batch', async () => {
@@ -127,8 +133,8 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
       createMockMembership(),
       createMockMembership({ id: 'membership-2' })
     ]);
-    mockPaymentsService.createCheckout.mockRejectedValueOnce(new Error('Stripe error'));
-    mockPaymentsService.createCheckout.mockResolvedValueOnce({
+    mockPaymentsService.createSubscriptionCheckout.mockRejectedValueOnce(new Error('Stripe error'));
+    mockPaymentsService.createSubscriptionCheckout.mockResolvedValueOnce({
       id: 'cs_test_456',
       url: 'https://checkout.stripe.test/pay2',
       provider: 'stripe'

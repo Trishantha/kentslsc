@@ -13,7 +13,7 @@ const mockConfig = {
 
 describe('PaymentsService', () => {
   const originalFetch = global.fetch;
-  const mockPrisma = {
+  const mockPrisma: any = {
     paymentSettings: {
       findFirst: jest.fn(async () => null)
     },
@@ -293,7 +293,7 @@ describe('PaymentsService', () => {
       expect(result.amountTotal).toBe(1035);
       expect(result.customerEmail).toBe('user@example.com');
       expect(result.lineItems).toHaveLength(2);
-      expect(result.lineItems?.[1].description).toBe('Processing fee');
+      expect(result.lineItems?.[1]?.description).toBe('Processing fee');
     });
   });
 
@@ -328,6 +328,98 @@ describe('PaymentsService', () => {
       expect(settings.processingFeePercent).toBe(1.5);
       expect(settings.processingFeeFixed).toBe(20);
       expect(settings).not.toHaveProperty('hasStripeSecretKey');
+    });
+  });
+
+  describe('subscription helpers', () => {
+    it('syncMembershipTypePrice creates a product and price when none exist', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const productsSearchMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ data: [] });
+      const productCreateMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ id: 'prod_test' });
+      const pricesListMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ data: [] });
+      const priceCreateMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ id: 'price_test' });
+
+      (service as any).stripe = {
+        products: {
+          search: productsSearchMock,
+          create: productCreateMock
+        },
+        prices: {
+          list: pricesListMock,
+          create: priceCreateMock
+        }
+      };
+
+      const result = await service.syncMembershipTypePrice({
+        id: 'type-1',
+        name: 'Annual Membership',
+        price: 10,
+        durationMonths: 12
+      });
+
+      expect(result.productId).toBe('prod_test');
+      expect(result.priceId).toBe('price_test');
+      expect(productCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Annual Membership',
+          metadata: { membershipTypeId: 'type-1' }
+        })
+      );
+      expect(priceCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          product: 'prod_test',
+          unit_amount: 1000,
+          currency: 'gbp',
+          recurring: { interval: 'month', interval_count: 12 }
+        })
+      );
+    });
+
+    it('createSubscriptionCheckout creates a subscription mode session', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const createMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+        id: 'cs_sub_123',
+        url: 'https://checkout.stripe.test/sub',
+        client_secret: 'cs_sub_secret'
+      });
+
+      (service as any).stripe = {
+        checkout: { sessions: { create: createMock } }
+      };
+
+      const result = await service.createSubscriptionCheckout({
+        priceId: 'price_test',
+        customer: 'cus_test',
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel',
+        metadata: { source: 'membership' }
+      });
+
+      expect(result.id).toBe('cs_sub_123');
+      expect(result.url).toBe('https://checkout.stripe.test/sub');
+      const params = createMock.mock.calls[0]?.[0] as any;
+      expect(params.mode).toBe('subscription');
+      expect(params.line_items).toEqual([{ price: 'price_test', quantity: 1 }]);
+      expect(params.customer).toBe('cus_test');
+    });
+
+    it('createBillingPortalSession returns a portal URL', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const createMock = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ url: 'https://billing.stripe.test/session' });
+
+      (service as any).stripe = {
+        billingPortal: { sessions: { create: createMock } }
+      };
+
+      const url = await service.createBillingPortalSession('cus_test', 'https://example.com/return');
+
+      expect(url).toBe('https://billing.stripe.test/session');
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: 'cus_test',
+          return_url: 'https://example.com/return'
+        })
+      );
     });
   });
 });

@@ -28,4 +28,28 @@ describe('card-generator', () => {
     expect(metadata.height).toBe(600);
     expect(metadata.format).toBe('png');
   });
+
+  it('generates a valid card for a very long member name', async () => {
+    const buffer = await generateCardBuffer(
+      {
+        membershipId: 'MEM-LONGNAME',
+        memberName: 'Rukmal Vitharana Arachchilage',
+        membershipTypeName: 'Free Membership',
+        isFree: true,
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2124-01-01'),
+        dependantsCount: 0,
+        qrValue: 'https://kentslsc.org/membership/verify/MEM-LONGNAME'
+      },
+      (file) => require.resolve(`@fontsource/inter/files/${file}`)
+    );
+
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.length).toBeGreaterThan(0);
+
+    const metadata = await sharp(buffer).metadata();
+    expect(metadata.width).toBe(1050);
+    expect(metadata.height).toBe(600);
+    expect(metadata.format).toBe('png');
+  });
 });

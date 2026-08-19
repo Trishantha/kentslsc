@@ -79,7 +79,7 @@ describe('EventsService', () => {
 
   const mockPaymentsService: any = {
     createCheckout: jest.fn(),
-    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1')
   };
 
   const mockEmailService: any = {

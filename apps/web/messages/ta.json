@@ -218,7 +218,7 @@
       "plan": "திட்டம்",
       "dependants": "சார்ந்தவர்கள்",
       "termsText": "விதிமுறைகள் மற்றும் நிபந்தனைகள் மற்றும் தனியுரிமைக் கொள்கையை நான் ஏற்கிறேன்.",
-      "paymentRedirect": "{price} செலுத்த நீங்கள் ஸ்ட்ரைப் செக்அவுட்டுக்கு திருப்பி விடப்படுவீர்கள்."
+      "paymentRedirect": "You will be redirected to Stripe Checkout to start a {price} recurring subscription."
     },
     "buttons": {
       "processing": "செயலாக்குகிறது...",

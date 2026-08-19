@@ -97,6 +97,7 @@ enum AuthEventType {
 enum Permission {
   MANAGE_USERS
   MANAGE_MEMBERSHIPS
+  SCAN_MEMBERSHIPS
   MANAGE_EVENTS
   MANAGE_TICKETS
   MANAGE_DIRECTORY
@@ -111,6 +112,14 @@ enum Permission {
   MANAGE_PAYMENTS
   MANAGE_COMMITTEE
   VIEW_ADMIN_DASHBOARD
+}
+
+enum MembershipScanResult {
+  VALID
+  EXPIRED
+  INACTIVE
+  NOT_FOUND
+  CANCELLED
 }
 
 model User {
@@ -152,6 +161,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   authEvents              AuthEvent[]
   userPermissions         UserPermission[]
+  membershipScans         MembershipScan[]
   backOfficeRole          BackOfficeRole?       @relation(fields: [backOfficeRoleId], references: [id], onDelete: SetNull)
 
   @@index([email])
@@ -298,6 +308,8 @@ model MembershipType {
   benefits       String[] @default([])
   features       String[] @default([])
   autoActivate   Boolean  @default(false) @map("auto_activate")
+  stripeProductId String?  @map("stripe_product_id")
+  stripePriceId   String?  @map("stripe_price_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
@@ -320,6 +332,13 @@ model Membership {
   qrCodeValue        String?          @unique @map("qr_code_value")
   paidAt             DateTime?        @map("paid_at")
   paymentMethod      String?          @map("payment_method")
+  // Prorated credit carried over from a previous paid membership when downgrading.
+  // Stored in the major currency unit (e.g. GBP) and converted to free months on the new plan.
+  creditAmountApplied Decimal?        @map("credit_amount_applied") @db.Decimal(10, 2)
+  creditMonthsGranted Int?            @map("credit_months_granted")
+  stripeCustomerId    String?         @map("stripe_customer_id")
+  stripeSubscriptionId String?        @map("stripe_subscription_id")
+  stripePriceId       String?         @map("stripe_price_id")
   issuedAt           DateTime         @default(now()) @map("issued_at")
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
@@ -327,11 +346,31 @@ model Membership {
 
   user           User           @relation(fields: [userId], references: [id])
   membershipType MembershipType @relation(fields: [membershipTypeId], references: [id])
+  scans          MembershipScan[]
 
   @@index([userId])
   @@index([status])
   @@index([membershipId])
   @@map("memberships")
+}
+
+model MembershipScan {
+  id              String               @id @default(uuid())
+  scannedValue    String               @map("scanned_value")
+  membershipId    String?              @map("membership_id")
+  result          MembershipScanResult @map("result")
+  memberName      String?              @map("member_name")
+  membershipType  String?              @map("membership_type")
+  scannedById     String               @map("scanned_by_id")
+  scannedAt       DateTime             @default(now()) @map("scanned_at")
+
+  membership Membership? @relation(fields: [membershipId], references: [membershipId])
+  scannedBy  User        @relation(fields: [scannedById], references: [id])
+
+  @@index([membershipId])
+  @@index([scannedById])
+  @@index([scannedAt])
+  @@map("membership_scans")
 }
 
 model Event {

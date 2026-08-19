@@ -88,6 +88,7 @@ export enum MembershipFeature {
 export enum Permission {
   MANAGE_USERS = 'MANAGE_USERS',
   MANAGE_MEMBERSHIPS = 'MANAGE_MEMBERSHIPS',
+  SCAN_MEMBERSHIPS = 'SCAN_MEMBERSHIPS',
   MANAGE_EVENTS = 'MANAGE_EVENTS',
   MANAGE_TICKETS = 'MANAGE_TICKETS',
   MANAGE_DIRECTORY = 'MANAGE_DIRECTORY',
@@ -104,6 +105,14 @@ export enum Permission {
   VIEW_ADMIN_DASHBOARD = 'VIEW_ADMIN_DASHBOARD'
 }
 
+export enum MembershipScanResult {
+  VALID = 'VALID',
+  EXPIRED = 'EXPIRED',
+  INACTIVE = 'INACTIVE',
+  NOT_FOUND = 'NOT_FOUND',
+  CANCELLED = 'CANCELLED'
+}
+
 export const permissionLabels: Record<
   Permission,
   { label: string; description: string; section: string }
@@ -116,6 +125,11 @@ export const permissionLabels: Record<
   [Permission.MANAGE_MEMBERSHIPS]: {
     label: 'Memberships',
     description: 'Review, approve and manage member accounts and membership types.',
+    section: 'Members'
+  },
+  [Permission.SCAN_MEMBERSHIPS]: {
+    label: 'Scan memberships',
+    description: 'Validate membership cards and record scans at the door.',
     section: 'Members'
   },
   [Permission.MANAGE_EVENTS]: {

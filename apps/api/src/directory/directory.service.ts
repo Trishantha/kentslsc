@@ -183,7 +183,7 @@ export class DirectoryService {
       description: `Promote ${listing.businessName} for 30 days`,
       successUrl: `${frontendUrl}/directory/${id}?promoted=success`,
       cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
-      uiMode: 'embedded',
+      uiMode: 'embedded_page',
       metadata: {
         type: 'directory_promotion',
         businessListingId: id
@@ -304,7 +304,7 @@ export class DirectoryService {
       description: `Publish job ad: ${job.title}`,
       successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success`,
       cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
-      uiMode: 'embedded',
+      uiMode: 'embedded_page',
       metadata: {
         type: 'job_publish',
         jobAdId: id

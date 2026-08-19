@@ -21,4 +21,8 @@ export class CreateDonationDto {
   @IsOptional()
   @IsBoolean()
   declare isAnonymous?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  declare addProcessingFee?: boolean;
 }

@@ -209,11 +209,20 @@ export class AdminService {
     }
 
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+    const synced = await this.paymentsService.syncMembershipTypePrice({
+      id: membershipType.id,
+      name: membershipType.name,
+      price: Number(membershipType.price),
+      durationMonths: membershipType.durationMonths
+    });
 
-    const checkout = await this.paymentsService.createCheckout({
-      amount: Math.round(Number(membershipType.price) * 100),
-      currency: 'gbp',
-      description: membershipType.name,
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: { stripeCustomerId, stripePriceId: synced.priceId }
+    });
+
+    const checkout = await this.paymentsService.createSubscriptionCheckout({
+      priceId: synced.priceId,
       customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
@@ -262,11 +271,20 @@ export class AdminService {
     const fullName = user.name;
 
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+    const synced = await this.paymentsService.syncMembershipTypePrice({
+      id: membership.membershipType.id,
+      name: membership.membershipType.name,
+      price: Number(membership.membershipType.price),
+      durationMonths: membership.membershipType.durationMonths
+    });
 
-    const checkout = await this.paymentsService.createCheckout({
-      amount: Math.round(Number(membership.membershipType.price) * 100),
-      currency: 'gbp',
-      description: membership.membershipType.name,
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: { stripeCustomerId, stripePriceId: synced.priceId }
+    });
+
+    const checkout = await this.paymentsService.createSubscriptionCheckout({
+      priceId: synced.priceId,
       customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,

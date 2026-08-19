@@ -50,6 +50,9 @@ interface MembershipResponse {
   dependants: { name: string; relationship: string }[];
   paidAt: string | null;
   paymentMethod: string | null;
+  creditAmountApplied: number | null;
+  creditMonthsGranted: number | null;
+  stripeSubscriptionId: string | null;
   membershipType: {
     name: string;
     description?: string | null;
@@ -429,6 +432,16 @@ export default function DashboardPage() {
     }
   });
 
+  const billingPortal = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ url: string }>('/membership/billing-portal');
+      return res.data;
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    }
+  });
+
   const cardAssetUrl = membership?.cardUrl
     ? `/api/membership/card?membershipId=${encodeURIComponent(membership.membershipId)}&t=${cardRetry}`
     : null;
@@ -513,6 +526,16 @@ export default function DashboardPage() {
                       {membership.status}
                     </span>
                   </div>
+                  {(membership.creditAmountApplied ?? 0) > 0 && (
+                    <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">
+                      <span className="text-slate-700 dark:text-slate-400">Credit applied</span>
+                      <span className="text-sm font-semibold text-neon-gold">
+                        {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(membership.creditAmountApplied ?? 0)}
+                        {' '}({membership.creditMonthsGranted} free month
+                        {(membership.creditMonthsGranted ?? 0) === 1 ? '' : 's'})
+                      </span>
+                    </div>
+                  )}
                   {!membership.membershipType.isFree && (
                     <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">
                       <span className="text-slate-700 dark:text-slate-400">Payment</span>
@@ -553,6 +576,19 @@ export default function DashboardPage() {
                       {membership.dependantsCount === 1 ? '' : 's'}
                     </span>
                   </div>
+                  {membership.stripeSubscriptionId && (
+                    <button
+                      type="button"
+                      onClick={() => billingPortal.mutate()}
+                      disabled={billingPortal.isPending}
+                      className="btn-secondary mt-4 w-full text-sm"
+                    >
+                      {billingPortal.isPending ? (
+                        <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                      ) : null}
+                      Manage subscription
+                    </button>
+                  )}
                 </div>
               </motion.div>
 

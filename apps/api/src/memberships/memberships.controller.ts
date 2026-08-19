@@ -26,6 +26,7 @@ import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 import { RegenerateCardDto } from './dto/regenerate-card.dto.js';
+import { CreateMembershipScanDto } from './dto/create-membership-scan.dto.js';
 
 @ApiTags('Memberships')
 @Controller('membership')
@@ -79,6 +80,13 @@ export class MembershipsController {
     return this.membershipsService.apply(user, dto);
   }
 
+  @Post('billing-portal')
+  @ApiBearerAuth()
+  async billingPortal(@CurrentUser() user: TokenPayload) {
+    const url = await this.membershipsService.createBillingPortalSession(user.sub);
+    return { url };
+  }
+
   @Get('me')
   @ApiBearerAuth()
   async getMyMembership(@CurrentUser() user: TokenPayload) {
@@ -127,6 +135,29 @@ export class MembershipsController {
   @ApiBearerAuth()
   async regenerateMyCard(@CurrentUser() user: TokenPayload) {
     return this.membershipsService.regenerateMyCard(user.sub);
+  }
+
+  @Post('scans')
+  @RequirePermission(Permission.SCAN_MEMBERSHIPS)
+  @ApiBearerAuth()
+  async recordScan(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateMembershipScanDto
+  ) {
+    return this.membershipsService.recordScan(dto.qrCodeValue, user.sub);
+  }
+
+  @Get('scans')
+  @RequirePermission(Permission.SCAN_MEMBERSHIPS)
+  @ApiBearerAuth()
+  async listScans(
+    @Query('page') page: string,
+    @Query('limit') limit: string
+  ) {
+    return this.membershipsService.listScans(
+      Number(page) || 1,
+      Number(limit) || 50
+    );
   }
 
   @Post('webhook')

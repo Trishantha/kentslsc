@@ -1,9 +1,11 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Check, ArrowRight } from 'lucide-react';
 import { Link } from '@/i18n/routing';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 
@@ -28,13 +30,27 @@ interface MyMembership {
   membershipType: MembershipType;
 }
 
+interface ApplyMembershipResponse {
+  membership?: MyMembership;
+  paid: boolean;
+  sessionId?: string;
+  clientSecret?: string;
+  url?: string;
+  appliedCredit?: number;
+  freeMonths?: number;
+}
+
 function formatPrice(type: MembershipType) {
   if (type.isFree || type.price === 0) return 'Free';
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
 }
 
 export default function MembershipPlansPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: user } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+
   const { data: types = [], isLoading: typesLoading } = useQuery<MembershipType[]>({
     queryKey: ['membership-types'],
     queryFn: async () => {
@@ -50,6 +66,30 @@ export default function MembershipPlansPage() {
     },
     enabled: !!user,
     retry: false
+  });
+
+  const applyMembership = useMutation({
+    mutationFn: async (membershipTypeId: string) => {
+      const payload = {
+        membershipTypeId,
+        fullName: user?.name ?? '',
+        phone: user?.phone,
+        address: user?.address
+      };
+      const res = await api.post<ApplyMembershipResponse>('/membership/apply', payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['my-membership'] });
+      if (!data.paid || !data.sessionId || !data.clientSecret) {
+        router.push('/dashboard?membership=success');
+        return;
+      }
+      router.push(`/checkout?session_id=${encodeURIComponent(data.sessionId)}&client_secret=${encodeURIComponent(data.clientSecret)}`);
+    },
+    onError: (err) => {
+      setError(getApiErrorMessage(err));
+    }
   });
 
   const isLoading = typesLoading || membershipLoading;
@@ -73,6 +113,12 @@ export default function MembershipPlansPage() {
           </div>
         </div>
 
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="mt-10 flex justify-center">
             <Loader2 className="h-7 w-7 animate-spin text-neon-blue" />
@@ -91,26 +137,22 @@ export default function MembershipPlansPage() {
               const isUpgrade = isMember && type.price > (currentMembership?.membershipType?.price ?? 0);
 
               let ctaText: string;
-              let ctaHref: string;
               let ctaDisabled = false;
 
               if (!user) {
                 ctaText = 'Become a member';
-                ctaHref = `/auth/register?type=${type.id}`;
               } else if (!isMember) {
                 ctaText = 'Become a member';
-                ctaHref = '/dashboard';
               } else if (isCurrent) {
                 ctaText = 'Current plan';
-                ctaHref = '/dashboard';
                 ctaDisabled = true;
               } else if (isUpgrade) {
                 ctaText = 'Upgrade';
-                ctaHref = '/dashboard';
               } else {
                 ctaText = 'Switch plan';
-                ctaHref = '/dashboard';
               }
+
+              const isActionable = user && !isCurrent && !atCapacity;
 
               const waitlistHref = `/contact?subject=${encodeURIComponent(`Membership waitlist: ${type.name}`)}&message=${encodeURIComponent(`Please add me to the waitlist for ${type.name}.`)}`;
               return (
@@ -129,7 +171,7 @@ export default function MembershipPlansPage() {
                   </div>
                   <p className="mt-2 text-2xl font-bold gradient-text">{formatPrice(type)}</p>
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    {type.isFree ? 'Lifetime' : `${type.durationMonths} months`}
+                    {type.isFree ? 'Lifetime' : `Every ${type.durationMonths} month${type.durationMonths === 1 ? '' : 's'} (recurring)`}
                   </p>
                   {type.maxIssuances ? (
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -162,9 +204,24 @@ export default function MembershipPlansPage() {
                         Join waitlist
                       </Link>
                     </div>
+                  ) : isActionable ? (
+                    <button
+                      type="button"
+                      disabled={applyMembership.isPending}
+                      onClick={() => {
+                        setError(null);
+                        applyMembership.mutate(type.id);
+                      }}
+                      className="mt-5 inline-flex items-center justify-center rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-neon-blue/90 disabled:opacity-70"
+                    >
+                      {applyMembership.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {ctaText}
+                    </button>
                   ) : (
                     <Link
-                      href={ctaHref}
+                      href={ctaDisabled ? '#' : user ? '/dashboard' : `/auth/register?type=${type.id}`}
                       aria-disabled={ctaDisabled}
                       className={`mt-5 inline-flex items-center justify-center rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-neon-blue/90 ${ctaDisabled ? 'pointer-events-none opacity-70' : ''}`}
                     >

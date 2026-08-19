@@ -52,6 +52,10 @@ export class StripeWebhookController {
         } else if (metadata.type === 'job_publish') {
           await this.directoryService.handleJobPublishCompleted(metadata);
         }
+      } else if (event.type === 'customer.subscription.updated') {
+        await this.membershipsService.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+      } else if (event.type === 'customer.subscription.deleted') {
+        await this.membershipsService.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
       }
 
       return res.json({ received: true });

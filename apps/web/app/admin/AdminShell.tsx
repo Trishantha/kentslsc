@@ -28,7 +28,9 @@ import {
   Shield,
   ShieldCheck,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ScanLine,
+  History
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 import { AdminHeader } from './AdminHeader';
@@ -210,7 +212,9 @@ const navGroups: NavGroup[] = [
       { href: '/admin/users', label: 'Users', icon: Users, permission: Permission.MANAGE_USERS, prefetch: prefetchUsers },
       { href: '/admin/roles', label: 'Roles', icon: Shield, permission: Permission.MANAGE_USERS },
       { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMembershipTypes },
-      { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMemberships }
+      { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMemberships },
+      { href: '/admin/memberships/scanner', label: 'Scan membership', icon: ScanLine, permission: Permission.SCAN_MEMBERSHIPS },
+      { href: '/admin/memberships/scans', label: 'Scan history', icon: History, permission: Permission.SCAN_MEMBERSHIPS }
     ]
   },
   {

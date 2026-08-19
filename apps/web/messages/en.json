@@ -218,7 +218,7 @@
       "plan": "Plan",
       "dependants": "Dependants",
       "termsText": "I agree to the terms and conditions and privacy policy.",
-      "paymentRedirect": "You will be redirected to Stripe Checkout to pay {price}."
+      "paymentRedirect": "You will be redirected to Stripe Checkout to start a {price} recurring subscription."
     },
     "buttons": {
       "processing": "Processing...",

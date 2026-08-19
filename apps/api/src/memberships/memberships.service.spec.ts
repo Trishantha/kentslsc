@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { MembershipsService } from './memberships.service.js';
-import { MembershipStatus } from '@kentslsc/database';
+import { MembershipStatus, Prisma } from '@kentslsc/database';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 
 const mockMembershipType = {
@@ -25,6 +25,21 @@ const mockPaidMembershipType = {
   name: 'Paid Membership',
   price: 10,
   isFree: false
+};
+
+const mockExpensiveMembershipType = {
+  ...mockPaidMembershipType,
+  id: 'type-expensive',
+  name: 'Expensive Membership',
+  price: 20
+};
+
+const mockCheapMembershipType = {
+  ...mockPaidMembershipType,
+  id: 'type-cheap',
+  name: 'Cheap Membership',
+  price: 5,
+  durationMonths: 12
 };
 
 const mockCreatedMembership = {
@@ -52,11 +67,34 @@ const mockPendingMembership = {
   membershipType: mockPaidMembershipType
 };
 
-const mockCheckoutResult = {
+const mockActivePaidMembership = {
+  ...mockCreatedMembership,
+  id: 'membership-active-paid',
+  status: MembershipStatus.ACTIVE,
+  startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+  endDate: new Date(Date.now() + 335 * 24 * 60 * 60 * 1000),
+  membershipType: mockExpensiveMembershipType
+};
+
+const mockCreditMembership = {
+  ...mockCreatedMembership,
+  id: 'membership-credit',
+  status: MembershipStatus.ACTIVE,
+  membershipType: mockCheapMembershipType,
+  creditAmountApplied: 9.16,
+  creditMonthsGranted: 22
+};
+
+const mockSubscriptionCheckoutResult = {
   id: 'cs_test_123',
   url: 'https://checkout.stripe.test/pay',
   provider: 'stripe',
   clientSecret: 'cs_test_secret'
+};
+
+const mockSyncedPrice = {
+  productId: 'prod_test_1',
+  priceId: 'price_test_1'
 };
 
 describe('MembershipsService', () => {
@@ -64,7 +102,8 @@ describe('MembershipsService', () => {
 
   const mockPrisma: any = {
     membershipType: {
-      findUnique: jest.fn()
+      findUnique: jest.fn(),
+      findFirst: jest.fn()
     },
     membership: {
       count: jest.fn(),
@@ -81,8 +120,24 @@ describe('MembershipsService', () => {
   };
 
   const mockPaymentsService: any = {
-    createCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockCheckoutResult),
-    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
+    createCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockSubscriptionCheckoutResult),
+    createSubscriptionCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockSubscriptionCheckoutResult),
+    syncMembershipTypePrice: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockSyncedPrice),
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
+    getSubscription: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      id: 'sub_test_1',
+      items: { data: [{ id: 'si_test_1', price: { id: 'price_test_1' } }] },
+      current_period_end: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+      status: 'active',
+      customer: 'cus_test_user_1'
+    }),
+    updateSubscriptionPrice: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      id: 'sub_test_1',
+      items: { data: [{ id: 'si_test_1', price: { id: 'price_test_2' } }] },
+      current_period_end: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+      status: 'active'
+    }),
+    cancelSubscription: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
   };
 
   const mockEmailService: any = {
@@ -135,6 +190,7 @@ describe('MembershipsService', () => {
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
       mockPrisma.membership.create.mockResolvedValue(mockCreatedMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue(null);
       mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', email: 'test@example.com' });
       mockSupabaseStorage.uploadBuffer.mockRejectedValue(new Error('Supabase is not configured'));
@@ -180,28 +236,32 @@ describe('MembershipsService', () => {
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
       mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue(null);
       mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
 
       const result = await service.processApplication('user-1', 'test@example.com', dto);
 
       expect(result).toEqual({
-        sessionId: mockCheckoutResult.id,
-        url: mockCheckoutResult.url,
+        sessionId: mockSubscriptionCheckoutResult.id,
+        url: mockSubscriptionCheckoutResult.url,
         paid: true,
-        provider: mockCheckoutResult.provider,
-        clientSecret: mockCheckoutResult.clientSecret
+        provider: mockSubscriptionCheckoutResult.provider,
+        clientSecret: mockSubscriptionCheckoutResult.clientSecret
       });
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             userId: 'user-1',
             membershipTypeId: 'type-paid',
-            status: MembershipStatus.PENDING
+            status: MembershipStatus.PENDING,
+            stripeCustomerId: 'cus_test_user_1',
+            stripePriceId: mockSyncedPrice.priceId
           })
         })
       );
-      expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
+          priceId: mockSyncedPrice.priceId,
           customer: 'cus_test_user_1',
           metadata: expect.objectContaining({
             source: 'membership',
@@ -231,6 +291,7 @@ describe('MembershipsService', () => {
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
       mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue(null);
       mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
 
       await service.processApplication('user-1', 'test@example.com', dto);
@@ -246,12 +307,146 @@ describe('MembershipsService', () => {
         })
       );
     });
+
+    it('updates existing subscription when switching to a cheaper paid plan', async () => {
+      const dto: ApplyMembershipDto = {
+        membershipTypeId: 'type-cheap',
+        fullName: 'Test User',
+        phone: '+441234567890',
+        address: {
+          buildingStreet: '1 Test St',
+          locality: 'Test locality',
+          townCity: 'Test Town',
+          postcode: 'TE1 1ST'
+        },
+        dependants: []
+      };
+
+      mockPrisma.membershipType.findUnique.mockResolvedValue(mockCheapMembershipType);
+      mockPrisma.membership.count.mockResolvedValue(0);
+      mockPrisma.membership.create.mockResolvedValue(mockCreditMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockActivePaidMembership,
+        stripeSubscriptionId: 'sub_test_1',
+        stripePriceId: 'price_test_1'
+      });
+      mockPrisma.membership.findUnique.mockResolvedValue({
+        ...mockActivePaidMembership,
+        membershipType: mockCheapMembershipType,
+        stripeSubscriptionId: 'sub_test_1',
+        stripePriceId: 'price_test_1'
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
+
+      const result = await service.processApplication('user-1', 'test@example.com', dto);
+
+      expect(result.paid).toBe(true);
+      expect(result.upgraded).toBe(true);
+      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+      expect(mockPaymentsService.updateSubscriptionPrice).toHaveBeenCalledWith(
+        'sub_test_1',
+        'si_test_1',
+        mockSyncedPrice.priceId,
+        'create_prorations'
+      );
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockActivePaidMembership.id },
+          data: expect.objectContaining({
+            membershipTypeId: 'type-cheap',
+            stripePriceId: mockSyncedPrice.priceId
+          })
+        })
+      );
+    });
+
+    it('updates existing subscription when upgrading to a more expensive paid plan', async () => {
+      const dto: ApplyMembershipDto = {
+        membershipTypeId: 'type-expensive',
+        fullName: 'Test User',
+        phone: '+441234567890',
+        address: {
+          buildingStreet: '1 Test St',
+          locality: 'Test locality',
+          townCity: 'Test Town',
+          postcode: 'TE1 1ST'
+        },
+        dependants: []
+      };
+
+      mockPrisma.membershipType.findUnique.mockResolvedValue(mockExpensiveMembershipType);
+      mockPrisma.membership.count.mockResolvedValue(0);
+      mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockActivePaidMembership,
+        membershipType: mockPaidMembershipType,
+        stripeSubscriptionId: 'sub_test_1',
+        stripePriceId: 'price_test_1'
+      });
+      mockPrisma.membership.findUnique.mockResolvedValue({
+        ...mockActivePaidMembership,
+        membershipType: mockExpensiveMembershipType,
+        stripeSubscriptionId: 'sub_test_1',
+        stripePriceId: 'price_test_1'
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
+
+      const result = await service.processApplication('user-1', 'test@example.com', dto);
+
+      expect(result.paid).toBe(true);
+      expect(result.upgraded).toBe(true);
+      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+      expect(mockPaymentsService.updateSubscriptionPrice).toHaveBeenCalledWith(
+        'sub_test_1',
+        'si_test_1',
+        mockSyncedPrice.priceId,
+        'create_prorations'
+      );
+    });
+
+    it('creates a new subscription checkout when the existing paid membership has no subscription', async () => {
+      const dto: ApplyMembershipDto = {
+        membershipTypeId: 'type-paid',
+        fullName: 'Test User',
+        phone: '+441234567890',
+        address: {
+          buildingStreet: '1 Test St',
+          locality: 'Test locality',
+          townCity: 'Test Town',
+          postcode: 'TE1 1ST'
+        },
+        dependants: []
+      };
+
+      mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
+      mockPrisma.membership.count.mockResolvedValue(0);
+      mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockActivePaidMembership,
+        startDate: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        membershipType: mockExpensiveMembershipType,
+        stripeSubscriptionId: null,
+        stripePriceId: null
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
+
+      await service.processApplication('user-1', 'test@example.com', dto);
+
+      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          priceId: mockSyncedPrice.priceId,
+          customer: 'cus_test_user_1'
+        })
+      );
+    });
   });
 
   describe('handleCheckoutSessionCompleted', () => {
     it('activates an existing pending membership when membershipId is provided', async () => {
       mockPrisma.membership.findUnique.mockResolvedValue({
         ...mockPendingMembership,
+        stripePriceId: 'price_test_1',
         user: { id: 'user-1', name: 'Test User', email: 'test@example.com' }
       });
       mockPrisma.membership.updateMany.mockResolvedValue({ count: 0 });
@@ -268,6 +463,7 @@ describe('MembershipsService', () => {
 
       const result = await service.handleCheckoutSessionCompleted({
         id: 'cs_test_123',
+        subscription: 'sub_test_1',
         metadata: {
           source: 'membership',
           membershipId: mockPendingMembership.id,
@@ -290,6 +486,7 @@ describe('MembershipsService', () => {
           })
         })
       );
+      expect(mockPaymentsService.getSubscription).toHaveBeenCalledWith('sub_test_1');
       expect(result.membershipId).toBe('MEM-ABCDEFGH');
     });
 
@@ -303,6 +500,7 @@ describe('MembershipsService', () => {
 
       const result = await service.handleCheckoutSessionCompleted({
         id: 'cs_test_123',
+        subscription: 'sub_test_1',
         metadata: {
           source: 'membership',
           userId: 'user-1',
@@ -320,7 +518,8 @@ describe('MembershipsService', () => {
           data: expect.objectContaining({
             userId: 'user-1',
             membershipTypeId: 'type-paid',
-            status: MembershipStatus.ACTIVE
+            status: MembershipStatus.ACTIVE,
+            stripeSubscriptionId: 'sub_test_1'
           })
         })
       );
@@ -350,6 +549,63 @@ describe('MembershipsService', () => {
           customer_email: 'other@example.com'
         } as any)
       ).rejects.toThrow('Membership user mismatch');
+    });
+  });
+
+  describe('handleSubscriptionUpdated', () => {
+    it('updates membership end date and status from the subscription', async () => {
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockActivePaidMembership,
+        stripeSubscriptionId: 'sub_test_1',
+        stripePriceId: 'price_test_1',
+        membershipTypeId: 'type-paid'
+      });
+      mockPrisma.membershipType.findFirst.mockResolvedValue(null);
+      mockPrisma.membership.update.mockResolvedValue({} as any);
+
+      const now = Math.floor(Date.now() / 1000);
+      const result = await service.handleSubscriptionUpdated({
+        id: 'sub_test_1',
+        status: 'active',
+        current_period_end: now + 365 * 24 * 60 * 60,
+        items: { data: [{ id: 'si_test_1', price: { id: 'price_test_1' } }] }
+      } as any);
+
+      expect(result.membershipId).toBe(mockActivePaidMembership.membershipId);
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: MembershipStatus.ACTIVE,
+            endDate: new Date((now + 365 * 24 * 60 * 60) * 1000),
+            stripePriceId: 'price_test_1'
+          })
+        })
+      );
+    });
+  });
+
+  describe('handleSubscriptionDeleted', () => {
+    it('cancels the membership when the subscription is deleted', async () => {
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockActivePaidMembership,
+        stripeSubscriptionId: 'sub_test_1'
+      });
+      mockPrisma.membership.update.mockResolvedValue({} as any);
+
+      const result = await service.handleSubscriptionDeleted({
+        id: 'sub_test_1',
+        status: 'canceled'
+      } as any);
+
+      expect(result.membershipId).toBe(mockActivePaidMembership.membershipId);
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: MembershipStatus.CANCELLED,
+            endDate: expect.any(Date)
+          })
+        })
+      );
     });
   });
 });

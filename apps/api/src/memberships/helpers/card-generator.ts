@@ -68,6 +68,26 @@ interface TextPathOptions {
   letterSpacing?: number;
   fill: string;
   opacity?: number;
+  maxWidth?: number;
+}
+
+function measureTextWidth(
+  font: fontkit.Font,
+  text: string,
+  fontSize: number,
+  letterSpacing: number
+): number {
+  const scale = fontSize / font.unitsPerEm;
+  const extraAdvance = letterSpacing / scale;
+  const run = font.layout(text);
+  const glyphs = run.glyphs;
+  const positions = run.positions;
+
+  let totalWidth = 0;
+  for (let i = 0; i < glyphs.length; i++) {
+    totalWidth += (positions[i]?.xAdvance ?? 0) + extraAdvance;
+  }
+  return totalWidth * scale;
 }
 
 function textToPath(
@@ -80,7 +100,16 @@ function textToPath(
 ): string {
   const weight = nearestWeight(options.weight ?? 400);
   const font = fonts[weight];
-  const scale = fontSize / font.unitsPerEm;
+
+  let resolvedFontSize = fontSize;
+  if (options.maxWidth !== undefined && options.maxWidth > 0) {
+    const naturalWidth = measureTextWidth(font, text, fontSize, options.letterSpacing ?? 0);
+    if (naturalWidth > options.maxWidth) {
+      resolvedFontSize = Math.max(12, Math.floor(fontSize * (options.maxWidth / naturalWidth)));
+    }
+  }
+
+  const scale = resolvedFontSize / font.unitsPerEm;
   const extraAdvance = (options.letterSpacing ?? 0) / scale;
 
   const run = font.layout(text);
@@ -325,7 +354,7 @@ export async function generateCardBuffer(
 
   <!-- Member details -->
   ${textToPath(fonts, 'MEMBER NAME', 340, 170, 13, { weight: 700, letterSpacing: 2, fill: palette.accent })}
-  ${textToPath(fonts, details.memberName, 340, 218, 42, { weight: 800, fill: '#ffffff' })}
+  ${textToPath(fonts, details.memberName, 340, 218, 42, { weight: 800, fill: '#ffffff', maxWidth: 440 })}
 
   ${textToPath(fonts, 'MEMBERSHIP ID', 340, 290, 13, { weight: 700, letterSpacing: 2, fill: '#94a3b8' })}
   ${textToPath(fonts, details.membershipId, 340, 325, 24, { weight: 700, letterSpacing: 1, fill: '#ffffff' })}

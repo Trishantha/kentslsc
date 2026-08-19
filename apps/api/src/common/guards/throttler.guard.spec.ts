@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { ThrottlerStorage } from '@nestjs/throttler';
 import { AppThrottlerGuard } from './throttler.guard.js';
 
-class MockExecutionContext implements Partial<ExecutionContext> {
+class MockExecutionContext {
   constructor(private readonly req: Record<string, unknown>) {}
 
   getType() {
@@ -39,27 +39,27 @@ describe('AppThrottlerGuard', () => {
   const shouldSkip = (context: ExecutionContext) => (guard as any).shouldSkip(context) as Promise<boolean>;
 
   it('skips throttling for 127.0.0.1', async () => {
-    const context = new MockExecutionContext({ ip: '127.0.0.1' }) as ExecutionContext;
+    const context = new MockExecutionContext({ ip: '127.0.0.1' }) as unknown as ExecutionContext;
     await expect(shouldSkip(context)).resolves.toBe(true);
   });
 
   it('skips throttling for IPv6 loopback', async () => {
-    const context = new MockExecutionContext({ ip: '::1' }) as ExecutionContext;
+    const context = new MockExecutionContext({ ip: '::1' }) as unknown as ExecutionContext;
     await expect(shouldSkip(context)).resolves.toBe(true);
   });
 
   it('skips throttling for IPv4-mapped IPv6 loopback', async () => {
-    const context = new MockExecutionContext({ ip: '::ffff:127.0.0.1' }) as ExecutionContext;
+    const context = new MockExecutionContext({ ip: '::ffff:127.0.0.1' }) as unknown as ExecutionContext;
     await expect(shouldSkip(context)).resolves.toBe(true);
   });
 
   it('does not skip throttling for public IPs', async () => {
-    const context = new MockExecutionContext({ ip: '203.0.113.45' }) as ExecutionContext;
+    const context = new MockExecutionContext({ ip: '203.0.113.45' }) as unknown as ExecutionContext;
     await expect(shouldSkip(context)).resolves.toBe(false);
   });
 
   it('does not skip throttling when IP is missing', async () => {
-    const context = new MockExecutionContext({}) as ExecutionContext;
+    const context = new MockExecutionContext({}) as unknown as ExecutionContext;
     await expect(shouldSkip(context)).resolves.toBe(false);
   });
 });

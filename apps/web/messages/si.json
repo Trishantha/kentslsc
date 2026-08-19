@@ -218,7 +218,7 @@
       "plan": "සැලසුම් කරන්න",
       "dependants": "යැපෙන්නන්",
       "termsText": "මම නියමයන් සහ කොන්දේසි සහ පෞද්ගලිකත්ව ප්‍රතිපත්තියට එකඟ වෙමි.",
-      "paymentRedirect": "{price} ගෙවීමට ඔබව Stripe Checkout වෙත හරවා යවනු ලැබේ."
+      "paymentRedirect": "You will be redirected to Stripe Checkout to start a {price} recurring subscription."
     },
     "buttons": {
       "processing": "සකසමින්...",

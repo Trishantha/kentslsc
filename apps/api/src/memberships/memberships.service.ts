@@ -4,7 +4,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
-import { MembershipStatus, MembershipType, Membership, Prisma } from '@kentslsc/database';
+import { MembershipStatus, MembershipType, Membership, MembershipScanResult, Prisma } from '@kentslsc/database';
 import { TokenPayload, DependantInput, MembershipFeature, UserRole } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
@@ -27,6 +27,13 @@ export interface CreateMembershipData {
   status?: MembershipStatus;
   paidAt?: Date;
   paymentMethod?: string;
+  startDate?: Date;
+  endDate?: Date;
+  creditAmountApplied?: number;
+  creditMonthsGranted?: number;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
 }
 
 @Injectable()
@@ -137,6 +144,69 @@ export class MembershipsService {
       where,
       data: { status: MembershipStatus.CANCELLED, updatedAt: new Date() }
     });
+  }
+
+  /**
+   * Find the user's current effective paid membership. Free and pending
+   * memberships are ignored because they carry no refundable monetary value.
+   */
+  private async findCurrentPaidMembership(userId: string) {
+    return this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] },
+        membershipType: { isFree: false }
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { membershipType: true }
+    });
+  }
+
+  /**
+   * Calculate the unused monetary value of an active paid membership.
+   * Returns the value in the major currency unit (e.g. GBP).
+   */
+  private calculateProratedCredit(membership: Membership & { membershipType: MembershipType }): number {
+    const now = new Date();
+    const start = membership.startDate;
+    const end = membership.endDate;
+
+    if (end <= now) {
+      return 0;
+    }
+
+    const totalMs = end.getTime() - start.getTime();
+    const remainingMs = end.getTime() - now.getTime();
+
+    if (totalMs <= 0) {
+      return 0;
+    }
+
+    const totalPrice = Number(membership.membershipType.price);
+    const ratio = Math.max(0, Math.min(1, remainingMs / totalMs));
+    return Number((totalPrice * ratio).toFixed(2));
+  }
+
+  /**
+   * Convert a monetary credit into whole months on the target plan.
+   */
+  private creditToFreeMonths(credit: number, membershipType: MembershipType): number {
+    if (credit <= 0 || membershipType.isFree) {
+      return 0;
+    }
+
+    const price = Number(membershipType.price);
+    if (price <= 0) {
+      return 0;
+    }
+
+    const monthlyPrice = price / membershipType.durationMonths;
+    if (monthlyPrice <= 0) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor(credit / monthlyPrice));
   }
 
   async findTypes() {
@@ -250,9 +320,17 @@ export class MembershipsService {
       }
     });
 
+    const currentPaidMembership = await this.findCurrentPaidMembership(userId);
+
+    // Free plans do not carry credit forward; just activate the new plan.
     if (type.isFree || Number(type.price) === 0) {
-      // Create the new membership before cancelling the old one so a failure
-      // after cancellation never leaves the user with no effective membership.
+      // If they are downgrading from a paid subscription, cancel the subscription.
+      if (currentPaidMembership?.stripeSubscriptionId) {
+        await this.paymentsService.cancelSubscription(currentPaidMembership.stripeSubscriptionId).catch((err) => {
+          this.logger.warn(`Failed to cancel subscription ${currentPaidMembership.stripeSubscriptionId}: ${(err as Error).message}`);
+        });
+      }
+
       const membership = await this.createMembership({
         userId,
         membershipTypeId: type.id,
@@ -268,8 +346,49 @@ export class MembershipsService {
       return { membership, paid: false };
     }
 
-    // Paid application: create a pending membership so admins can see the attempt,
-    // send payment reminders, and the webhook can activate the exact record.
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(userId, email);
+    const synced = await this.paymentsService.syncMembershipTypePrice({
+      id: type.id,
+      name: type.name,
+      price: Number(type.price),
+      durationMonths: type.durationMonths
+    });
+
+    // Upgrade/downgrade: if they already have an active paid subscription, change the price.
+    if (currentPaidMembership?.stripeSubscriptionId && currentPaidMembership?.stripePriceId) {
+      const subscription = await this.paymentsService.getSubscription(currentPaidMembership.stripeSubscriptionId);
+      const item = subscription.items.data[0];
+      if (!item) {
+        throw new BadRequestException('Existing subscription has no items');
+      }
+
+      await this.paymentsService.updateSubscriptionPrice(
+        currentPaidMembership.stripeSubscriptionId,
+        item.id,
+        synced.priceId,
+        'create_prorations'
+      );
+
+      // Update the local membership record to reflect the new plan. Stripe webhooks
+      // will later adjust the end date when the subscription period changes.
+      await this.prisma.membership.update({
+        where: { id: currentPaidMembership.id },
+        data: {
+          membershipTypeId: type.id,
+          stripePriceId: synced.priceId,
+          dependantsJson: dependants as unknown as Prisma.InputJsonValue
+        }
+      });
+
+      return {
+        membership: await this.findMembershipById(currentPaidMembership.id),
+        paid: true,
+        upgraded: true,
+        subscriptionId: currentPaidMembership.stripeSubscriptionId
+      };
+    }
+
+    // New paid membership: create pending record and subscription checkout.
     await this.cancelPreviousPendingMemberships(userId);
     const pendingMembership = await this.createMembership({
       userId,
@@ -280,19 +399,17 @@ export class MembershipsService {
       dependants,
       membershipType: type,
       overrideEmail: email,
-      status: MembershipStatus.PENDING
+      status: MembershipStatus.PENDING,
+      stripeCustomerId,
+      stripePriceId: synced.priceId
     });
 
-    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(userId, email);
-
-    const checkout = await this.paymentsService.createCheckout({
-      amount: Math.round(Number(type.price) * 100),
-      currency: 'gbp',
-      description: type.name,
+    const checkout = await this.paymentsService.createSubscriptionCheckout({
+      priceId: synced.priceId,
       customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
-      uiMode: 'embedded',
+      uiMode: 'embedded_page',
       metadata: {
         source: 'membership',
         membershipId: pendingMembership.id,
@@ -315,8 +432,8 @@ export class MembershipsService {
   }
 
   async createMembership(data: CreateMembershipData): Promise<Membership> {
-    const startDate = new Date();
-    const endDate = this.computeEndDate(data.membershipType, startDate);
+    const startDate = data.startDate ?? new Date();
+    const endDate = data.endDate ?? this.computeEndDate(data.membershipType, startDate);
 
     const membershipPublicId = this.generateMembershipId();
     const qrValue = `${this.frontendUrl}/membership/verify/${membershipPublicId}`;
@@ -336,7 +453,13 @@ export class MembershipsService {
         qrCodeValue: qrValue,
         membershipCardUrl: undefined,
         paidAt: data.paidAt,
-        paymentMethod: data.paymentMethod
+        paymentMethod: data.paymentMethod,
+        creditAmountApplied:
+          data.creditAmountApplied !== undefined ? new Prisma.Decimal(data.creditAmountApplied) : undefined,
+        creditMonthsGranted: data.creditMonthsGranted,
+        stripeCustomerId: data.stripeCustomerId,
+        stripeSubscriptionId: data.stripeSubscriptionId,
+        stripePriceId: data.stripePriceId
       },
       include: { membershipType: true }
     });
@@ -461,7 +584,10 @@ export class MembershipsService {
       dependantsCount: dependants.length,
       dependants,
       paidAt: membership.paidAt,
-      paymentMethod: membership.paymentMethod
+      paymentMethod: membership.paymentMethod,
+      creditAmountApplied: membership.creditAmountApplied ? Number(membership.creditAmountApplied) : null,
+      creditMonthsGranted: membership.creditMonthsGranted,
+      stripeSubscriptionId: membership.stripeSubscriptionId
     };
   }
 
@@ -665,10 +791,57 @@ export class MembershipsService {
   }
 
   async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+    const metadata = session.metadata ?? {};
+    if (metadata.source !== 'membership') return { received: true, membershipId: null };
+
+    const subscriptionId = typeof session.subscription === 'string'
+      ? session.subscription
+      : session.subscription?.id;
+
+    if (!subscriptionId) {
+      // Fallback for any non-subscription membership checkout (legacy one-off).
+      return this.handleMembershipCheckoutCompleted(metadata, 'stripe', session.customer_email ?? undefined);
+    }
+
+    const stripeSubscription = await this.paymentsService.getSubscription(subscriptionId);
+    const stripePriceId = stripeSubscription.items.data[0]?.price.id;
+    const customerId = typeof stripeSubscription.customer === 'string'
+      ? stripeSubscription.customer
+      : stripeSubscription.customer.id;
+    const currentPeriodEnd = new Date((stripeSubscription as any).current_period_end * 1000);
+
+    if (metadata.membershipId) {
+      const existing = await this.prisma.membership.findUnique({
+        where: { id: metadata.membershipId, deletedAt: null },
+        include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+      });
+
+      if (existing && existing.status === MembershipStatus.PENDING) {
+        await this.cancelPreviousMemberships(existing.userId, existing.id);
+        await this.prisma.membership.update({
+          where: { id: existing.id },
+          data: {
+            status: MembershipStatus.ACTIVE,
+            paidAt: new Date(),
+            paymentMethod: 'stripe',
+            startDate: new Date(),
+            endDate: currentPeriodEnd,
+            stripeSubscriptionId: subscriptionId,
+            stripeCustomerId: customerId,
+            stripePriceId: stripePriceId ?? existing.stripePriceId
+          }
+        });
+        const activated = await this.findMembershipById(existing.id);
+        return { received: true, membershipId: activated.membershipId };
+      }
+    }
+
+    // No existing membership record: create one from metadata.
     return this.handleMembershipCheckoutCompleted(
-      session.metadata ?? {},
+      metadata,
       'stripe',
-      session.customer_email ?? undefined
+      session.customer_email ?? undefined,
+      { subscriptionId, currentPeriodEnd, stripePriceId, stripeCustomerId: customerId }
     );
   }
 
@@ -688,7 +861,13 @@ export class MembershipsService {
   private async handleMembershipCheckoutCompleted(
     metadata: Record<string, string>,
     paymentMethod: string,
-    customerEmail?: string
+    customerEmail?: string,
+    subscriptionContext?: {
+      subscriptionId: string;
+      currentPeriodEnd: Date;
+      stripePriceId?: string | null;
+      stripeCustomerId?: string;
+    }
   ) {
     if (metadata.source !== 'membership') return { received: true, membershipId: null };
 
@@ -713,10 +892,21 @@ export class MembershipsService {
 
         if (existing.status === MembershipStatus.PENDING) {
           await this.cancelPreviousMemberships(metadata.userId, existing.id);
-          const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);
-          await this.prisma.membership.update({
+          const startDate = new Date();
+          const endDate = subscriptionContext?.currentPeriodEnd ?? this.computeEndDate(existing.membershipType, startDate);
+          const activated = await this.prisma.membership.update({
             where: { id: existing.id },
-            data: { paidAt: new Date(), paymentMethod }
+            data: {
+              status: MembershipStatus.ACTIVE,
+              paidAt: new Date(),
+              paymentMethod,
+              startDate,
+              endDate,
+              stripeSubscriptionId: subscriptionContext?.subscriptionId ?? existing.stripeSubscriptionId,
+              stripeCustomerId: subscriptionContext?.stripeCustomerId ?? existing.stripeCustomerId,
+              stripePriceId: subscriptionContext?.stripePriceId ?? existing.stripePriceId
+            },
+            include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
           });
           return { received: true, membershipId: activated.membershipId };
         }
@@ -754,6 +944,9 @@ export class MembershipsService {
 
     await this.cancelPreviousMemberships(metadata.userId);
 
+    const startDate = new Date();
+    const endDate = subscriptionContext?.currentPeriodEnd ?? this.computeEndDate(membershipType, startDate);
+
     const membership = await this.createMembership({
       userId: metadata.userId,
       membershipTypeId: membershipType.id,
@@ -765,9 +958,223 @@ export class MembershipsService {
       overrideEmail: customerEmail,
       status: MembershipStatus.ACTIVE,
       paidAt: new Date(),
-      paymentMethod
+      paymentMethod,
+      startDate,
+      endDate,
+      stripeSubscriptionId: subscriptionContext?.subscriptionId,
+      stripeCustomerId: subscriptionContext?.stripeCustomerId,
+      stripePriceId: subscriptionContext?.stripePriceId ?? undefined
     });
 
     return { received: true, membershipId: membership.membershipId };
+  }
+
+  async createBillingPortalSession(userId: string): Promise<string> {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] },
+        stripeCustomerId: { not: null }
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { stripeCustomerId: true }
+    });
+
+    if (!membership?.stripeCustomerId) {
+      throw new BadRequestException('No active subscription found');
+    }
+
+    return this.paymentsService.createBillingPortalSession(
+      membership.stripeCustomerId,
+      `${this.frontendUrl}/dashboard`
+    );
+  }
+
+  async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { stripeSubscriptionId: subscription.id, deletedAt: null }
+    });
+
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    const status = subscription.status;
+    const membershipStatus =
+      status === 'active' || status === 'trialing'
+        ? MembershipStatus.ACTIVE
+        : status === 'canceled' || status === 'incomplete_expired'
+          ? MembershipStatus.CANCELLED
+          : membership.status;
+
+    const priceId = subscription.items.data[0]?.price.id;
+
+    // When the price changes, keep the local membership type in sync if possible.
+    let membershipTypeId = membership.membershipTypeId;
+    if (priceId) {
+      const matchingType = await this.prisma.membershipType.findFirst({
+        where: { stripePriceId: priceId, deletedAt: null }
+      });
+      if (matchingType) {
+        membershipTypeId = matchingType.id;
+      }
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: membershipStatus,
+        endDate: new Date((subscription as any).current_period_end * 1000),
+        stripePriceId: priceId ?? membership.stripePriceId,
+        membershipTypeId
+      }
+    });
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { stripeSubscriptionId: subscription.id, deletedAt: null }
+    });
+
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: MembershipStatus.CANCELLED,
+        endDate: new Date()
+      }
+    });
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  private extractMembershipId(raw: string): string | null {
+    const trimmed = raw.trim();
+
+    // A bare membership id, e.g. MEM-ABC12345.
+    if (/^MEM-[A-Z0-9_-]+$/i.test(trimmed)) {
+      return trimmed.toUpperCase();
+    }
+
+    // The QR code value is a URL like https://.../membership/verify/MEM-ABC12345.
+    const match = trimmed.match(/\/membership\/verify\/([^/?#]+)/);
+    if (match?.[1]) {
+      return match[1].toUpperCase();
+    }
+
+    return null;
+  }
+
+  async recordScan(qrCodeValue: string, scannedById: string) {
+    const membershipPublicId = this.extractMembershipId(qrCodeValue);
+
+    if (!membershipPublicId) {
+      const scan = await this.prisma.membershipScan.create({
+        data: {
+          scannedValue: qrCodeValue,
+          result: MembershipScanResult.NOT_FOUND,
+          scannedById
+        }
+      });
+      return {
+        scan,
+        result: MembershipScanResult.NOT_FOUND,
+        membership: null
+      };
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: { membershipId: membershipPublicId, deletedAt: null },
+      include: {
+        membershipType: true,
+        user: { select: { name: true, email: true } }
+      }
+    });
+
+    if (!membership) {
+      const scan = await this.prisma.membershipScan.create({
+        data: {
+          scannedValue: qrCodeValue,
+          membershipId: membershipPublicId,
+          result: MembershipScanResult.NOT_FOUND,
+          scannedById
+        }
+      });
+      return {
+        scan,
+        result: MembershipScanResult.NOT_FOUND,
+        membership: null
+      };
+    }
+
+    const isExpired = membership.endDate < new Date();
+    let result: MembershipScanResult;
+
+    if (isExpired) {
+      result = MembershipScanResult.EXPIRED;
+    } else if (membership.status === MembershipStatus.CANCELLED) {
+      result = MembershipScanResult.CANCELLED;
+    } else if (membership.status !== MembershipStatus.ACTIVE) {
+      result = MembershipScanResult.INACTIVE;
+    } else {
+      result = MembershipScanResult.VALID;
+    }
+
+    const dependants = (membership.dependantsJson as { name: string; relationship: string }[]) ?? [];
+
+    const scan = await this.prisma.membershipScan.create({
+      data: {
+        scannedValue: qrCodeValue,
+        membershipId: membershipPublicId,
+        result,
+        memberName: membership.user.name,
+        membershipType: membership.membershipType.name,
+        scannedById
+      }
+    });
+
+    return {
+      scan,
+      result,
+      membership: {
+        membershipId: membership.membershipId,
+        memberName: membership.user.name,
+        email: membership.user.email,
+        type: membership.membershipType.name,
+        status: membership.status,
+        startDate: membership.startDate,
+        endDate: membership.endDate,
+        dependantsCount: dependants.length,
+        isExpired
+      }
+    };
+  }
+
+  async listScans(page = 1, limit = 50) {
+    const [items, total] = await Promise.all([
+      this.prisma.membershipScan.findMany({
+        orderBy: { scannedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          scannedBy: { select: { id: true, name: true, email: true } }
+        }
+      }),
+      this.prisma.membershipScan.count()
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 }

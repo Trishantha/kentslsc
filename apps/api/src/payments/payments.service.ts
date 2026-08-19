@@ -16,7 +16,7 @@ const PAYPAL_TIMEOUT_MS = 30_000;
 
 export type PaymentProvider = 'stripe' | 'paypal';
 
-export type CheckoutUiMode = 'hosted' | 'embedded';
+export type CheckoutUiMode = 'hosted' | 'embedded' | 'embedded_page';
 
 export interface CreateCheckoutInput {
   provider?: PaymentProvider;
@@ -33,6 +33,8 @@ export interface CreateCheckoutInput {
   lineItems?: Stripe.Checkout.SessionCreateParams.LineItem[];
   paymentMethodTypes?: Stripe.Checkout.SessionCreateParams.PaymentMethodType[];
   uiMode?: CheckoutUiMode;
+  /** When false, processing fees are not added to the checkout total. Defaults to true. */
+  includeProcessingFee?: boolean;
 }
 
 export interface CheckoutResult {
@@ -43,6 +45,27 @@ export interface CheckoutResult {
   netAmount?: number;
   processingFee?: number;
   grossAmount?: number;
+}
+
+export interface SyncedStripePrice {
+  productId: string;
+  priceId: string;
+}
+
+export interface CreateSubscriptionCheckoutInput {
+  priceId: string;
+  successUrl: string;
+  cancelUrl: string;
+  customer: string;
+  metadata?: Record<string, string>;
+  uiMode?: CheckoutUiMode;
+}
+
+export interface SubscriptionCheckoutResult {
+  provider: 'stripe';
+  id: string;
+  url: string;
+  clientSecret?: string;
 }
 
 interface EffectivePaymentSettings {
@@ -284,7 +307,10 @@ export class PaymentsService {
 
     const currency = (input.currency ?? 'gbp').toLowerCase();
     const netAmount = input.amount ?? 0;
-    const feeResult = this.calculateProcessingFee(netAmount, effective);
+    const includeProcessingFee = input.includeProcessingFee !== false;
+    const feeResult = includeProcessingFee
+      ? this.calculateProcessingFee(netAmount, effective)
+      : { net: netAmount, fee: 0, gross: netAmount };
 
     let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
     if (input.lineItems) {
@@ -327,7 +353,7 @@ export class PaymentsService {
       ];
     }
 
-    const isEmbedded = input.uiMode === 'embedded';
+    const isEmbedded = input.uiMode === 'embedded' || input.uiMode === 'embedded_page';
 
     const session = await this.stripe!.checkout.sessions.create({
       mode: input.mode ?? 'payment',
@@ -340,7 +366,7 @@ export class PaymentsService {
           : {}),
       ...(isEmbedded
         ? {
-            ui_mode: 'embedded' as const,
+            ui_mode: 'embedded_page' as const,
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }
@@ -365,6 +391,151 @@ export class PaymentsService {
       processingFee: feeResult.fee,
       grossAmount: feeResult.gross
     };
+  }
+
+  /**
+   * Ensure a paid membership type has a corresponding Stripe Product and recurring Price.
+   * Creates them if missing and persists the IDs on the membership type.
+   */
+  async syncMembershipTypePrice(
+    type: { id: string; name: string; price: number; durationMonths: number },
+    effective?: EffectivePaymentSettings
+  ): Promise<SyncedStripePrice> {
+    const settings = effective ?? (await this.getEffectiveSettings());
+    this.ensureStripeClient(settings.stripeSecretKey);
+    this.ensureEnabled();
+
+    let productId = type.id;
+    const existingProduct = await this.stripe!.products.search({
+      query: `metadata['membershipTypeId']:'${type.id}'`,
+      limit: 1
+    });
+    const matchedProductId = existingProduct.data[0]?.id;
+    if (matchedProductId) {
+      productId = matchedProductId;
+    } else {
+      const product = await this.stripe!.products.create({
+        name: type.name,
+        metadata: { membershipTypeId: type.id }
+      });
+      productId = product.id;
+    }
+
+    const unitAmount = Math.round(type.price * 100);
+    const prices = await this.stripe!.prices.list({
+      product: productId,
+      type: 'recurring',
+      active: true,
+      limit: 100
+    });
+
+    const matched = prices.data.find(
+      (p) =>
+        p.unit_amount === unitAmount &&
+        p.recurring?.interval === 'month' &&
+        p.recurring?.interval_count === type.durationMonths
+    );
+
+    if (matched) {
+      return { productId, priceId: matched.id };
+    }
+
+    const price = await this.stripe!.prices.create({
+      product: productId,
+      unit_amount: unitAmount,
+      currency: 'gbp',
+      recurring: {
+        interval: 'month',
+        interval_count: type.durationMonths
+      },
+      metadata: { membershipTypeId: type.id }
+    });
+
+    return { productId, priceId: price.id };
+  }
+
+  async createSubscriptionCheckout(
+    input: CreateSubscriptionCheckoutInput,
+    effective?: EffectivePaymentSettings
+  ): Promise<SubscriptionCheckoutResult> {
+    const settings = effective ?? (await this.getEffectiveSettings());
+    this.ensureStripeClient(settings.stripeSecretKey);
+    this.ensureEnabled();
+
+    const isEmbedded = input.uiMode === 'embedded' || input.uiMode === 'embedded_page';
+
+    const session = await this.stripe!.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: input.priceId, quantity: 1 }],
+      customer: input.customer,
+      ...(isEmbedded
+        ? {
+            ui_mode: 'embedded_page' as const,
+            return_url: input.successUrl,
+            redirect_on_completion: 'always' as const
+          }
+        : {
+            success_url: input.successUrl,
+            cancel_url: input.cancelUrl
+          }),
+      metadata: input.metadata,
+      subscription_data: {
+        metadata: input.metadata
+      }
+    });
+
+    return {
+      provider: 'stripe',
+      id: session.id,
+      url: session.url ?? input.successUrl,
+      clientSecret: isEmbedded ? (session.client_secret ?? undefined) : undefined
+    };
+  }
+
+  async createBillingPortalSession(customerId: string, returnUrl: string): Promise<string> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const session = await this.stripe!.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl
+    });
+
+    return session.url;
+  }
+
+  async cancelSubscription(stripeSubscriptionId: string): Promise<void> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    await this.stripe!.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
+  }
+
+  async updateSubscriptionPrice(
+    stripeSubscriptionId: string,
+    subscriptionItemId: string,
+    newPriceId: string,
+    prorationBehavior: Stripe.SubscriptionUpdateParams.ProrationBehavior = 'create_prorations'
+  ): Promise<Stripe.Subscription> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    return this.stripe!.subscriptions.update(stripeSubscriptionId, {
+      proration_behavior: prorationBehavior,
+      items: [{ id: subscriptionItemId, price: newPriceId }]
+    });
+  }
+
+  async getSubscription(stripeSubscriptionId: string): Promise<Stripe.Subscription> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    return this.stripe!.subscriptions.retrieve(stripeSubscriptionId);
   }
 
   async createPayPalCheckout(input: CreateCheckoutInput, effective: EffectivePaymentSettings): Promise<CheckoutResult> {
