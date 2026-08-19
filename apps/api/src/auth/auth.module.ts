@@ -16,6 +16,7 @@ import { PermissionsModule } from '../permissions/permissions.module.js';
 import { EmailModule } from '../email/email.module.js';
 
 import { AuthBootstrapService } from './auth-bootstrap.service.js';
+import { CsrfModule } from '../csrf/csrf.module.js';
 
 @Module({
   imports: [
@@ -38,7 +39,8 @@ import { AuthBootstrapService } from './auth-bootstrap.service.js';
     TokenModule,
     // Required for verification, reset and lockout mail. AuthModule did not
     // import this before, and EmailModule is not @Global().
-    EmailModule
+    EmailModule,
+    CsrfModule
   ],
   providers: [AuthService, AuthBootstrapService, JwtStrategy, SessionsService, CredentialsService, LoginLockoutService],
   controllers: [AuthController],
