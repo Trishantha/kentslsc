@@ -62,7 +62,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = 'Invalid input data.';
     }
 
-    if (status >= 500) {
+    if (status >= 500 || error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientValidationError) {
       this.logger.error(
         `${request.method || 'UNK'} ${request.url || ''}: ${error instanceof Error ? error.message : String(error)}`,
         error instanceof Error ? error.stack : undefined
