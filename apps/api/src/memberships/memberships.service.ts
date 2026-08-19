@@ -27,10 +27,6 @@ export interface CreateMembershipData {
   status?: MembershipStatus;
   paidAt?: Date;
   paymentMethod?: string;
-  startDate?: Date;
-  endDate?: Date;
-  creditAmountApplied?: number;
-  creditMonthsGranted?: number;
 }
 
 @Injectable()
@@ -141,69 +137,6 @@ export class MembershipsService {
       where,
       data: { status: MembershipStatus.CANCELLED, updatedAt: new Date() }
     });
-  }
-
-  /**
-   * Find the user's current effective paid membership. Free and pending
-   * memberships are ignored because they carry no refundable monetary value.
-   */
-  private async findCurrentPaidMembership(userId: string) {
-    return this.prisma.membership.findFirst({
-      where: {
-        userId,
-        deletedAt: null,
-        status: MembershipStatus.ACTIVE,
-        membershipType: { isFree: false }
-      },
-      orderBy: { createdAt: 'desc' },
-      include: { membershipType: true }
-    });
-  }
-
-  /**
-   * Calculate the unused monetary value of an active paid membership.
-   * Returns the value in the major currency unit (e.g. GBP).
-   */
-  private calculateProratedCredit(membership: Membership & { membershipType: MembershipType }): number {
-    const now = new Date();
-    const start = membership.startDate;
-    const end = membership.endDate;
-
-    if (end <= now) {
-      return 0;
-    }
-
-    const totalMs = end.getTime() - start.getTime();
-    const remainingMs = end.getTime() - now.getTime();
-
-    if (totalMs <= 0) {
-      return 0;
-    }
-
-    const totalPrice = Number(membership.membershipType.price);
-    const ratio = Math.max(0, Math.min(1, remainingMs / totalMs));
-    return Number((totalPrice * ratio).toFixed(2));
-  }
-
-  /**
-   * Convert a monetary credit into whole months on the target plan.
-   */
-  private creditToFreeMonths(credit: number, membershipType: MembershipType): number {
-    if (credit <= 0 || membershipType.isFree) {
-      return 0;
-    }
-
-    const price = Number(membershipType.price);
-    if (price <= 0) {
-      return 0;
-    }
-
-    const monthlyPrice = price / membershipType.durationMonths;
-    if (monthlyPrice <= 0) {
-      return 0;
-    }
-
-    return Math.max(0, Math.floor(credit / monthlyPrice));
   }
 
   async findTypes() {
@@ -317,13 +250,9 @@ export class MembershipsService {
       }
     });
 
-    const currentPaidMembership = await this.findCurrentPaidMembership(userId);
-    const remainingCredit = currentPaidMembership
-      ? this.calculateProratedCredit(currentPaidMembership)
-      : 0;
-
-    // Free plans do not carry credit forward; just activate the new plan.
     if (type.isFree || Number(type.price) === 0) {
+      // Create the new membership before cancelling the old one so a failure
+      // after cancellation never leaves the user with no effective membership.
       const membership = await this.createMembership({
         userId,
         membershipTypeId: type.id,
@@ -339,39 +268,8 @@ export class MembershipsService {
       return { membership, paid: false };
     }
 
-    const newPrice = Number(type.price);
-
-    // Downgrade: the remaining value of the current paid plan buys free months on
-    // the cheaper plan. No immediate charge; normal renewals resume afterwards.
-    if (currentPaidMembership && remainingCredit > 0 && newPrice < Number(currentPaidMembership.membershipType.price)) {
-      const freeMonths = this.creditToFreeMonths(remainingCredit, type);
-
-      if (freeMonths > 0) {
-        const startDate = new Date();
-        const endDate = this.computeEndDate(type, startDate);
-        endDate.setMonth(endDate.getMonth() + freeMonths);
-
-        const membership = await this.createMembership({
-          userId,
-          membershipTypeId: type.id,
-          fullName: dto.fullName,
-          address: dto.address,
-          phone: dto.phone,
-          dependants,
-          membershipType: type,
-          overrideEmail: email,
-          status: MembershipStatus.ACTIVE,
-          startDate,
-          endDate,
-          creditAmountApplied: remainingCredit,
-          creditMonthsGranted: freeMonths
-        });
-        await this.cancelPreviousMemberships(userId, membership.id);
-        return { membership, paid: false, appliedCredit: remainingCredit, freeMonths };
-      }
-    }
-
-    // Upgrade or no usable credit: charge the difference (upgrade) or full price.
+    // Paid application: create a pending membership so admins can see the attempt,
+    // send payment reminders, and the webhook can activate the exact record.
     await this.cancelPreviousPendingMemberships(userId);
     const pendingMembership = await this.createMembership({
       userId,
@@ -385,17 +283,16 @@ export class MembershipsService {
       status: MembershipStatus.PENDING
     });
 
-    const chargeableAmount = Math.max(0, newPrice - remainingCredit);
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(userId, email);
 
     const checkout = await this.paymentsService.createCheckout({
-      amount: Math.round(chargeableAmount * 100),
+      amount: Math.round(Number(type.price) * 100),
       currency: 'gbp',
       description: type.name,
       customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
-      uiMode: 'embedded_page',
+      uiMode: 'embedded',
       metadata: {
         source: 'membership',
         membershipId: pendingMembership.id,
@@ -418,8 +315,8 @@ export class MembershipsService {
   }
 
   async createMembership(data: CreateMembershipData): Promise<Membership> {
-    const startDate = data.startDate ?? new Date();
-    const endDate = data.endDate ?? this.computeEndDate(data.membershipType, startDate);
+    const startDate = new Date();
+    const endDate = this.computeEndDate(data.membershipType, startDate);
 
     const membershipPublicId = this.generateMembershipId();
     const qrValue = `${this.frontendUrl}/membership/verify/${membershipPublicId}`;
@@ -439,10 +336,7 @@ export class MembershipsService {
         qrCodeValue: qrValue,
         membershipCardUrl: undefined,
         paidAt: data.paidAt,
-        paymentMethod: data.paymentMethod,
-        creditAmountApplied:
-          data.creditAmountApplied !== undefined ? new Prisma.Decimal(data.creditAmountApplied) : undefined,
-        creditMonthsGranted: data.creditMonthsGranted
+        paymentMethod: data.paymentMethod
       },
       include: { membershipType: true }
     });
@@ -567,9 +461,7 @@ export class MembershipsService {
       dependantsCount: dependants.length,
       dependants,
       paidAt: membership.paidAt,
-      paymentMethod: membership.paymentMethod,
-      creditAmountApplied: membership.creditAmountApplied ? Number(membership.creditAmountApplied) : null,
-      creditMonthsGranted: membership.creditMonthsGranted
+      paymentMethod: membership.paymentMethod
     };
   }
 

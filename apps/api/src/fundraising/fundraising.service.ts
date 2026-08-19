@@ -316,11 +316,10 @@ export class FundraisingService {
     const checkout = await this.payments.createCheckout({
       amount: Math.round(dto.amount * 100),
       currency: 'gbp',
-      includeProcessingFee: dto.addProcessingFee ?? false,
       description: `Donation to ${fundraiser.title}`,
       successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
       cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
-      uiMode: 'embedded_page',
+      uiMode: 'embedded',
       metadata: {
         type: 'donation',
         fundraiserId,

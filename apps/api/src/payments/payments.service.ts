@@ -16,7 +16,7 @@ const PAYPAL_TIMEOUT_MS = 30_000;
 
 export type PaymentProvider = 'stripe' | 'paypal';
 
-export type CheckoutUiMode = 'hosted' | 'embedded' | 'embedded_page';
+export type CheckoutUiMode = 'hosted' | 'embedded';
 
 export interface CreateCheckoutInput {
   provider?: PaymentProvider;
@@ -33,8 +33,6 @@ export interface CreateCheckoutInput {
   lineItems?: Stripe.Checkout.SessionCreateParams.LineItem[];
   paymentMethodTypes?: Stripe.Checkout.SessionCreateParams.PaymentMethodType[];
   uiMode?: CheckoutUiMode;
-  /** When false, processing fees are not added to the checkout total. Defaults to true. */
-  includeProcessingFee?: boolean;
 }
 
 export interface CheckoutResult {
@@ -286,10 +284,7 @@ export class PaymentsService {
 
     const currency = (input.currency ?? 'gbp').toLowerCase();
     const netAmount = input.amount ?? 0;
-    const includeProcessingFee = input.includeProcessingFee !== false;
-    const feeResult = includeProcessingFee
-      ? this.calculateProcessingFee(netAmount, effective)
-      : { net: netAmount, fee: 0, gross: netAmount };
+    const feeResult = this.calculateProcessingFee(netAmount, effective);
 
     let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
     if (input.lineItems) {
@@ -332,7 +327,7 @@ export class PaymentsService {
       ];
     }
 
-    const isEmbedded = input.uiMode === 'embedded' || input.uiMode === 'embedded_page';
+    const isEmbedded = input.uiMode === 'embedded';
 
     const session = await this.stripe!.checkout.sessions.create({
       mode: input.mode ?? 'payment',
@@ -345,7 +340,7 @@ export class PaymentsService {
           : {}),
       ...(isEmbedded
         ? {
-            ui_mode: 'embedded_page' as const,
+            ui_mode: 'embedded' as const,
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }
