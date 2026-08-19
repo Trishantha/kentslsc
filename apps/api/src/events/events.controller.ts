@@ -17,7 +17,7 @@ import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto } from './dto/index.js';
+import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -98,6 +98,24 @@ export class EventsController {
     // Enforce route parameter matches body for consistency
     const body = { ...dto, eventId };
     return this.eventsService.createCheckoutSession(user.sub, body);
+  }
+
+  @Get(':id/tickets')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  listEventTickets(@Param('id') eventId: string) {
+    return this.eventsService.listEventTickets(eventId);
+  }
+
+  @Post(':id/tickets/generate')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  generateTickets(
+    @Param('id') eventId: string,
+    @Body() dto: GenerateTicketsDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.eventsService.generateTickets(user.sub, eventId, dto);
   }
 
   @Post('webhook')

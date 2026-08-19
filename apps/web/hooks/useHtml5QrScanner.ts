@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 
 export type CameraState = 'idle' | 'requesting' | 'allowed' | 'denied' | 'unsupported' | 'error';
 
@@ -61,7 +61,14 @@ export function useHtml5QrScanner(options: UseHtml5QrScannerOptions): UseHtml5Qr
 
   const cleanup = useCallback(() => {
     if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => undefined);
+      try {
+        const state = scannerRef.current.getState();
+        if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+          scannerRef.current.stop().catch(() => undefined);
+        }
+      } catch {
+        // Scanner may have failed to start; ignore stop errors.
+      }
       scannerRef.current = null;
     }
   }, []);
@@ -111,7 +118,14 @@ export function useHtml5QrScanner(options: UseHtml5QrScannerOptions): UseHtml5Qr
         );
 
         if (!active) {
-          scanner.stop().catch(() => undefined);
+          try {
+            const state = scanner.getState();
+            if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+              scanner.stop().catch(() => undefined);
+            }
+          } catch {
+            // Scanner may have failed to start; ignore stop errors.
+          }
           return;
         }
 

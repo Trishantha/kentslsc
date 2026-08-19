@@ -223,6 +223,7 @@ export class EventsService {
     }
 
     const startSerial = await this.getNextTicketSerial(eventId);
+    const purchaseId = `admin-generated:${crypto.randomUUID()}`;
 
     const tickets = await this.prisma.$transaction(async (tx) => {
       const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];
@@ -236,7 +237,7 @@ export class EventsService {
             qrCodeValue: crypto.randomUUID(),
             serialNumber,
             ticketNumber,
-            paymentId: 'admin-generated',
+            paymentId: purchaseId,
             status: TicketStatus.VALID
           }
         });
