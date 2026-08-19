@@ -26,20 +26,26 @@ export function DonationForm({ fundraiserId }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [addProcessingFee, setAddProcessingFee] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const selectedAmount = amount || customAmount;
 
-  const feeBreakdown = useMemo(() => {
+  const potentialFee = useMemo(() => {
     const value = Number(selectedAmount);
-    if (!value || value < 1 || !paymentSettings) return null;
-    return calculateProcessingFee(Math.round(value * 100), {
-      enabled: paymentSettings.processingFeeEnabled,
+    if (!value || value < 1 || !paymentSettings || !paymentSettings.processingFeeEnabled) return null;
+    const result = calculateProcessingFee(Math.round(value * 100), {
+      enabled: true,
       percent: paymentSettings.processingFeePercent,
       fixed: paymentSettings.processingFeeFixed
     });
+    return result.fee > 0 ? result : null;
   }, [selectedAmount, paymentSettings]);
+
+  const feeBreakdown = addProcessingFee ? potentialFee : null;
+
+  const chargeAmount = feeBreakdown ? feeBreakdown.gross / 100 : Number(selectedAmount) || 0;
 
   const handlePreset = (val: number) => {
     setAmount(String(val));
@@ -65,10 +71,11 @@ export function DonationForm({ fundraiserId }: Props) {
         amount: value,
         displayName: isAnonymous ? undefined : (displayName.trim() || undefined),
         message: message.trim() || undefined,
-        isAnonymous
+        isAnonymous,
+        addProcessingFee
       });
-      if (res.data.clientSecret && res.data.id) {
-        router.push(`/checkout?session_id=${res.data.id}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
+      if (res.data.clientSecret && res.data.sessionId) {
+        router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
         return;
       }
       if (res.data.url) {
@@ -164,6 +171,21 @@ export function DonationForm({ fundraiserId }: Props) {
         </span>
       </label>
 
+      {/* Processing fee opt-in */}
+      {potentialFee && potentialFee.fee > 0 && (
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <input
+            type="checkbox"
+            checked={addProcessingFee}
+            onChange={(e) => setAddProcessingFee(e.target.checked)}
+            className="h-4 w-4 rounded accent-neon-blue"
+          />
+          <span className="text-sm text-slate-700 dark:text-slate-300">
+            {tFundraiser('coverProcessingFee', { amount: formatCurrency(potentialFee.fee / 100) })}
+          </span>
+        </label>
+      )}
+
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {feeBreakdown && feeBreakdown.fee > 0 && (
@@ -191,7 +213,7 @@ export function DonationForm({ fundraiserId }: Props) {
         {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Heart className="h-5 w-5" />}
         {loading
           ? 'Redirecting to payment…'
-          : `Donate${feeBreakdown ? ` ${formatCurrency(feeBreakdown.gross / 100)}` : selectedAmount ? ` £${selectedAmount}` : ''}`}
+          : `Donate${selectedAmount ? ` ${formatCurrency(chargeAmount)}` : ''}`}
       </button>
       <p className="text-center text-xs text-slate-400">
         Secure payment via Stripe. You&apos;ll be redirected to complete your donation.

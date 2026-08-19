@@ -515,7 +515,8 @@
     "thankYou": "உங்கள் நன்கொடைக்கு நன்றி!",
     "canceled": "நன்கொடை ரத்து செய்யப்பட்டது.",
     "amountPlaceholder": "தொகை (£)",
-    "makeDonation": "நன்கொடை செய்யுங்கள்"
+    "makeDonation": "நன்கொடை செய்யுங்கள்",
+    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause"
   },
   "membershipVerify": {
     "metaTitle": "உறுப்பினர்களை சரிபார்க்கவும் - கென்ட் SLSC",

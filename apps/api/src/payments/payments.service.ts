@@ -366,7 +366,7 @@ export class PaymentsService {
           : {}),
       ...(isEmbedded
         ? {
-            ui_mode: 'embedded_page' as const,
+            ui_mode: input.uiMode as 'embedded' | 'embedded_page',
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }
@@ -471,7 +471,7 @@ export class PaymentsService {
       customer: input.customer,
       ...(isEmbedded
         ? {
-            ui_mode: 'embedded_page' as const,
+            ui_mode: input.uiMode as 'embedded' | 'embedded_page',
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }

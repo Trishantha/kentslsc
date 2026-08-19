@@ -409,7 +409,7 @@ export class MembershipsService {
       customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
-      uiMode: 'embedded_page',
+      uiMode: 'embedded',
       metadata: {
         source: 'membership',
         membershipId: pendingMembership.id,

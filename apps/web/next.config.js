@@ -99,12 +99,13 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       `img-src 'self' data: blob:${supabaseHostname ? ` https://${supabaseHostname}` : ''}`,
       "font-src 'self' https://fonts.gstatic.com",
-      `connect-src 'self'${supabaseHostname ? ` https://${supabaseHostname}` : ''}${isDev ? ' ws://localhost:3000 wss://localhost:3000' : ''}`,
+      `connect-src 'self' https://api.stripe.com https://hooks.stripe.com${supabaseHostname ? ` https://${supabaseHostname}` : ''}${isDev ? ' ws://localhost:3000 wss://localhost:3000' : ''}`,
       `media-src 'self'${supabaseHostname ? ` https://${supabaseHostname}` : ''}`,
+      "frame-src 'self' https://js.stripe.com https://checkout.stripe.com https://hooks.stripe.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'"
