@@ -515,7 +515,8 @@
     "thankYou": "Thank you so much for your generous donation! Your support makes a real difference.",
     "canceled": "Donation canceled — you have not been charged.",
     "amountPlaceholder": "Amount (£)",
-    "makeDonation": "Make a donation"
+    "makeDonation": "Make a donation",
+    "addProcessingFee": "Would you like to add processing fees for the donation as well?"
   },
   "membershipVerify": {
     "metaTitle": "Verify Membership – Kent SLSC",

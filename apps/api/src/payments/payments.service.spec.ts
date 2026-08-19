@@ -139,6 +139,41 @@ describe('PaymentsService', () => {
       expect(sessionParams.metadata.grossAmount).toBe('1035');
     });
 
+    it('creates a single line item when includeProcessingFee is false', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'stripe-session-789',
+        url: 'https://checkout.stripe.com/pay/session-789',
+        client_secret: 'secret-789',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        checkout: { sessions: { create: createMock } }
+      };
+
+      const result = await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Test payment',
+        includeProcessingFee: false,
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel'
+      });
+
+      expect(result.provider).toBe('stripe');
+      expect(result.netAmount).toBe(1000);
+      expect(result.processingFee).toBe(0);
+      expect(result.grossAmount).toBe(1000);
+
+      const sessionParams = createMock.mock.calls[0]?.[0];
+      if (!sessionParams) throw new Error('Expected checkout session params');
+      expect(sessionParams.line_items).toHaveLength(1);
+      expect(sessionParams.line_items[0].price_data.unit_amount).toBe(1000);
+      expect(sessionParams.metadata.processingFee).toBe('0');
+    });
+
     it('creates a single line item when fees are disabled', async () => {
       const service = new PaymentsService(mockConfig as any, {
         paymentSettings: {

@@ -515,7 +515,8 @@
     "thankYou": "ඔබගේ පරිත්‍යාගයට ස්තූතියි!",
     "canceled": "පරිත්‍යාගය අවලංගු කරන ලදී.",
     "amountPlaceholder": "මුදල (£)",
-    "makeDonation": "පරිත්‍යාගයක් කරන්න"
+    "makeDonation": "පරිත්‍යාගයක් කරන්න",
+    "addProcessingFee": "Would you like to add processing fees for the donation as well?"
   },
   "membershipVerify": {
     "metaTitle": "සාමාජිකත්වය තහවුරු කරන්න - Kent SLSC",
