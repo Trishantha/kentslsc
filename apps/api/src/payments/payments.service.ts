@@ -132,6 +132,8 @@ export class PaymentsService {
    * change it, preventing reconciliation errors.
    */
   async getOrCreateStripeCustomer(userId: string, email: string): Promise<string> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
 
     const user = await this.prisma.user.findUnique({
