@@ -1,57 +1,151 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'node:module';
 import sharp from 'sharp';
 import QRCode from 'qrcode';
-
-const require = createRequire(import.meta.url);
+import * as fontkit from 'fontkit';
 
 const CARD_WIDTH = 1050;
 const CARD_HEIGHT = 600;
 
-interface EmbeddedFont {
-  family: string;
-  weight: number;
-  dataUrl: string;
+type FontWeight = 400 | 700 | 900;
+
+interface FontSet {
+  400: fontkit.Font;
+  700: fontkit.Font;
+  900: fontkit.Font;
 }
 
-let embeddedFontCache: EmbeddedFont[] | null = null;
+let fontCache: FontSet | null = null;
 
-async function loadEmbeddedFonts(): Promise<EmbeddedFont[]> {
-  if (embeddedFontCache) {
-    return embeddedFontCache;
+export type FontFileResolver = (file: string) => Promise<string> | string;
+
+async function loadFonts(fontResolver?: FontFileResolver): Promise<FontSet> {
+  if (fontCache) {
+    return fontCache;
   }
 
-  const weights = [
-    { weight: 400, file: 'inter-latin-400-normal.woff' },
-    { weight: 700, file: 'inter-latin-700-normal.woff' },
-    { weight: 900, file: 'inter-latin-900-normal.woff' }
-  ] as const;
+  const weights: FontWeight[] = [400, 700, 900];
+  const files: Record<FontWeight, string> = {
+    400: 'inter-latin-400-normal.woff',
+    700: 'inter-latin-700-normal.woff',
+    900: 'inter-latin-900-normal.woff'
+  };
 
-  const fonts = await Promise.all(
-    weights.map(async ({ weight, file }) => {
-      const fontPath = require.resolve(`@fontsource/inter/files/${file}`);
+  const resolveFont =
+    fontResolver ??
+    (async (file: string) => {
+      const { resolveFontFile } = await import('./font-resolver.js');
+      return resolveFontFile(file);
+    });
+
+  const fonts: Record<FontWeight, fontkit.Font> = {
+    400: undefined,
+    700: undefined,
+    900: undefined
+  } as unknown as Record<FontWeight, fontkit.Font>;
+  await Promise.all(
+    weights.map(async (weight) => {
+      const fontPath = await resolveFont(files[weight]);
       const buffer = await readFile(fontPath);
-      return {
-        family: 'EmbeddedInter',
-        weight,
-        dataUrl: `data:font/woff;charset=utf-8;base64,${buffer.toString('base64')}`
-      };
+      const font = fontkit.create(buffer) as fontkit.Font;
+      fonts[weight] = font;
     })
   );
 
-  embeddedFontCache = fonts;
-  return fonts;
+  fontCache = fonts;
+  return fontCache;
 }
 
-function buildFontFaceCss(fonts: EmbeddedFont[]): string {
-  return fonts
-    .map(
-      (font) =>
-        `@font-face { font-family: '${font.family}'; src: url('${font.dataUrl}') format('woff'); font-weight: ${font.weight}; font-style: normal; }`
-    )
-    .join('\n    ');
+function nearestWeight(weight: number): FontWeight {
+  if (weight >= 800) return 900;
+  if (weight >= 600) return 700;
+  return 400;
+}
+
+interface TextPathOptions {
+  weight?: number;
+  anchor?: 'start' | 'middle' | 'end';
+  letterSpacing?: number;
+  fill: string;
+  opacity?: number;
+}
+
+function textToPath(
+  fonts: FontSet,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  options: TextPathOptions
+): string {
+  const weight = nearestWeight(options.weight ?? 400);
+  const font = fonts[weight];
+  const scale = fontSize / font.unitsPerEm;
+  const extraAdvance = (options.letterSpacing ?? 0) / scale;
+
+  const run = font.layout(text);
+  const glyphs = run.glyphs;
+  const positions = run.positions;
+
+  let totalWidth = 0;
+  for (let i = 0; i < glyphs.length; i++) {
+    totalWidth += (positions[i]?.xAdvance ?? 0) + extraAdvance;
+  }
+
+  let cursorX = x;
+  if (options.anchor === 'middle') {
+    cursorX = x - totalWidth * scale / 2;
+  } else if (options.anchor === 'end') {
+    cursorX = x - totalWidth * scale;
+  }
+
+  const paths: string[] = [];
+  for (let i = 0; i < glyphs.length; i++) {
+    const glyph = glyphs[i];
+    if (!glyph) continue;
+    const position = positions[i];
+    const glyphX = cursorX + (position?.xOffset ?? 0) * scale;
+    const glyphY = y + (position?.yOffset ?? 0) * scale;
+    const pathData = glyph.path.toSVG();
+    if (pathData) {
+      paths.push(`<path transform="translate(${glyphX.toFixed(2)}, ${glyphY.toFixed(2)}) scale(${scale.toFixed(6)}, -${scale.toFixed(6)})" d="${pathData}" fill="${options.fill}" />`);
+    }
+    cursorX += ((position?.xAdvance ?? 0) + extraAdvance) * scale;
+  }
+
+  const group = paths.join('');
+  if (options.opacity === undefined) {
+    return group;
+  }
+  return `<g opacity="${options.opacity}">${group}</g>`;
+}
+
+async function tryReadFile(path: string): Promise<Buffer | null> {
+  try {
+    return await readFile(path);
+  } catch {
+    return null;
+  }
+}
+
+async function loadLogoDataUrl(): Promise<string | null> {
+  const candidates = [
+    join(process.cwd(), 'apps', 'api', 'public', 'logo.png'),
+    join(process.cwd(), '..', 'public', 'logo.png'),
+    join(process.cwd(), 'public', 'logo.png')
+  ];
+
+  for (const logoPath of candidates) {
+    const buffer = await tryReadFile(logoPath);
+    if (!buffer) continue;
+    const resized = await sharp(buffer)
+      .resize(220, 220, { fit: 'cover' })
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${resized.toString('base64')}`;
+  }
+
+  return null;
 }
 
 interface TierPalette {
@@ -61,30 +155,6 @@ interface TierPalette {
   gradientStart: string;
   gradientEnd: string;
   ring: string;
-}
-
-async function loadLogoDataUrl(): Promise<string | null> {
-  try {
-    const moduleDir = fileURLToPath(new URL('.', import.meta.url));
-    const logoPath = join(moduleDir, '..', '..', '..', 'public', 'logo.png');
-    const buffer = await readFile(logoPath);
-    const resized = await sharp(buffer)
-      .resize(220, 220, { fit: 'cover' })
-      .png()
-      .toBuffer();
-    return `data:image/png;base64,${resized.toString('base64')}`;
-  } catch {
-    return null;
-  }
-}
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function resolveTierPalette(membershipTypeName: string, isFree: boolean): TierPalette {
@@ -166,19 +236,19 @@ export interface CardDetails {
   qrValue: string;
 }
 
-export async function generateCardBuffer(details: CardDetails): Promise<Buffer> {
-  const [qrDataUrl, logoDataUrl, embeddedFonts] = await Promise.all([
+export async function generateCardBuffer(
+  details: CardDetails,
+  fontResolver?: FontFileResolver
+): Promise<Buffer> {
+  const [qrDataUrl, logoDataUrl, fonts] = await Promise.all([
     QRCode.toDataURL(details.qrValue, {
       width: 170,
       margin: 1,
       type: 'image/png'
     }),
     loadLogoDataUrl(),
-    loadEmbeddedFonts()
+    loadFonts(fontResolver)
   ]);
-
-  const fontFaceCss = buildFontFaceCss(embeddedFonts);
-  const cardFontFamily = "'EmbeddedInter', 'Inter', system-ui, sans-serif";
 
   const startDate = details.startDate.toLocaleDateString('en-GB');
   const endDate = details.endDate.toLocaleDateString('en-GB');
@@ -188,10 +258,6 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}">
   <defs>
-    <style>
-    ${fontFaceCss}
-    </style>
-
     <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="${palette.gradientStart}"/>
       <stop offset="100%" stop-color="${palette.gradientEnd}"/>
@@ -250,25 +316,25 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
 
   <!-- Top membership-type banner -->
   <path d="M 32 60 A 28 28 0 0 1 60 32 L 990 32 A 28 28 0 0 1 1018 60 L 1018 112 L 32 112 Z" fill="url(#bannerGradient)" stroke="${palette.accent}" stroke-width="1.5" stroke-opacity="0.35"/>
-  <text x="525" y="82" text-anchor="middle" font-family="${cardFontFamily}" font-size="22" font-weight="800" fill="${palette.accentLight}" letter-spacing="3">${escapeXml(typeLabel)}</text>
-  <text x="525" y="102" text-anchor="middle" font-family="${cardFontFamily}" font-size="10" font-weight="600" fill="${palette.accent}" letter-spacing="4" opacity="0.9">MEMBERSHIP CARD</text>
+  ${textToPath(fonts, typeLabel, 525, 82, 22, { weight: 800, anchor: 'middle', letterSpacing: 3, fill: palette.accentLight })}
+  ${textToPath(fonts, 'MEMBERSHIP CARD', 525, 102, 10, { weight: 600, anchor: 'middle', letterSpacing: 4, fill: palette.accent, opacity: 0.9 })}
 
   ${logoDataUrl
     ? `<image x="70" y="140" width="220" height="220" href="${logoDataUrl}" clip-path="url(#logoClip)"/>`
-    : `<text x="180" y="260" text-anchor="middle" font-family="${cardFontFamily}" font-size="72" font-weight="900" fill="${palette.accent}">K</text><text x="180" y="310" text-anchor="middle" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="${palette.accentLight}">KENT SLSC</text>`}
+    : `${textToPath(fonts, 'K', 180, 260, 72, { weight: 900, anchor: 'middle', fill: palette.accent })}${textToPath(fonts, 'KENT SLSC', 180, 310, 13, { weight: 700, anchor: 'middle', fill: palette.accentLight })}`}
 
   <!-- Member details -->
-  <text x="340" y="170" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="${palette.accent}" letter-spacing="2">MEMBER NAME</text>
-  <text x="340" y="218" font-family="${cardFontFamily}" font-size="42" font-weight="800" fill="#ffffff">${escapeXml(details.memberName)}</text>
+  ${textToPath(fonts, 'MEMBER NAME', 340, 170, 13, { weight: 700, letterSpacing: 2, fill: palette.accent })}
+  ${textToPath(fonts, details.memberName, 340, 218, 42, { weight: 800, fill: '#ffffff' })}
 
-  <text x="340" y="290" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">MEMBERSHIP ID</text>
-  <text x="340" y="325" font-family="${cardFontFamily}" font-size="24" font-weight="700" fill="#ffffff" letter-spacing="1">${escapeXml(details.membershipId)}</text>
+  ${textToPath(fonts, 'MEMBERSHIP ID', 340, 290, 13, { weight: 700, letterSpacing: 2, fill: '#94a3b8' })}
+  ${textToPath(fonts, details.membershipId, 340, 325, 24, { weight: 700, letterSpacing: 1, fill: '#ffffff' })}
 
-  <text x="340" y="400" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">VALID THROUGH</text>
-  <text x="340" y="435" font-family="${cardFontFamily}" font-size="19" font-weight="600" fill="#ffffff">${escapeXml(startDate)} – ${escapeXml(endDate)}</text>
+  ${textToPath(fonts, 'VALID THROUGH', 340, 400, 13, { weight: 700, letterSpacing: 2, fill: '#94a3b8' })}
+  ${textToPath(fonts, `${startDate} – ${endDate}`, 340, 435, 19, { weight: 600, fill: '#ffffff' })}
 
-  <text x="680" y="400" font-family="${cardFontFamily}" font-size="13" font-weight="700" fill="#94a3b8" letter-spacing="2">DEPENDANTS</text>
-  <text x="680" y="435" font-family="${cardFontFamily}" font-size="19" font-weight="600" fill="#ffffff">${details.dependantsCount}</text>
+  ${textToPath(fonts, 'DEPENDANTS', 680, 400, 13, { weight: 700, letterSpacing: 2, fill: '#94a3b8' })}
+  ${textToPath(fonts, String(details.dependantsCount), 680, 435, 19, { weight: 600, fill: '#ffffff' })}
 
   <!-- QR code panel -->
   <rect x="790" y="150" width="190" height="190" rx="18" fill="#ffffff"/>
@@ -281,18 +347,19 @@ export async function generateCardBuffer(details: CardDetails): Promise<Buffer> 
     <circle r="46" fill="url(#holoShine)" opacity="0.35"/>
     <line x1="-46" y1="-46" x2="46" y2="46" stroke="url(#holoShine)" stroke-width="16" opacity="0.45" stroke-linecap="round"/>
     <use href="#holoStar" fill="#ffffff" opacity="0.95"/>
-    <text y="-4" text-anchor="middle" font-family="${cardFontFamily}" font-size="9" font-weight="900" fill="#0f172a" letter-spacing="1">KENT SLSC</text>
-    <text y="12" text-anchor="middle" font-family="${cardFontFamily}" font-size="11" font-weight="900" fill="#0f172a" letter-spacing="1.5">AUTHENTIC</text>
+    ${textToPath(fonts, 'KENT SLSC', 0, -4, 9, { weight: 900, anchor: 'middle', letterSpacing: 1, fill: '#0f172a' })}
+    ${textToPath(fonts, 'AUTHENTIC', 0, 12, 11, { weight: 900, anchor: 'middle', letterSpacing: 1.5, fill: '#0f172a' })}
   </g>
 
-  <text x="885" y="502" text-anchor="middle" font-family="${cardFontFamily}" font-size="12" fill="#94a3b8" letter-spacing="1">Scan to verify</text>
+  ${textToPath(fonts, 'Scan to verify', 885, 502, 12, { anchor: 'middle', letterSpacing: 1, fill: '#94a3b8' })}
 
   <!-- Footer strip -->
-  <text x="525" y="565" text-anchor="middle" font-family="${cardFontFamily}" font-size="11" font-weight="500" fill="#64748b" letter-spacing="1.5">KENT SRI LANKAN SOCIAL CLUB</text>
+  ${textToPath(fonts, 'KENT SRI LANKAN SOCIAL CLUB', 525, 565, 11, { weight: 500, anchor: 'middle', letterSpacing: 1.5, fill: '#64748b' })}
 </svg>`;
 
   try {
     return sharp(Buffer.from(svg), { density: 96 })
+      .resize(CARD_WIDTH, CARD_HEIGHT, { fit: 'fill' })
       .png({ compressionLevel: 9, adaptiveFiltering: true })
       .toBuffer();
   } catch (err) {

@@ -1,21 +1,23 @@
 'use client';
 
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   businessListingSchema,
   jobAdSchema,
   directoryCategoryGroups,
-  getDirectoryCategoryLabel
+  getDirectoryCategoryLabel,
+  calculateProcessingFee
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { formatDate } from '@/lib/utils';
+import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { formatDate, formatCurrency } from '@/lib/utils';
 import {
   MapPin,
   Phone,
@@ -84,6 +86,8 @@ interface Props {
 const inputClass =
   'mt-1 w-full rounded-lg border border-white/10 bg-white/10 px-4 py-2.5 text-sm outline-none placeholder:text-slate-400';
 
+const PROMOTION_PRICE_PENCE = 2500;
+
 const categorySelectGroups = directoryCategoryGroups.map((group) => ({
   name: group.name,
   emoji: group.emoji,
@@ -91,15 +95,26 @@ const categorySelectGroups = directoryCategoryGroups.map((group) => ({
 }));
 
 export default function DirectoryDetailContent({ id, business: initialBusiness }: Props) {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const resolvedId = id || params?.id || '';
   const queryClient = useQueryClient();
   const { data: user } = useAuth();
+  const { data: paymentSettings } = usePaymentSettings();
   const t = useTranslations('directoryDetail');
   const tDirectory = useTranslations('directory');
   const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
   const [showPromotedBanner, setShowPromotedBanner] = useState(searchParams?.get('promoted') === 'success');
+
+  const promotionFee = useMemo(() => {
+    if (!paymentSettings) return null;
+    return calculateProcessingFee(PROMOTION_PRICE_PENCE, {
+      enabled: paymentSettings.processingFeeEnabled,
+      percent: paymentSettings.processingFeePercent,
+      fixed: paymentSettings.processingFeeFixed
+    });
+  }, [paymentSettings]);
 
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: ['directory', 'businesses', resolvedId],
@@ -174,6 +189,10 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   const promote = useMutation({
     mutationFn: () => api.post(`/directory/businesses/${resolvedId}/promote`),
     onSuccess: (res) => {
+      if (res.data.clientSecret && res.data.sessionId) {
+        router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
+        return;
+      }
       if (res.data.url) {
         window.location.href = res.data.url;
       }
@@ -292,30 +311,38 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
             </div>
 
             {canManage && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => summarise.mutate()}
-                  disabled={summarise.isPending}
-                  className="btn-secondary inline-flex items-center gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {summarise.isPending ? t('aiSummarising') : t('aiSummarise')}
-                </button>
-                <button
-                  onClick={() => promote.mutate()}
-                  disabled={promote.isPending}
-                  className="btn-primary inline-flex items-center gap-2"
-                >
-                  <Crown className="h-4 w-4" />
-                  {promote.isPending ? tCommon('loading') : t('promote30Days')}
-                </button>
-                <button
-                  onClick={() => deleteBusiness.mutate()}
-                  disabled={deleteBusiness.isPending}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/20"
-                >
-                  <Trash2 className="h-4 w-4" /> {t('delete')}
-                </button>
+              <div className="flex flex-col gap-2">
+                {promotionFee && promotionFee.fee > 0 && (
+                  <div className="text-right text-xs text-slate-500">
+                    <span>{formatCurrency(promotionFee.net / 100)} + {formatCurrency(promotionFee.fee / 100)} fee = </span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(promotionFee.gross / 100)}</span>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => summarise.mutate()}
+                    disabled={summarise.isPending}
+                    className="btn-secondary inline-flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {summarise.isPending ? t('aiSummarising') : t('aiSummarise')}
+                  </button>
+                  <button
+                    onClick={() => promote.mutate()}
+                    disabled={promote.isPending}
+                    className="btn-primary inline-flex items-center gap-2"
+                  >
+                    <Crown className="h-4 w-4" />
+                    {promote.isPending ? tCommon('loading') : t('promote30Days')}
+                  </button>
+                  <button
+                    onClick={() => deleteBusiness.mutate()}
+                    disabled={deleteBusiness.isPending}
+                    className="inline-flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/20"
+                  >
+                    <Trash2 className="h-4 w-4" /> {t('delete')}
+                  </button>
+                </div>
               </div>
             )}
           </div>

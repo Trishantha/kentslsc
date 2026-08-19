@@ -66,7 +66,12 @@
     "browseAll": "Browse all",
     "noResults": "No results found.",
     "free": "Free",
-    "paid": "Paid"
+    "paid": "Paid",
+    "processingFee": "Processing fee",
+    "total": "Total",
+    "totalToPay": "Total to pay",
+    "donation": "Donation",
+    "tickets": "Tickets"
   },
   "home": {
     "subtitle": "Connecting the Sri Lankan community in Kent through events, culture, business, and fellowship. Join us and be part of something extraordinary.",

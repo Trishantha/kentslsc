@@ -41,7 +41,8 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
       id: 'cs_test_123',
       url: 'https://checkout.stripe.test/pay',
       provider: 'stripe'
-    })
+    }),
+    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
   };
 
   const mockEmailService: any = {
@@ -99,6 +100,9 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     expect(result).toEqual({ sent: 2, failed: 0, total: 2 });
     expect(mockPaymentsService.createCheckout).toHaveBeenCalledTimes(2);
     expect(mockEmailService.sendMembershipPaymentLink).toHaveBeenCalledTimes(2);
+    expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_test_user_1' })
+    );
   });
 
   it('queries only pending paid memberships', async () => {
@@ -133,5 +137,87 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     const result = await service.sendPaymentRemindersToPending();
 
     expect(result).toEqual({ sent: 1, failed: 1, total: 2 });
+  });
+});
+
+describe('AdminService - regenerateAllMembershipCards', () => {
+  const mockPrisma: any = {
+    membership: {
+      findMany: jest.fn()
+    }
+  };
+
+  const mockMembershipsService: any = {
+    regenerateCard: jest.fn()
+  };
+
+  const mockConfigService: any = {
+    get: jest.fn((key: string) => {
+      if (key === 'FRONTEND_URL') return mockFrontendUrl;
+      return undefined;
+    })
+  };
+
+  let service: AdminService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new AdminService(
+      mockPrisma,
+      {} as any,
+      mockMembershipsService,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      mockConfigService
+    );
+  });
+
+  it('regenerates cards for active memberships and counts failures', async () => {
+    mockPrisma.membership.findMany.mockResolvedValue([
+      { membershipId: 'MEM-AAAA0000' },
+      { membershipId: 'MEM-BBBB0000' },
+      { membershipId: 'MEM-CCCC0000' }
+    ]);
+    mockMembershipsService.regenerateCard
+      .mockResolvedValueOnce({ membershipId: 'MEM-AAAA0000' })
+      .mockRejectedValueOnce(new Error('Card failed'))
+      .mockResolvedValueOnce({ membershipId: 'MEM-CCCC0000' });
+
+    const result = await service.regenerateAllMembershipCards();
+
+    expect(result).toEqual({
+      regenerated: 2,
+      failed: 1,
+      total: 3,
+      errors: [{ membershipId: 'MEM-BBBB0000', error: 'Card failed' }]
+    });
+    expect(mockPrisma.membership.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: MembershipStatus.ACTIVE, deletedAt: null })
+      })
+    );
+    expect(mockMembershipsService.regenerateCard).toHaveBeenCalledTimes(3);
+  });
+
+  it('can include non-active memberships when onlyActive is false', async () => {
+    mockPrisma.membership.findMany.mockResolvedValue([
+      { membershipId: 'MEM-AAAA0000' },
+      { membershipId: 'MEM-BBBB0000' }
+    ]);
+    mockMembershipsService.regenerateCard.mockResolvedValue({});
+
+    await service.regenerateAllMembershipCards({ onlyActive: false });
+
+    expect(mockPrisma.membership.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ deletedAt: null })
+      })
+    );
+    expect(mockMembershipsService.regenerateCard).toHaveBeenCalledTimes(2);
   });
 });

@@ -319,6 +319,7 @@ export class FundraisingService {
       description: `Donation to ${fundraiser.title}`,
       successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
       cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
+      uiMode: 'embedded',
       metadata: {
         type: 'donation',
         fundraiserId,
@@ -329,14 +330,21 @@ export class FundraisingService {
         isAnonymous: String(dto.isAnonymous ?? false)
       }
     });
-    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const fundraiserId = session.metadata?.fundraiserId;
     if (!fundraiserId || session.metadata?.type !== 'donation') return;
 
-    const amount = (session.amount_total ?? 0) / 100;
+    // Use the net/advertised amount recorded in metadata rather than the
+    // gross Stripe total, which may include the processing fee line item.
+    const amount = Number(session.metadata?.netAmount ?? session.amount_total ?? 0) / 100;
     if (amount <= 0) return;
 
     const userId = session.metadata?.userId ?? null;

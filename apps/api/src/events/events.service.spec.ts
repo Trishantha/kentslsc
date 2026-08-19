@@ -78,7 +78,8 @@ describe('EventsService', () => {
   };
 
   const mockPaymentsService: any = {
-    createCheckout: jest.fn()
+    createCheckout: jest.fn(),
+    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
   };
 
   const mockEmailService: any = {
@@ -150,9 +151,11 @@ describe('EventsService', () => {
         expect.objectContaining({
           amount: 2000,
           currency: 'gbp',
+          customer: 'cus_test_user_1',
           metadata: expect.objectContaining({ type: 'event_ticket', quantity: '2' })
         })
       );
+      expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith(mockUser.id, mockUser.email);
     });
   });
 

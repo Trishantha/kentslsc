@@ -283,13 +283,16 @@ export class MembershipsService {
       status: MembershipStatus.PENDING
     });
 
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(userId, email);
+
     const checkout = await this.paymentsService.createCheckout({
       amount: Math.round(Number(type.price) * 100),
       currency: 'gbp',
       description: type.name,
-      customerEmail: email,
+      customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
+      uiMode: 'embedded',
       metadata: {
         source: 'membership',
         membershipId: pendingMembership.id,
@@ -302,7 +305,13 @@ export class MembershipsService {
       }
     });
 
-    return { sessionId: checkout.id, url: checkout.url, paid: true, provider: checkout.provider };
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      paid: true,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async createMembership(data: CreateMembershipData): Promise<Membership> {
@@ -695,6 +704,13 @@ export class MembershipsService {
         include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
       });
       if (existing) {
+        if (existing.userId !== metadata.userId) {
+          this.logger.warn(
+            `Membership ${existing.id} belongs to user ${existing.userId} but checkout metadata references ${metadata.userId}. Refusing to activate.`
+          );
+          throw new BadRequestException('Membership user mismatch');
+        }
+
         if (existing.status === MembershipStatus.PENDING) {
           await this.cancelPreviousMemberships(metadata.userId, existing.id);
           const activated = await this.updateStatus(existing.id, MembershipStatus.ACTIVE);

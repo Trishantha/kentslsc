@@ -125,6 +125,8 @@ model User {
   role          UserRole  @default(GUEST)
   status        UserStatus @default(ACTIVE)
   refreshToken  String?   @map("refresh_token")
+  // Stable Stripe Customer id for the user; using it in Checkout locks the email field.
+  stripeCustomerId String?   @unique @map("stripe_customer_id")
   // Optional back-office role that provides a default permission set.
   backOfficeRoleId String?   @map("back_office_role_id")
   // Timestamp only, deliberately no parallel boolean: two sources of truth for
@@ -720,16 +722,19 @@ model HeroConfig {
 }
 
 model PaymentSettings {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  provider            String   @default("stripe")
-  stripeSecretKey     String?  @map("stripe_secret_key")
-  stripeWebhookSecret String?  @map("stripe_webhook_secret")
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider             String   @default("stripe")
+  stripeSecretKey      String?  @map("stripe_secret_key")
+  stripeWebhookSecret  String?  @map("stripe_webhook_secret")
   stripePublishableKey String?  @map("stripe_publishable_key")
-  paypalClientId      String?  @map("paypal_client_id")
-  paypalClientSecret  String?  @map("paypal_client_secret")
-  paypalApiBaseUrl    String?  @map("paypal_api_base_url")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  paypalClientId       String?  @map("paypal_client_id")
+  paypalClientSecret   String?  @map("paypal_client_secret")
+  paypalApiBaseUrl     String?  @map("paypal_api_base_url")
+  processingFeeEnabled Boolean  @default(true) @map("processing_fee_enabled")
+  processingFeePercent Decimal  @default(1.50) @db.Decimal(5, 2) @map("processing_fee_percent")
+  processingFeeFixed   Int      @default(20) @map("processing_fee_fixed")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@map("payment_settings")
 }

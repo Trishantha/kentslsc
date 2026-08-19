@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -9,10 +9,11 @@ import { Link } from '@/i18n/routing';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 import EventLocationLink from '@/components/events/EventLocationLink';
 import AddToCalendar from '@/components/events/AddToCalendar';
-import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
+import { calculateProcessingFee, EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 export interface Event {
   id: string;
@@ -41,7 +42,9 @@ interface Props {
 export default function EventDetailContent({ id, event: initialEvent }: Props) {
   const router = useRouter();
   const { data: user, isLoading: authLoading } = useAuth();
+  const { data: paymentSettings } = usePaymentSettings();
   const t = useTranslations('eventDetail');
+  const tCommon = useTranslations('common');
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -58,7 +61,7 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
   const purchase = useMutation({
     mutationFn: async () => {
       if (!event) throw new Error('Event not loaded');
-      const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string }>(
+      const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string; sessionId?: string; clientSecret?: string }>(
         `/events/${event.id}/tickets/purchase`,
         { eventId: event.id, quantity }
       );
@@ -68,6 +71,8 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
       if (data.free) {
         setMessage({ type: 'success', text: t('reserveSuccess') });
         setTimeout(() => router.push('/dashboard/tickets'), 1500);
+      } else if (data.clientSecret && data.sessionId) {
+        router.push(`/checkout?session_id=${data.sessionId}&client_secret=${encodeURIComponent(data.clientSecret)}`);
       } else if (data.url) {
         window.location.href = data.url;
       }
@@ -92,6 +97,22 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
       ? event.maxTickets - event._count.tickets
       : null;
 
+  const hasCapacity = remaining === null || remaining > 0;
+  const canSelectQuantity = hasCapacity && quantity <= (remaining ?? 10);
+  const isFree = event?.isFree || Number(event?.ticketPrice) === 0;
+  const subtotal = isFree ? 0 : Number(event?.ticketPrice) * quantity;
+
+  const feeBreakdown = useMemo(() => {
+    if (isFree || subtotal <= 0 || !paymentSettings) return null;
+    return calculateProcessingFee(Math.round(subtotal * 100), {
+      enabled: paymentSettings.processingFeeEnabled,
+      percent: paymentSettings.processingFeePercent,
+      fixed: paymentSettings.processingFeeFixed
+    });
+  }, [subtotal, isFree, paymentSettings]);
+
+  const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
+
   if (isLoading || authLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -110,11 +131,6 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
       </div>
     );
   }
-
-  const hasCapacity = remaining === null || remaining > 0;
-  const canSelectQuantity = hasCapacity && quantity <= (remaining ?? 10);
-  const isFree = event.isFree || Number(event.ticketPrice) === 0;
-  const total = isFree ? 0 : Number(event.ticketPrice) * quantity;
 
   return (
     <div className="px-4 py-12 md:px-6">
@@ -209,6 +225,23 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
                   </button>
                 </div>
               </div>
+
+              {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>{tCommon('tickets')}</span>
+                    <span>{formatCurrency(feeBreakdown.net / 100)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>{tCommon('processingFee')}</span>
+                    <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-white/10 pt-1 font-semibold">
+                    <span>{tCommon('total')}</span>
+                    <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
+                  </div>
+                </div>
+              )}
 
               {message && (
                 <div

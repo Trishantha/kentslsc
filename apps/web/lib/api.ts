@@ -52,7 +52,9 @@ const optionalAuthEndpoints = [
   '/auth/reset-password',
   '/auth/verify-email',
   '/auth/logout',
-  '/auth/refresh'
+  '/auth/refresh',
+  '/payments/public-settings',
+  '/payments/stripe-config'
 ];
 
 export function getApiErrorMessage(error: unknown): string {

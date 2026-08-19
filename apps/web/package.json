@@ -21,6 +21,8 @@
     "@hookform/resolvers": "^3.10.0",
     "@kentslsc/config": "workspace:*",
     "@kentslsc/shared": "workspace:*",
+    "@stripe/react-stripe-js": "^3.6.0",
+    "@stripe/stripe-js": "^7.0.0",
     "@tanstack/react-query": "^5.101.4",
     "axios": "^1.19.0",
     "clsx": "^2.1.1",

@@ -61,7 +61,7 @@ export class AuthService {
     });
 
     let applicationResult:
-      | { paid: true; sessionId: string; url: string }
+      | { paid: true; sessionId: string; url: string; clientSecret?: string }
       | { paid: false; membership: unknown }
       | null = null;
 
@@ -74,7 +74,7 @@ export class AuthService {
         phone: app.phone,
         dependants: app.dependants ?? []
       })) as
-        | { paid: true; sessionId: string; url: string }
+        | { paid: true; sessionId: string; url: string; clientSecret?: string }
         | { paid: false; membership: unknown };
     }
 

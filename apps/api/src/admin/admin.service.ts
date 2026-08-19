@@ -208,11 +208,13 @@ export class AdminService {
       return { membership, paid: true, paymentMethod: 'offline' };
     }
 
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+
     const checkout = await this.paymentsService.createCheckout({
       amount: Math.round(Number(membershipType.price) * 100),
       currency: 'gbp',
       description: membershipType.name,
-      customerEmail: user.email,
+      customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
       metadata: {
@@ -259,11 +261,13 @@ export class AdminService {
     const user = membership.user;
     const fullName = user.name;
 
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+
     const checkout = await this.paymentsService.createCheckout({
       amount: Math.round(Number(membership.membershipType.price) * 100),
       currency: 'gbp',
       description: membership.membershipType.name,
-      customerEmail: user.email,
+      customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/dashboard?membership=success`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
       metadata: {
@@ -334,6 +338,38 @@ export class AdminService {
 
   regenerateMembershipCard(membershipId: string) {
     return this.membershipsService.regenerateCard(membershipId);
+  }
+
+  async regenerateAllMembershipCards(options: { onlyActive?: boolean } = {}) {
+    const where = {
+      deletedAt: null,
+      ...(options.onlyActive !== false ? { status: DbMembershipStatus.ACTIVE } : {})
+    };
+
+    const memberships = await this.prisma.membership.findMany({
+      where,
+      select: { membershipId: true }
+    });
+
+    let regenerated = 0;
+    let failed = 0;
+    const errors: { membershipId: string; error: string }[] = [];
+
+    for (const membership of memberships) {
+      try {
+        await this.membershipsService.regenerateCard(membership.membershipId);
+        regenerated += 1;
+      } catch (err) {
+        failed += 1;
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ membershipId: membership.membershipId, error: message });
+        this.logger.warn(
+          `Failed to regenerate card for ${membership.membershipId}: ${message}`
+        );
+      }
+    }
+
+    return { regenerated, failed, total: regenerated + failed, errors };
   }
 
   listEvents(page: number, limit: number) {

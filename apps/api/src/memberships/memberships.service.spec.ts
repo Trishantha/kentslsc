@@ -55,7 +55,8 @@ const mockPendingMembership = {
 const mockCheckoutResult = {
   id: 'cs_test_123',
   url: 'https://checkout.stripe.test/pay',
-  provider: 'stripe'
+  provider: 'stripe',
+  clientSecret: 'cs_test_secret'
 };
 
 describe('MembershipsService', () => {
@@ -80,7 +81,8 @@ describe('MembershipsService', () => {
   };
 
   const mockPaymentsService: any = {
-    createCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockCheckoutResult)
+    createCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(mockCheckoutResult),
+    getOrCreateStripeCustomer: jest.fn().mockResolvedValue('cus_test_user_1')
   };
 
   const mockEmailService: any = {
@@ -186,7 +188,8 @@ describe('MembershipsService', () => {
         sessionId: mockCheckoutResult.id,
         url: mockCheckoutResult.url,
         paid: true,
-        provider: mockCheckoutResult.provider
+        provider: mockCheckoutResult.provider,
+        clientSecret: mockCheckoutResult.clientSecret
       });
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -199,6 +202,7 @@ describe('MembershipsService', () => {
       );
       expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
+          customer: 'cus_test_user_1',
           metadata: expect.objectContaining({
             source: 'membership',
             membershipId: mockPendingMembership.id,
@@ -207,6 +211,7 @@ describe('MembershipsService', () => {
           })
         })
       );
+      expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith('user-1', 'test@example.com');
     });
 
     it('cancels previous pending memberships when re-applying for a paid type', async () => {
@@ -320,6 +325,31 @@ describe('MembershipsService', () => {
         })
       );
       expect(result.membershipId).toBe(mockCreatedMembership.membershipId);
+    });
+
+    it('rejects when the checkout membership belongs to a different user', async () => {
+      mockPrisma.membership.findUnique.mockResolvedValue({
+        ...mockPendingMembership,
+        userId: 'user-2',
+        user: { id: 'user-2', name: 'Other User', email: 'other@example.com' }
+      });
+
+      await expect(
+        service.handleCheckoutSessionCompleted({
+          id: 'cs_test_123',
+          metadata: {
+            source: 'membership',
+            membershipId: mockPendingMembership.id,
+            userId: 'user-1',
+            membershipTypeId: 'type-paid',
+            fullName: 'Test User',
+            address: '',
+            phone: '',
+            dependants: '[]'
+          },
+          customer_email: 'other@example.com'
+        } as any)
+      ).rejects.toThrow('Membership user mismatch');
     });
   });
 });

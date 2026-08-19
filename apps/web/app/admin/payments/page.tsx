@@ -13,6 +13,9 @@ interface PaymentSettings {
   hasPaypalClientId: boolean;
   hasPaypalClientSecret: boolean;
   paypalApiBaseUrl: string;
+  processingFeeEnabled: boolean;
+  processingFeePercent: number;
+  processingFeeFixed: number;
 }
 
 const inputClass = 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';
@@ -32,6 +35,9 @@ export default function AdminPaymentsPage() {
   const [paypalClientId, setPaypalClientId] = useState('');
   const [paypalClientSecret, setPaypalClientSecret] = useState('');
   const [paypalApiBaseUrl, setPaypalApiBaseUrl] = useState('https://api-m.sandbox.paypal.com');
+  const [processingFeeEnabled, setProcessingFeeEnabled] = useState(true);
+  const [processingFeePercent, setProcessingFeePercent] = useState(1.5);
+  const [processingFeeFixed, setProcessingFeeFixed] = useState(20);
 
   useEffect(() => {
     if (data) {
@@ -42,6 +48,9 @@ export default function AdminPaymentsPage() {
       setPaypalClientId('');
       setPaypalClientSecret('');
       setPaypalApiBaseUrl(data.paypalApiBaseUrl ?? 'https://api-m.sandbox.paypal.com');
+      setProcessingFeeEnabled(data.processingFeeEnabled ?? true);
+      setProcessingFeePercent(data.processingFeePercent ?? 1.5);
+      setProcessingFeeFixed(data.processingFeeFixed ?? 20);
     }
   }, [data]);
 
@@ -64,9 +73,15 @@ export default function AdminPaymentsPage() {
       paypalClientSecret?: string;
       provider: 'stripe' | 'paypal';
       paypalApiBaseUrl: string;
+      processingFeeEnabled: boolean;
+      processingFeePercent: number;
+      processingFeeFixed: number;
     } = {
       provider,
-      paypalApiBaseUrl
+      paypalApiBaseUrl,
+      processingFeeEnabled,
+      processingFeePercent,
+      processingFeeFixed
     };
 
     if (stripeSecretKey.trim()) payload.stripeSecretKey = stripeSecretKey.trim();
@@ -140,6 +155,50 @@ export default function AdminPaymentsPage() {
               </div>
             </>
           )}
+
+          <div className="border-t border-white/10 pt-5">
+            <h3 className="mb-3 text-sm font-semibold">Processing fee</h3>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={processingFeeEnabled}
+                onChange={(e) => setProcessingFeeEnabled(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-300">
+                Pass card processing fees to the payer
+              </span>
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              When enabled, the fee is added on top of the advertised price so the club receives the full amount.
+            </p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Percentage fee (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={processingFeePercent}
+                  onChange={(e) => setProcessingFeePercent(Number(e.target.value))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Fixed fee (pence)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={processingFeeFixed}
+                  onChange={(e) => setProcessingFeeFixed(Number(e.target.value))}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
 
           <button type="button" onClick={handleSave} disabled={mutation.isPending} className="btn-primary inline-flex items-center gap-2">
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}

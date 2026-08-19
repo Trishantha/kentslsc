@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useClientSearchParams } from '@/hooks/useClientSearchParams';
 import { Link } from '@/i18n/routing';
 import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
@@ -11,10 +12,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   registrationWizardSchema,
   RegistrationWizardInput,
-  MembershipFeature
+  MembershipFeature,
+  calculateProcessingFee
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
+import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { formatCurrency } from '@/lib/utils';
 import { isAxiosError } from 'axios';
 import {
   Check,
@@ -60,6 +64,7 @@ export function RegistrationWizard() {
   const t = useTranslations('registration');
   const tAuth = useTranslations('auth');
   const tCommon = useTranslations('common');
+  const { data: paymentSettings } = usePaymentSettings();
 
   const steps = [
     { id: 1, title: t('steps.account'), icon: User, fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword'] as const },
@@ -83,6 +88,7 @@ export function RegistrationWizard() {
     if (type.isFree || type.price === 0) return tCommon('free');
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
   }
+  const router = useRouter();
   const searchParams = useClientSearchParams();
   const { data: currentUser } = useAuth();
   const signOut = useSignOut();
@@ -151,6 +157,16 @@ export function RegistrationWizard() {
 
   const selectedTypeId = watch('membershipTypeId');
   const selectedType = types.find((t) => t.id === selectedTypeId);
+
+  const membershipFee = useMemo(() => {
+    if (!selectedType || selectedType.isFree || selectedType.price <= 0 || !paymentSettings) return null;
+    return calculateProcessingFee(Math.round(selectedType.price * 100), {
+      enabled: paymentSettings.processingFeeEnabled,
+      percent: paymentSettings.processingFeePercent,
+      fixed: paymentSettings.processingFeeFixed
+    });
+  }, [selectedType, paymentSettings]);
+
   const watchInterests = watch('interests') ?? [];
   const preferredTypeId = searchParams?.get('type') ?? '';
   const preferredType = types.find((type) => type.id === preferredTypeId);
@@ -226,6 +242,10 @@ export function RegistrationWizard() {
         }
       });
 
+      if (res.data.application?.paid && res.data.application.clientSecret && res.data.application.id) {
+        router.push(`/checkout?session_id=${res.data.application.id}&client_secret=${encodeURIComponent(res.data.application.clientSecret)}`);
+        return;
+      }
       if (res.data.application?.paid && res.data.application.url) {
         window.location.href = res.data.application.url;
         return;
@@ -665,6 +685,18 @@ export function RegistrationWizard() {
                 <span className="text-slate-600 dark:text-slate-400">{t('review.plan')}</span>
                 <span className="font-medium">{selectedType ? `${selectedType.name} (${formatPrice(selectedType)})` : '-'}</span>
               </div>
+              {membershipFee && membershipFee.fee > 0 && (
+                <>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-slate-600 dark:text-slate-400">{tCommon('processingFee')}</span>
+                    <span className="font-medium">{formatCurrency(membershipFee.fee / 100)}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/10 pb-2">
+                    <span className="text-slate-600 dark:text-slate-400">{tCommon('totalToPay')}</span>
+                    <span className="font-medium">{formatCurrency(membershipFee.gross / 100)}</span>
+                  </div>
+                </>
+              )}
               {dependants.length > 0 && (
                 <div className="flex justify-between border-b border-white/10 pb-2">
                   <span className="text-slate-600 dark:text-slate-400">{t('review.dependants')}</span>
@@ -681,7 +713,7 @@ export function RegistrationWizard() {
             {errors.acceptedTerms && <p className="text-sm text-red-500">{errors.acceptedTerms.message}</p>}
             {selectedType && !selectedType.isFree && (
               <p className="text-center text-sm text-slate-700 dark:text-slate-400">
-                {t('review.paymentRedirect', { price: formatPrice(selectedType) })}
+                {t('review.paymentRedirect', { price: membershipFee ? formatCurrency(membershipFee.gross / 100) : formatPrice(selectedType) })}
               </p>
             )}
           </div>

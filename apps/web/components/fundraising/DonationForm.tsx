@@ -1,8 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Loader2, Heart, EyeOff } from 'lucide-react';
+import { calculateProcessingFee } from '@kentslsc/shared';
 import { api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
+import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100];
 
@@ -12,6 +17,10 @@ interface Props {
 }
 
 export function DonationForm({ fundraiserId }: Props) {
+  const router = useRouter();
+  const t = useTranslations('common');
+  const tFundraiser = useTranslations('fundraiserDetail');
+  const { data: paymentSettings } = usePaymentSettings();
   const [amount, setAmount] = useState('');
   const [customAmount, setCustomAmount] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -21,6 +30,16 @@ export function DonationForm({ fundraiserId }: Props) {
   const [error, setError] = useState('');
 
   const selectedAmount = amount || customAmount;
+
+  const feeBreakdown = useMemo(() => {
+    const value = Number(selectedAmount);
+    if (!value || value < 1 || !paymentSettings) return null;
+    return calculateProcessingFee(Math.round(value * 100), {
+      enabled: paymentSettings.processingFeeEnabled,
+      percent: paymentSettings.processingFeePercent,
+      fixed: paymentSettings.processingFeeFixed
+    });
+  }, [selectedAmount, paymentSettings]);
 
   const handlePreset = (val: number) => {
     setAmount(String(val));
@@ -48,11 +67,15 @@ export function DonationForm({ fundraiserId }: Props) {
         message: message.trim() || undefined,
         isAnonymous
       });
+      if (res.data.clientSecret && res.data.id) {
+        router.push(`/checkout?session_id=${res.data.id}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
+        return;
+      }
       if (res.data.url) {
         window.location.href = res.data.url;
       }
     } catch {
-      setError('Could not start donation. Please try again.');
+      setError(tFundraiser('loginToDonateError'));
       setLoading(false);
     }
   };
@@ -143,13 +166,32 @@ export function DonationForm({ fundraiserId }: Props) {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
+      {feeBreakdown && feeBreakdown.fee > 0 && (
+        <div className="space-y-1 rounded-xl border border-slate-200 bg-white/50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>{t('donation')}</span>
+            <span>{formatCurrency(feeBreakdown.net / 100)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>{t('processingFee')}</span>
+            <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
+          </div>
+          <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold dark:border-slate-700">
+            <span>{t('total')}</span>
+            <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={handleDonate}
         disabled={loading || !selectedAmount}
         className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-base disabled:opacity-60"
       >
         {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Heart className="h-5 w-5" />}
-        {loading ? 'Redirecting to payment…' : `Donate${selectedAmount ? ` £${selectedAmount}` : ''}`}
+        {loading
+          ? 'Redirecting to payment…'
+          : `Donate${feeBreakdown ? ` ${formatCurrency(feeBreakdown.gross / 100)}` : selectedAmount ? ` £${selectedAmount}` : ''}`}
       </button>
       <p className="text-center text-xs text-slate-400">
         Secure payment via Stripe. You&apos;ll be redirected to complete your donation.

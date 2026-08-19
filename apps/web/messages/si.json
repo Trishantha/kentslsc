@@ -66,7 +66,12 @@
     "browseAll": "සියල්ල බ්‍රවුස් කරන්න",
     "noResults": "ප්‍රතිඵල හමු නොවිණි.",
     "free": "නොමිලේ",
-    "paid": "ගෙවා ඇත"
+    "paid": "ගෙවා ඇත",
+    "processingFee": "Processing fee",
+    "total": "Total",
+    "totalToPay": "Total to pay",
+    "donation": "Donation",
+    "tickets": "Tickets"
   },
   "home": {
     "subtitle": "වැඩසටහන්, සංස්කෘතිය, ව්‍යාපාර සහ සහයෝගීතාවය හරහා කෙන්ට් හි ශ්‍රී ලාංකික ප්‍රජාව සම්බන්ධ කිරීම. අප හා එක් වී අසාමාන්‍ය දෙයක කොටස්කරුවන් වන්න.",

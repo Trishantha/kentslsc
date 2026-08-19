@@ -290,6 +290,12 @@ export class AdminController {
     return this.adminService.regenerateMembershipCard(membershipId);
   }
 
+  @Post('memberships/regenerate-cards')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  regenerateAllMembershipCards(@Body() dto: { onlyActive?: boolean }) {
+    return this.adminService.regenerateAllMembershipCards({ onlyActive: dto?.onlyActive });
+  }
+
   @Post('memberships/:id/send-payment-link')
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   sendMembershipPaymentLink(@Param('id') membershipId: string) {

@@ -162,7 +162,7 @@ export class DirectoryController {
       }
 
       return res.status(400).send('Webhook payload not recognised');
-    } catch (err) {
+    } catch {
       return res.status(400).send('Webhook processing failed');
     }
   }

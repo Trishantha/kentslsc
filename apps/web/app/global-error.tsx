@@ -10,11 +10,11 @@ import taMessages from '../messages/ta.json';
 const LOCALES = ['en', 'si', 'ta'] as const;
 type SupportedLocale = (typeof LOCALES)[number];
 
-const MESSAGES: Record<SupportedLocale, typeof enMessages> = {
+const MESSAGES = {
   en: enMessages,
   si: siMessages,
   ta: taMessages
-};
+} as const satisfies Record<SupportedLocale, typeof enMessages>;
 
 function getLocaleFromPath(pathname: string): SupportedLocale {
   const segment = pathname.split('/').filter(Boolean)[0];

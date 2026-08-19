@@ -81,6 +81,9 @@ const PUBLIC_ALLOWLIST = new Set([
   'policy-documents/policy-documents.controller.ts::getByType',
   'gdpr-settings/gdpr-settings.controller.ts::get',
   'site-settings/site-settings.controller.ts::get',
+  'payments/payments.controller.ts::getStripeConfig',
+  'payments/payments.controller.ts::getPublicSettings',
+  'payments/payments.controller.ts::getCheckoutSession',
 ]);
 
 function findControllers(dir: string, found: string[] = []): string[] {

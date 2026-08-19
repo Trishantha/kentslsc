@@ -183,13 +183,19 @@ export class DirectoryService {
       description: `Promote ${listing.businessName} for 30 days`,
       successUrl: `${frontendUrl}/directory/${id}?promoted=success`,
       cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
+      uiMode: 'embedded',
       metadata: {
         type: 'directory_promotion',
         businessListingId: id
       }
     });
 
-    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async findJobs(businessListingId?: string) {
@@ -298,13 +304,19 @@ export class DirectoryService {
       description: `Publish job ad: ${job.title}`,
       successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success`,
       cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
+      uiMode: 'embedded',
       metadata: {
         type: 'job_publish',
         jobAdId: id
       }
     });
 
-    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async promoteBusinessOffline(id: string) {
@@ -332,15 +344,20 @@ export class DirectoryService {
   async sendPromotionLink(id: string) {
     const listing = await this.prisma.businessListing.findFirst({
       where: { id, deletedAt: null },
-      include: { owner: { select: { email: true, name: true } } }
+      include: { owner: { select: { id: true, email: true, name: true } } }
     });
     if (!listing) throw new NotFoundException('Business listing not found');
+
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(
+      listing.owner.id,
+      listing.owner.email
+    );
 
     const checkout = await this.paymentsService.createCheckout({
       amount: PROMOTION_PRICE_PENCE,
       currency: 'gbp',
       description: `Promote ${listing.businessName} for 30 days`,
-      customerEmail: listing.owner.email ?? undefined,
+      customer: stripeCustomerId,
       successUrl: `${this.frontendUrl}/directory/${id}?promoted=success`,
       cancelUrl: `${this.frontendUrl}/directory/${id}?promoted=cancel`,
       metadata: {
@@ -355,7 +372,12 @@ export class DirectoryService {
       checkout.url
     );
 
-    return { sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async handlePromotionCompleted(metadata: Record<string, string>, paymentMethod?: string) {

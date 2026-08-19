@@ -293,12 +293,22 @@ export class EventsService {
       return { free: true, tickets };
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deletedAt: null },
+      select: { id: true, email: true }
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+
     const checkout = await this.paymentsService.createCheckout({
       amount: totalAmount,
       currency: 'gbp',
       description: event.title,
+      customer: stripeCustomerId,
       successUrl: `${origin}/dashboard/tickets?success=1`,
       cancelUrl: `${origin}/events/${dto.eventId}?canceled=1`,
+      uiMode: 'embedded',
       metadata: {
         eventId: dto.eventId,
         userId,
@@ -307,7 +317,13 @@ export class EventsService {
       }
     });
 
-    return { free: false, sessionId: checkout.id, url: checkout.url, provider: checkout.provider };
+    return {
+      free: false,
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider,
+      clientSecret: checkout.clientSecret
+    };
   }
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
