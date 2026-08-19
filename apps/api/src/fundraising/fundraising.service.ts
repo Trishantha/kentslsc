@@ -320,7 +320,7 @@ export class FundraisingService {
       description: `Donation to ${fundraiser.title}`,
       successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
       cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
-      uiMode: 'embedded',
+      uiMode: 'embedded_page',
       metadata: {
         type: 'donation',
         fundraiserId,

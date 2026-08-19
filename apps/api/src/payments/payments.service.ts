@@ -353,7 +353,8 @@ export class PaymentsService {
       ];
     }
 
-    const isEmbedded = input.uiMode === 'embedded' || input.uiMode === 'embedded_page';
+    const uiMode = input.uiMode === 'embedded' ? 'embedded_page' : input.uiMode;
+    const isEmbedded = uiMode === 'embedded_page';
 
     const session = await this.stripe!.checkout.sessions.create({
       mode: input.mode ?? 'payment',
@@ -366,7 +367,7 @@ export class PaymentsService {
           : {}),
       ...(isEmbedded
         ? {
-            ui_mode: input.uiMode as 'embedded' | 'embedded_page',
+            ui_mode: 'embedded_page',
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }
@@ -462,7 +463,8 @@ export class PaymentsService {
     this.ensureStripeClient(settings.stripeSecretKey);
     this.ensureEnabled();
 
-    const isEmbedded = input.uiMode === 'embedded' || input.uiMode === 'embedded_page';
+    const uiMode = input.uiMode === 'embedded' ? 'embedded_page' : input.uiMode;
+    const isEmbedded = uiMode === 'embedded_page';
 
     const session = await this.stripe!.checkout.sessions.create({
       mode: 'subscription',
@@ -471,7 +473,7 @@ export class PaymentsService {
       customer: input.customer,
       ...(isEmbedded
         ? {
-            ui_mode: input.uiMode as 'embedded' | 'embedded_page',
+            ui_mode: 'embedded_page',
             return_url: input.successUrl,
             redirect_on_completion: 'always' as const
           }

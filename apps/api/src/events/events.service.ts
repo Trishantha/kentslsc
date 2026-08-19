@@ -308,7 +308,7 @@ export class EventsService {
       customer: stripeCustomerId,
       successUrl: `${origin}/dashboard/tickets?success=1`,
       cancelUrl: `${origin}/events/${dto.eventId}?canceled=1`,
-      uiMode: 'embedded',
+      uiMode: 'embedded_page',
       metadata: {
         eventId: dto.eventId,
         userId,
