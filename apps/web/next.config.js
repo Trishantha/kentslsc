@@ -118,6 +118,14 @@ const securityHeaders = [
   {
     key: 'Cache-Control',
     value: 'no-store, must-revalidate'
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 'no-store'
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 'no-store'
   }
 ];
 
