@@ -988,19 +988,18 @@ function getStaticMimeType(filePath) {
 }
 
 /**
- * Serve Next.js static assets directly from the filesystem.
+ * Serve Next.js static assets directly from the filesystem when possible.
  *
  * On some shared-hosting/reverse-proxy setups the in-process Next.js handler
  * does not receive or cannot serve `/_next/static/*` requests. Serving them
  * here guarantees the CSS/JS chunks that hydrate the page are delivered with
  * correct MIME types and long-term caching headers.
  *
- * If the file is missing we return a short 404 with `Cache-Control: no-cache`
- * so a stale HTML page cached by the browser/CDN cannot pin broken asset URLs
- * indefinitely. The real fix for mismatched hashes is a clean rebuild + cache
- * clear, but this prevents the browser from caching the 404 itself.
+ * If the file is not on disk we fall back to the in-process Next.js handler.
+ * Next.js may still have the asset in memory or in a different build layout
+ * (e.g. standalone output), so the fallback keeps those requests working.
  */
-function serveNextStaticFile(req, res) {
+function serveNextStaticFile(req, res, fallback) {
   const url = new URL(req.url || '/', 'http://localhost');
   const relativePath = decodeURIComponent(url.pathname).replace(/^\/_next\/static\//, '');
   const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -1018,11 +1017,16 @@ function serveNextStaticFile(req, res) {
     if (err) {
       if (err.code === 'ENOENT') {
         console.warn(
-          `Static file missing: ${filePath} (requested ${req.url}). ` +
+          `Static file missing on disk: ${filePath} (requested ${req.url}). ` +
             `webDir=${webDir}, staticRoot=${staticRoot}`
         );
       } else {
         console.error(`Static file read error: ${filePath} - ${err.message}`);
+      }
+
+      if (typeof fallback === 'function') {
+        fallback();
+        return;
       }
 
       res.writeHead(404, {
@@ -1079,7 +1083,17 @@ function startProxyServer() {
     // Static assets are immutable and do not depend on the API/web handlers, so
     // serve them even while the upstreams are still warming up.
     if (urlPath.startsWith('/_next/static/')) {
-      serveNextStaticFile(req, res);
+      serveNextStaticFile(req, res, () => {
+        if (webHandler) {
+          webHandler(req, res);
+        } else {
+          res.writeHead(404, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'public, max-age=0, must-revalidate'
+          });
+          res.end('Not found');
+        }
+      });
       return;
     }
 
