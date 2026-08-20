@@ -1,3 +1,10 @@
+export interface FundraiserPhoto {
+  id: string;
+  url: string;
+  path?: string | null;
+  sortOrder: number;
+}
+
 export interface AdminFundraiser {
   id: string;
   title: string;
@@ -16,6 +23,7 @@ export interface AdminFundraiser {
   createdAt?: string;
   organizer?: { id?: string; name: string; firstName?: string | null; lastName?: string | null } | null;
   updates?: FundraiserUpdate[];
+  photos?: FundraiserPhoto[];
 }
 
 export interface FundraiserUpdate {

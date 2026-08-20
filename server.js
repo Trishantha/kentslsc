@@ -540,6 +540,49 @@ function logStartupDiagnostics() {
   }
 }
 
+function countStaticFiles(dir) {
+  try {
+    let count = 0;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        count += countStaticFiles(fullPath);
+      } else if (entry.isFile()) {
+        count += 1;
+      }
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+function logStaticAssetsDiagnostic() {
+  const staticRoot = path.join(webDir, '.next', 'static');
+  try {
+    const stats = fs.statSync(staticRoot);
+    if (!stats.isDirectory()) {
+      console.warn(`WARNING: ${staticRoot} exists but is not a directory.`);
+      return;
+    }
+    const fileCount = countStaticFiles(staticRoot);
+    console.log(`Next.js static assets: ${fileCount} files under ${staticRoot}`);
+    if (fileCount === 0) {
+      console.warn(
+        'WARNING: No static assets found in the Next.js build output. ' +
+          'The web build may have failed or .next/static was not copied to the deployment. ' +
+          'CSS/JS chunks will return 404 and pages will not hydrate.'
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `WARNING: Next.js static assets directory not found at ${staticRoot}: ${err.message}. ` +
+        'CSS/JS chunks will return 404 and pages will not hydrate.'
+    );
+  }
+}
+
 async function ensureBuilt() {
   const { apiBuilt, webBuilt } = checkBuildArtifacts();
 
@@ -886,8 +929,10 @@ function serveNextStaticFile(req, res, fallback) {
   const relativePath = decodeURIComponent(url.pathname).replace(/^\/_next\/static\//, '');
   const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
   const filePath = path.join(webDir, '.next', 'static', safePath);
+  const staticRoot = path.join(webDir, '.next', 'static');
 
-  if (!filePath.startsWith(path.join(webDir, '.next', 'static'))) {
+  if (!filePath.startsWith(staticRoot)) {
+    console.warn(`Static file request blocked (traversal): ${req.url}`);
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Forbidden');
     return;
@@ -895,11 +940,19 @@ function serveNextStaticFile(req, res, fallback) {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      if (err.code === 'ENOENT') {
+        console.warn(
+          `Static file missing: ${filePath} (requested ${req.url}). ` +
+            `webDir=${webDir}, staticRoot=${staticRoot}`
+        );
+      } else {
+        console.error(`Static file read error: ${filePath} - ${err.message}`);
+      }
+
       if (typeof fallback === 'function') {
         fallback();
         return;
       }
-      console.error(`Static file not found: ${filePath}`);
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not found');
       return;
@@ -945,15 +998,11 @@ function startProxyServer() {
       return;
     }
 
-    if (!isUpstreamReady) {
-      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ error: 'Service warming up', detail: 'Upstreams are still starting' }));
-      return;
-    }
-
     // Serve Next.js static assets directly from the build output. This
     // bypasses any reverse-proxy or in-process handler issues that can otherwise
     // return 404 / text-plain responses for CSS and JS chunks.
+    // Static assets are immutable and do not depend on the API/web handlers, so
+    // serve them even while the upstreams are still warming up.
     if (urlPath.startsWith('/_next/static/')) {
       serveNextStaticFile(req, res, () => {
         if (webHandler) {
@@ -963,6 +1012,12 @@ function startProxyServer() {
           res.end('Not found');
         }
       });
+      return;
+    }
+
+    if (!isUpstreamReady) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Service warming up', detail: 'Upstreams are still starting' }));
       return;
     }
 
@@ -1231,6 +1286,10 @@ async function startServices() {
   } else {
     throw new Error(`Unsupported WEB_MODE: ${webMode}. Use 'in-process' or 'child'.`);
   }
+
+  // Surface build/deployment problems early. If .next/static is empty or missing
+  // the login page (and every other page) will fail to hydrate.
+  logStaticAssetsDiagnostic();
 
   const apiRoutesOk = await verifyCriticalApiRoutes();
   isUpstreamReady = apiRoutesOk;

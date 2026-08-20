@@ -11,6 +11,7 @@ import {
   Banknote,
   Megaphone,
   ShieldAlert,
+  Image,
   Loader2
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
@@ -20,6 +21,7 @@ import { FUNDRAISER_CATEGORIES, FUNDRAISER_STATUS_COLORS } from '../types';
 
 const tabs = [
   { href: 'overview', label: 'Overview', icon: Info },
+  { href: 'photos', label: 'Photos', icon: Image },
   { href: 'donations', label: 'Donations', icon: Banknote },
   { href: 'updates', label: 'Updates', icon: Megaphone },
   { href: 'moderation', label: 'Moderation', icon: ShieldAlert }

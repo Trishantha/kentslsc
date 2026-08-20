@@ -103,7 +103,8 @@ export class FundraisingService {
       where: { id, deletedAt: null },
       include: {
         organizer: { select: ORGANIZER_SELECT },
-        updates: { orderBy: { createdAt: 'desc' }, include: { author: { select: ORGANIZER_SELECT } } }
+        updates: { orderBy: { createdAt: 'desc' }, include: { author: { select: ORGANIZER_SELECT } } },
+        photos: { orderBy: { sortOrder: 'asc' } }
       }
     });
     if (!item) throw new NotFoundException('Fundraiser not found');
@@ -126,16 +127,20 @@ export class FundraisingService {
         isActive: data.isActive ?? true,
         status,
         organizerId: organizerId ?? null,
-        aiSummary: null
+        aiSummary: null,
+        photos: {
+          create: data.photos?.map((p: { url: string; path?: string }, idx: number) => ({
+            url: p.url,
+            path: p.path || null,
+            sortOrder: idx
+          })) ?? []
+        }
       },
-      include: { organizer: { select: ORGANIZER_SELECT } }
+      include: {
+        organizer: { select: ORGANIZER_SELECT },
+        photos: { orderBy: { sortOrder: 'asc' } }
+      }
     });
-
-    if (data.description?.trim()) {
-      this.refreshAiSummary(item.id, data.description).catch((error) => {
-        this.logger.warn(`Failed to generate fundraiser summary: ${(error as Error).message}`);
-      });
-    }
 
     return this.toResponse(item);
   }
@@ -150,6 +155,18 @@ export class FundraisingService {
       );
     }
 
+    // Sync gallery photos when the full photos array is supplied
+    if (data.photos !== undefined) {
+      const removedPaths = ((existing.photos ?? []) as { path?: string | null }[])
+        .map((p) => p.path)
+        .filter((p): p is string => Boolean(p));
+      for (const path of removedPaths) {
+        await this.supabase.delete(path).catch((e) =>
+          this.logger.warn(`Failed to delete old fundraiser gallery photo ${path}: ${String(e)}`)
+        );
+      }
+    }
+
     const item = await this.prisma.fundraiser.update({
       where: { id },
       data: {
@@ -161,29 +178,25 @@ export class FundraisingService {
         ...(data.category !== undefined && { category: data.category }),
         ...(data.startDate !== undefined && { startDate: data.startDate }),
         ...(data.endDate !== undefined && { endDate: data.endDate }),
-        ...(data.isActive !== undefined && { isActive: data.isActive })
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(data.photos !== undefined && {
+          photos: {
+            deleteMany: {},
+            create: data.photos.map((p: { url: string; path?: string }, idx: number) => ({
+              url: p.url,
+              path: p.path || null,
+              sortOrder: idx
+            }))
+          }
+        })
       },
-      include: { organizer: { select: ORGANIZER_SELECT } }
+      include: {
+        organizer: { select: ORGANIZER_SELECT },
+        photos: { orderBy: { sortOrder: 'asc' } }
+      }
     });
-
-    if (data.description !== undefined) {
-      this.refreshAiSummary(id, data.description ?? '').catch((error) => {
-        this.logger.warn(`Failed to refresh fundraiser summary: ${(error as Error).message}`);
-      });
-    }
 
     return this.toResponse(item);
-  }
-
-  private async refreshAiSummary(fundraiserId: string, description: string): Promise<void> {
-    const summary = description.trim()
-      ? await this.ai.summarise(description, 'fundraiser', 200)
-      : null;
-
-    await this.prisma.fundraiser.update({
-      where: { id: fundraiserId },
-      data: { aiSummary: summary }
-    });
   }
 
   async remove(id: string) {
@@ -191,6 +204,14 @@ export class FundraisingService {
     if (item.imagePath) {
       await this.supabase.delete(item.imagePath).catch((e) =>
         this.logger.warn(`Failed to delete fundraiser image on removal: ${String(e)}`)
+      );
+    }
+    const photoPaths = ((item.photos ?? []) as { path?: string | null }[])
+      .map((p) => p.path)
+      .filter((p): p is string => Boolean(p));
+    for (const path of photoPaths) {
+      await this.supabase.delete(path).catch((e) =>
+        this.logger.warn(`Failed to delete fundraiser gallery photo on removal ${path}: ${String(e)}`)
       );
     }
     await this.prisma.fundraiser.update({ where: { id }, data: { deletedAt: new Date() } });

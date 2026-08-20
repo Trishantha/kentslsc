@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import type { SiteSettingsInput } from '@kentslsc/shared';
 
 interface SocialLinksProps {
@@ -49,7 +50,7 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-const platforms: { key: keyof SiteSettingsInput; label: string; icon: () => JSX.Element }[] = [
+const platforms: { key: keyof SiteSettingsInput; label: string; icon: () => React.JSX.Element }[] = [
   { key: 'facebook', label: 'Facebook', icon: FacebookIcon },
   { key: 'instagram', label: 'Instagram', icon: InstagramIcon },
   { key: 'twitter', label: 'X', icon: XIcon },

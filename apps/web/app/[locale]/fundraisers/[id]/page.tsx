@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const fundraiser = await fetchFundraiser(id);
   if (!fundraiser) return {};
-  const description = fundraiser.aiSummary ?? fundraiser.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Support ${fundraiser.title}`;
+  const description = fundraiser.description?.slice(0, 160).replace(/\n/g, ' ') ?? `Support ${fundraiser.title}`;
   const image = fundraiser.imageUrl ?? '/opengraph-image';
   return {
     title: fundraiser.title,
@@ -52,7 +52,7 @@ export default async function FundraiserDetailPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'FundraiserCampaign',
     name: fundraiser.title,
-    description: fundraiser.aiSummary ?? fundraiser.description ?? `Support ${fundraiser.title}`,
+    description: fundraiser.description ?? `Support ${fundraiser.title}`,
     image: fundraiser.imageUrl ?? `${baseUrl}/opengraph-image`,
     url: shareUrl,
     startDate: fundraiser.startDate,

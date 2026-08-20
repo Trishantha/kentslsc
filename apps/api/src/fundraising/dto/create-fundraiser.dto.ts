@@ -1,6 +1,19 @@
-import { IsBoolean, IsDate, IsEnum, IsNumber, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsNumber, IsOptional, IsString, IsUrl, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FundraiserCategory } from '@kentslsc/shared';
+
+export class FundraiserPhotoDto {
+  @IsOptional()
+  @IsString()
+  declare id?: string;
+
+  @IsUrl()
+  declare url: string;
+
+  @IsOptional()
+  @IsString()
+  declare path?: string;
+}
 
 export class CreateFundraiserDto {
   @IsString()
@@ -39,4 +52,9 @@ export class CreateFundraiserDto {
   @IsOptional()
   @IsBoolean()
   declare isActive?: boolean;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => FundraiserPhotoDto)
+  declare photos?: FundraiserPhotoDto[];
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { Permission } from '@kentslsc/shared';
 
@@ -48,7 +47,6 @@ export function useAuth() {
 
 export function useSignOut() {
   const queryClient = useQueryClient();
-  const router = useRouter();
 
   return useMutation({
     mutationFn: async () => {
@@ -57,8 +55,12 @@ export function useSignOut() {
     onSuccess: () => {
       queryClient.setQueryData(['auth', 'me'], null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      router.push('/');
-      router.refresh();
+      // Use a full page navigation to the login page so the middleware runs with
+      // the cleared cookies and the browser fetches fresh HTML instead of
+      // relying on a client-side transition that can hydrate with stale state.
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login';
+      }
     }
   });
 }

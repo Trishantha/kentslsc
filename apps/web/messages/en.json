@@ -522,7 +522,8 @@
     "amountPlaceholder": "Amount (£)",
     "makeDonation": "Make a donation",
     "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause",
-    "fullStory": "Full story"
+    "fullStory": "Full story",
+    "gallery": "Gallery"
   },
   "membershipVerify": {
     "metaTitle": "Verify Membership – Kent SLSC",

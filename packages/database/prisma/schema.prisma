@@ -666,6 +666,7 @@ model Fundraiser {
 
   donations  Donation[]
   updates    FundraiserUpdate[]
+  photos     FundraiserPhoto[]
   organizer  User?               @relation("FundraiserOrganizer", fields: [organizerId], references: [id])
 
   @@index([status])
@@ -718,6 +719,20 @@ model FundraiserUpdate {
 
   @@index([fundraiserId])
   @@map("fundraiser_updates")
+}
+
+model FundraiserPhoto {
+  id           String   @id @default(uuid())
+  fundraiserId String   @map("fundraiser_id")
+  url          String
+  path         String?
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  fundraiser Fundraiser @relation(fields: [fundraiserId], references: [id], onDelete: Cascade)
+
+  @@index([fundraiserId])
+  @@map("fundraiser_photos")
 }
 
 model BlogPost {

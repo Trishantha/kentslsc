@@ -116,9 +116,6 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  eslint: {
-    ignoreDuringBuilds: true
-  },
   transpilePackages: ['@kentslsc/shared'],
   images: {
     formats: ['image/avif', 'image/webp'],

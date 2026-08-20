@@ -1,5 +1,4 @@
 import { Reflector } from '@nestjs/core';
-import { ForbiddenException } from '@nestjs/common';
 import { UserRole, type TokenPayload } from '@kentslsc/shared';
 import { RolesGuard } from './roles.guard.js';
 import { ROLES_KEY } from '../decorators/roles.decorator.js';

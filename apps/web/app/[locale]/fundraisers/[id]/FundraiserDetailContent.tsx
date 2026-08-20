@@ -24,7 +24,6 @@ export interface Fundraiser {
   raisedAmount: number;
   totalDonors: number;
   imageUrl?: string | null;
-  aiSummary?: string | null;
   startDate: string;
   endDate: string;
   category: string;
@@ -32,6 +31,7 @@ export interface Fundraiser {
   createdAt: string;
   organizer?: { id: string; name: string; firstName?: string | null; lastName?: string | null } | null;
   updates?: { id: string; title: string; content: string; createdAt: string }[];
+  photos?: { id: string; url: string; sortOrder: number }[];
 }
 
 interface Props {
@@ -89,14 +89,6 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
               </p>
             )}
 
-            {fundraiser.aiSummary && (
-              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="leading-relaxed text-slate-700 dark:text-slate-300">
-                  {fundraiser.aiSummary}
-                </p>
-              </div>
-            )}
-
             {fundraiser.description && (
               <div className="mt-8">
                 <h2 className="mb-3 text-lg font-semibold">{t('fullStory')}</h2>
@@ -104,6 +96,31 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
                   html={fundraiser.description}
                   className="text-slate-700 dark:text-slate-300"
                 />
+              </div>
+            )}
+
+            {fundraiser.photos && fundraiser.photos.length > 0 && (
+              <div className="mt-8">
+                <h2 className="mb-3 text-lg font-semibold">{t('gallery')}</h2>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {fundraiser.photos
+                    .sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-slate-100 dark:border-slate-700"
+                      >
+                        <img
+                          src={photo.url}
+                          alt=""
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </a>
+                    ))}
+                </div>
               </div>
             )}
 
