@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { EventsService } from './events.service.js';
-import { TicketStatus } from '@kentslsc/database';
+import { TicketStatus, PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 import type Stripe from 'stripe';
 
 const originalRandomUUID = crypto.randomUUID;
@@ -63,14 +63,23 @@ describe('EventsService', () => {
       update: jest.fn(),
       findUnique: jest.fn()
     },
+    payment: {
+      create: jest.fn(),
+      update: jest.fn()
+    },
     user: {
       findUnique: jest.fn()
     },
     $transaction: jest.fn(async (cb: any) => {
       const tx = {
+        event: mockPrisma.event,
         ticket: {
           count: mockPrisma.ticket.count,
           create: mockPrisma.ticket.create
+        },
+        payment: {
+          create: mockPrisma.payment.create,
+          update: mockPrisma.payment.update
         }
       };
       return cb(tx);
@@ -116,9 +125,10 @@ describe('EventsService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.ticket.findFirst.mockResolvedValue(null);
       mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-free' });
       mockPrisma.ticket.create
-        .mockResolvedValueOnce(createMockTicket({ id: 'free-1' }))
-        .mockResolvedValueOnce(createMockTicket({ id: 'free-2' }));
+        .mockResolvedValueOnce(createMockTicket({ id: 'free-1', paymentId: 'payment-free' }))
+        .mockResolvedValueOnce(createMockTicket({ id: 'free-2', paymentId: 'payment-free' }));
 
       const result = await service.createCheckoutSession(mockUser.id, {
         eventId: mockEvent.id,
@@ -129,6 +139,7 @@ describe('EventsService', () => {
       expect(result.tickets).toHaveLength(2);
       expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
       expect(mockEmailService.sendTicket).toHaveBeenCalled();
+      expect(mockPrisma.payment.create).toHaveBeenCalled();
     });
 
     it('creates a Stripe checkout for paid tickets', async () => {
@@ -176,6 +187,8 @@ describe('EventsService', () => {
       mockPrisma.ticket.findMany.mockResolvedValueOnce([]);
       mockPrisma.ticket.findFirst.mockResolvedValue(null);
       mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      mockPrisma.payment.update.mockResolvedValue({ id: 'payment-1' });
       mockPrisma.ticket.create
         .mockResolvedValueOnce(createMockTicket({ id: 'paid-1', stripeSessionId: session.id }))
         .mockResolvedValueOnce(createMockTicket({ id: 'paid-2', stripeSessionId: session.id }))
@@ -189,6 +202,7 @@ describe('EventsService', () => {
           where: expect.objectContaining({ stripeSessionId: session.id, deletedAt: null })
         })
       );
+      expect(mockPrisma.payment.create).toHaveBeenCalled();
     });
 
     it('returns existing tickets and does not create duplicates when Stripe retries the webhook', async () => {
@@ -227,10 +241,20 @@ describe('EventsService', () => {
     it('throws if tickets already exist for the same Stripe session', async () => {
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
       mockPrisma.ticket.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
 
       await expect(
-        service.createTickets(mockUser.id, mockEvent.id, 1, 'cs_test_123', 'http://localhost:3000')
+        service.createTickets(mockUser.id, mockEvent.id, 1, 'http://localhost:3000', {
+          channel: 'stripe',
+          grossAmount: 1000,
+          processingFee: 0,
+          netAmount: 1000,
+          providerCheckoutId: 'cs_test_123',
+          paymentStatus: PaymentStatus.COMPLETED,
+          sourceType: PaymentSourceType.TICKET
+        })
       ).rejects.toThrow('Tickets already issued for this payment session');
     });
   });

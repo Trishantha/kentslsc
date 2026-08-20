@@ -6,7 +6,7 @@ import { summarizeRichText, stripRichText } from '@/lib/rich-text';
 import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: Promise<{ locale: string; id: string }>;
 }
 
 async function fetchEvent(id: string): Promise<Event | null> {
@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventDetailPage({ params }: Props) {
-  const { id } = await params;
+  const { locale, id } = await params;
   const event = await fetchEvent(id);
 
   if (!event) {
@@ -49,6 +49,8 @@ export default async function EventDetailPage({ params }: Props) {
   }
 
   const baseUrl = getFrontendUrl();
+  const localePath = locale === 'en' ? '' : `/${locale}`;
+  const shareUrl = `${baseUrl}${localePath}/events/${event.id}`;
   const eventSchema = {
     '@context': 'https://schema.org',
     '@type': 'Event',
@@ -78,7 +80,7 @@ export default async function EventDetailPage({ params }: Props) {
   return (
     <>
       <JsonLd data={eventSchema} />
-      <EventDetailContent id={id} event={event} />
+      <EventDetailContent id={id} event={event} shareUrl={shareUrl} />
     </>
   );
 }

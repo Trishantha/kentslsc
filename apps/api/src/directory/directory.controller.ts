@@ -141,10 +141,19 @@ export class DirectoryController {
         const event = await this.paymentsService.constructEvent(rawBody, signature);
         if (event.type === 'checkout.session.completed') {
           const session = event.data.object as Stripe.Checkout.Session;
-          await this.directoryService.handlePromotionCompleted(
-            session.metadata ?? {},
-            'stripe'
-          );
+          await this.directoryService.handlePromotionCompleted(session.metadata ?? {}, 'stripe', {
+            providerCheckoutId: session.id,
+            providerPaymentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id ?? null,
+            amountPence: session.amount_total ?? undefined,
+            currency: session.currency ?? 'gbp',
+            payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
+            payerName: session.customer_details?.name ?? null,
+            payerPhone: session.customer_details?.phone ?? null,
+            purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
+          });
         }
         return res.json({ received: true });
       }
@@ -152,11 +161,27 @@ export class DirectoryController {
       if (body?.event_type) {
         await this.paymentsService.verifyPayPalWebhook(rawBody, headers);
         const metadata = this.paymentsService.extractPayPalMetadata(body);
+        const purchaseUnit = body?.resource?.purchase_units?.[0];
+        const payer = body?.resource?.payer;
+        const paymentContext = {
+          providerCheckoutId: body?.resource?.id ?? null,
+          providerPaymentId: this.paymentsService.extractPayPalPaymentId(body),
+          amountPence: purchaseUnit?.amount?.value
+            ? Math.round(Number(purchaseUnit.amount.value) * 100)
+            : undefined,
+          currency: purchaseUnit?.amount?.currency_code ?? 'GBP',
+          payerEmail: payer?.email_address ?? null,
+          payerName: payer?.name
+            ? `${payer.name.given_name ?? ''} ${payer.name.surname ?? ''}`.trim()
+            : null,
+          payerPhone: payer?.phone?.phone_number?.national_number ?? null,
+          purchasedAt: body?.resource?.create_time ? new Date(body.resource.create_time) : new Date()
+        };
         if (metadata.type === 'directory_promotion') {
-          await this.directoryService.handlePromotionCompleted(metadata, 'paypal');
+          await this.directoryService.handlePromotionCompleted(metadata, 'paypal', paymentContext);
         }
         if (metadata.type === 'job_publish') {
-          await this.directoryService.handleJobPublishCompleted(metadata);
+          await this.directoryService.handleJobPublishCompleted(metadata, paymentContext);
         }
         return res.json({ received: true });
       }

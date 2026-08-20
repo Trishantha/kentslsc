@@ -1,4 +1,5 @@
 import { z } from '@kentslsc/shared';
+import type { ConfigService } from '@nestjs/config';
 
 export const envValidationSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -50,3 +51,50 @@ export const envValidationSchema = z.object({
 });
 
 export type EnvConfig = z.infer<typeof envValidationSchema>;
+
+/**
+ * Validates that production has the dependencies it cannot safely degrade without.
+ * This is intentionally separate from the base schema so local development can run
+ * with missing Stripe/email/Supabase keys.
+ */
+export function validateProductionConfig(config: EnvConfig): void;
+export function validateProductionConfig(configService: ConfigService): void;
+export function validateProductionConfig(config: EnvConfig | ConfigService): void {
+  function getValue(key: keyof EnvConfig): unknown {
+    if ('get' in config && typeof config.get === 'function') {
+      return config.get(key as string);
+    }
+    return (config as EnvConfig)[key];
+  }
+
+  const nodeEnv = getValue('NODE_ENV');
+  if (nodeEnv !== 'production') return;
+
+  const missing: string[] = [];
+
+  if (!getValue('DATABASE_URL')) missing.push('DATABASE_URL');
+  if (!getValue('EMAIL_HOST')) missing.push('EMAIL_HOST');
+  if (!getValue('EMAIL_USER')) missing.push('EMAIL_USER');
+  if (!getValue('EMAIL_PASS')) missing.push('EMAIL_PASS');
+  if (!getValue('EMAIL_FROM')) missing.push('EMAIL_FROM');
+  if (!getValue('SUPABASE_URL')) missing.push('SUPABASE_URL');
+  if (!getValue('SUPABASE_SERVICE_KEY')) missing.push('SUPABASE_SERVICE_KEY');
+
+  const provider = (getValue('DEFAULT_PAYMENT_PROVIDER') as EnvConfig['DEFAULT_PAYMENT_PROVIDER']) ?? 'stripe';
+  if (provider === 'stripe') {
+    if (!getValue('STRIPE_SECRET_KEY')) missing.push('STRIPE_SECRET_KEY');
+    if (!getValue('STRIPE_WEBHOOK_SECRET')) missing.push('STRIPE_WEBHOOK_SECRET');
+    if (!getValue('STRIPE_PUBLISHABLE_KEY')) missing.push('STRIPE_PUBLISHABLE_KEY');
+  } else if (provider === 'paypal') {
+    if (!getValue('PAYPAL_CLIENT_ID')) missing.push('PAYPAL_CLIENT_ID');
+    if (!getValue('PAYPAL_CLIENT_SECRET')) missing.push('PAYPAL_CLIENT_SECRET');
+    if (!getValue('PAYPAL_WEBHOOK_ID')) missing.push('PAYPAL_WEBHOOK_ID');
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Production startup blocked: the following required environment variables are missing: ${missing.join(', ')}. ` +
+        'Set them or run in development mode.'
+    );
+  }
+}

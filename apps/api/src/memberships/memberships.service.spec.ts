@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { MembershipsService } from './memberships.service.js';
-import { MembershipStatus, Prisma } from '@kentslsc/database';
+import { MembershipStatus } from '@kentslsc/database';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 
 const mockMembershipType = {
@@ -116,6 +116,10 @@ describe('MembershipsService', () => {
     user: {
       findUnique: jest.fn(),
       update: jest.fn()
+    },
+    payment: {
+      findFirst: jest.fn(),
+      create: jest.fn()
     }
   };
 
@@ -487,6 +491,13 @@ describe('MembershipsService', () => {
         })
       );
       expect(mockPaymentsService.getSubscription).toHaveBeenCalledWith('sub_test_1');
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            subscriptionStatus: 'active'
+          })
+        })
+      );
       expect(result.membershipId).toBe('MEM-ABCDEFGH');
     });
 
@@ -519,7 +530,8 @@ describe('MembershipsService', () => {
             userId: 'user-1',
             membershipTypeId: 'type-paid',
             status: MembershipStatus.ACTIVE,
-            stripeSubscriptionId: 'sub_test_1'
+            stripeSubscriptionId: 'sub_test_1',
+            subscriptionStatus: 'active'
           })
         })
       );
@@ -577,7 +589,8 @@ describe('MembershipsService', () => {
           data: expect.objectContaining({
             status: MembershipStatus.ACTIVE,
             endDate: new Date((now + 365 * 24 * 60 * 60) * 1000),
-            stripePriceId: 'price_test_1'
+            stripePriceId: 'price_test_1',
+            subscriptionStatus: 'active'
           })
         })
       );
@@ -602,7 +615,8 @@ describe('MembershipsService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             status: MembershipStatus.CANCELLED,
-            endDate: expect.any(Date)
+            endDate: expect.any(Date),
+            subscriptionStatus: 'canceled'
           })
         })
       );

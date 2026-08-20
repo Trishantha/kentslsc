@@ -3,6 +3,7 @@
 import { Heart, Users, Calendar } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
+import { stripRichText } from '@/lib/rich-text';
 
 const CATEGORY_LABELS: Record<string, string> = {
   CHARITY: 'Charity',
@@ -64,7 +65,7 @@ export function FundraiserCard({ fundraiser: f }: Props) {
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">by {f.organizer.name}</p>
         )}
         <p className="mt-2 line-clamp-2 flex-1 text-sm text-slate-600 dark:text-slate-400">
-          {f.aiSummary ?? f.description ?? ''}
+          {f.aiSummary ?? stripRichText(f.description) ?? ''}
         </p>
 
         <div className="mt-4">

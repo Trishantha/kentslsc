@@ -151,34 +151,48 @@ export default function EventTicketDesignPage({ params }: Props) {
         <h2 className="text-lg font-bold">Preview</h2>
         <div className="mt-4 flex justify-center">
           <div
-            className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-white shadow-lg dark:bg-slate-800"
+            className="w-full max-w-xs overflow-hidden rounded-2xl bg-white shadow-lg dark:bg-slate-900"
             style={{ borderColor: design.primaryColor }}
           >
             <div
-              className="p-4 text-white"
+              className="p-5 text-white"
               style={{ backgroundColor: design.primaryColor }}
             >
               <div className="flex items-center gap-2">
-                <Ticket className="h-5 w-5" />
-                <span className="font-bold">Admit One</span>
+                <Ticket className="h-5 w-5 shrink-0" />
+                <span className="text-xs font-semibold uppercase tracking-wider">Admit One</span>
               </div>
+              <p className="mt-4 text-lg font-bold leading-tight">{event?.title ?? 'Event title'}</p>
               {design.logoUrl && (
                 <img
                   src={design.logoUrl}
                   alt="Ticket logo"
-                  className="mt-3 h-12 w-auto object-contain"
+                  className="mt-4 h-10 w-auto object-contain"
                 />
               )}
             </div>
-            <div className="space-y-2 p-4 text-sm text-slate-800 dark:text-slate-200">
-              <p className="font-semibold">{event?.title ?? 'Event title'}</p>
+
+            <div className="space-y-3 p-5 text-sm text-slate-700 dark:text-slate-200">
               <p className="text-slate-500">{event?.location || 'Location'}</p>
               {design.sponsorText && (
-                <p className="text-xs text-slate-500">{design.sponsorText}</p>
+                <p className="text-xs italic text-slate-500 dark:text-slate-400">{design.sponsorText}</p>
               )}
-              <div className="mt-3 border-t border-dashed border-slate-300 pt-3 text-center text-xs text-slate-500 dark:border-slate-600">
-                {design.footerText}
+            </div>
+
+            <div className="border-y-2 border-dashed border-slate-200 px-6 py-5 text-center dark:border-slate-700">
+              <div className="inline-block rounded-xl bg-white p-2 shadow-sm dark:bg-white">
+                <div className="h-[180px] w-[180px] bg-slate-100" />
               </div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                QR code will appear here on the real ticket.
+              </p>
+            </div>
+
+            <div
+              className="px-5 py-3 text-center text-xs font-medium text-white"
+              style={{ backgroundColor: design.secondaryColor }}
+            >
+              {design.footerText}
             </div>
           </div>
         </div>

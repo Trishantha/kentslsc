@@ -17,7 +17,7 @@ import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto } from './dto/index.js';
+import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -81,6 +81,20 @@ export class EventsController {
     return this.eventsService.update(id, dto);
   }
 
+  @Put(':id/posters')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  updatePosters(@Param('id') id: string, @Body() dto: UpdateEventPostersDto) {
+    return this.eventsService.updatePosterImages(id, dto);
+  }
+
+  @Put(':id/ticket-design')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  updateTicketDesign(@Param('id') id: string, @Body() dto: UpdateEventTicketDesignDto) {
+    return this.eventsService.updateTicketDesign(id, dto);
+  }
+
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
@@ -116,6 +130,23 @@ export class EventsController {
     @CurrentUser() user: TokenPayload
   ) {
     return this.eventsService.generateTickets(user.sub, eventId, dto);
+  }
+
+  @Post(':id/tickets/issue')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  issueTickets(
+    @Param('id') eventId: string,
+    @Body() dto: IssueTicketsDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.eventsService.issueTicketsFromExistingSession(
+      user.sub,
+      eventId,
+      dto.sessionId,
+      dto.provider,
+      dto.quantity ?? 1
+    );
   }
 
   @Post('webhook')
@@ -168,5 +199,11 @@ export class TicketsController {
   @ApiBearerAuth()
   validate(@Body() dto: ValidateTicketDto) {
     return this.eventsService.validateTicket(dto.qrCodeValue);
+  }
+
+  @Post('confirm-payment')
+  @ApiBearerAuth()
+  confirmPayment(@Body() dto: ConfirmCheckoutDto) {
+    return this.eventsService.confirmCheckoutSession(dto.sessionId, dto.provider);
   }
 }

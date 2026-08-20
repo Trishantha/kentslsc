@@ -11,6 +11,7 @@ import { AppModule } from './app.module.js';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { GlobalExceptionFilter } from './core/exceptions/global-exception.filter.js';
+import { validateProductionConfig } from './core/config/env.validation.js';
 
 const logger = new Logger('Bootstrap');
 const moduleDir = fileURLToPath(new URL('.', import.meta.url));
@@ -19,6 +20,13 @@ export async function createApiApp() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
   const isProduction = configService.get('NODE_ENV') === 'production';
+
+  // Fail fast in production if critical dependencies are missing. The app
+  // degrades gracefully in development, but a production deployment without
+  // email, payments, or storage is a broken product.
+  if (isProduction) {
+    validateProductionConfig(configService);
+  }
   const trustProxy = configService.get<string>('TRUST_PROXY');
   // Default to trusting X-Forwarded-* headers in production because the API runs
   // behind Hostinger's reverse proxy. The throttler and security features depend

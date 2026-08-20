@@ -7,7 +7,8 @@ import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
 import { ProgressStats } from '@/components/fundraising/ProgressStats';
 import { DonationForm } from '@/components/fundraising/DonationForm';
 import { DonationList } from '@/components/fundraising/DonationList';
-import { ShareButtons } from '@/components/fundraising/ShareButtons';
+import { ShareButtons } from '@/components/ui/ShareButtons';
+import { RichTextContent } from '@/components/ui/RichTextContent';
 import { FundraiserUpdates } from '@/components/fundraising/FundraiserUpdates';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -88,11 +89,21 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
               </p>
             )}
 
-            {(fundraiser.aiSummary ?? fundraiser.description) && (
+            {fundraiser.aiSummary && (
               <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  {fundraiser.aiSummary ?? fundraiser.description}
+                <p className="leading-relaxed text-slate-700 dark:text-slate-300">
+                  {fundraiser.aiSummary}
                 </p>
+              </div>
+            )}
+
+            {fundraiser.description && (
+              <div className="mt-8">
+                <h2 className="mb-3 text-lg font-semibold">{t('fullStory')}</h2>
+                <RichTextContent
+                  html={fundraiser.description}
+                  className="text-slate-700 dark:text-slate-300"
+                />
               </div>
             )}
 

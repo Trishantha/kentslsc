@@ -254,6 +254,39 @@ export class PaymentsService {
     };
   }
 
+  async findByUser(userId: string, page = 1, limit = 50) {
+    const [data, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { userId, deletedAt: null },
+        orderBy: { purchasedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          event: { select: { id: true, title: true, startDatetime: true, location: true } },
+          membership: { select: { id: true, membershipId: true, membershipType: { select: { name: true } } } },
+          donation: { select: { id: true, fundraiser: { select: { title: true } } } },
+          businessListing: { select: { id: true, businessName: true } },
+          jobAd: { select: { id: true, title: true } }
+        }
+      }),
+      this.prisma.payment.count({ where: { userId, deletedAt: null } })
+    ]);
+
+    return {
+      data: data.map((p) => ({
+        ...p,
+        grossAmount: Number(p.grossAmount),
+        processingFee: Number(p.processingFee),
+        netAmount: Number(p.netAmount),
+        refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
   async updateSettings(dto: UpdatePaymentSettingsDto) {
     const existing = await this.prisma.paymentSettings.findFirst();
     const payload = {
@@ -546,6 +579,52 @@ export class PaymentsService {
     this.ensureEnabled();
 
     return this.stripe!.subscriptions.retrieve(stripeSubscriptionId);
+  }
+
+  async refundStripePaymentIntent(paymentIntentId: string, amount?: number, reason?: string) {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const refund = await this.stripe!.refunds.create({
+      payment_intent: paymentIntentId,
+      ...(amount !== undefined && { amount }),
+      ...(reason && { reason: 'requested_by_customer' })
+    });
+
+    return { providerRefundId: refund.id, status: refund.status };
+  }
+
+  async refundPayPalCapture(captureId: string, amount?: number, currency = 'GBP') {
+    const effective = await this.getEffectiveSettings();
+    if (!effective.paypalClientId || !effective.paypalClientSecret) {
+      throw new Error('PayPal is not configured');
+    }
+    const token = await this.getPayPalAccessToken(effective);
+
+    const body: { amount?: { currency_code: string; value: string } } = {};
+    if (amount !== undefined) {
+      body.amount = { currency_code: currency.toUpperCase(), value: (amount / 100).toFixed(2) };
+    }
+
+    const response = await fetch(`${effective.paypalApiBaseUrl}/v2/payments/captures/${captureId}/refund`, {
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`PayPal refund failed: ${detail}`);
+    }
+
+    const data = (await response.json()) as { id?: string; status?: string };
+    return { providerRefundId: data.id ?? captureId, status: data.status ?? 'COMPLETED' };
   }
 
   async createPayPalCheckout(input: CreateCheckoutInput, effective: EffectivePaymentSettings): Promise<CheckoutResult> {

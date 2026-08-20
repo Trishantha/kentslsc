@@ -8,6 +8,7 @@ import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { MobileNavShell } from './MobileNavShell';
 import { ConditionalFooter } from './ConditionalFooter';
 import { CookieConsentBanner } from '@/components/ui/CookieConsentBanner';
+import { SessionWatcher } from '@/components/auth/SessionWatcher';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -22,6 +23,7 @@ export function AppShell({ children, locale, messages, timeZone }: AppShellProps
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
+      <SessionWatcher />
       <ChunkErrorRecovery />
       {showPageLoader && <PageTransitionLoader />}
       <MobileNavShell>

@@ -7,6 +7,7 @@ import type { EventsService } from '../events/events.service.js';
 import type { MembershipsService } from '../memberships/memberships.service.js';
 import type { FundraisingService } from '../fundraising/fundraising.service.js';
 import type { DirectoryService } from '../directory/directory.service.js';
+import type { WebhookEventService } from './webhook-event.service.js';
 
 type MockResponse = {
   json: jest.Mock;
@@ -36,8 +37,12 @@ function buildSession(metadata: Record<string, string>): Stripe.Checkout.Session
   } as Stripe.Checkout.Session;
 }
 
+let eventSequence = 0;
+
 function buildEvent(session: Stripe.Checkout.Session): Stripe.Event {
+  eventSequence += 1;
   return {
+    id: `evt_test_${eventSequence}`,
     type: 'checkout.session.completed',
     data: { object: session }
   } as unknown as Stripe.Event;
@@ -65,16 +70,25 @@ describe('StripeWebhookController', () => {
     handleJobPublishCompleted: jest.fn()
   } as unknown as jest.Mocked<DirectoryService>;
 
+  const webhookEvents = {
+    record: jest.fn(),
+    markStatus: jest.fn()
+  } as unknown as jest.Mocked<WebhookEventService>;
+
   let controller: StripeWebhookController;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    eventSequence = 0;
+    webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: false });
+    webhookEvents.markStatus.mockResolvedValue(undefined as any);
     controller = new StripeWebhookController(
       paymentsService as unknown as PaymentsService,
       eventsService as unknown as EventsService,
       membershipsService as unknown as MembershipsService,
       fundraisingService as unknown as FundraisingService,
-      directoryService as unknown as DirectoryService
+      directoryService as unknown as DirectoryService,
+      webhookEvents as unknown as WebhookEventService
     );
   });
 
@@ -124,7 +138,20 @@ describe('StripeWebhookController', () => {
     const res = mockResponse();
     await controller.handleWebhook('sig', Buffer.from('payload'), res as unknown as Response);
 
-    expect(directoryService.handlePromotionCompleted).toHaveBeenCalledWith(metadata, 'stripe');
+    expect(directoryService.handlePromotionCompleted).toHaveBeenCalledWith(
+      metadata,
+      'stripe',
+      expect.objectContaining({
+        providerCheckoutId: session.id,
+        providerPaymentId: 'pi_123',
+        amountPence: 2500,
+        currency: 'gbp',
+        payerEmail: 'test@example.com',
+        payerName: null,
+        payerPhone: null,
+        purchasedAt: expect.any(Date)
+      })
+    );
     expect(res.json).toHaveBeenCalledWith({ received: true });
   });
 
@@ -137,7 +164,19 @@ describe('StripeWebhookController', () => {
     const res = mockResponse();
     await controller.handleWebhook('sig', Buffer.from('payload'), res as unknown as Response);
 
-    expect(directoryService.handleJobPublishCompleted).toHaveBeenCalledWith(metadata);
+    expect(directoryService.handleJobPublishCompleted).toHaveBeenCalledWith(
+      metadata,
+      expect.objectContaining({
+        providerCheckoutId: session.id,
+        providerPaymentId: 'pi_123',
+        amountPence: 2500,
+        currency: 'gbp',
+        payerEmail: 'test@example.com',
+        payerName: null,
+        payerPhone: null,
+        purchasedAt: expect.any(Date)
+      })
+    );
     expect(res.json).toHaveBeenCalledWith({ received: true });
   });
 
@@ -164,5 +203,43 @@ describe('StripeWebhookController', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.send).toHaveBeenCalledWith('Webhook error: Invalid signature');
+    expect(webhookEvents.record).not.toHaveBeenCalled();
+  });
+
+  it('records duplicate Stripe events and returns success without reprocessing', async () => {
+    const session = buildSession({ source: 'membership', membershipTypeId: 'type-1', userId: 'user-1', fullName: 'Test User' });
+    const event = buildEvent(session);
+    paymentsService.constructEvent.mockResolvedValue(event);
+    webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: true });
+
+    const res = mockResponse();
+    await controller.handleWebhook('sig', Buffer.from('payload'), res as unknown as Response);
+
+    expect(webhookEvents.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'stripe',
+        eventType: 'checkout.session.completed',
+        externalId: event.id
+      })
+    );
+    expect(membershipsService.handleCheckoutSessionCompleted).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ received: true, duplicate: true });
+  });
+
+  it('records a failed webhook and returns 400 when downstream processing fails', async () => {
+    const session = buildSession({ source: 'membership', membershipTypeId: 'type-1', userId: 'user-1', fullName: 'Test User' });
+    paymentsService.constructEvent.mockResolvedValue(buildEvent(session));
+    membershipsService.handleCheckoutSessionCompleted.mockRejectedValue(new Error('Membership type not found'));
+
+    const res = mockResponse();
+    await controller.handleWebhook('sig', Buffer.from('payload'), res as unknown as Response);
+
+    expect(webhookEvents.markStatus).toHaveBeenCalledWith(
+      'ledger-1',
+      'failed',
+      'Membership type not found'
+    );
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.send).toHaveBeenCalledWith('Webhook error: Membership type not found');
   });
 });

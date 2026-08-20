@@ -71,7 +71,9 @@
     "total": "Total",
     "totalToPay": "Total to pay",
     "donation": "Donation",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "copyLink": "Copy link",
+    "copied": "Copied!"
   },
   "home": {
     "subtitle": "වැඩසටහන්, සංස්කෘතිය, ව්‍යාපාර සහ සහයෝගීතාවය හරහා කෙන්ට් හි ශ්‍රී ලාංකික ප්‍රජාව සම්බන්ධ කිරීම. අප හා එක් වී අසාමාන්‍ය දෙයක කොටස්කරුවන් වන්න.",
@@ -484,7 +486,10 @@
     "buyFor": "{amount} සඳහා මිල දී ගන්න",
     "loginToBuy": "ටිකට් මිලදී ගැනීමට ලොග් වන්න",
     "addToCalendar": "Add to calendar",
-    "downloadIcs": "Download .ics"
+    "downloadIcs": "Download .ics",
+    "shareTitle": "Share this event",
+    "shareText": "Join us for \"{title}\" on Kent SLSC",
+    "postersTitle": "Posters"
   },
   "directoryDetail": {
     "backToDirectory": "නාමාවලිය වෙත ආපසු",
@@ -516,7 +521,8 @@
     "canceled": "පරිත්‍යාගය අවලංගු කරන ලදී.",
     "amountPlaceholder": "මුදල (£)",
     "makeDonation": "පරිත්‍යාගයක් කරන්න",
-    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause"
+    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause",
+    "fullStory": "Full story"
   },
   "membershipVerify": {
     "metaTitle": "සාමාජිකත්වය තහවුරු කරන්න - Kent SLSC",

@@ -7,7 +7,13 @@ import type Stripe from 'stripe';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
-import { TicketStatus, EventCategory, Prisma } from '@kentslsc/database';
+import {
+  TicketStatus,
+  EventCategory,
+  Prisma,
+  PaymentStatus,
+  PaymentSourceType
+} from '@kentslsc/database';
 
 export interface TicketWithEvent {
   id: string;
@@ -21,6 +27,33 @@ export interface TicketWithEvent {
     endDatetime: Date;
     location: string | null;
   };
+}
+
+interface PayerAddress {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+}
+
+interface TicketPaymentDetails {
+  channel: string;
+  method?: string | null;
+  currency?: string;
+  grossAmount: number; // minor unit, e.g. pence
+  processingFee: number; // minor unit
+  netAmount: number; // minor unit
+  providerCheckoutId?: string | null;
+  providerPaymentId?: string | null;
+  purchasedAt?: Date | null;
+  payerEmail?: string | null;
+  payerName?: string | null;
+  payerPhone?: string | null;
+  payerAddress?: PayerAddress | null;
+  paymentStatus?: PaymentStatus;
+  sourceType?: PaymentSourceType;
+  notes?: string;
 }
 
 @Injectable()
@@ -222,35 +255,22 @@ export class EventsService {
       throw new BadRequestException(`Only ${remaining} tickets remaining`);
     }
 
-    const startSerial = await this.getNextTicketSerial(eventId);
-    const purchaseId = `admin-generated:${crypto.randomUUID()}`;
-
-    const tickets = await this.prisma.$transaction(async (tx) => {
-      const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];
-      for (let i = 0; i < dto.quantity; i++) {
-        const serialNumber = startSerial + i;
-        const ticketNumber = `${prefix}-${String(serialNumber).padStart(3, '0')}`;
-        const ticket = await tx.ticket.create({
-          data: {
-            eventId,
-            userId: adminUserId,
-            qrCodeValue: crypto.randomUUID(),
-            serialNumber,
-            ticketNumber,
-            paymentId: purchaseId,
-            status: TicketStatus.VALID
-          }
-        });
-        created.push({
-          id: ticket.id,
-          qrCodeValue: ticket.qrCodeValue,
-          serialNumber: ticket.serialNumber ?? serialNumber,
-          ticketNumber: ticket.ticketNumber ?? ticketNumber,
-          status: ticket.status
-        });
-      }
-      return created;
-    });
+    const tickets = await this.createTickets(
+      adminUserId,
+      eventId,
+      dto.quantity,
+      this.configService.get('FRONTEND_URL', { infer: true }),
+      {
+        channel: 'manual',
+        currency: 'GBP',
+        grossAmount: 0,
+        processingFee: 0,
+        netAmount: 0,
+        sourceType: PaymentSourceType.MANUAL,
+        notes: `Admin-generated tickets: ${dto.notes ?? 'No notes'}`
+      },
+      prefix
+    );
 
     return { tickets, totalGenerated: tickets.length };
   }
@@ -290,7 +310,21 @@ export class EventsService {
 
     if (isFree || totalAmount === 0) {
       // Free event: create tickets immediately without Stripe
-      const tickets = await this.createTickets(userId, dto.eventId, dto.quantity, 'free', origin);
+      const tickets = await this.createTickets(
+        userId,
+        dto.eventId,
+        dto.quantity,
+        origin,
+        {
+          channel: 'free',
+          currency: 'GBP',
+          grossAmount: 0,
+          processingFee: 0,
+          netAmount: 0,
+          sourceType: PaymentSourceType.MANUAL,
+          notes: 'Free ticket'
+        }
+      );
       return { free: true, tickets };
     }
 
@@ -307,7 +341,7 @@ export class EventsService {
       currency: 'gbp',
       description: event.title,
       customer: stripeCustomerId,
-      successUrl: `${origin}/dashboard/tickets?success=1`,
+      successUrl: `${origin}/dashboard/tickets?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${origin}/events/${dto.eventId}?canceled=1`,
       uiMode: 'embedded_page',
       metadata: {
@@ -346,11 +380,51 @@ export class EventsService {
       return existingTickets;
     }
 
-    const tickets = await this.createTickets(userId, eventId, quantity, session.id, origin);
+    const currency = (session.currency ?? 'gbp').toUpperCase();
+    const grossAmount = Number(session.metadata?.grossAmount ?? session.amount_total ?? 0);
+    const processingFee = Number(session.metadata?.processingFee ?? 0);
+    const netAmount = Number(session.metadata?.netAmount ?? grossAmount - processingFee);
+    const purchasedAt = session.created ? new Date(session.created * 1000) : new Date();
+    const customer = session.customer_details;
+
+    const tickets = await this.createTickets(
+      userId,
+      eventId,
+      quantity,
+      origin,
+      {
+        channel: 'stripe',
+        method: session.payment_method_types?.[0],
+        currency,
+        grossAmount,
+        processingFee,
+        netAmount,
+        providerCheckoutId: session.id,
+        providerPaymentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
+        purchasedAt,
+        payerEmail: customer?.email ?? session.customer_email ?? null,
+        payerName: customer?.name ?? null,
+        payerPhone: customer?.phone ?? null,
+        payerAddress: customer?.address ?? null,
+        paymentStatus: PaymentStatus.COMPLETED,
+        sourceType: PaymentSourceType.TICKET,
+        notes: `Ticket purchase for event via Stripe Checkout`
+      }
+    );
     return tickets;
   }
 
-  async createTickets(userId: string, eventId: string, quantity: number, paymentId: string, origin: string) {
+  async createTickets(
+    userId: string,
+    eventId: string,
+    quantity: number,
+    origin: string,
+    paymentDetails?: TicketPaymentDetails,
+    ticketPrefix?: string
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -361,7 +435,8 @@ export class EventsService {
     }
 
     const startSerial = await this.getNextTicketSerial(eventId);
-    const prefix = event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
+    const prefix = ticketPrefix?.trim() || event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
+    const sessionRef = paymentDetails?.providerCheckoutId;
 
     const tickets = await this.prisma.$transaction(async (tx) => {
       // Re-check capacity inside the transaction to avoid overselling.
@@ -374,14 +449,56 @@ export class EventsService {
       }
 
       // Defensive idempotency guard: do not issue tickets twice for the same Stripe session.
-      if (paymentId !== 'free') {
+      if (sessionRef) {
         const existingForSession = await tx.ticket.count({
-          where: { stripeSessionId: paymentId, deletedAt: null }
+          where: { stripeSessionId: sessionRef, deletedAt: null }
         });
         if (existingForSession > 0) {
           throw new BadRequestException('Tickets already issued for this payment session');
         }
       }
+
+      const currency = paymentDetails?.currency ?? 'GBP';
+      const grossAmount = paymentDetails?.grossAmount ?? 0;
+      const processingFee = paymentDetails?.processingFee ?? 0;
+      const netAmount = paymentDetails?.netAmount ?? grossAmount;
+
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          eventId,
+          paymentChannel: paymentDetails?.channel ?? 'manual',
+          paymentMethod: paymentDetails?.method ?? null,
+          paymentStatus: paymentDetails?.paymentStatus ?? PaymentStatus.COMPLETED,
+          providerCheckoutId: sessionRef ?? null,
+          providerPaymentId: paymentDetails?.providerPaymentId ?? null,
+          currency,
+          grossAmount: grossAmount / 100,
+          processingFee: processingFee / 100,
+          netAmount: netAmount / 100,
+          description: `Ticket(s) for ${event.title}`,
+          notes: paymentDetails?.notes ?? null,
+          payerName: paymentDetails?.payerName ?? user.name,
+          payerEmail: paymentDetails?.payerEmail ?? user.email,
+          payerPhone: paymentDetails?.payerPhone ?? user.phone ?? null,
+          payerAddressLine1: paymentDetails?.payerAddress?.line1 ?? null,
+          payerAddressLine2: paymentDetails?.payerAddress?.line2 ?? null,
+          payerCity: paymentDetails?.payerAddress?.city ?? null,
+          payerPostcode: paymentDetails?.payerAddress?.postal_code ?? null,
+          payerCountry: paymentDetails?.payerAddress?.country ?? null,
+          purchasedAt: paymentDetails?.purchasedAt ?? new Date(),
+          sourceType: paymentDetails?.sourceType ?? PaymentSourceType.MANUAL,
+          ...(paymentDetails && sessionRef
+            ? {
+                metadata: {
+                  quantity,
+                  ticketPrice: Number(event.ticketPrice),
+                  sessionRef
+                } as unknown as Prisma.InputJsonValue
+              }
+            : {})
+        }
+      });
 
       const created: { id: string; qrCodeValue: string; serialNumber: number; ticketNumber: string; status: string }[] = [];
       for (let i = 0; i < quantity; i++) {
@@ -394,8 +511,8 @@ export class EventsService {
             qrCodeValue: crypto.randomUUID(),
             serialNumber,
             ticketNumber,
-            paymentId,
-            stripeSessionId: paymentId === 'free' ? null : paymentId,
+            paymentId: payment.id,
+            stripeSessionId: sessionRef ?? null,
             status: TicketStatus.VALID
           }
         });
@@ -407,6 +524,24 @@ export class EventsService {
           status: ticket.status
         });
       }
+
+      // For multi-ticket purchases, keep a reference to all ticket ids in the payment metadata.
+      if (created.length > 1 || paymentDetails?.sourceType === PaymentSourceType.TICKET) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            sourceId: created.length === 1 ? created[0]?.id ?? payment.id : payment.id,
+            metadata: {
+              quantity,
+              ticketIds: created.map((t) => t.id),
+              ticketNumbers: created.map((t) => t.ticketNumber),
+              ticketPrice: Number(event.ticketPrice),
+              sessionRef: sessionRef ?? null
+            } as unknown as Prisma.InputJsonValue
+          }
+        });
+      }
+
       return created;
     });
 
@@ -424,14 +559,51 @@ export class EventsService {
     return this.prisma.ticket.findMany({
       where: { userId, deletedAt: null },
       orderBy: { purchaseDatetime: 'desc' },
-      include: { event: true }
+      select: {
+        id: true,
+        qrCodeValue: true,
+        status: true,
+        purchaseDatetime: true,
+        ticketNumber: true,
+        serialNumber: true,
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startDatetime: true,
+            endDatetime: true,
+            location: true,
+            imageUrl: true,
+            ticketDesign: true
+          }
+        }
+      }
     });
   }
 
   async getTicketForUser(ticketId: string, userId: string) {
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId, userId, deletedAt: null },
-      include: { event: true, user: { select: { id: true, name: true, email: true } } }
+      select: {
+        id: true,
+        qrCodeValue: true,
+        status: true,
+        purchaseDatetime: true,
+        ticketNumber: true,
+        serialNumber: true,
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startDatetime: true,
+            endDatetime: true,
+            location: true,
+            imageUrl: true,
+            ticketDesign: true
+          }
+        },
+        user: { select: { id: true, name: true, email: true } }
+      }
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
     return ticket;
@@ -490,5 +662,114 @@ export class EventsService {
     });
 
     return updated;
+  }
+
+  /**
+   * Explicit success confirmation for ticket purchases.
+   *
+   * The frontend calls this when the payer returns from Stripe/PayPal. It
+   * protects against webhooks that are delayed, misconfigured, or dropped:
+   * if the tickets do not already exist, we ask the gateway for the session
+   * status and create them immediately.
+   */
+  async confirmCheckoutSession(sessionId: string, provider: 'stripe' | 'paypal') {
+    const existingTickets = await this.prisma.ticket.findMany({
+      where: { stripeSessionId: sessionId, deletedAt: null },
+      include: { event: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (existingTickets.length > 0) {
+      return { tickets: existingTickets, created: false };
+    }
+
+    if (provider === 'stripe') {
+      const session = await this.paymentsService.getCheckoutSession(sessionId);
+      if (session.status !== 'complete') {
+        throw new BadRequestException(`Checkout session is not complete (status: ${session.status})`);
+      }
+      const tickets = await this.handleCheckoutCompleted({
+        id: sessionId,
+        status: 'complete',
+        currency: session.currency ?? 'gbp',
+        amount_total: session.amountTotal,
+        metadata: session.metadata as Record<string, string>,
+        customer_details: session.customerEmail
+          ? { email: session.customerEmail, name: session.customerEmail }
+          : undefined,
+        payment_intent: null,
+        customer_email: session.customerEmail ?? undefined,
+        created: Math.floor(Date.now() / 1000)
+      } as unknown as Stripe.Checkout.Session);
+      return { tickets: tickets ?? [], created: true };
+    }
+
+    // PayPal confirmation would need an order-lookup helper; for now return early.
+    throw new BadRequestException('PayPal confirmation is not yet supported');
+  }
+
+  /**
+   * Manual admin ticket issuance for an existing completed checkout.
+   *
+   * Use this to issue tickets for historic purchases where the webhook
+   * failed or was never received.
+   */
+  async issueTicketsFromExistingSession(
+    adminUserId: string,
+    eventId: string,
+    sessionId: string,
+    provider: 'stripe' | 'paypal',
+    quantity = 1
+  ) {
+    const existingTickets = await this.prisma.ticket.findMany({
+      where: { stripeSessionId: sessionId, deletedAt: null },
+      include: { event: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (existingTickets.length > 0) {
+      return { tickets: existingTickets, created: false };
+    }
+
+    const origin = this.configService.get('FRONTEND_URL', { infer: true });
+
+    if (provider === 'stripe') {
+      const session = await this.paymentsService.getCheckoutSession(sessionId);
+      const metadata = session.metadata ?? {};
+      const eventIdFromSession = metadata.eventId;
+      const userIdFromSession = metadata.userId;
+      const quantityFromSession = Number(metadata.quantity || quantity);
+
+      if (!eventIdFromSession || !userIdFromSession) {
+        throw new BadRequestException('Session metadata is missing event or user information');
+      }
+      if (eventIdFromSession !== eventId) {
+        throw new BadRequestException('Session does not match the requested event');
+      }
+
+      const tickets = await this.createTickets(
+        userIdFromSession,
+        eventIdFromSession,
+        quantityFromSession,
+        origin,
+        {
+          channel: 'stripe',
+          method: 'card',
+          currency: (session.currency ?? 'gbp').toUpperCase(),
+          grossAmount: session.amountTotal,
+          processingFee: 0,
+          netAmount: session.amountTotal,
+          providerCheckoutId: sessionId,
+          providerPaymentId: null,
+          purchasedAt: new Date(),
+          payerEmail: session.customerEmail ?? null,
+          payerName: null,
+          payerPhone: null,
+          payerAddress: null,
+          paymentStatus: PaymentStatus.COMPLETED,
+          sourceType: PaymentSourceType.TICKET,
+          notes: `Manually issued by admin ${adminUserId} after missing webhook`
+        }
+      );
+      return { tickets, created: true };
+    }
+
+    throw new BadRequestException('PayPal manual issuance is not yet supported');
   }
 }

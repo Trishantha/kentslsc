@@ -11,3 +11,7 @@ export function accessTokenCookieName(isProduction: boolean): string {
 export function refreshTokenCookieName(isProduction: boolean): string {
   return isProduction ? '__Host-refreshToken' : 'refreshToken';
 }
+
+export function csrfTokenCookieName(isProduction: boolean): string {
+  return isProduction ? '__Host-csrfToken' : 'csrfToken';
+}

@@ -8,7 +8,7 @@
     "deploy:hostinger:backend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/api build",
     "build:clean": "corepack pnpm clean && corepack pnpm build",
     "start": "node server.js",
-      "dev": "node server.js",
+    "dev": "node server.js",
     "dev:clean": "corepack pnpm clean && corepack pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -18,13 +18,14 @@
     "db:generate": "corepack pnpm --filter database generate",
     "db:migrate": "corepack pnpm --filter database migrate",
     "db:seed": "corepack pnpm --filter database seed",
-    "db:studio": "corepack pnpm --filter database studio"
+    "db:studio": "corepack pnpm --filter database studio",
+    "reconcile:payments": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/reconcile-payments.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.2"
+    "@supabase/supabase-js": "^2.112.3"
   },
   "devDependencies": {
-    "turbo": "^2.10.9"
+    "turbo": "^2.10.11"
   },
   "packageManager": "pnpm@11.21.0",
   "engines": {

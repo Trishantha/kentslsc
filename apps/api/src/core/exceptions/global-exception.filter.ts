@@ -23,7 +23,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<{ url?: string; method?: string }>();
+    const request = ctx.getRequest<{
+      url?: string;
+      method?: string;
+      user?: { sub?: string };
+      headers?: Record<string, string | string[] | undefined>;
+      requestId?: string;
+    }>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
@@ -62,11 +68,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = 'Invalid input data.';
     }
 
+    const structuredLog = {
+      requestId: request.requestId ?? (request.headers?.['x-request-id'] as string | undefined),
+      userId: request.user?.sub,
+      method: request.method || 'UNK',
+      path: request.url || '',
+      status,
+      errorCode: code,
+      message: error instanceof Error ? error.message : String(error)
+    };
+
     if (status >= 500 || error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientValidationError) {
-      this.logger.error(
-        `${request.method || 'UNK'} ${request.url || ''}: ${error instanceof Error ? error.message : String(error)}`,
-        error instanceof Error ? error.stack : undefined
-      );
+      this.logger.error(JSON.stringify(structuredLog), error instanceof Error ? error.stack : undefined);
     }
 
     response.status(status).json({

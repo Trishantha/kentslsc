@@ -4,7 +4,15 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AiService } from '../ai/ai.service.js';
-import { MembershipStatus, MembershipType, Membership, MembershipScanResult, Prisma } from '@kentslsc/database';
+import {
+  MembershipStatus,
+  MembershipType,
+  Membership,
+  MembershipScanResult,
+  Prisma,
+  PaymentStatus,
+  PaymentSourceType
+} from '@kentslsc/database';
 import { TokenPayload, DependantInput, MembershipFeature, UserRole } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
@@ -34,6 +42,7 @@ export interface CreateMembershipData {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   stripePriceId?: string;
+  subscriptionStatus?: string;
 }
 
 @Injectable()
@@ -418,7 +427,9 @@ export class MembershipsService {
         fullName: dto.fullName,
         address: dto.address ? JSON.stringify(dto.address) : '',
         phone: dto.phone ?? '',
-        dependants: JSON.stringify(dependants)
+        dependants: JSON.stringify(dependants),
+        amountPence: String(Math.round(Number(type.price) * 100)),
+        currency: 'GBP'
       }
     });
 
@@ -459,7 +470,8 @@ export class MembershipsService {
         creditMonthsGranted: data.creditMonthsGranted,
         stripeCustomerId: data.stripeCustomerId,
         stripeSubscriptionId: data.stripeSubscriptionId,
-        stripePriceId: data.stripePriceId
+        stripePriceId: data.stripePriceId,
+        subscriptionStatus: data.subscriptionStatus
       },
       include: { membershipType: true }
     });
@@ -790,6 +802,63 @@ export class MembershipsService {
     return { received: true, membershipId: null };
   }
 
+  private async recordMembershipPayment(
+    membership: {
+      id: string;
+      userId: string;
+      membershipType: { name: string; price: number | Prisma.Decimal };
+      user?: { email?: string; name?: string } | null;
+    },
+    input: {
+      channel: string;
+      method?: string | null;
+      currency: string;
+      amountPence: number;
+      providerPaymentId?: string | null;
+      providerCheckoutId?: string | null;
+      payerEmail?: string | null;
+      payerName?: string | null;
+      payerPhone?: string | null;
+      notes?: string;
+    }
+  ) {
+    const existing = await this.prisma.payment.findFirst({
+      where: {
+        membershipId: membership.id,
+        providerCheckoutId: input.providerCheckoutId ?? undefined
+      }
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const amount = input.amountPence / 100;
+
+    return this.prisma.payment.create({
+      data: {
+        userId: membership.userId,
+        membershipId: membership.id,
+        paymentChannel: input.channel,
+        paymentMethod: input.method ?? null,
+        paymentStatus: PaymentStatus.COMPLETED,
+        providerPaymentId: input.providerPaymentId ?? null,
+        providerCheckoutId: input.providerCheckoutId ?? null,
+        currency: input.currency.toUpperCase(),
+        grossAmount: amount,
+        processingFee: 0,
+        netAmount: amount,
+        description: `Membership: ${membership.membershipType.name}`,
+        notes: input.notes ?? null,
+        payerName: input.payerName ?? membership.user?.name ?? null,
+        payerEmail: input.payerEmail ?? membership.user?.email ?? null,
+        payerPhone: input.payerPhone ?? null,
+        purchasedAt: new Date(),
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        sourceId: membership.id
+      }
+    });
+  }
+
   async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     const metadata = session.metadata ?? {};
     if (metadata.source !== 'membership') return { received: true, membershipId: null };
@@ -798,9 +867,31 @@ export class MembershipsService {
       ? session.subscription
       : session.subscription?.id;
 
+    const currency = (session.currency ?? 'gbp').toUpperCase();
+    const amountPence =
+      metadata.amountPence ? Number(metadata.amountPence) : Number(session.amount_total ?? 0);
+
     if (!subscriptionId) {
       // Fallback for any non-subscription membership checkout (legacy one-off).
-      return this.handleMembershipCheckoutCompleted(metadata, 'stripe', session.customer_email ?? undefined);
+      return this.handleMembershipCheckoutCompleted(
+        metadata,
+        'stripe',
+        session.customer_email ?? undefined,
+        undefined,
+        {
+          channel: 'stripe',
+          providerCheckoutId: session.id,
+          providerPaymentId:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id ?? null,
+          amountPence,
+          currency,
+          payerName: session.customer_details?.name ?? null,
+          payerPhone: session.customer_details?.phone ?? null,
+          notes: 'Membership payment via Stripe Checkout'
+        }
+      );
     }
 
     const stripeSubscription = await this.paymentsService.getSubscription(subscriptionId);
@@ -828,10 +919,23 @@ export class MembershipsService {
             endDate: currentPeriodEnd,
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
-            stripePriceId: stripePriceId ?? existing.stripePriceId
+            stripePriceId: stripePriceId ?? existing.stripePriceId,
+            subscriptionStatus: stripeSubscription.status
           }
         });
         const activated = await this.findMembershipById(existing.id);
+        await this.recordMembershipPayment(activated, {
+          channel: 'stripe',
+          method: 'subscription',
+          currency,
+          amountPence,
+          providerCheckoutId: session.id,
+          providerPaymentId: subscriptionId,
+          payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
+          payerName: session.customer_details?.name ?? null,
+          payerPhone: session.customer_details?.phone ?? null,
+          notes: 'Membership subscription payment via Stripe Checkout'
+        });
         return { received: true, membershipId: activated.membershipId };
       }
     }
@@ -841,7 +945,17 @@ export class MembershipsService {
       metadata,
       'stripe',
       session.customer_email ?? undefined,
-      { subscriptionId, currentPeriodEnd, stripePriceId, stripeCustomerId: customerId }
+      { subscriptionId, currentPeriodEnd, stripePriceId, stripeCustomerId: customerId, subscriptionStatus: stripeSubscription.status },
+      {
+        channel: 'stripe',
+        providerCheckoutId: session.id,
+        providerPaymentId: subscriptionId,
+        amountPence,
+        currency,
+        payerName: session.customer_details?.name ?? null,
+        payerPhone: session.customer_details?.phone ?? null,
+        notes: 'Membership subscription payment via Stripe Checkout'
+      }
     );
   }
 
@@ -854,7 +968,19 @@ export class MembershipsService {
     return this.handleMembershipCheckoutCompleted(
       metadata,
       'paypal',
-      payload?.resource?.payer?.email_address ?? undefined
+      payload?.resource?.payer?.email_address ?? undefined,
+      undefined,
+      {
+        channel: 'paypal',
+        providerPaymentId: this.paymentsService.extractPayPalPaymentId(payload),
+        providerCheckoutId: payload?.resource?.id ?? null,
+        amountPence: metadata.amountPence ? Number(metadata.amountPence) : 0,
+        currency: metadata.currency ?? 'GBP',
+        payerName: payload?.resource?.payer?.name?.given_name
+          ? `${payload?.resource?.payer?.name?.given_name} ${payload?.resource?.payer?.name?.surname ?? ''}`.trim()
+          : null,
+        notes: 'Membership payment via PayPal'
+      }
     );
   }
 
@@ -867,6 +993,17 @@ export class MembershipsService {
       currentPeriodEnd: Date;
       stripePriceId?: string | null;
       stripeCustomerId?: string;
+      subscriptionStatus?: string;
+    },
+    gatewayContext?: {
+      channel: string;
+      providerCheckoutId?: string | null;
+      providerPaymentId?: string | null;
+      amountPence?: number;
+      currency?: string;
+      payerName?: string | null;
+      payerPhone?: string | null;
+      notes?: string;
     }
   ) {
     if (metadata.source !== 'membership') return { received: true, membershipId: null };
@@ -907,6 +1044,20 @@ export class MembershipsService {
               stripePriceId: subscriptionContext?.stripePriceId ?? existing.stripePriceId
             },
             include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+          });
+          await this.recordMembershipPayment(activated, {
+            channel: gatewayContext?.channel ?? paymentMethod,
+            method: paymentMethod,
+            currency: gatewayContext?.currency ?? metadata.currency ?? 'GBP',
+            amountPence:
+              gatewayContext?.amountPence ??
+              (metadata.amountPence ? Number(metadata.amountPence) : Number(activated.membershipType.price) * 100),
+            providerCheckoutId: gatewayContext?.providerCheckoutId,
+            providerPaymentId: gatewayContext?.providerPaymentId,
+            payerEmail: customerEmail ?? activated.user?.email ?? null,
+            payerName: gatewayContext?.payerName ?? activated.user?.name ?? null,
+            payerPhone: gatewayContext?.payerPhone ?? null,
+            notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
           });
           return { received: true, membershipId: activated.membershipId };
         }
@@ -963,8 +1114,30 @@ export class MembershipsService {
       endDate,
       stripeSubscriptionId: subscriptionContext?.subscriptionId,
       stripeCustomerId: subscriptionContext?.stripeCustomerId,
-      stripePriceId: subscriptionContext?.stripePriceId ?? undefined
+      stripePriceId: subscriptionContext?.stripePriceId ?? undefined,
+      subscriptionStatus: subscriptionContext?.subscriptionStatus
     });
+
+    const membershipWithType = await this.prisma.membership.findUnique({
+      where: { id: membership.id },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (membershipWithType) {
+      await this.recordMembershipPayment(membershipWithType, {
+        channel: gatewayContext?.channel ?? paymentMethod,
+        method: paymentMethod,
+        currency: gatewayContext?.currency ?? metadata.currency ?? 'GBP',
+        amountPence:
+          gatewayContext?.amountPence ??
+          (metadata.amountPence ? Number(metadata.amountPence) : Number(membershipWithType.membershipType.price) * 100),
+        providerCheckoutId: gatewayContext?.providerCheckoutId,
+        providerPaymentId: gatewayContext?.providerPaymentId,
+        payerEmail: customerEmail ?? membershipWithType.user?.email ?? null,
+        payerName: gatewayContext?.payerName ?? membershipWithType.user?.name ?? null,
+        payerPhone: gatewayContext?.payerPhone ?? null,
+        notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
+      });
+    }
 
     return { received: true, membershipId: membership.membershipId };
   }
@@ -1027,7 +1200,8 @@ export class MembershipsService {
         status: membershipStatus,
         endDate: new Date((subscription as any).current_period_end * 1000),
         stripePriceId: priceId ?? membership.stripePriceId,
-        membershipTypeId
+        membershipTypeId,
+        subscriptionStatus: status
       }
     });
 
@@ -1047,7 +1221,8 @@ export class MembershipsService {
       where: { id: membership.id },
       data: {
         status: MembershipStatus.CANCELLED,
-        endDate: new Date()
+        endDate: new Date(),
+        subscriptionStatus: subscription.status
       }
     });
 

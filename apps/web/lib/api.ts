@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { csrfTokenCookieName } from '@kentslsc/shared';
 import { safeRedirect } from './safe-redirect';
 
 /**
@@ -33,7 +34,7 @@ function getCookieValue(name: string): string | undefined {
 api.interceptors.request.use((config) => {
   const method = config.method?.toLowerCase();
   if (method && !['get', 'head', 'options'].includes(method)) {
-    const csrfToken = getCookieValue('csrfToken');
+    const csrfToken = getCookieValue(csrfTokenCookieName(process.env.NODE_ENV === 'production'));
     if (csrfToken) {
       config.headers.set('X-CSRF-Token', csrfToken);
     }

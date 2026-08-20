@@ -921,14 +921,27 @@ function startProxyServer() {
     // Respond to platform/health probes immediately so the host does not
     // restart the process while the API and web handlers are still warming up.
     if (urlPath === '/health' || urlPath === '/api/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(
-        JSON.stringify({
-          status: isUpstreamReady ? 'up' : 'warming_up',
-          uptime: process.uptime(),
-          ready: isUpstreamReady
-        })
-      );
+      if (!isUpstreamReady) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify({
+            status: 'warming_up',
+            uptime: process.uptime(),
+            ready: false
+          })
+        );
+        return;
+      }
+
+      // Once the API is up, the readiness endpoint reflects real dependency health
+      // (database, email, payments, storage). Rewrite the path and proxy to the API.
+      req.url = '/api/health/ready';
+      const toApi = true;
+      if (apiServer) {
+        apiServer.emit('request', req, res);
+      } else {
+        proxyRequest(req, res, `unix:${apiSocketPath}`);
+      }
       return;
     }
 

@@ -26,6 +26,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { AllowUnverified } from '../common/decorators/allow-unverified.decorator.js';
 import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
+import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { CredentialsService } from './credentials.service.js';
 import {
   ForgotPasswordDto,
@@ -328,6 +329,7 @@ export class AuthController {
 
   @Get('me')
   @Public()
+  @OptionalAuthRoute()
   @ApiBearerAuth()
   async me(@OptionalAuth() user: AuthenticatedUser | null) {
     if (!user) return null;
@@ -356,6 +358,7 @@ export class AuthController {
 
   @Get('features')
   @Public()
+  @OptionalAuthRoute()
   @ApiBearerAuth()
   async features(@OptionalAuth() user: AuthenticatedUser | null) {
     if (!user) return [];

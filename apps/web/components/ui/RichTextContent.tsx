@@ -8,11 +8,13 @@ interface RichTextContentProps {
   fallback?: React.ReactNode;
 }
 
-const sanitizeOptions: sanitizeHtml.IOptions = {
+export const sanitizeOptions: sanitizeHtml.IOptions = {
   allowedTags: [
     'p',
     'br',
+    'b',
     'strong',
+    'i',
     'em',
     'u',
     'ul',

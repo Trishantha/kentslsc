@@ -30,10 +30,12 @@ import {
   ChevronDown,
   ChevronRight,
   ScanLine,
-  History
+  History,
+  Download
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 import { AdminHeader } from './AdminHeader';
+import { SessionWatcher } from '@/components/auth/SessionWatcher';
 
 interface NavItem {
   href: string;
@@ -221,7 +223,8 @@ const navGroups: NavGroup[] = [
     label: 'Finance',
     icon: CreditCard,
     items: [
-      { href: '/admin/payments', label: 'Payments', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS, prefetch: prefetchPayments }
+      { href: '/admin/payments', label: 'Payment Settings', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS, prefetch: prefetchPayments },
+      { href: '/admin/payments/reports', label: 'Revenue Report', icon: Download, permission: Permission.MANAGE_PAYMENTS }
     ]
   },
   {
@@ -319,6 +322,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <SessionWatcher />
       <PageTransitionLoader minDuration={200} />
       <AdminHeader onMenuOpen={() => setMobileMenuOpen(true)} />
       <aside className="hidden md:fixed md:top-[68px] md:z-30 md:flex md:h-[calc(100vh-68px)] md:w-64 md:flex-col md:border-b-0 md:border-r md:border-white/10 md:bg-slate-900/80 md:backdrop-blur-lg">

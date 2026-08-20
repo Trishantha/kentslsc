@@ -124,6 +124,49 @@ function publicHandlersIn(file: string): string[] {
   return handlers;
 }
 
+function optionalAuthHandlersIn(file: string): string[] {
+  const source = readFileSync(file, 'utf8');
+  const lines = source.split('\n');
+  const handlers: string[] = [];
+
+  lines.forEach((line, index) => {
+    if (!/^\s*@OptionalAuthRoute\(\)\s*$/.test(line)) return;
+
+    // Walk backward to find the HTTP method decorator so we can identify the handler.
+    let handler: string | undefined;
+    for (let i = index + 1; i < lines.length; i += 1) {
+      const candidate = lines[i]!;
+      if (/^\s*@/.test(candidate) || candidate.trim() === '') continue;
+      const match = candidate.match(/^\s*(?:async\s+)?([A-Za-z0-9_]+)\s*\(/);
+      if (match) {
+        handler = match[1]!;
+      }
+      break;
+    }
+
+    // Walk backward to make sure the same handler is also marked @Public().
+    if (handler) {
+      let isPublic = false;
+      for (let i = index - 1; i >= 0; i -= 1) {
+        const candidate = lines[i]!;
+        if (/^\s*@Public\(\)\s*$/.test(candidate)) {
+          isPublic = true;
+          break;
+        }
+        if (/^\s*(?:async\s+)?([A-Za-z0-9_]+)\s*\(/.test(candidate)) {
+          // Reached the previous method; stop.
+          break;
+        }
+      }
+      if (isPublic) {
+        handlers.push(handler);
+      }
+    }
+  });
+
+  return handlers;
+}
+
 describe('route authorization', () => {
   const controllers = findControllers(SRC);
 
@@ -166,5 +209,26 @@ describe('route authorization', () => {
     // Re-applying JwtAuthGuard runs passport twice, which means two
     // `user.findUnique` calls per request on the hottest path.
     expect(offenders.map((f) => f.slice(SRC.length + 1))).toEqual([]);
+  });
+
+  it('only marks optional-auth routes that are also public and on the allowlist', () => {
+    const notPublic: string[] = [];
+    const notAllowed: string[] = [];
+
+    for (const file of controllers) {
+      const rel = file.slice(SRC.length + 1);
+      const publicHandlers = new Set(publicHandlersIn(file));
+      for (const handler of optionalAuthHandlersIn(file)) {
+        const key = `${rel}::${handler}`;
+        if (!publicHandlers.has(handler)) {
+          notPublic.push(key);
+        } else if (!PUBLIC_ALLOWLIST.has(key)) {
+          notAllowed.push(key);
+        }
+      }
+    }
+
+    expect(notPublic).toEqual([]);
+    expect(notAllowed).toEqual([]);
   });
 });

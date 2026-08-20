@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { Bold, Italic, Underline, List, ListOrdered, Quote, Link2, Unlink } from 'lucide-react';
+import sanitizeHtml from 'sanitize-html';
+import { sanitizeOptions } from './RichTextContent';
 
 interface RichTextEditorProps {
   value?: string;
@@ -48,7 +50,16 @@ export function RichTextEditor({
   }, [value]);
 
   const emitChange = () => {
-    onChange(editorRef.current?.innerHTML ?? '');
+    const raw = editorRef.current?.innerHTML ?? '';
+    const clean = sanitizeHtml(raw, sanitizeOptions);
+    onChange(clean);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+    emitChange();
   };
 
   const run = (command: string, commandValue?: string) => {
@@ -98,6 +109,7 @@ export function RichTextEditor({
         suppressContentEditableWarning
         onInput={emitChange}
         onBlur={emitChange}
+        onPaste={handlePaste}
         data-placeholder={placeholder}
         className={`${minHeightClassName} prose prose-sm dark:prose-invert max-w-none px-4 py-3 text-sm outline-none [&:empty:before]:pointer-events-none [&:empty:before]:text-slate-400 [&:empty:before]:content-[attr(data-placeholder)] [&_blockquote]:border-l-4 [&_blockquote]:border-neon-blue/40 [&_blockquote]:pl-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6`}
       />

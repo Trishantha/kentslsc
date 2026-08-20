@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { csrfTokenCookieName } from '@kentslsc/shared';
 import { getApiOriginCandidates } from './api-base';
 import { fetchWithRetry, type FetchWithRetryOptions } from './server-fetch';
 
@@ -21,7 +22,8 @@ async function getIncomingCookieHeader(): Promise<string | undefined> {
 }
 
 function getCsrfToken(cookieHeader: string): string | undefined {
-  const match = cookieHeader.match(/(?:^|;\s*)csrfToken=([^;]*)/);
+  const cookieName = csrfTokenCookieName(process.env.NODE_ENV === 'production');
+  const match = cookieHeader.match(new RegExp('(?:^|;\\s*)' + cookieName + '=([^;]*)'));
   return match?.[1] ? decodeURIComponent(match[1]) : undefined;
 }
 

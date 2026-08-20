@@ -448,4 +448,51 @@ describe('PaymentsService', () => {
       );
     });
   });
+
+  describe('refund helpers', () => {
+    it('refundStripePaymentIntent creates a full refund by default', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const refundsCreate = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ id: 're_123', status: 'succeeded' });
+      (service as any).stripe = { refunds: { create: refundsCreate } };
+
+      const result = await service.refundStripePaymentIntent('pi_123');
+
+      expect(result.providerRefundId).toBe('re_123');
+      expect(result.status).toBe('succeeded');
+      expect(refundsCreate).toHaveBeenCalledWith({ payment_intent: 'pi_123' });
+    });
+
+    it('refundStripePaymentIntent creates a partial refund when amount is provided', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const refundsCreate = (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({ id: 're_partial', status: 'succeeded' });
+      (service as any).stripe = { refunds: { create: refundsCreate }};
+
+      await service.refundStripePaymentIntent('pi_123', 500, 'duplicate');
+
+      expect(refundsCreate).toHaveBeenCalledWith({
+        payment_intent: 'pi_123',
+        amount: 500,
+        reason: 'requested_by_customer'
+      });
+    });
+
+    it('refundPayPalCapture calls the PayPal refund endpoint', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      global.fetch = jest.fn(async (url: string | URL | Request) => {
+        const target = String(url);
+        if (target.includes('/v1/oauth2/token')) {
+          return { ok: true, json: async () => ({ access_token: 'pay-token' }) } as Response;
+        }
+        if (target.includes('/v2/payments/captures/CAPTURE-1/refund')) {
+          return { ok: true, json: async () => ({ id: 'REFUND-1', status: 'COMPLETED' }) } as Response;
+        }
+        throw new Error(`Unexpected fetch target: ${target}`);
+      }) as typeof fetch;
+
+      const result = await service.refundPayPalCapture('CAPTURE-1', 1000, 'GBP');
+
+      expect(result.providerRefundId).toBe('REFUND-1');
+      expect(result.status).toBe('COMPLETED');
+    });
+  });
 });

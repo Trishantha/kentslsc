@@ -12,6 +12,7 @@ import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { SupabaseStorageService } from '../core/supabase/supabase.service.js';
 import { FundraiserStatus } from '@kentslsc/shared';
+import { PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 import type { CreateFundraiserUpdateDto } from './dto/create-fundraiser-update.dto.js';
 import type { RecordOfflineDonationDto } from './dto/record-offline-donation.dto.js';
 import type { CreateDonationDto } from './dto/create-donation.dto.js';
@@ -280,25 +281,25 @@ export class FundraisingService {
       throw new ForbiddenException('Cannot record donation on an inactive campaign');
     }
     const prevRaised = Number(fundraiser.raisedAmount);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.donation.create({
-        data: {
-          fundraiserId,
-          amount: dto.amount,
-          displayName: dto.displayName ?? null,
-          message: dto.message ?? null,
-          isOffline: true,
-          isVerified: true,
-          donatedAt: dto.donatedAt ?? new Date()
-        }
-      });
-      await tx.fundraiser.update({
-        where: { id: fundraiserId },
-        data: {
-          raisedAmount: { increment: dto.amount },
-          totalDonors: { increment: 1 }
-        }
-      });
+    await this.recordDonation({
+      fundraiserId,
+      amount: dto.amount,
+      userId: null,
+      displayName: dto.displayName ?? null,
+      message: dto.message ?? null,
+      isAnonymous: false,
+      donorEmail: null,
+      paymentId: null,
+      channel: 'offline',
+      providerCheckoutId: null,
+      providerPaymentId: null,
+      paymentMethod: 'offline',
+      currency: 'GBP',
+      grossAmount: dto.amount,
+      processingFee: 0,
+      payerName: dto.displayName ?? null,
+      purchasedAt: dto.donatedAt ? new Date(dto.donatedAt) : new Date(),
+      notes: 'Offline donation recorded by admin'
     });
     await this.checkMilestones(fundraiserId, prevRaised, prevRaised + dto.amount, Number(fundraiser.targetAmount));
     return { recorded: true };
@@ -362,7 +363,18 @@ export class FundraisingService {
       message,
       isAnonymous,
       donorEmail,
-      paymentId: session.payment_intent as string | null
+      paymentId: session.payment_intent as string | null,
+      channel: 'stripe',
+      providerCheckoutId: session.id,
+      providerPaymentId:
+        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+      paymentMethod: session.payment_method_types?.[0],
+      currency: session.currency ?? 'gbp',
+      grossAmount: amount,
+      processingFee: 0,
+      payerName: session.customer_details?.name ?? displayName,
+      payerPhone: session.customer_details?.phone ?? null,
+      purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
     });
   }
 
@@ -373,6 +385,8 @@ export class FundraisingService {
     const amount = Number(metadata.amount || '0') / 100;
     if (amount <= 0) return null;
 
+    const purchaseUnit = payload?.resource?.purchase_units?.[0];
+    const payer = payload?.resource?.payer;
     return this.recordDonation({
       fundraiserId: metadata.fundraiserId,
       amount,
@@ -380,22 +394,55 @@ export class FundraisingService {
       displayName: metadata.displayName ?? null,
       message: metadata.message ?? null,
       isAnonymous: metadata.isAnonymous === 'true',
-      donorEmail: payload?.resource?.payer?.email_address ?? null,
-      paymentId: this.payments.extractPayPalPaymentId(payload)
+      donorEmail: payer?.email_address ?? null,
+      paymentId: this.payments.extractPayPalPaymentId(payload),
+      channel: 'paypal',
+      providerCheckoutId: payload?.resource?.id ?? null,
+      providerPaymentId: this.payments.extractPayPalPaymentId(payload),
+      paymentMethod: 'paypal',
+      currency: purchaseUnit?.amount?.currency_code ?? 'GBP',
+      grossAmount: amount,
+      processingFee: 0,
+      payerName: payer?.name
+        ? `${payer.name.given_name ?? ''} ${payer.name.surname ?? ''}`.trim()
+        : (metadata.displayName ?? null),
+      purchasedAt: payload?.resource?.create_time ? new Date(payload.resource.create_time) : new Date()
     });
   }
 
-  private async recordDonation(input: {
-    fundraiserId: string;
-    amount: number;
-    userId: string | null;
-    displayName: string | null;
-    message: string | null;
-    isAnonymous: boolean;
-    donorEmail: string | null;
-    paymentId: string | null;
-  }) {
-    const { fundraiserId, amount, userId, displayName, message, isAnonymous, donorEmail, paymentId } = input;
+  private async recordDonation(
+    input: {
+      fundraiserId: string;
+      amount: number;
+      userId: string | null;
+      displayName: string | null;
+      message: string | null;
+      isAnonymous: boolean;
+      donorEmail: string | null;
+      paymentId: string | null;
+      channel?: string;
+      providerCheckoutId?: string | null;
+      providerPaymentId?: string | null;
+      paymentMethod?: string | null;
+      currency?: string;
+      grossAmount?: number;
+      processingFee?: number;
+      payerName?: string | null;
+      payerPhone?: string | null;
+      purchasedAt?: Date;
+      notes?: string;
+    }
+  ) {
+    const {
+      fundraiserId,
+      amount,
+      userId,
+      displayName,
+      message,
+      isAnonymous,
+      donorEmail,
+      paymentId
+    } = input;
 
     if (paymentId) {
       const existing = await this.prisma.donation.findFirst({
@@ -409,10 +456,15 @@ export class FundraisingService {
 
     let prevRaised = 0;
     let targetAmount = 0;
+    let donationId: string | null = null;
+    const currency = (input.currency ?? 'GBP').toUpperCase();
+    const grossAmount = input.grossAmount ?? amount;
+    const processingFee = input.processingFee ?? 0;
+    const netAmount = grossAmount - processingFee;
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        await tx.donation.create({
+        const donation = await tx.donation.create({
           data: {
             fundraiserId,
             userId,
@@ -423,6 +475,30 @@ export class FundraisingService {
             isAnonymous,
             donorEmail,
             isVerified: true
+          }
+        });
+        donationId = donation.id;
+        await tx.payment.create({
+          data: {
+            userId,
+            donationId: donation.id,
+            paymentChannel: input.channel ?? 'stripe',
+            paymentMethod: input.paymentMethod ?? null,
+            paymentStatus: PaymentStatus.COMPLETED,
+            providerPaymentId: input.providerPaymentId ?? paymentId ?? null,
+            providerCheckoutId: input.providerCheckoutId ?? null,
+            currency,
+            grossAmount,
+            processingFee,
+            netAmount,
+            description: `Donation to fundraiser`,
+            notes: input.notes ?? message,
+            payerName: input.payerName ?? displayName,
+            payerEmail: donorEmail,
+            payerPhone: input.payerPhone ?? null,
+            purchasedAt: input.purchasedAt ?? new Date(),
+            sourceType: PaymentSourceType.DONATION,
+            sourceId: donation.id
           }
         });
         const updated = await tx.fundraiser.update({
@@ -458,7 +534,7 @@ export class FundraisingService {
       }
     }
 
-    return { received: true };
+    return { received: true, donationId };
   }
 
   async getStats() {

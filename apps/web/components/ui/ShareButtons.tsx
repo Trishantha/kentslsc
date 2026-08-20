@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Check, Mail, MessageCircle, Share2 } from 'lucide-react';
+import { Copy, Check, Mail, MessageCircle, Share2, Smartphone } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const FacebookIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -15,16 +16,30 @@ const X_ICON = () => (
   </svg>
 );
 
-interface Props {
+interface ShareButtonsProps {
   url: string;
   title: string;
+  heading?: string;
+  shareText?: string;
+  copyLabel?: string;
+  copiedLabel?: string;
+  className?: string;
 }
 
-export function ShareButtons({ url, title }: Props) {
+export function ShareButtons({
+  url,
+  title,
+  heading = 'Share',
+  shareText = `Check out "${title}"`,
+  copyLabel = 'Copy link',
+  copiedLabel = 'Copied!',
+  className
+}: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
+  const [nativeShareError, setNativeShareError] = useState<string | null>(null);
 
   const encoded = encodeURIComponent(url);
-  const encodedTitle = encodeURIComponent(`Support "${title}" on Kent SLSC`);
+  const encodedTitle = encodeURIComponent(shareText);
 
   const shares = [
     {
@@ -54,16 +69,33 @@ export function ShareButtons({ url, title }: Props) {
   ];
 
   const copyLink = async () => {
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const nativeShare = async () => {
+    if (typeof navigator === 'undefined' || !navigator.share) return;
+    try {
+      setNativeShareError(null);
+      await navigator.share({ title, text: shareText, url });
+    } catch (err: unknown) {
+      // User cancelled or share failed; only show genuine errors
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setNativeShareError(err.message);
+      }
+    }
   };
 
   return (
-    <div>
+    <div className={className}>
       <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
         <Share2 className="h-4 w-4" />
-        Share this campaign
+        {heading}
       </p>
       <div className="flex flex-wrap gap-2">
         {shares.map((s) => (
@@ -72,20 +104,35 @@ export function ShareButtons({ url, title }: Props) {
             href={s.href}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-white transition-colors ${s.color}`}
+            className={cn(
+              'flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-white transition-colors',
+              s.color
+            )}
           >
             {s.icon}
             {s.label}
           </a>
         ))}
+        {typeof navigator.share === 'function' && (
+          <button
+            onClick={nativeShare}
+            className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-purple-700"
+          >
+            <Smartphone className="h-4 w-4" />
+            Share
+          </button>
+        )}
         <button
           onClick={copyLink}
           className="flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-          {copied ? 'Copied!' : 'Copy link'}
+          {copied ? copiedLabel : copyLabel}
         </button>
       </div>
+      {nativeShareError && (
+        <p className="mt-2 text-xs text-rose-500">{nativeShareError}</p>
+      )}
     </div>
   );
 }

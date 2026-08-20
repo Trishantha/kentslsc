@@ -10,8 +10,10 @@ import { CreateBusinessListingDto } from './dto/create-business.dto.js';
 import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
 import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
+import { PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 
 const PROMOTION_PRICE_PENCE = 2500; // £25
+const JOB_PUBLISH_PRICE_PENCE = 5000; // £50
 
 @Injectable()
 export class DirectoryService {
@@ -321,21 +323,45 @@ export class DirectoryService {
 
   async promoteBusinessOffline(id: string) {
     const listing = await this.prisma.businessListing.findFirst({
-      where: { id, deletedAt: null }
+      where: { id, deletedAt: null },
+      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
     });
     if (!listing) throw new NotFoundException('Business listing not found');
 
     const promotedUntil = new Date();
     promotedUntil.setDate(promotedUntil.getDate() + 30);
 
-    await this.prisma.businessListing.update({
-      where: { id },
-      data: {
-        isPromoted: true,
-        promotedUntil,
-        promotionPaidAt: new Date(),
-        promotionPaymentMethod: 'offline'
-      }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.businessListing.update({
+        where: { id },
+        data: {
+          isPromoted: true,
+          promotedUntil,
+          promotionPaidAt: new Date(),
+          promotionPaymentMethod: 'offline'
+        }
+      });
+      await tx.payment.create({
+        data: {
+          userId: listing.owner.id,
+          businessListingId: id,
+          paymentChannel: 'offline',
+          paymentMethod: 'offline',
+          paymentStatus: PaymentStatus.COMPLETED,
+          currency: 'GBP',
+          grossAmount: PROMOTION_PRICE_PENCE / 100,
+          processingFee: 0,
+          netAmount: PROMOTION_PRICE_PENCE / 100,
+          description: `Directory promotion: ${listing.businessName}`,
+          notes: 'Offline promotion recorded by admin',
+          payerName: listing.owner.name,
+          payerEmail: listing.owner.email,
+          payerPhone: listing.owner.phone ?? null,
+          purchasedAt: new Date(),
+          sourceType: PaymentSourceType.DIRECTORY_PROMOTION,
+          sourceId: id
+        }
+      });
     });
 
     return { received: true, promotedUntil };
@@ -380,33 +406,146 @@ export class DirectoryService {
     };
   }
 
-  async handlePromotionCompleted(metadata: Record<string, string>, paymentMethod?: string) {
+  async handlePromotionCompleted(
+    metadata: Record<string, string>,
+    paymentMethod?: string,
+    paymentContext?: {
+      providerCheckoutId?: string | null;
+      providerPaymentId?: string | null;
+      amountPence?: number;
+      currency?: string;
+      payerEmail?: string | null;
+      payerName?: string | null;
+      payerPhone?: string | null;
+      purchasedAt?: Date;
+    }
+  ) {
     const businessListingId = metadata.businessListingId;
     if (!businessListingId || metadata.type !== 'directory_promotion') return null;
+
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        businessListingId,
+        providerCheckoutId: paymentContext?.providerCheckoutId ?? undefined
+      }
+    });
+    if (existingPayment) {
+      return { received: true, paymentId: existingPayment.id };
+    }
 
     const promotedUntil = new Date();
     promotedUntil.setDate(promotedUntil.getDate() + 30);
 
-    await this.prisma.businessListing.updateMany({
+    const listing = await this.prisma.businessListing.findFirst({
       where: { id: businessListingId, deletedAt: null },
-      data: {
-        isPromoted: true,
-        promotedUntil,
-        promotionPaidAt: paymentMethod ? new Date() : undefined,
-        promotionPaymentMethod: paymentMethod ?? undefined
-      }
+      include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+    });
+
+    const amount = (paymentContext?.amountPence ?? PROMOTION_PRICE_PENCE) / 100;
+    const currency = (paymentContext?.currency ?? 'GBP').toUpperCase();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.businessListing.updateMany({
+        where: { id: businessListingId, deletedAt: null },
+        data: {
+          isPromoted: true,
+          promotedUntil,
+          promotionPaidAt: paymentMethod ? new Date() : undefined,
+          promotionPaymentMethod: paymentMethod ?? undefined
+        }
+      });
+      await tx.payment.create({
+        data: {
+          userId: listing?.owner.id,
+          businessListingId,
+          paymentChannel: paymentMethod === 'offline' ? 'offline' : paymentMethod ?? 'stripe',
+          paymentMethod: paymentMethod ?? null,
+          paymentStatus: PaymentStatus.COMPLETED,
+          providerCheckoutId: paymentContext?.providerCheckoutId ?? null,
+          providerPaymentId: paymentContext?.providerPaymentId ?? null,
+          currency,
+          grossAmount: amount,
+          processingFee: 0,
+          netAmount: amount,
+          description: `Directory promotion: ${listing?.businessName ?? businessListingId}`,
+          payerName: paymentContext?.payerName ?? listing?.owner.name ?? null,
+          payerEmail: paymentContext?.payerEmail ?? listing?.owner.email ?? null,
+          payerPhone: paymentContext?.payerPhone ?? listing?.owner.phone ?? null,
+          purchasedAt: paymentContext?.purchasedAt ?? new Date(),
+          sourceType: PaymentSourceType.DIRECTORY_PROMOTION,
+          sourceId: businessListingId
+        }
+      });
     });
 
     return { received: true };
   }
 
-  async handleJobPublishCompleted(metadata: Record<string, string>) {
+  async handleJobPublishCompleted(
+    metadata: Record<string, string>,
+    paymentContext?: {
+      providerCheckoutId?: string | null;
+      providerPaymentId?: string | null;
+      amountPence?: number;
+      currency?: string;
+      payerEmail?: string | null;
+      payerName?: string | null;
+      payerPhone?: string | null;
+      purchasedAt?: Date;
+    }
+  ) {
     const jobAdId = metadata.jobAdId;
     if (!jobAdId || metadata.type !== 'job_publish') return null;
 
-    await this.prisma.jobAd.updateMany({
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        jobAdId,
+        providerCheckoutId: paymentContext?.providerCheckoutId ?? undefined
+      }
+    });
+    if (existingPayment) {
+      return { received: true, paymentId: existingPayment.id };
+    }
+
+    const job = await this.prisma.jobAd.findFirst({
       where: { id: jobAdId, deletedAt: null },
-      data: { isPublished: true }
+      include: {
+        businessListing: {
+          include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+        }
+      }
+    });
+
+    const amount = (paymentContext?.amountPence ?? JOB_PUBLISH_PRICE_PENCE) / 100;
+    const currency = (paymentContext?.currency ?? 'GBP').toUpperCase();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.jobAd.updateMany({
+        where: { id: jobAdId, deletedAt: null },
+        data: { isPublished: true, publishPaidAt: new Date() }
+      });
+      await tx.payment.create({
+        data: {
+          userId: job?.businessListing?.owner.id,
+          jobAdId,
+          paymentChannel: paymentContext?.providerCheckoutId ? 'stripe' : 'offline',
+          paymentMethod: paymentContext?.providerCheckoutId ? 'card' : 'offline',
+          paymentStatus: PaymentStatus.COMPLETED,
+          providerCheckoutId: paymentContext?.providerCheckoutId ?? null,
+          providerPaymentId: paymentContext?.providerPaymentId ?? null,
+          currency,
+          grossAmount: amount,
+          processingFee: 0,
+          netAmount: amount,
+          description: `Job publish: ${job?.title ?? jobAdId}`,
+          payerName: paymentContext?.payerName ?? job?.businessListing?.owner.name ?? null,
+          payerEmail: paymentContext?.payerEmail ?? job?.businessListing?.owner.email ?? null,
+          payerPhone: paymentContext?.payerPhone ?? job?.businessListing?.owner.phone ?? null,
+          purchasedAt: paymentContext?.purchasedAt ?? new Date(),
+          sourceType: PaymentSourceType.JOB_PUBLISH,
+          sourceId: jobAdId
+        }
+      });
     });
 
     return { received: true };

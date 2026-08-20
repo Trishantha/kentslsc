@@ -11,6 +11,7 @@ import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { ShareButtons } from '@/components/ui/ShareButtons';
 import EventLocationLink from '@/components/events/EventLocationLink';
 import AddToCalendar from '@/components/events/AddToCalendar';
 import { calculateProcessingFee, EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
@@ -27,6 +28,8 @@ export interface Event {
   maxTickets?: number;
   category?: EventCategory;
   imageUrl?: string;
+  posterImageUrl?: string | null;
+  posterImages?: { url: string; caption?: string }[] | null;
   isPublished: boolean;
   tickets?: { id: string }[];
   _count?: { tickets: number };
@@ -37,9 +40,10 @@ export interface Event {
 interface Props {
   id: string;
   event?: Event;
+  shareUrl?: string;
 }
 
-export default function EventDetailContent({ id, event: initialEvent }: Props) {
+export default function EventDetailContent({ id, event: initialEvent, shareUrl }: Props) {
   const router = useRouter();
   const { data: user, isLoading: authLoading } = useAuth();
   const { data: paymentSettings } = usePaymentSettings();
@@ -141,9 +145,9 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
 
         <div className="mt-6 glass-card overflow-hidden">
           <div className="overflow-hidden">
-            {event.imageUrl ? (
+            {(event.imageUrl || event.posterImageUrl) ? (
               <img
-                src={event.imageUrl}
+                src={event.imageUrl || event.posterImageUrl || undefined}
                 alt={event.title}
                 className="h-auto w-full"
               />
@@ -187,8 +191,41 @@ export default function EventDetailContent({ id, event: initialEvent }: Props) {
               />
             </div>
 
+            {shareUrl && (
+              <div className="mt-6">
+                <ShareButtons
+                  url={shareUrl}
+                  title={event.title}
+                  heading={t('shareTitle')}
+                  shareText={t('shareText', { title: event.title })}
+                  copyLabel={tCommon('copyLink')}
+                  copiedLabel={tCommon('copied')}
+                />
+              </div>
+            )}
+
             {event.description && (
               <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
+            )}
+
+            {event.posterImages && event.posterImages.length > 0 && (
+              <div className="mt-8">
+                <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {event.posterImages.map((poster, idx) => (
+                    <div key={idx} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                      <img
+                        src={poster.url}
+                        alt={poster.caption || `${event.title} poster ${idx + 1}`}
+                        className="h-auto w-full object-cover"
+                      />
+                      {poster.caption && (
+                        <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">

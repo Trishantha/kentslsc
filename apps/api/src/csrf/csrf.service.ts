@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import type { CookieOptions } from 'express';
+import { csrfTokenCookieName } from '@kentslsc/shared';
 
-export const CSRF_COOKIE_NAME = 'csrfToken';
 export const CSRF_HEADER_NAME = 'x-csrf-token';
 
 @Injectable()
@@ -12,7 +12,7 @@ export class CsrfService {
   }
 
   getCookieName(): string {
-    return CSRF_COOKIE_NAME;
+    return csrfTokenCookieName(process.env.NODE_ENV === 'production');
   }
 
   getHeaderName(): string {

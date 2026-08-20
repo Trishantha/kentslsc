@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, X, GripVertical, Loader2, Save } from 'lucide-react';
@@ -34,6 +34,12 @@ export default function EventPostersPage({ params }: Props) {
   const [posterImages, setPosterImages] = useState<PosterImage[]>(
     (event?.posterImages as unknown as PosterImage[]) ?? []
   );
+
+  useEffect(() => {
+    if (!event) return;
+    setPosterImageUrl(event.posterImageUrl ?? '');
+    setPosterImages((event.posterImages as unknown as PosterImage[]) ?? []);
+  }, [event]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {

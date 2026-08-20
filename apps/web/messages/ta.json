@@ -71,7 +71,9 @@
     "total": "Total",
     "totalToPay": "Total to pay",
     "donation": "Donation",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "copyLink": "Copy link",
+    "copied": "Copied!"
   },
   "home": {
     "subtitle": "நிகழ்வுகள், கலாச்சாரம், வணிகம் மற்றும் கூட்டுறவு மூலம் கென்ட்டில் உள்ள இலங்கை சமூகத்தை இணைப்பது. எங்களுடன் சேர்ந்து, அசாதாரணமான ஏதாவது ஒரு பகுதியாக இருங்கள்.",
@@ -484,7 +486,10 @@
     "buyFor": "{amount}க்கு வாங்கவும்",
     "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக",
     "addToCalendar": "Add to calendar",
-    "downloadIcs": "Download .ics"
+    "downloadIcs": "Download .ics",
+    "shareTitle": "Share this event",
+    "shareText": "Join us for \"{title}\" on Kent SLSC",
+    "postersTitle": "Posters"
   },
   "directoryDetail": {
     "backToDirectory": "கோப்பகத்திற்குத் திரும்பு",
@@ -516,7 +521,8 @@
     "canceled": "நன்கொடை ரத்து செய்யப்பட்டது.",
     "amountPlaceholder": "தொகை (£)",
     "makeDonation": "நன்கொடை செய்யுங்கள்",
-    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause"
+    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause",
+    "fullStory": "Full story"
   },
   "membershipVerify": {
     "metaTitle": "உறுப்பினர்களை சரிபார்க்கவும் - கென்ட் SLSC",

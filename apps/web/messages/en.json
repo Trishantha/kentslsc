@@ -71,7 +71,9 @@
     "total": "Total",
     "totalToPay": "Total to pay",
     "donation": "Donation",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "copyLink": "Copy link",
+    "copied": "Copied!"
   },
   "home": {
     "subtitle": "Connecting the Sri Lankan community in Kent through events, culture, business, and fellowship. Join us and be part of something extraordinary.",
@@ -484,7 +486,10 @@
     "buyFor": "Buy for {amount}",
     "loginToBuy": "Log in to buy tickets",
     "addToCalendar": "Add to calendar",
-    "downloadIcs": "Download .ics"
+    "downloadIcs": "Download .ics",
+    "shareTitle": "Share this event",
+    "shareText": "Join us for \"{title}\" on Kent SLSC",
+    "postersTitle": "Posters"
   },
   "directoryDetail": {
     "backToDirectory": "Back to directory",
@@ -516,7 +521,8 @@
     "canceled": "Donation canceled — you have not been charged.",
     "amountPlaceholder": "Amount (£)",
     "makeDonation": "Make a donation",
-    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause"
+    "coverProcessingFee": "Cover the {amount} processing fee so more of my donation goes to the cause",
+    "fullStory": "Full story"
   },
   "membershipVerify": {
     "metaTitle": "Verify Membership – Kent SLSC",

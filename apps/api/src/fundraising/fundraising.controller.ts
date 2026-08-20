@@ -18,6 +18,7 @@ import { PaymentsService } from '../payments/payments.service.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
+import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { Permission, type TokenPayload } from '@kentslsc/shared';
 import { CreateFundraiserDto } from './dto/create-fundraiser.dto.js';
 import { UpdateFundraiserDto } from './dto/update-fundraiser.dto.js';
@@ -107,6 +108,7 @@ export class FundraisingController {
   /** Public endpoint — Stripe collects email for guest donors */
   @Post(':id/donate')
   @Public()
+  @OptionalAuthRoute()
   donate(
     @Param('id') id: string,
     @Body() dto: CreateDonationDto,

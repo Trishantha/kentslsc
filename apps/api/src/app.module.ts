@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { fileURLToPath } from 'url';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { envValidationSchema } from './core/config/env.validation.js';
@@ -39,6 +39,7 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
 import { CsrfModule } from './csrf/csrf.module.js';
 import { CsrfGuard } from './csrf/csrf.guard.js';
 import { AppThrottlerGuard } from './common/guards/throttler.guard.js';
+import { HealthModule } from './health/health.module.js';
 
 @Module({
   imports: [
@@ -84,7 +85,8 @@ import { AppThrottlerGuard } from './common/guards/throttler.guard.js';
     // Provides FeatureGuard + MembershipFeaturesService to the global guard above.
     AuthorizationModule,
     PermissionsModule,
-    CsrfModule
+    CsrfModule,
+    HealthModule
   ],
   controllers: [AppController],
   providers: [

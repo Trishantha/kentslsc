@@ -20,6 +20,7 @@ allowBuilds:
   '@scarf/scarf': true
   '@swc/core': true
   bcrypt: true
+  core-js: set this to true or false
   esbuild: false
   prisma: true
   sharp: true
