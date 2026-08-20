@@ -504,6 +504,70 @@ function checkBuildArtifacts() {
   };
 }
 
+function readBuildInfo(buildDir) {
+  try {
+    const filePath = path.join(buildDir, 'BUILD_INFO');
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function currentGitCommit() {
+  try {
+    return require('child_process')
+      .execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+function describeStaleBuild() {
+  const gitCommit = currentGitCommit();
+  if (!gitCommit) {
+    // No git context available at runtime; we cannot detect stale builds.
+    return null;
+  }
+
+  const apiInfo = readBuildInfo(path.join(apiDir, 'dist'));
+  const webInfo = readBuildInfo(path.join(webDir, '.next'));
+  const stale = [];
+
+  if (apiInfo && apiInfo.commit && apiInfo.commit !== gitCommit) {
+    stale.push(`API dist was built from ${apiInfo.commit.slice(0, 8)} but source is ${gitCommit.slice(0, 8)}`);
+  }
+  if (webInfo && webInfo.commit && webInfo.commit !== gitCommit) {
+    stale.push(`Web dist was built from ${webInfo.commit.slice(0, 8)} but source is ${gitCommit.slice(0, 8)}`);
+  }
+
+  if (stale.length === 0) {
+    return null;
+  }
+  return stale.join('; ');
+}
+
+function logBuildInfo() {
+  const apiInfo = readBuildInfo(path.join(apiDir, 'dist'));
+  const webInfo = readBuildInfo(path.join(webDir, '.next'));
+
+  if (apiInfo && apiInfo.commit) {
+    const tagInfo = apiInfo.tag ? ` (${apiInfo.tag})` : '';
+    console.log(
+      `API build info: commit=${apiInfo.commit.slice(0, 8)}${tagInfo}, branch=${apiInfo.branch}, builtAt=${apiInfo.builtAt}`
+    );
+  }
+  if (webInfo && webInfo.commit) {
+    const tagInfo = webInfo.tag ? ` (${webInfo.tag})` : '';
+    console.log(
+      `Web build info: commit=${webInfo.commit.slice(0, 8)}${tagInfo}, branch=${webInfo.branch}, builtAt=${webInfo.builtAt}`
+    );
+  }
+}
+
 function logStartupDiagnostics() {
   const heapStats = v8.getHeapStatistics();
   const memory = process.memoryUsage();
@@ -585,25 +649,37 @@ function logStaticAssetsDiagnostic() {
 
 async function ensureBuilt() {
   const { apiBuilt, webBuilt } = checkBuildArtifacts();
-
-  if (apiBuilt && webBuilt) {
-    return;
-  }
-
+  const staleReason = describeStaleBuild();
   const skipAutoBuild = process.env.SKIP_AUTO_BUILD === 'true' || process.env.SKIP_AUTO_BUILD === '1';
   const isProduction = process.env.NODE_ENV === 'production';
 
-  if (skipAutoBuild || isProduction) {
+  if (apiBuilt && webBuilt && !staleReason) {
+    return;
+  }
+
+  if (!apiBuilt || !webBuilt) {
     const missing = [!apiBuilt && 'apps/api/dist/main.js', !webBuilt && 'apps/web/.next/BUILD_ID']
       .filter(Boolean)
       .join(', ');
-    throw new Error(
-      `Missing required build artifacts: ${missing}. ` +
-      'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to build on startup.'
-    );
-  }
 
-  console.log('Missing build artifacts. Running project build before startup...');
+    if (skipAutoBuild || isProduction) {
+      throw new Error(
+        `Missing required build artifacts: ${missing}. ` +
+        'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to build on startup.'
+      );
+    }
+
+    console.log('Missing build artifacts. Running project build before startup...');
+  } else if (staleReason) {
+    if (skipAutoBuild || isProduction) {
+      throw new Error(
+        `Stale build detected: ${staleReason}. ` +
+        'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to rebuild on startup.'
+      );
+    }
+
+    console.warn(`Stale build detected: ${staleReason}. Rebuilding before startup...`);
+  }
 
   const corepackCommand = process.platform === 'win32' ? 'corepack.cmd' : 'corepack';
   const result = spawnSync(corepackCommand, ['pnpm', 'build'], {
@@ -1252,6 +1328,7 @@ async function startServices() {
   console.log(`API mode: ${apiMode}`);
   console.log(`Web mode: ${webMode}`);
   logStartupDiagnostics();
+  logBuildInfo();
   if (webMode === 'child') {
     console.log(`Internal web target: ${internalWebUrl}`);
   }

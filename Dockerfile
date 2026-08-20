@@ -25,6 +25,7 @@ ENV NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
 RUN pnpm build
 
 FROM base AS runtime
+RUN apk add --no-cache openssl
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/web/.next ./apps/web/.next
 COPY --from=build /app/apps/web/public ./apps/web/public
@@ -48,6 +49,7 @@ COPY --from=deps /app/packages ./packages
 # Run as a non-root user for security and to avoid permission surprises on shared
 # hosting-style containers.
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 EXPOSE 3000 3001

@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "scripts": {
-    "build": "rm -rf dist && nest build",
+    "build": "rm -rf dist && nest build && node ../../scripts/write-build-info.js dist",
     "clean": "rm -rf dist .turbo",
     "dev": "NODE_OPTIONS='--max-old-space-size=2048' PORT=${PORT:-3001} nest start --watch --preserveWatchOutput",
     "start": "nest start",

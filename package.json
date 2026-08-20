@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/api build && corepack pnpm --filter @kentslsc/web build",
-    "deploy:hostinger:frontend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/web build",
-    "deploy:hostinger:backend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/api build",
+    "build": "corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/api build && corepack pnpm --filter @kentslsc/web build && node scripts/write-build-info.js",
+    "deploy:hostinger:frontend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/web build && node scripts/write-build-info.js apps/web/.next",
+    "deploy:hostinger:backend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/api build && node scripts/write-build-info.js apps/api/dist",
     "build:clean": "corepack pnpm clean && corepack pnpm build",
     "start": "node server.js",
     "dev": "node server.js",
