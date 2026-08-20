@@ -1131,6 +1131,41 @@ function startProxyServer() {
   return server;
 }
 
+function logRegisteredApiRoutes(server) {
+  try {
+    const app = server?._events?.request || server?.requestListener;
+    if (!app || typeof app._router === 'undefined') {
+      return;
+    }
+
+    const routes = [];
+    const walk = (stack, prefix = '') => {
+      for (const layer of stack || []) {
+        if (layer.route) {
+          const methods = Object.keys(layer.route.methods)
+            .filter((m) => layer.route.methods[m])
+            .map((m) => m.toUpperCase())
+            .join(',');
+          routes.push(`${methods} ${prefix}${layer.route.path}`);
+        } else if (layer.name === 'router' && layer.handle?.stack) {
+          const regexp = layer.regexp?.toString() || '';
+          const match = regexp.match(/^\/\^\\\/([^\\]+)/);
+          const segment = match ? `/${match[1]}` : '';
+          walk(layer.handle.stack, `${prefix}${segment}`);
+        }
+      }
+    };
+    walk(app._router.stack);
+
+    const critical = ['/api/pages/home', '/api/hero-config', '/api/health'];
+    const criticalStatus = critical.map((r) => `${r}: ${routes.some((route) => route.endsWith(r)) ? 'registered' : 'MISSING'}`);
+    console.log(`API routes registered: ${routes.length}`);
+    console.log(`Critical routes: ${criticalStatus.join(', ')}`);
+  } catch (error) {
+    console.warn('Could not log registered API routes:', error.message);
+  }
+}
+
 async function startInProcessApi() {
   console.log('Starting API in-process (no secondary child process)');
   // Tell the API module not to auto-bootstrap; we will call createApiApp() ourselves.
@@ -1142,6 +1177,7 @@ async function startInProcessApi() {
   }
   apiApp = await apiModule.createApiApp();
   apiServer = apiApp.getHttpServer();
+  logRegisteredApiRoutes(apiServer);
   console.log('API initialized in-process');
 }
 
@@ -1163,6 +1199,75 @@ async function startInProcessWeb() {
   }
   webHandler = await webModule.init();
   console.log('Web handler initialized in-process');
+}
+
+/**
+ * Make an HTTP request directly to an in-process HTTP server instance without
+ * going through the public listener. This avoids reverse-proxy layers (e.g.
+ * Hostinger's internal routing) that may return their own 404 pages and make
+ * the route check unreliable.
+ */
+function requestApiServer(server, routePath, method = 'GET') {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+
+    const tempServer = http.createServer((req, res) => {
+      server.emit('request', req, res);
+    });
+
+    tempServer.on('error', (error) => {
+      if (!resolved) {
+        resolved = true;
+        tempServer.close();
+        reject(error);
+      }
+    });
+
+    tempServer.listen(0, '127.0.0.1', () => {
+      const address = tempServer.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port,
+          path: routePath,
+          method
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => {
+            body += chunk;
+          });
+          res.on('end', () => {
+            if (!resolved) {
+              resolved = true;
+              tempServer.close();
+              resolve({ status: res.statusCode, body: body.slice(0, 500) });
+            }
+          });
+        }
+      );
+
+      req.setTimeout(5000, () => {
+        if (!resolved) {
+          resolved = true;
+          req.destroy();
+          tempServer.close();
+          resolve({ status: null, body: 'timeout' });
+        }
+      });
+
+      req.on('error', (error) => {
+        if (!resolved) {
+          resolved = true;
+          tempServer.close();
+          resolve({ status: null, body: error.message });
+        }
+      });
+
+      req.end();
+    });
+  });
 }
 
 /**
@@ -1193,39 +1298,16 @@ async function verifyCriticalApiRoutes() {
   };
 
   for (const route of routes) {
-    const result = await new Promise((resolve) => {
-      const req = http.request(
-        {
-          hostname: '127.0.0.1',
-          port: publicPort,
-          path: route,
-          method: 'GET'
-        },
-        (res) => {
-          let body = '';
-          res.on('data', (chunk) => {
-            body += chunk;
-          });
-          res.on('end', () => {
-            resolve({ status: res.statusCode, body: body.slice(0, 500) });
-          });
-        }
-      );
-      req.setTimeout(5000, () => {
-        req.destroy();
-        resolve({ status: null, body: 'timeout' });
-      });
-      req.on('error', (error) => {
-        resolve({ status: null, body: error.message });
-      });
-      req.end();
-    });
-
-    // 404 from the router means the controller/route is missing from the build.
-    // 404 from a service (e.g. "Home page not found") is expected on a fresh DB.
-    // 500/503 may be transient while the database is still unreachable.
-    if (isRouteNotRegistered(result.status, result.body)) {
-      failures.push({ route, ...result });
+    try {
+      const result = await requestApiServer(apiServer, route, 'GET');
+      // 404 from the router means the controller/route is missing from the build.
+      // 404 from a service (e.g. "Home page not found") is expected on a fresh DB.
+      // 500/503 may be transient while the database is still unreachable.
+      if (isRouteNotRegistered(result.status, result.body)) {
+        failures.push({ route, ...result });
+      }
+    } catch (error) {
+      failures.push({ route, status: null, body: error instanceof Error ? error.message : String(error) });
     }
   }
 
