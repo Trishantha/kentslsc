@@ -622,6 +622,25 @@ function countStaticFiles(dir) {
   }
 }
 
+function listStaticFiles(dir, limit = 20, files = []) {
+  if (files.length >= limit) return files;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (files.length >= limit) break;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        listStaticFiles(fullPath, limit, files);
+      } else if (entry.isFile()) {
+        files.push(path.relative(path.join(webDir, '.next', 'static'), fullPath));
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return files;
+}
+
 function logStaticAssetsDiagnostic() {
   const staticRoot = path.join(webDir, '.next', 'static');
   try {
@@ -632,6 +651,10 @@ function logStaticAssetsDiagnostic() {
     }
     const fileCount = countStaticFiles(staticRoot);
     console.log(`Next.js static assets: ${fileCount} files under ${staticRoot}`);
+    if (fileCount > 0) {
+      const sample = listStaticFiles(staticRoot, 10);
+      console.log(`Static asset sample: ${sample.join(', ')}`);
+    }
     if (fileCount === 0) {
       console.warn(
         'WARNING: No static assets found in the Next.js build output. ' +
@@ -1016,9 +1039,20 @@ function serveNextStaticFile(req, res, fallback) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') {
+        const parentDir = path.dirname(filePath);
+        let siblings = [];
+        try {
+          siblings = fs.readdirSync(parentDir);
+        } catch {
+          siblings = [];
+        }
+        const sampleFiles = listStaticFiles(staticRoot, 5);
         console.warn(
           `Static file missing on disk: ${filePath} (requested ${req.url}). ` +
-            `webDir=${webDir}, staticRoot=${staticRoot}`
+            `webDir=${webDir}, staticRoot=${staticRoot}, ` +
+            `webHandler=${typeof webHandler === 'function' ? 'set' : 'NOT_SET'}, ` +
+            `parentExists=${fs.existsSync(parentDir)}, siblings=[${siblings.slice(0, 5).join(', ')}], ` +
+            `staticSample=[${sampleFiles.join(', ')}]`
         );
       } else {
         console.error(`Static file read error: ${filePath} - ${err.message}`);
