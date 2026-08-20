@@ -411,8 +411,6 @@ let apiProcess;
 let webProcess;
 let apiServer;
 let apiApp;
-let apiHealthServer;
-let apiHealthPort = 0;
 let webHandler;
 let isShuttingDown = false;
 let isUpstreamReady = false;
@@ -1133,14 +1131,13 @@ function startProxyServer() {
   return server;
 }
 
-function logRegisteredApiRoutes(expressApp) {
+function getRegisteredApiRoutes(expressApp) {
   try {
     // Express 4 uses _router; Express 5 exposes router as a function with a stack.
     const router = expressApp?._router || expressApp?.router;
     const stack = router?.stack;
     if (!stack) {
-      console.warn('Could not log registered API routes: no Express router stack found');
-      return;
+      return { routes: [], error: 'no Express router stack found' };
     }
 
     const routes = [];
@@ -1165,13 +1162,25 @@ function logRegisteredApiRoutes(expressApp) {
     const critical = ['/api/pages/home', '/api/hero-config', '/api/health'];
     const criticalStatus = critical.map((r) => {
       const matched = routes.some((route) => route.endsWith(r) || route.includes(`${r} `));
-      return `${r}: ${matched ? 'registered' : 'MISSING'}`;
+      return { route: r, registered: matched };
     });
-    console.log(`API routes registered: ${routes.length}`);
-    console.log(`Critical routes: ${criticalStatus.join(', ')}`);
+
+    return { routes, criticalStatus };
   } catch (error) {
-    console.warn('Could not log registered API routes:', error.message);
+    return { routes: [], error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function logRegisteredApiRoutes(expressApp) {
+  const { routes, criticalStatus, error } = getRegisteredApiRoutes(expressApp);
+  if (error) {
+    console.warn('Could not log registered API routes:', error);
+    return;
+  }
+
+  const criticalSummary = criticalStatus.map((s) => `${s.route}: ${s.registered ? 'registered' : 'MISSING'}`);
+  console.log(`API routes registered: ${routes.length}`);
+  console.log(`Critical routes: ${criticalSummary.join(', ')}`);
 }
 
 async function startInProcessApi() {
@@ -1191,23 +1200,6 @@ async function startInProcessApi() {
   } catch (error) {
     console.warn('Could not access Express instance for route logging:', error.message);
   }
-
-  // Create a dedicated internal health-check listener. This avoids routing
-  // through the public port, where Hostinger's proxy may inject its own
-  // 404 responses and make readiness checks unreliable.
-  apiHealthServer = http.createServer((req, res) => {
-    apiServer.emit('request', req, res);
-  });
-  await new Promise((resolve, reject) => {
-    apiHealthServer.listen(0, '127.0.0.1', () => {
-      const address = apiHealthServer.address();
-      apiHealthPort = typeof address === 'object' && address ? address.port : 0;
-      console.log(`API health-check listener on 127.0.0.1:${apiHealthPort}`);
-      resolve();
-    });
-    apiHealthServer.on('error', reject);
-  });
-
   console.log('API initialized in-process');
 }
 
@@ -1231,89 +1223,42 @@ async function startInProcessWeb() {
   console.log('Web handler initialized in-process');
 }
 
-function requestHealthServer(routePath, method = 'GET') {
-  return new Promise((resolve) => {
-    if (!apiHealthServer || apiHealthPort === 0) {
-      resolve({ status: null, body: 'health server not available' });
-      return;
-    }
-
-    const req = http.request(
-      {
-        hostname: '127.0.0.1',
-        port: apiHealthPort,
-        path: routePath,
-        method
-      },
-      (res) => {
-        let body = '';
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          resolve({ status: res.statusCode, body: body.slice(0, 500) });
-        });
-      }
-    );
-
-    req.setTimeout(5000, () => {
-      req.destroy();
-      resolve({ status: null, body: 'timeout' });
-    });
-
-    req.on('error', (error) => {
-      resolve({ status: null, body: error.message });
-    });
-
-    req.end();
-  });
-}
-
 /**
- * Verify that critical API routes are reachable through the in-process listener.
+ * Verify that critical API routes are registered in the in-process Express app.
  *
  * This catches stale or corrupted API builds where controllers are missing and
- * routes return 404. We do not crash the whole process on shared hosts (the host
- * would just restart it in a tight loop), but we keep the proxy in warming_up
- * state and log the failure loudly so the operator knows the build is bad.
+ * routes return 404. We introspect the router directly instead of making HTTP
+ * requests, because an extra internal listener was conflicting with the public
+ * proxy and causing Hostinger to restart the process.
  */
 async function verifyCriticalApiRoutes() {
-  if (apiMode !== 'in-process' || !apiServer) {
+  if (apiMode !== 'in-process' || !apiApp) {
     return true;
   }
 
-  const routes = ['/api/pages/home', '/api/hero-config', '/api/health'];
-  const failures = [];
-
-  const isRouteNotRegistered = (status, body) => {
-    if (status !== 404) return false;
-    const text = String(body).toLowerCase();
-    // A genuine "resource not found" from a working controller says the route is
-    // registered and the build is fine. Only treat router-level "unknown route"
-    // responses as build failures.
-    if (text.includes('home page not found')) return false;
-    if (text.includes('hero config') && text.includes('not found')) return false;
+  let expressApp;
+  try {
+    expressApp = apiApp.getHttpAdapter().getInstance();
+  } catch (error) {
+    console.warn('Could not access Express instance for route verification:', error.message);
     return true;
-  };
-
-  for (const route of routes) {
-    const result = await requestHealthServer(route, 'GET');
-    // 404 from the router means the controller/route is missing from the build.
-    // 404 from a service (e.g. "Home page not found") is expected on a fresh DB.
-    // 500/503 may be transient while the database is still unreachable.
-    if (isRouteNotRegistered(result.status, result.body)) {
-      failures.push({ route, ...result });
-    }
   }
 
-  if (failures.length > 0) {
+  const { criticalStatus, error } = getRegisteredApiRoutes(expressApp);
+  if (error) {
+    console.warn('Could not verify critical API routes:', error);
+    return true;
+  }
+
+  const missing = criticalStatus.filter((s) => !s.registered).map((s) => s.route);
+  if (missing.length > 0) {
     console.error(
       'CRITICAL: Some API routes are missing. This usually means apps/api/dist ' +
         'is stale or was built from a different commit. Rebuild the API and redeploy. ' +
         'Missing routes:'
     );
-    for (const failure of failures) {
-      console.error(`  ${failure.route} -> HTTP ${failure.status}: ${failure.body}`);
+    for (const route of missing) {
+      console.error(`  ${route}`);
     }
     return false;
   }
@@ -1460,9 +1405,6 @@ async function startServices() {
     isShuttingDown = true;
     console.log('Stopping app services...');
     proxyServer.close();
-    if (apiHealthServer) {
-      apiHealthServer.close();
-    }
     if (apiApp) {
       apiApp.close().catch((error) => {
         console.error('Error closing in-process API:', error);
