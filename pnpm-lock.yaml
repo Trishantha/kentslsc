@@ -122,7 +122,7 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
       sharp:
-        specifier: ^0.35.3
+        specifier: ^0.35.0
         version: 0.35.3(@types/node@26.2.0)
       socket.io:
         specifier: ^4.8.3
@@ -331,7 +331,7 @@ importers:
         specifier: ^15.5.23
         version: 15.5.23(eslint@8.57.1(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       postcss:
-        specifier: ^8.5.26
+        specifier: ^8.5.23
         version: 8.5.26
       tailwindcss:
         specifier: ^3.4.19
