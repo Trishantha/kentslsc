@@ -187,6 +187,12 @@ export class TicketsController {
     return { ...ticket, qrDataUrl };
   }
 
+  @Post(':id/resend')
+  @ApiBearerAuth()
+  resend(@Param('id') id: string, @CurrentUser() user: TokenPayload) {
+    return this.eventsService.resendTicketEmail(id, user.sub, user.email);
+  }
+
   @Get('validate/:qrCodeValue')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()

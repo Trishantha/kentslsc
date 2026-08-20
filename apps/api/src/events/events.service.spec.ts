@@ -279,4 +279,33 @@ describe('EventsService', () => {
       );
     });
   });
+
+  describe('resendTicketEmail', () => {
+    it('sends the ticket email to the user', async () => {
+      const ticket = createMockTicket({ id: 'ticket-1' });
+      mockPrisma.ticket.findFirst.mockResolvedValue({
+        ...ticket,
+        event: mockEvent,
+        user: { id: mockUser.id, name: mockUser.name, email: mockUser.email }
+      });
+
+      const result = await service.resendTicketEmail(ticket.id, mockUser.id, mockUser.email);
+
+      expect(result).toEqual({ sent: true });
+      expect(mockEmailService.sendTicket).toHaveBeenCalledWith(
+        mockUser.email,
+        mockEvent.title,
+        'http://localhost:3000/dashboard/tickets',
+        [{ id: ticket.id, qrCodeValue: ticket.qrCodeValue }]
+      );
+    });
+
+    it('throws when the ticket does not belong to the user', async () => {
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.resendTicketEmail('missing-id', mockUser.id, mockUser.email)
+      ).rejects.toThrow('Ticket not found');
+    });
+  });
 });
