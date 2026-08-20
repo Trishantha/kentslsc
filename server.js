@@ -995,12 +995,12 @@ function getStaticMimeType(filePath) {
  * here guarantees the CSS/JS chunks that hydrate the page are delivered with
  * correct MIME types and long-term caching headers.
  *
- * If the file is missing from the build output we fall back to the in-process
- * Next.js handler. This covers builds where chunk hashes differ between the HTML
- * and the static manifest, and it keeps the request inside the process instead
- * of returning a plain 404.
+ * If the file is missing we return a short 404 with `Cache-Control: no-cache`
+ * so a stale HTML page cached by the browser/CDN cannot pin broken asset URLs
+ * indefinitely. The real fix for mismatched hashes is a clean rebuild + cache
+ * clear, but this prevents the browser from caching the 404 itself.
  */
-function serveNextStaticFile(req, res, fallback) {
+function serveNextStaticFile(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   const relativePath = decodeURIComponent(url.pathname).replace(/^\/_next\/static\//, '');
   const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -1009,7 +1009,7 @@ function serveNextStaticFile(req, res, fallback) {
 
   if (!filePath.startsWith(staticRoot)) {
     console.warn(`Static file request blocked (traversal): ${req.url}`);
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end('Forbidden');
     return;
   }
@@ -1025,11 +1025,10 @@ function serveNextStaticFile(req, res, fallback) {
         console.error(`Static file read error: ${filePath} - ${err.message}`);
       }
 
-      if (typeof fallback === 'function') {
-        fallback();
-        return;
-      }
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.writeHead(404, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=0, must-revalidate'
+      });
       res.end('Not found');
       return;
     }
@@ -1080,14 +1079,7 @@ function startProxyServer() {
     // Static assets are immutable and do not depend on the API/web handlers, so
     // serve them even while the upstreams are still warming up.
     if (urlPath.startsWith('/_next/static/')) {
-      serveNextStaticFile(req, res, () => {
-        if (webHandler) {
-          webHandler(req, res);
-        } else {
-          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('Not found');
-        }
-      });
+      serveNextStaticFile(req, res);
       return;
     }
 

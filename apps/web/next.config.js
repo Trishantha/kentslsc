@@ -110,6 +110,14 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'"
     ].join('; ')
+  },
+  // Prevent browsers/CDNs from caching HTML pages across deployments. Stale HTML
+  // can reference static asset hashes that no longer exist after a rebuild.
+  // /_next/static files are served by server.js with immutable caching headers,
+  // so this does not affect CSS/JS chunks.
+  {
+    key: 'Cache-Control',
+    value: 'no-store, must-revalidate'
   }
 ];
 
