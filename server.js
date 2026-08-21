@@ -674,7 +674,6 @@ async function ensureBuilt() {
   const { apiBuilt, webBuilt } = checkBuildArtifacts();
   const staleReason = describeStaleBuild();
   const skipAutoBuild = process.env.SKIP_AUTO_BUILD === 'true' || process.env.SKIP_AUTO_BUILD === '1';
-  const isProduction = process.env.NODE_ENV === 'production';
 
   if (apiBuilt && webBuilt && !staleReason) {
     return;
@@ -685,19 +684,19 @@ async function ensureBuilt() {
       .filter(Boolean)
       .join(', ');
 
-    if (skipAutoBuild || isProduction) {
+    if (skipAutoBuild) {
       throw new Error(
         `Missing required build artifacts: ${missing}. ` +
-        'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to build on startup.'
+        'Run the build step before starting server.js, or set SKIP_AUTO_BUILD=false to build on startup.'
       );
     }
 
     console.log('Missing build artifacts. Running project build before startup...');
   } else if (staleReason) {
-    if (skipAutoBuild || isProduction) {
+    if (skipAutoBuild) {
       throw new Error(
         `Stale build detected: ${staleReason}. ` +
-        'Run the build step before starting server.js in production, or set SKIP_AUTO_BUILD=false to rebuild on startup.'
+        'Run the build step before starting server.js, or set SKIP_AUTO_BUILD=false to rebuild on startup.'
       );
     }
 
