@@ -217,10 +217,10 @@ export default function RevenueReportPage() {
       Email: row.email ?? '',
       Notes: row.notes ?? '',
       Currency: row.currency,
-      Amount: row.amount / 100,
-      Fees: row.fees / 100,
-      'Net Payment': row.netPayment / 100,
-      'Refunded Amount': row.refundedAmount ? row.refundedAmount / 100 : 0,
+      Amount: row.amount,
+      Fees: row.fees,
+      'Net Payment': row.netPayment,
+      'Refunded Amount': row.refundedAmount ?? 0,
       'Payment Channel': row.paymentChannel,
       'Payment ID': row.paymentId ?? '',
       'Payment Date': row.paymentDate ? new Date(row.paymentDate).toLocaleString() : '',
@@ -256,9 +256,9 @@ export default function RevenueReportPage() {
       row.contactNumber ?? '',
       row.email ?? '',
       row.sourceType,
-      formatCurrency(row.amount / 100),
-      formatCurrency(row.fees / 100),
-      formatCurrency(row.netPayment / 100),
+      formatCurrency(row.amount),
+      formatCurrency(row.fees),
+      formatCurrency(row.netPayment),
       row.paymentChannel,
       row.paymentStatus
     ]);
@@ -280,8 +280,8 @@ export default function RevenueReportPage() {
     doc.save(`kentslsc-revenue-report-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const formatMinor = (value?: number | null) =>
-    value != null ? formatCurrency(value / 100) : '-';
+  const formatMoney = (value?: number | null) =>
+    value != null ? formatCurrency(value) : '-';
 
   return (
     <div>
@@ -379,19 +379,19 @@ export default function RevenueReportPage() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="glass-card p-4">
             <p className="text-xs text-slate-500">Gross revenue</p>
-            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.gross / 100)}</p>
+            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.gross)}</p>
           </div>
           <div className="glass-card p-4">
             <p className="text-xs text-slate-500">Processing fees</p>
-            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.fees / 100)}</p>
+            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.fees)}</p>
           </div>
           <div className="glass-card p-4">
             <p className="text-xs text-slate-500">Net revenue</p>
-            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.net / 100)}</p>
+            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.net)}</p>
           </div>
           <div className="glass-card p-4">
             <p className="text-xs text-slate-500">Refunded</p>
-            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.refunded / 100)}</p>
+            <p className="mt-1 text-lg font-semibold">{formatCurrency(agg.refunded)}</p>
           </div>
         </div>
       )}
@@ -437,7 +437,7 @@ export default function RevenueReportPage() {
                 {columns.map((col) => {
                   let value: React.ReactNode = row[col.key as keyof ReportRow] as React.ReactNode;
                   if (['amount', 'fees', 'netPayment', 'refundedAmount'].includes(col.key)) {
-                    value = formatMinor(row[col.key as keyof ReportRow] as number | null);
+                    value = formatMoney(row[col.key as keyof ReportRow] as number | null);
                   } else if (col.key === 'date' || col.key === 'paymentDate') {
                     value = value ? new Date(value as string).toLocaleDateString() : '-';
                   } else if (col.key === 'paymentStatus') {
@@ -467,7 +467,7 @@ export default function RevenueReportPage() {
                       type="button"
                       onClick={() => {
                         setRefundPayment(row);
-                        setRefundAmount((row.amount / 100).toFixed(2));
+                        setRefundAmount(row.amount.toFixed(2));
                       }}
                       className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-400 hover:bg-amber-500/20"
                     >
@@ -528,13 +528,13 @@ export default function RevenueReportPage() {
                   type="number"
                   min={0.01}
                   step={0.01}
-                  max={refundPayment.amount / 100}
+                  max={refundPayment.amount}
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
                   className={inputClass}
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  Maximum refundable: {formatCurrency(refundPayment.amount / 100)}
+                  Maximum refundable: {formatCurrency(refundPayment.amount)}
                 </p>
               </div>
               <div>

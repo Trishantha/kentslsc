@@ -50,7 +50,8 @@ function buildEvent(session: Stripe.Checkout.Session): Stripe.Event {
 
 describe('StripeWebhookController', () => {
   const paymentsService = {
-    constructEvent: jest.fn()
+    constructEvent: jest.fn(),
+    syncStripeFeesFromSession: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
   const eventsService = {

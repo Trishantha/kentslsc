@@ -135,6 +135,60 @@ function isStripeCheckoutId(id: string | null | undefined): boolean {
 }
 
 /**
+ * Update a Payment row with the actual fee and net settlement from Stripe's
+ * balance transaction. This makes the revenue report match Stripe's payout
+ * reporting instead of the estimated processing fee.
+ */
+async function syncStripeFeesForSession(
+  prisma: PrismaClient,
+  stripe: Stripe,
+  sessionId: string
+): Promise<void> {
+  const payment = await prisma.payment.findFirst({
+    where: { providerCheckoutId: sessionId, deletedAt: null },
+    orderBy: { createdAt: 'desc' }
+  });
+  if (!payment?.providerPaymentId) return;
+
+  try {
+    const pi = await stripe.paymentIntents.retrieve(payment.providerPaymentId, {
+      expand: ['latest_charge.balance_transaction']
+    });
+    const latestCharge = pi.latest_charge;
+    if (!latestCharge) return;
+
+    let balanceTransaction: Stripe.BalanceTransaction | string | null | undefined;
+    if (typeof latestCharge === 'string') {
+      const charge = await stripe.charges.retrieve(latestCharge, {
+        expand: ['balance_transaction']
+      });
+      balanceTransaction = charge.balance_transaction;
+    } else {
+      balanceTransaction = latestCharge.balance_transaction;
+    }
+
+    if (!balanceTransaction) return;
+
+    const tx =
+      typeof balanceTransaction === 'string'
+        ? await stripe.balanceTransactions.retrieve(balanceTransaction)
+        : balanceTransaction;
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        processingFee: tx.fee / 100,
+        netAmount: tx.net / 100
+      }
+    });
+  } catch (err) {
+    console.warn(
+      `  Could not sync Stripe fees for session ${sessionId}: ${(err as Error).message}`
+    );
+  }
+}
+
+/**
  * Reconcile tickets that exist in the DB but have no linked Payment row.
  * This happens when a webhook failed after the Ticket was issued, or when a
  * legacy ticket row predates the Payment ledger.
@@ -242,6 +296,7 @@ async function reconcileOrphanedTickets(
       });
 
       console.log(`  Linked ${tickets.length} ticket(s) to Payment for session ${sessionId}`);
+      await syncStripeFeesForSession(prisma, stripe, sessionId);
       result.created++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -397,6 +452,7 @@ async function reconcileMissingStripeTickets(
         });
 
         console.log(`  Issued ${quantity} ticket(s) for session ${session.id} (${event.title})`);
+        await syncStripeFeesForSession(prisma, stripe, session.id);
         result.created++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -635,6 +691,78 @@ async function reconcileJobPublishes(
   }
 }
 
+/**
+ * Backfill actual Stripe fees and net settlement for existing Payment rows.
+ * This updates every completed Stripe payment that has a providerPaymentId.
+ */
+async function syncHistoricalStripeFees(
+  prisma: PrismaClient,
+  stripe: Stripe,
+  result: ReconcileResult
+): Promise<void> {
+  const payments = await prisma.payment.findMany({
+    where: {
+      deletedAt: null,
+      paymentChannel: 'stripe',
+      paymentStatus: PaymentStatus.COMPLETED,
+      providerPaymentId: { not: null }
+    },
+    select: { id: true, providerPaymentId: true }
+  });
+
+  console.log(`  Syncing Stripe fees for ${payments.length} existing payment(s)...`);
+
+  for (const payment of payments) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(payment.providerPaymentId!, {
+        expand: ['latest_charge.balance_transaction']
+      });
+      const latestCharge = pi.latest_charge;
+      if (!latestCharge) {
+        result.skipped++;
+        continue;
+      }
+
+      let balanceTransaction: Stripe.BalanceTransaction | string | null | undefined;
+      if (typeof latestCharge === 'string') {
+        const charge = await stripe.charges.retrieve(latestCharge, {
+          expand: ['balance_transaction']
+        });
+        balanceTransaction = charge.balance_transaction;
+      } else {
+        balanceTransaction = latestCharge.balance_transaction;
+      }
+
+      if (!balanceTransaction) {
+        result.skipped++;
+        continue;
+      }
+
+      const tx =
+        typeof balanceTransaction === 'string'
+          ? await stripe.balanceTransactions.retrieve(balanceTransaction)
+          : balanceTransaction;
+
+      if (DRY_RUN) {
+        result.skipped++;
+        continue;
+      }
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          processingFee: tx.fee / 100,
+          netAmount: tx.net / 100
+        }
+      });
+      result.created++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`payment ${payment.id}: ${message}`);
+    }
+  }
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL is not set. Exiting.');
@@ -694,6 +822,16 @@ async function main() {
       console.log('Reconciling job publishes...');
       results.jobPublishes = emptyResult();
       await reconcileJobPublishes(prisma, results.jobPublishes);
+    }
+
+    if (!ONLY || ONLY === 'fees') {
+      if (stripe) {
+        console.log('Syncing Stripe fees for existing payments...');
+        results.stripeFees = emptyResult();
+        await syncHistoricalStripeFees(prisma, stripe, results.stripeFees);
+      } else {
+        console.log('Skipping Stripe fee sync: Stripe not configured.');
+      }
     }
 
     console.log('\nReconciliation complete.');

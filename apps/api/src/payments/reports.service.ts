@@ -100,7 +100,7 @@ export class PaymentReportsService {
           donation: true,
           businessListing: { select: { id: true, businessName: true } },
           jobAd: { select: { id: true, title: true } },
-          user: { select: { id: true, name: true, email: true, phone: true } }
+          user: { select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true, address: true } }
         }
       }),
       this.prisma.payment.count({ where }),
@@ -110,33 +110,45 @@ export class PaymentReportsService {
       })
     ]);
 
-    const rows: RevenueReportRow[] = data.map((p) => ({
-      id: p.id,
-      date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
-      name: p.payerName,
-      addressLine1: p.payerAddressLine1,
-      addressLine2: p.payerAddressLine2,
-      city: p.payerCity,
-      postcode: p.payerPostcode,
-      country: p.payerCountry,
-      contactNumber: p.payerPhone,
-      email: p.payerEmail,
-      notes: p.notes,
-      currency: p.currency,
-      amount: Number(p.grossAmount),
-      fees: Number(p.processingFee),
-      netPayment: Number(p.netAmount),
-      refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null,
-      paymentChannel: p.paymentChannel,
-      paymentId: p.providerPaymentId,
-      paymentDate: p.purchasedAt?.toISOString() ?? null,
-      paymentMethod: p.paymentMethod,
-      paymentStatus: p.paymentStatus,
-      sourceType: p.sourceType,
-      sourceId: p.sourceId,
-      description: p.description,
-      createdAt: p.createdAt.toISOString()
-    }));
+    const rows: RevenueReportRow[] = data.map((p) => {
+      const userAddress = (p.user?.address ?? null) as {
+        buildingStreet?: string | null;
+        locality?: string | null;
+        townCity?: string | null;
+        postcode?: string | null;
+      } | null;
+      const userName = p.user
+        ? [p.user.firstName, p.user.lastName].filter(Boolean).join(' ').trim() || p.user.name
+        : null;
+
+      return {
+        id: p.id,
+        date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
+        name: userName ?? p.payerName,
+        addressLine1: userAddress?.buildingStreet ?? p.payerAddressLine1,
+        addressLine2: userAddress?.locality ?? p.payerAddressLine2,
+        city: userAddress?.townCity ?? p.payerCity,
+        postcode: userAddress?.postcode ?? p.payerPostcode,
+        country: p.payerCountry,
+        contactNumber: p.user?.phone ?? p.payerPhone,
+        email: p.user?.email ?? p.payerEmail,
+        notes: p.notes,
+        currency: p.currency,
+        amount: Number(p.grossAmount),
+        fees: Number(p.processingFee),
+        netPayment: Number(p.netAmount),
+        refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null,
+        paymentChannel: p.paymentChannel,
+        paymentId: p.providerPaymentId,
+        paymentDate: p.purchasedAt?.toISOString() ?? null,
+        paymentMethod: p.paymentMethod,
+        paymentStatus: p.paymentStatus,
+        sourceType: p.sourceType,
+        sourceId: p.sourceId,
+        description: p.description,
+        createdAt: p.createdAt.toISOString()
+      };
+    });
 
     return {
       rows,
@@ -165,36 +177,48 @@ export class PaymentReportsService {
         donation: true,
         businessListing: { select: { id: true, businessName: true } },
         jobAd: { select: { id: true, title: true } },
-        user: { select: { id: true, name: true, email: true, phone: true } }
+        user: { select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true, address: true } }
       }
     });
 
-    return data.map((p) => ({
-      id: p.id,
-      date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
-      name: p.payerName,
-      addressLine1: p.payerAddressLine1,
-      addressLine2: p.payerAddressLine2,
-      city: p.payerCity,
-      postcode: p.payerPostcode,
-      country: p.payerCountry,
-      contactNumber: p.payerPhone,
-      email: p.payerEmail,
-      notes: p.notes,
-      currency: p.currency,
-      amount: Number(p.grossAmount),
-      fees: Number(p.processingFee),
-      netPayment: Number(p.netAmount),
-      refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null,
-      paymentChannel: p.paymentChannel,
-      paymentId: p.providerPaymentId,
-      paymentDate: p.purchasedAt?.toISOString() ?? null,
-      paymentMethod: p.paymentMethod,
-      paymentStatus: p.paymentStatus,
-      sourceType: p.sourceType,
-      sourceId: p.sourceId,
-      description: p.description,
-      createdAt: p.createdAt.toISOString()
-    }));
+    return data.map((p) => {
+      const userAddress = (p.user?.address ?? null) as {
+        buildingStreet?: string | null;
+        locality?: string | null;
+        townCity?: string | null;
+        postcode?: string | null;
+      } | null;
+      const userName = p.user
+        ? [p.user.firstName, p.user.lastName].filter(Boolean).join(' ').trim() || p.user.name
+        : null;
+
+      return {
+        id: p.id,
+        date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
+        name: userName ?? p.payerName,
+        addressLine1: userAddress?.buildingStreet ?? p.payerAddressLine1,
+        addressLine2: userAddress?.locality ?? p.payerAddressLine2,
+        city: userAddress?.townCity ?? p.payerCity,
+        postcode: userAddress?.postcode ?? p.payerPostcode,
+        country: p.payerCountry,
+        contactNumber: p.user?.phone ?? p.payerPhone,
+        email: p.user?.email ?? p.payerEmail,
+        notes: p.notes,
+        currency: p.currency,
+        amount: Number(p.grossAmount),
+        fees: Number(p.processingFee),
+        netPayment: Number(p.netAmount),
+        refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null,
+        paymentChannel: p.paymentChannel,
+        paymentId: p.providerPaymentId,
+        paymentDate: p.purchasedAt?.toISOString() ?? null,
+        paymentMethod: p.paymentMethod,
+        paymentStatus: p.paymentStatus,
+        sourceType: p.sourceType,
+        sourceId: p.sourceId,
+        description: p.description,
+        createdAt: p.createdAt.toISOString()
+      };
+    });
   }
 }

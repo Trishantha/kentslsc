@@ -100,6 +100,10 @@ export class StripeWebhookController {
             purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
           });
         }
+
+        // Overwrite the estimated processing fee with Stripe's actual fee and net
+        // settlement so the revenue report matches Stripe's payout reporting.
+        await this.paymentsService.syncStripeFeesFromSession(session);
       } else if (event.type === 'customer.subscription.updated') {
         await this.membershipsService.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
       } else if (event.type === 'customer.subscription.deleted') {

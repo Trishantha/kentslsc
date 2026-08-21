@@ -254,6 +254,73 @@ export class PaymentsService {
     };
   }
 
+  /**
+   * Update a Payment row with the actual fee and net settlement from Stripe's
+   * balance transaction. This makes the revenue report match Stripe's payout
+   * reporting instead of the estimated processing fee added at checkout.
+   */
+  async syncStripeFeesFromSession(session: Stripe.Checkout.Session): Promise<void> {
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { providerCheckoutId: session.id, deletedAt: null },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (!payment) return;
+
+    try {
+      const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+      if (!feeDetails) return;
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          processingFee: feeDetails.fee,
+          netAmount: feeDetails.net
+        }
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Could not sync Stripe fees for session ${session.id}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  private async getStripeFeeDetails(
+    paymentIntentId: string
+  ): Promise<{ fee: number; net: number } | null> {
+    this.ensureEnabled();
+    const pi = await this.stripe!.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge.balance_transaction']
+    });
+
+    const latestCharge = pi.latest_charge;
+    if (!latestCharge) return null;
+
+    let balanceTransaction: Stripe.BalanceTransaction | string | null | undefined;
+    if (typeof latestCharge === 'string') {
+      const charge = await this.stripe!.charges.retrieve(latestCharge, {
+        expand: ['balance_transaction']
+      });
+      balanceTransaction = charge.balance_transaction;
+    } else {
+      balanceTransaction = latestCharge.balance_transaction;
+    }
+
+    if (!balanceTransaction) return null;
+
+    if (typeof balanceTransaction === 'string') {
+      const tx = await this.stripe!.balanceTransactions.retrieve(balanceTransaction);
+      return { fee: tx.fee / 100, net: tx.net / 100 };
+    }
+
+    return { fee: balanceTransaction.fee / 100, net: balanceTransaction.net / 100 };
+  }
+
   async findByUser(userId: string, page = 1, limit = 50) {
     const [data, total] = await Promise.all([
       this.prisma.payment.findMany({
