@@ -537,10 +537,10 @@ function describeStaleBuild() {
   const webInfo = readBuildInfo(path.join(webDir, '.next'));
   const stale = [];
 
-  if (apiInfo && apiInfo.commit && apiInfo.commit !== gitCommit) {
+  if (apiInfo && apiInfo.commit && apiInfo.commit !== 'unknown' && apiInfo.commit !== gitCommit) {
     stale.push(`API dist was built from ${apiInfo.commit.slice(0, 8)} but source is ${gitCommit.slice(0, 8)}`);
   }
-  if (webInfo && webInfo.commit && webInfo.commit !== gitCommit) {
+  if (webInfo && webInfo.commit && webInfo.commit !== 'unknown' && webInfo.commit !== gitCommit) {
     stale.push(`Web dist was built from ${webInfo.commit.slice(0, 8)} but source is ${gitCommit.slice(0, 8)}`);
   }
 
@@ -711,8 +711,11 @@ async function ensureBuilt() {
   });
 
   if (result.status !== 0) {
+    const exitCode = result.status ?? 'unknown';
+    const signal = result.signal ?? 'none';
+    const errorDetail = result.error ? ` (${result.error.message})` : '';
     throw new Error(
-      `Build failed while preparing the app for startup with exit code ${result.status ?? 'unknown'}.`
+      `Build failed while preparing the app for startup with exit code ${exitCode}, signal ${signal}${errorDetail}.`
     );
   }
 
