@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UpdateUserInput, UserRole } from '@kentslsc/shared';
-import { Prisma, PaymentStatus } from '@kentslsc/database';
+import { Prisma } from '@kentslsc/database';
 
 function buildName(firstName: string | null | undefined, lastName: string | null | undefined, fallback: string) {
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
