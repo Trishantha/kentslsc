@@ -524,6 +524,11 @@ export default function RevenueReportPage() {
               Refund {refundPayment.sourceType.toLowerCase().replace('_', ' ')} payment for{' '}
               {refundPayment.name ?? refundPayment.email ?? 'this payer'}.
             </p>
+            {refundPayment.sourceType === 'TICKET' && (
+              <p className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                This will cancel the associated ticket(s). They will no longer be valid for event entry.
+              </p>
+            )}
 
             <div className="mt-4 space-y-4">
               <div>

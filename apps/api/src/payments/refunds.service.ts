@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from './payments.service.js';
+import { EmailService } from '../email/email.service.js';
 import { PaymentStatus, TicketStatus } from '@kentslsc/database';
 
 export interface RefundPaymentInput {
@@ -12,14 +13,14 @@ export interface RefundPaymentInput {
 export class RefundsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly paymentsService: PaymentsService
+    private readonly paymentsService: PaymentsService,
+    private readonly emailService: EmailService
   ) {}
 
   async refundPayment(paymentId: string, input: RefundPaymentInput) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId, deletedAt: null },
       include: {
-        ticket: true,
         membership: true,
         donation: true,
         businessListing: true,
@@ -93,6 +94,37 @@ export class RefundsService {
     const newRefundedAmount = currentRefunded + requestedAmount;
     const isFullyRefunded = newRefundedAmount >= Number(payment.grossAmount) - 0.001;
 
+    // Cancel any tickets linked to this payment so they cannot be used.
+    const cancelledTickets = await this.prisma.ticket.updateMany({
+      where: {
+        paymentId: payment.id,
+        status: { not: TicketStatus.CANCELLED },
+        deletedAt: null
+      },
+      data: { status: TicketStatus.CANCELLED }
+    });
+
+    let refundNotes = payment.notes
+      ? `${payment.notes}\nRefund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`
+      : `Refund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`;
+    if (cancelledTickets.count > 0) {
+      refundNotes += `\nTickets cancelled: ${cancelledTickets.count}`;
+
+      if (payment.payerEmail && payment.event?.title) {
+        this.emailService
+          .sendTicketRefundConfirmation(
+            payment.payerEmail,
+            payment.event.title,
+            requestedAmount,
+            payment.currency,
+            isFullyRefunded
+          )
+          .catch(() => {
+            // Email is best-effort; do not fail the refund.
+          });
+      }
+    }
+
     const updated = await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
@@ -100,19 +132,9 @@ export class RefundsService {
         refundedAmount: newRefundedAmount,
         refundReason: input.reason ?? null,
         refundedAt: new Date(),
-        notes: payment.notes
-          ? `${payment.notes}\nRefund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`
-          : `Refund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`
+        notes: refundNotes
       }
     });
-
-    // If a ticket was fully refunded, cancel it so it cannot be used.
-    if (isFullyRefunded && payment.ticket) {
-      await this.prisma.ticket.update({
-        where: { id: payment.ticket.id },
-        data: { status: TicketStatus.CANCELLED }
-      });
-    }
 
     return {
       payment: updated,

@@ -13,7 +13,8 @@ function buildPayment(overrides: any = {}) {
     grossAmount: 10,
     refundedAmount: null,
     notes: null,
-    ticket: null,
+    payerEmail: 'payer@example.com',
+    event: { title: 'Summer Event' },
     ...overrides
   };
 }
@@ -26,7 +27,7 @@ describe('RefundsService', () => {
       update: jest.fn()
     },
     ticket: {
-      update: jest.fn()
+      updateMany: jest.fn()
     }
   } as any;
 
@@ -36,9 +37,13 @@ describe('RefundsService', () => {
     getStripePaymentIntentIdFromSession: jest.fn()
   } as any;
 
+  const emailService = {
+    sendTicketRefundConfirmation: jest.fn().mockResolvedValue(undefined)
+  } as any;
+
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new RefundsService(prisma, paymentsService);
+    service = new RefundsService(prisma, paymentsService, emailService);
   });
 
   it('throws NotFoundException when payment does not exist', async () => {
@@ -61,32 +66,48 @@ describe('RefundsService', () => {
     await expect(service.refundPayment('pay-1', { amount: 6 })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('refunds a Stripe payment in full and cancels the linked ticket', async () => {
-    const payment = buildPayment({ ticket: { id: 't-1' } });
+  it('refunds a Stripe payment in full and cancels the linked tickets', async () => {
+    const payment = buildPayment();
     prisma.payment.findUnique.mockResolvedValue(payment);
     paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_123' });
+    prisma.ticket.updateMany.mockResolvedValue({ count: 2 });
     prisma.payment.update.mockResolvedValue({ ...payment, paymentStatus: PaymentStatus.REFUNDED });
 
     const result = await service.refundPayment('pay-1', { reason: 'Requested by customer' });
 
     expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith('pi_123', 1000, 'Requested by customer');
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
+      where: {
+        paymentId: 'pay-1',
+        status: { not: TicketStatus.CANCELLED },
+        deletedAt: null
+      },
+      data: { status: TicketStatus.CANCELLED }
+    });
     expect(prisma.payment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'pay-1' },
-        data: expect.objectContaining({ paymentStatus: PaymentStatus.REFUNDED })
+        data: expect.objectContaining({
+          paymentStatus: PaymentStatus.REFUNDED,
+          notes: expect.stringContaining('Tickets cancelled: 2')
+        })
       })
     );
-    expect(prisma.ticket.update).toHaveBeenCalledWith({
-      where: { id: 't-1' },
-      data: { status: TicketStatus.CANCELLED }
-    });
     expect(result.isFullyRefunded).toBe(true);
     expect(result.providerRefundId).toBe('re_123');
+    expect(emailService.sendTicketRefundConfirmation).toHaveBeenCalledWith(
+      'payer@example.com',
+      'Summer Event',
+      10,
+      'GBP',
+      true
+    );
   });
 
-  it('records a partial refund and leaves payment status as partially refunded', async () => {
+  it('records a partial refund, leaves payment partially refunded and still cancels tickets', async () => {
     prisma.payment.findUnique.mockResolvedValue(buildPayment());
     paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_partial' });
+    prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
     prisma.payment.update.mockResolvedValue({
       ...buildPayment(),
       paymentStatus: PaymentStatus.PARTIALLY_REFUNDED,
@@ -98,6 +119,30 @@ describe('RefundsService', () => {
     expect(result.isFullyRefunded).toBe(false);
     expect(result.refundedAmount).toBe(5);
     expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith('pi_123', 500, undefined);
+    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ paymentId: 'pay-1' }),
+        data: { status: TicketStatus.CANCELLED }
+      })
+    );
+    expect(emailService.sendTicketRefundConfirmation).toHaveBeenCalledWith(
+      'payer@example.com',
+      'Summer Event',
+      5,
+      'GBP',
+      false
+    );
+  });
+
+  it('does not send a refund email when no tickets are linked to the payment', async () => {
+    prisma.payment.findUnique.mockResolvedValue(buildPayment());
+    paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_123' });
+    prisma.ticket.updateMany.mockResolvedValue({ count: 0 });
+    prisma.payment.update.mockResolvedValue({ ...buildPayment(), paymentStatus: PaymentStatus.REFUNDED });
+
+    await service.refundPayment('pay-1', {});
+
+    expect(emailService.sendTicketRefundConfirmation).not.toHaveBeenCalled();
   });
 
   it('resolves a Stripe payment intent from the checkout session when providerPaymentId is missing', async () => {

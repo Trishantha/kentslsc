@@ -235,6 +235,26 @@ export class EmailService {
     });
   }
 
+  async sendTicketRefundConfirmation(
+    email: string,
+    eventTitle: string,
+    amount: number,
+    currency: string,
+    isFullRefund: boolean
+  ) {
+    return this.send({
+      to: email,
+      subject: isFullRefund
+        ? `Refund confirmation for ${eventTitle}`
+        : `Partial refund confirmation for ${eventTitle}`,
+      html: `<p>Hi,</p>
+<p>Your ticket payment for <strong>${escapeHtml(eventTitle)}</strong> has been ${isFullRefund ? 'fully refunded' : 'partially refunded'}.</p>
+<p>Refund amount: <strong>${currency.toUpperCase()} ${amount.toFixed(2)}</strong></p>
+${isFullRefund ? '<p>Your ticket(s) have been cancelled and are no longer valid for entry.</p>' : '<p>Your ticket(s) have been cancelled and are no longer valid for entry. A partial refund has been issued.</p>'}
+<p>If you have any questions, please contact the club admin.</p>`
+    });
+  }
+
   async sendMembershipCard(email: string, name: string, cardUrl: string) {
     return this.send({
       to: email,
