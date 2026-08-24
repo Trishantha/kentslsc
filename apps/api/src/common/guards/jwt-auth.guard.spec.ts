@@ -36,7 +36,7 @@ describe('JwtAuthGuard', () => {
   function setMetadata(publicRoute: boolean, optionalAuth: boolean) {
     jest.spyOn(reflector, 'getAllAndOverride').mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      (key: unknown, _targets: Type<unknown>[]) => {
+      (key: unknown, _targets: Array<Function | Type<any>>) => {
         if (key === 'isPublic') return publicRoute;
         if (key === 'isOptionalAuth') return optionalAuth;
         return undefined;
