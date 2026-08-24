@@ -21,6 +21,7 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 import { AdminUsersService } from './admin-users.service.js';
+import { UsersService } from '../users/users.service.js';
 import { AdminCreateUserDto, AdminUpdateRoleDto, AdminUpdateStatusDto } from './dto/admin-user.dto.js';
 import {
   CreateRoleDto,
@@ -62,7 +63,8 @@ export class AdminController {
 
   constructor(
     private readonly adminService: AdminService,
-    private readonly adminUsers: AdminUsersService
+    private readonly adminUsers: AdminUsersService,
+    private readonly usersService: UsersService
   ) {}
 
   private context(req: Request): RequestContext {
@@ -262,6 +264,12 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_USERS)
   findUser(@Param('id') id: string) {
     return this.adminService.findUserById(id);
+  }
+
+  @Get('users/:id/transactions')
+  @RequirePermission(Permission.MANAGE_USERS)
+  getUserTransactions(@Param('id') id: string) {
+    return this.usersService.getUserTransactions(id);
   }
 
   // ---------------------------------------------------------------------------

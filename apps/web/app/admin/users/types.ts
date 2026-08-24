@@ -70,6 +70,30 @@ export interface ForumPostItem {
   createdAt: string;
 }
 
+export interface TransactionItem {
+  id: string;
+  receiptNumber: string | null;
+  date: string;
+  description: string | null;
+  currency: string;
+  grossAmount: number;
+  processingFee: number;
+  netAmount: number;
+  refundedAmount: number | null;
+  paymentChannel: string;
+  paymentMethod: string | null;
+  paymentStatus: string;
+  sourceType: string;
+  sourceId: string | null;
+  related: {
+    event: { id: string; title: string } | null;
+    membership: { id: string; membershipId: string } | null;
+    donation: { id: string; fundraiser: { title: string } } | null;
+    businessListing: { id: string; businessName: string } | null;
+    jobAd: { id: string; title: string } | null;
+  };
+}
+
 export interface UserItem {
   id: string;
   name: string;

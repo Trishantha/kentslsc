@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UpdateUserInput, UserRole } from '@kentslsc/shared';
-import { Prisma } from '@kentslsc/database';
+import { Prisma, PaymentStatus } from '@kentslsc/database';
 
 function buildName(firstName: string | null | undefined, lastName: string | null | undefined, fallback: string) {
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
@@ -98,6 +98,50 @@ export class UsersService {
       topics,
       posts
     };
+  }
+
+  async getUserTransactions(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id, deletedAt: null },
+      select: { id: true }
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const payments = await this.prisma.payment.findMany({
+      where: { userId: id, deletedAt: null },
+      orderBy: { purchasedAt: 'desc' },
+      include: {
+        event: { select: { id: true, title: true } },
+        membership: { select: { id: true, membershipId: true } },
+        donation: { select: { id: true, fundraiser: { select: { title: true } } } },
+        businessListing: { select: { id: true, businessName: true } },
+        jobAd: { select: { id: true, title: true } }
+      }
+    });
+
+    return payments.map((p) => ({
+      id: p.id,
+      receiptNumber: p.receiptNumber,
+      date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
+      description: p.description,
+      currency: p.currency,
+      grossAmount: Number(p.grossAmount),
+      processingFee: Number(p.processingFee),
+      netAmount: Number(p.netAmount),
+      refundedAmount: p.refundedAmount ? Number(p.refundedAmount) : null,
+      paymentChannel: p.paymentChannel,
+      paymentMethod: p.paymentMethod,
+      paymentStatus: p.paymentStatus,
+      sourceType: p.sourceType,
+      sourceId: p.sourceId,
+      related: {
+        event: p.event,
+        membership: p.membership,
+        donation: p.donation,
+        businessListing: p.businessListing,
+        jobAd: p.jobAd
+      }
+    }));
   }
 
   async update(id: string, data: UpdateUserInput) {

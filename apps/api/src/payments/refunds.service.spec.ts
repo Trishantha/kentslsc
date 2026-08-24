@@ -38,7 +38,7 @@ describe('RefundsService', () => {
   } as any;
 
   const emailService = {
-    sendTicketRefundConfirmation: jest.fn().mockResolvedValue(undefined)
+    sendTicketRefundConfirmation: jest.fn().mockImplementation(async () => undefined)
   } as any;
 
   beforeEach(() => {
