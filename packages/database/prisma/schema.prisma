@@ -321,6 +321,7 @@ model MembershipType {
   autoActivate   Boolean  @default(false) @map("auto_activate")
   stripeProductId String?  @map("stripe_product_id")
   stripePriceId   String?  @map("stripe_price_id")
+  isPaused       Boolean  @default(false) @map("is_paused")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
@@ -476,6 +477,7 @@ model Payment {
   donationId           String?          @map("donation_id")
   businessListingId    String?          @map("business_listing_id")
   jobAdId              String?          @map("job_ad_id")
+  receiptNumber        String?          @unique @map("receipt_number")
   metadata             Json?            @db.JsonB
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
@@ -497,9 +499,20 @@ model Payment {
   @@index([ticketId])
   @@index([providerCheckoutId])
   @@index([providerPaymentId])
+  @@index([receiptNumber])
   @@index([purchasedAt])
   @@index([createdAt])
   @@map("payments")
+}
+
+model ReceiptNumberSequence {
+  id        Int      @id @default(autoincrement())
+  year      Int      @unique
+  number    Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("receipt_number_sequences")
 }
 
 model BusinessListing {

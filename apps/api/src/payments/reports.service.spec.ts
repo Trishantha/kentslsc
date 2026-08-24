@@ -40,6 +40,7 @@ describe('PaymentReportsService', () => {
       providerPaymentId: 'pi_123',
       paymentMethod: 'card',
       paymentStatus: PaymentStatus.COMPLETED,
+      receiptNumber: 'KS-2026-000001',
       sourceType: PaymentSourceType.TICKET,
       sourceId: 't-1',
       description: 'Ticket(s) for Summer Event',
@@ -104,6 +105,23 @@ describe('PaymentReportsService', () => {
     expect(call.where.paymentChannel).toEqual({ equals: 'stripe', mode: 'insensitive' });
     expect(call.where.paymentStatus).toBe(PaymentStatus.COMPLETED);
     expect(call.where.OR).toBeDefined();
+  });
+
+  it('searches by receipt number', async () => {
+    prisma.payment.findMany.mockResolvedValue([buildPayment()]);
+    prisma.payment.count.mockResolvedValue(1);
+    prisma.payment.aggregate.mockResolvedValue({
+      _sum: { grossAmount: 25, processingFee: 1, netAmount: 24, refundedAmount: 0 }
+    });
+
+    await service.getRevenueReport({ search: 'KS-2026-000001' });
+
+    const call = prisma.payment.findMany.mock.calls[0][0];
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ receiptNumber: { contains: 'KS-2026-000001', mode: 'insensitive' } })
+      ])
+    );
   });
 
   it('exports all matching rows without pagination', async () => {

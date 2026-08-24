@@ -695,7 +695,7 @@ export class EventsService {
         customer_details: session.customerEmail
           ? { email: session.customerEmail, name: session.customerEmail }
           : undefined,
-        payment_intent: null,
+        payment_intent: session.paymentIntentId ?? null,
         customer_email: session.customerEmail ?? undefined,
         created: Math.floor(Date.now() / 1000)
       } as unknown as Stripe.Checkout.Session);
@@ -756,7 +756,7 @@ export class EventsService {
           processingFee: 0,
           netAmount: session.amountTotal,
           providerCheckoutId: sessionId,
-          providerPaymentId: null,
+          providerPaymentId: session.paymentIntentId ?? null,
           purchasedAt: new Date(),
           payerEmail: session.customerEmail ?? null,
           payerName: null,

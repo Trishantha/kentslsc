@@ -11,15 +11,17 @@ import {
   Plus,
   Check,
   Mail,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Permission, permissionLabels } from '@kentslsc/shared';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
-import type { UserItem, UsersResponse, Role } from './types';
+import type { UserItem, UsersResponse, Role, ExportedUser } from './types';
 
 const platformRoles = ['ALL', 'ADMIN', 'MEMBER', 'BUSINESS_OWNER', 'GUEST'];
 
@@ -54,6 +56,59 @@ export default function AdminUsersPage() {
     }
   });
 
+  const exportQuery = useQuery<ExportedUser[]>({
+    queryKey: ['admin', 'users', 'export', role],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (role !== 'ALL') params.append('role', role);
+      const res = await api.get(`/admin/users/export?${params.toString()}`);
+      return res.data;
+    },
+    enabled: false
+  });
+
+  const handleExport = async () => {
+    const result = await exportQuery.refetch();
+    if (!result.data?.length) return;
+
+    const rows = result.data.map((u) => ({
+      'User ID': u.id,
+      Name: u.name,
+      'First Name': u.firstName ?? '',
+      'Last Name': u.lastName ?? '',
+      Email: u.email,
+      Phone: u.phone ?? '',
+      Role: u.role,
+      Status: u.status,
+      'Email Verified At': u.emailVerifiedAt
+        ? new Date(u.emailVerifiedAt).toLocaleString('en-GB')
+        : '',
+      'Password Changed At': u.passwordChangedAt
+        ? new Date(u.passwordChangedAt).toLocaleString('en-GB')
+        : '',
+      'Created At': u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-GB') : '',
+      'Updated At': u.updatedAt ? new Date(u.updatedAt).toLocaleDateString('en-GB') : '',
+      'Building / Street': u.buildingStreet,
+      Locality: u.locality,
+      'Town / City': u.townCity,
+      Postcode: u.postcode,
+      'Latest Membership Type': u.latestMembershipType,
+      'Latest Membership Status': u.latestMembershipStatus,
+      'Latest Membership Start': u.latestMembershipStartDate
+        ? new Date(u.latestMembershipStartDate).toLocaleDateString('en-GB')
+        : '',
+      'Latest Membership End': u.latestMembershipEndDate
+        ? new Date(u.latestMembershipEndDate).toLocaleDateString('en-GB')
+        : '',
+      'Latest Membership Card URL': u.latestMembershipCardUrl
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+    XLSX.writeFile(workbook, `kentslsc-users-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const canManagePermissions = currentUser?.role === 'ADMIN' || currentUser?.permissions?.includes(Permission.MANAGE_USERS);
 
   return (
@@ -61,16 +116,31 @@ export default function AdminUsersPage() {
       title="Users"
       description="Manage members, back-office users and permissions."
       action={
-        canManagePermissions ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="button"
-            onClick={() => setIsAddUserOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.02]"
+            onClick={handleExport}
+            disabled={exportQuery.isFetching}
+            className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20 disabled:opacity-50"
           >
-            <Plus className="h-4 w-4" />
-            Add Back-Office User
+            {exportQuery.isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
+            Export full details
           </button>
-        ) : undefined
+          {canManagePermissions && (
+            <button
+              type="button"
+              onClick={() => setIsAddUserOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-neon-blue px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.02]"
+            >
+              <Plus className="h-4 w-4" />
+              Add Back-Office User
+            </button>
+          )}
+        </div>
       }
     >
       <div className="glass-card p-6">

@@ -1,5 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@kentslsc/database';
+import { generateReceiptNumber } from '../../payments/utils/receipt-number.js';
+import { setReceiptNumberOnStripePaymentIntent } from '../../payments/utils/stripe-receipt-metadata.js';
 
 const MAX_RETRIES = 5;
 const INITIAL_DELAY_MS = 1000;
@@ -9,6 +11,32 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
+
+  constructor() {
+    super();
+
+    this.$use(async (params, next) => {
+      if (params.model === 'Payment' && params.action === 'create') {
+        if (!params.args.data.receiptNumber) {
+          params.args.data.receiptNumber = await generateReceiptNumber(this);
+        }
+
+        const result = await next(params);
+
+        if (result.providerPaymentId?.startsWith('pi_') && result.receiptNumber) {
+          await setReceiptNumberOnStripePaymentIntent(
+            this,
+            result.providerPaymentId,
+            result.receiptNumber
+          );
+        }
+
+        return result;
+      }
+
+      return next(params);
+    });
+  }
 
   async onModuleInit() {
     if (!process.env.DATABASE_URL) {

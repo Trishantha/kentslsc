@@ -249,6 +249,15 @@ export class AdminController {
     return this.adminService.listUsers(Number(page) || 1, Number(limit) || 20, role, search);
   }
 
+  @Get('users/export')
+  @RequirePermission(Permission.MANAGE_USERS)
+  exportUsers(
+    @Query('role') role?: string,
+    @Query('search') search?: string
+  ) {
+    return this.adminService.exportUsers(role, search);
+  }
+
   @Get('users/:id')
   @RequirePermission(Permission.MANAGE_USERS)
   findUser(@Param('id') id: string) {
@@ -267,6 +276,12 @@ export class AdminController {
     @Query('status') status?: string
   ) {
     return this.adminService.listMemberships(Number(page) || 1, Number(limit) || 20, status);
+  }
+
+  @Get('memberships/export')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  exportMemberships(@Query('status') status?: string) {
+    return this.adminService.exportMemberships(status);
   }
 
   @Get('memberships/:id')

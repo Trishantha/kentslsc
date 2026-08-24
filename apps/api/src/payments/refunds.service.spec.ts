@@ -32,7 +32,8 @@ describe('RefundsService', () => {
 
   const paymentsService = {
     refundStripePaymentIntent: jest.fn(),
-    refundPayPalCapture: jest.fn()
+    refundPayPalCapture: jest.fn(),
+    getStripePaymentIntentIdFromSession: jest.fn()
   } as any;
 
   beforeEach(() => {
@@ -97,6 +98,63 @@ describe('RefundsService', () => {
     expect(result.isFullyRefunded).toBe(false);
     expect(result.refundedAmount).toBe(5);
     expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith('pi_123', 500, undefined);
+  });
+
+  it('resolves a Stripe payment intent from the checkout session when providerPaymentId is missing', async () => {
+    prisma.payment.findUnique.mockResolvedValue(
+      buildPayment({ providerPaymentId: null, providerCheckoutId: 'cs_test_123' })
+    );
+    paymentsService.getStripePaymentIntentIdFromSession.mockResolvedValue('pi_from_session');
+    paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_123' });
+    prisma.payment.update.mockResolvedValue({
+      ...buildPayment(),
+      paymentStatus: PaymentStatus.REFUNDED,
+      refundedAmount: 10
+    });
+
+    const result = await service.refundPayment('pay-1', { reason: 'Requested by customer' });
+
+    expect(paymentsService.getStripePaymentIntentIdFromSession).toHaveBeenCalledWith('cs_test_123');
+    expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith(
+      'pi_from_session',
+      1000,
+      'Requested by customer'
+    );
+    expect(result.providerRefundId).toBe('re_123');
+  });
+
+  it('records a manual refund for Stripe payments with no resolvable gateway ID', async () => {
+    prisma.payment.findUnique.mockResolvedValue(
+      buildPayment({ providerPaymentId: null, providerCheckoutId: 'cs_test_123' })
+    );
+    paymentsService.getStripePaymentIntentIdFromSession.mockResolvedValue(null);
+    prisma.payment.update.mockResolvedValue({
+      ...buildPayment(),
+      paymentStatus: PaymentStatus.REFUNDED,
+      refundedAmount: 10
+    });
+
+    const result = await service.refundPayment('pay-1', { reason: 'No gateway record' });
+
+    expect(paymentsService.refundStripePaymentIntent).not.toHaveBeenCalled();
+    expect(result.providerRefundId).toBe('manual');
+  });
+
+  it('records a manual refund for Stripe subscription payments (sub_ IDs)', async () => {
+    prisma.payment.findUnique.mockResolvedValue(
+      buildPayment({ providerPaymentId: 'sub_123', providerCheckoutId: null })
+    );
+    prisma.payment.update.mockResolvedValue({
+      ...buildPayment(),
+      paymentStatus: PaymentStatus.REFUNDED,
+      refundedAmount: 10
+    });
+
+    const result = await service.refundPayment('pay-1', { reason: 'Subscription cancellation' });
+
+    expect(paymentsService.getStripePaymentIntentIdFromSession).not.toHaveBeenCalled();
+    expect(paymentsService.refundStripePaymentIntent).not.toHaveBeenCalled();
+    expect(result.providerRefundId).toBe('manual');
   });
 
   it('records a manual refund for offline/manual/free payments', async () => {

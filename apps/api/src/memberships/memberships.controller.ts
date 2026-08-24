@@ -24,6 +24,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permission, type TokenPayload, MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
+import { PauseMembershipTypeDto } from './dto/pause-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 import { RegenerateCardDto } from './dto/regenerate-card.dto.js';
 import { CreateMembershipScanDto } from './dto/create-membership-scan.dto.js';
@@ -40,8 +41,8 @@ export class MembershipsController {
 
   @Get('types')
   @Public()
-  async getTypes() {
-    return this.membershipsService.findTypes();
+  async getTypes(@Query('includePaused') includePaused: string | undefined) {
+    return this.membershipsService.findTypes(includePaused === 'true');
   }
 
   @Get('features')
@@ -67,11 +68,18 @@ export class MembershipsController {
     return this.membershipsService.updateType(id, dto);
   }
 
-  @Delete('types/:id')
+  @Post('types/:id/pause')
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   @ApiBearerAuth()
-  async deleteType(@Param('id') id: string) {
-    return this.membershipsService.deleteType(id);
+  async pauseType(@Param('id') id: string, @Body() dto: PauseMembershipTypeDto) {
+    return this.membershipsService.pauseType(id, dto.targetMembershipTypeId);
+  }
+
+  @Post('types/:id/resume')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  @ApiBearerAuth()
+  async resumeType(@Param('id') id: string) {
+    return this.membershipsService.resumeType(id);
   }
 
   @Post('apply')

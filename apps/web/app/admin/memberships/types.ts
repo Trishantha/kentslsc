@@ -30,3 +30,38 @@ export interface AdminMembership {
   membershipType: AdminMembershipType;
   dependants: AdminMembershipDependant[];
 }
+
+export interface ExportedMembership {
+  membershipId: string;
+  membershipStatus: string;
+  membershipType: string;
+  membershipTypeDescription: string;
+  membershipPrice: number;
+  membershipDurationMonths: number;
+  startDate: string | null;
+  endDate: string | null;
+  issuedAt: string | null;
+  paidAt: string | null;
+  paymentMethod: string;
+  subscriptionStatus: string;
+  creditAmountApplied: number | null;
+  creditMonthsGranted: number | null;
+  membershipCardUrl: string;
+  qrCodeValue: string;
+  dependantsCount: number;
+  dependants: string;
+  memberId: string;
+  memberName: string;
+  memberFirstName: string;
+  memberLastName: string;
+  memberEmail: string;
+  memberPhone: string;
+  memberRole: string;
+  memberStatus: string;
+  memberEmailVerifiedAt: string | null;
+  memberCreatedAt: string;
+  buildingStreet: string;
+  locality: string;
+  townCity: string;
+  postcode: string;
+}

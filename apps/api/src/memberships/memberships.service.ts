@@ -218,9 +218,14 @@ export class MembershipsService {
     return Math.max(0, Math.floor(credit / monthlyPrice));
   }
 
-  async findTypes() {
+  async findTypes(includePaused = false) {
+    const where: Prisma.MembershipTypeWhereInput = { deletedAt: null };
+    if (!includePaused) {
+      where.isPaused = false;
+    }
+
     const types = await this.prisma.membershipType.findMany({
-      where: { deletedAt: null },
+      where,
       orderBy: { price: 'asc' }
     });
 
@@ -245,8 +250,12 @@ export class MembershipsService {
     });
   }
 
-  async findTypeById(id: string) {
-    const type = await this.prisma.membershipType.findUnique({ where: { id, deletedAt: null } });
+  async findTypeById(id: string, includePaused = false) {
+    const where: Prisma.MembershipTypeWhereUniqueInput & Prisma.MembershipTypeWhereInput = { id, deletedAt: null };
+    if (!includePaused) {
+      where.isPaused = false;
+    }
+    const type = await this.prisma.membershipType.findUnique({ where });
     if (!type) throw new NotFoundException('Membership type not found');
     return type;
   }
@@ -285,7 +294,7 @@ export class MembershipsService {
   }
 
   async updateType(id: string, dto: UpdateMembershipTypeDto) {
-    await this.findTypeById(id);
+    await this.findTypeById(id, true);
     return this.prisma.membershipType.update({
       where: { id },
       data: {
@@ -302,9 +311,66 @@ export class MembershipsService {
     });
   }
 
-  async deleteType(id: string) {
-    await this.findTypeById(id);
-    return this.prisma.membershipType.update({ where: { id }, data: { deletedAt: new Date() } });
+  async pauseType(id: string, targetMembershipTypeId: string) {
+    const source = await this.prisma.membershipType.findUnique({
+      where: { id, deletedAt: null }
+    });
+    if (!source) throw new NotFoundException('Membership type not found');
+    if (source.isPaused) throw new BadRequestException('Membership type is already paused');
+
+    if (id === targetMembershipTypeId) {
+      throw new BadRequestException('Cannot convert a membership type to itself');
+    }
+
+    const target = await this.prisma.membershipType.findUnique({
+      where: { id: targetMembershipTypeId, deletedAt: null }
+    });
+    if (!target) throw new NotFoundException('Target membership type not found');
+    if (target.isPaused) throw new BadRequestException('Cannot convert members to a paused membership type');
+
+    const sourceCount = await this.prisma.membership.count({
+      where: { membershipTypeId: id, deletedAt: null }
+    });
+
+    if (target.maxIssuances !== null && target.maxIssuances !== undefined) {
+      const targetCount = await this.prisma.membership.count({
+        where: { membershipTypeId: target.id, deletedAt: null }
+      });
+      if (targetCount + sourceCount > target.maxIssuances) {
+        throw new BadRequestException(
+          `Converting ${sourceCount} member(s) to ${target.name} would exceed its issuance limit of ${target.maxIssuances}`
+        );
+      }
+    }
+
+    const [pausedType, conversionResult] = await this.prisma.$transaction([
+      this.prisma.membershipType.update({
+        where: { id },
+        data: { isPaused: true }
+      }),
+      this.prisma.membership.updateMany({
+        where: { membershipTypeId: id, deletedAt: null },
+        data: {
+          membershipTypeId: target.id,
+          membershipCardUrl: null
+        }
+      })
+    ]);
+
+    return { pausedType, convertedCount: conversionResult.count };
+  }
+
+  async resumeType(id: string) {
+    const type = await this.prisma.membershipType.findUnique({
+      where: { id, deletedAt: null }
+    });
+    if (!type) throw new NotFoundException('Membership type not found');
+    if (!type.isPaused) throw new BadRequestException('Membership type is not paused');
+
+    return this.prisma.membershipType.update({
+      where: { id },
+      data: { isPaused: false }
+    });
   }
 
   async apply(user: TokenPayload, dto: ApplyMembershipDto) {

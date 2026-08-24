@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Loader2, Eye, X, Check } from 'lucide-react';
+import { Plus, Loader2, Eye, X, Check, PauseCircle } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
@@ -13,7 +13,7 @@ export default function AdminMembershipTypesPage() {
   const { data, isLoading, error } = useQuery<AdminMembershipType[]>({
     queryKey: ['admin', 'membership-types'],
     queryFn: async () => {
-      const res = await api.get('/membership/types');
+      const res = await api.get('/membership/types?includePaused=true');
       return res.data;
     }
   });
@@ -60,9 +60,18 @@ export default function AdminMembershipTypesPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.03 }}
+                    className={type.isPaused ? 'opacity-60' : ''}
                   >
                     <td className="py-3">
-                      <div className="font-medium">{type.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{type.name}</span>
+                        {type.isPaused && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
+                            <PauseCircle className="h-3 w-3" />
+                            Paused
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500">{type.description}</div>
                     </td>
                     <td className="py-3">{type.isFree || type.price === 0 ? 'Free' : `£${type.price}`}</td>

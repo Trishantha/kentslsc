@@ -52,13 +52,30 @@ export class RefundsService {
     const amountPence = Math.round(requestedAmount * 100);
     let providerRefundId: string | null = null;
 
-    if (payment.paymentChannel === 'stripe' && payment.providerPaymentId) {
-      const result = await this.paymentsService.refundStripePaymentIntent(
-        payment.providerPaymentId,
-        amountPence,
-        input.reason
-      );
-      providerRefundId = result.providerRefundId;
+    if (payment.paymentChannel === 'stripe') {
+      // Some legacy rows stored a subscription ID rather than a payment intent ID.
+      let paymentIntentId =
+        payment.providerPaymentId?.startsWith('pi_') ? payment.providerPaymentId : null;
+
+      // Backfill a missing payment intent from the checkout session when possible.
+      if (!paymentIntentId && payment.providerCheckoutId) {
+        paymentIntentId = await this.paymentsService.getStripePaymentIntentIdFromSession(
+          payment.providerCheckoutId
+        );
+      }
+
+      if (paymentIntentId) {
+        const result = await this.paymentsService.refundStripePaymentIntent(
+          paymentIntentId,
+          amountPence,
+          input.reason
+        );
+        providerRefundId = result.providerRefundId;
+      } else {
+        // No gateway ID available (e.g. legacy reconciled payment or subscription):
+        // record locally so the admin can refund outside the gateway.
+        providerRefundId = 'manual';
+      }
     } else if (payment.paymentChannel === 'paypal' && payment.providerPaymentId) {
       const result = await this.paymentsService.refundPayPalCapture(
         payment.providerPaymentId,

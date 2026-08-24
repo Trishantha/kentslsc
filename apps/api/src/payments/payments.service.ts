@@ -239,6 +239,11 @@ export class PaymentsService {
       expand: ['line_items']
     });
 
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
+
     return {
       id: session.id,
       status: session.status,
@@ -246,12 +251,26 @@ export class PaymentsService {
       currency: session.currency,
       metadata: session.metadata,
       customerEmail: session.customer_details?.email ?? session.customer_email ?? null,
+      paymentIntentId,
       lineItems: session.line_items?.data.map((item) => ({
         description: item.description,
         amount: item.amount_total,
         quantity: item.quantity
       }))
     };
+  }
+
+  async getStripePaymentIntentIdFromSession(sessionId: string): Promise<string | null> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const session = await this.stripe!.checkout.sessions.retrieve(sessionId);
+    return (
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null
+    );
   }
 
   /**

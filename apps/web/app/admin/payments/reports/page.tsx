@@ -22,6 +22,7 @@ import autoTable from 'jspdf-autotable';
 interface ReportRow {
   id: string;
   date: string;
+  receiptNumber: string | null;
   name: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
@@ -179,6 +180,7 @@ export default function RevenueReportPage() {
 
   const columns = [
     { key: 'date', label: 'Date', width: 90 },
+    { key: 'receiptNumber', label: 'Receipt #', width: 110 },
     { key: 'name', label: 'Name', width: 120 },
     { key: 'addressLine1', label: 'Address 1', width: 100 },
     { key: 'addressLine2', label: 'Address 2', width: 100 },
@@ -207,6 +209,7 @@ export default function RevenueReportPage() {
 
     const worksheetData = rows.data.map((row) => ({
       Date: row.date ? new Date(row.date).toLocaleString() : '',
+      'Receipt #': row.receiptNumber ?? '',
       Name: row.name ?? '',
       'Address 1': row.addressLine1 ?? '',
       'Address 2': row.addressLine2 ?? '',
@@ -248,6 +251,7 @@ export default function RevenueReportPage() {
 
     const body = rows.data.map((row) => [
       row.date ? new Date(row.date).toLocaleDateString() : '',
+      row.receiptNumber ?? '',
       row.name ?? '',
       row.addressLine1 ?? '',
       row.city ?? '',
@@ -266,7 +270,7 @@ export default function RevenueReportPage() {
     autoTable(doc, {
       startY: 28,
       head: [
-        ['Date', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Status']
+        ['Date', 'Receipt #', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Status']
       ],
       body,
       styles: { fontSize: 8 },
@@ -336,7 +340,7 @@ export default function RevenueReportPage() {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search by name, email, payment ID, notes..."
+              placeholder="Search by name, email, receipt #, payment ID, notes..."
               className={`${inputClass} pl-9`}
             />
           </div>

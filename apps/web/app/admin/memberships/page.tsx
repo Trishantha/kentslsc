@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Users, Mail } from 'lucide-react';
+import { Loader2, Users, Mail, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import { MembershipsList } from './MembershipsList';
-import type { AdminMembership } from './types';
+import type { AdminMembership, ExportedMembership } from './types';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All statuses' },
@@ -54,6 +55,64 @@ export default function AdminMembershipsPage() {
     }
   });
 
+  const exportQuery = useQuery<ExportedMembership[]>({
+    queryKey: ['admin', 'memberships', 'export', status],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status !== 'ALL') params.append('status', status);
+      const res = await api.get(`/admin/memberships/export?${params.toString()}`);
+      return res.data;
+    },
+    enabled: false
+  });
+
+  const handleExport = async () => {
+    const result = await exportQuery.refetch();
+    if (!result.data?.length) return;
+
+    const rows = result.data.map((m) => ({
+      'Membership ID': m.membershipId,
+      'Membership Status': m.membershipStatus,
+      'Membership Type': m.membershipType,
+      'Membership Type Description': m.membershipTypeDescription,
+      'Membership Price': m.membershipPrice,
+      'Duration (Months)': m.membershipDurationMonths,
+      'Start Date': m.startDate ? new Date(m.startDate).toLocaleDateString('en-GB') : '',
+      'End Date': m.endDate ? new Date(m.endDate).toLocaleDateString('en-GB') : '',
+      'Issued At': m.issuedAt ? new Date(m.issuedAt).toLocaleString('en-GB') : '',
+      'Paid At': m.paidAt ? new Date(m.paidAt).toLocaleString('en-GB') : '',
+      'Payment Method': m.paymentMethod,
+      'Subscription Status': m.subscriptionStatus,
+      'Credit Applied': m.creditAmountApplied ?? 0,
+      'Credit Months': m.creditMonthsGranted ?? 0,
+      'Card URL': m.membershipCardUrl,
+      'QR Code': m.qrCodeValue,
+      'Dependants Count': m.dependantsCount,
+      Dependants: m.dependants,
+      'Member ID': m.memberId,
+      'Member Name': m.memberName,
+      'First Name': m.memberFirstName,
+      'Last Name': m.memberLastName,
+      Email: m.memberEmail,
+      Phone: m.memberPhone,
+      'Member Role': m.memberRole,
+      'Member Status': m.memberStatus,
+      'Email Verified At': m.memberEmailVerifiedAt
+        ? new Date(m.memberEmailVerifiedAt).toLocaleString('en-GB')
+        : '',
+      'Member Since': m.memberCreatedAt ? new Date(m.memberCreatedAt).toLocaleDateString('en-GB') : '',
+      'Building / Street': m.buildingStreet,
+      Locality: m.locality,
+      'Town / City': m.townCity,
+      Postcode: m.postcode
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Members');
+    XLSX.writeFile(workbook, `kentslsc-members-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const handleSendReminders = () => {
     if (
       !window.confirm(
@@ -84,19 +143,35 @@ export default function AdminMembershipsPage() {
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={handleSendReminders}
-            disabled={reminderMutation.isPending}
-            className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20 disabled:opacity-50"
-          >
-            {reminderMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Mail className="h-4 w-4" />
-            )}
-            Send reminders to all pending
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exportQuery.isFetching}
+              className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20 disabled:opacity-50"
+            >
+              {exportQuery.isFetching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" />
+              )}
+              Export full details
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendReminders}
+              disabled={reminderMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20 disabled:opacity-50"
+            >
+              {reminderMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              Send reminders to all pending
+            </button>
+          </div>
         </div>
 
         {reminderResult && (

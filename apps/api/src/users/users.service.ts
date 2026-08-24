@@ -216,4 +216,67 @@ export class UsersService {
       limit
     };
   }
+
+  async exportUsers(role?: string, search?: string) {
+    const where: {
+      deletedAt: null;
+      role?: UserRole;
+      OR?: Array<{ name: { contains: string; mode: 'insensitive' } } | { email: { contains: string; mode: 'insensitive' } }>;
+    } = { deletedAt: null };
+    if (role) where.role = role as UserRole;
+    if (search && search.trim()) {
+      const term = search.trim();
+      where.OR = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } }
+      ];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        memberships: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { membershipType: true }
+        }
+      }
+    });
+
+    return users.map((u) => {
+      const address = u.address as
+        | { buildingStreet?: string; locality?: string; townCity?: string; postcode?: string }
+        | null;
+      const latestMembership = u.memberships[0];
+      return {
+        id: u.id,
+        name: buildName(u.firstName, u.lastName, u.name),
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        status: u.status,
+        emailVerifiedAt: u.emailVerifiedAt ? u.emailVerifiedAt.toISOString() : null,
+        passwordChangedAt: u.passwordChangedAt ? u.passwordChangedAt.toISOString() : null,
+        createdAt: u.createdAt.toISOString(),
+        updatedAt: u.updatedAt.toISOString(),
+        buildingStreet: address?.buildingStreet ?? '',
+        locality: address?.locality ?? '',
+        townCity: address?.townCity ?? '',
+        postcode: address?.postcode ?? '',
+        latestMembershipType: latestMembership?.membershipType?.name ?? '',
+        latestMembershipStatus: latestMembership?.status ?? '',
+        latestMembershipStartDate: latestMembership?.startDate
+          ? latestMembership.startDate.toISOString()
+          : null,
+        latestMembershipEndDate: latestMembership?.endDate
+          ? latestMembership.endDate.toISOString()
+          : null,
+        latestMembershipCardUrl: latestMembership?.membershipCardUrl ?? ''
+      };
+    });
+  }
 }

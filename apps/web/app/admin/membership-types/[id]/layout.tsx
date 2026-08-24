@@ -28,7 +28,7 @@ export default function MembershipTypeDetailLayout({ children }: MembershipTypeD
   } = useQuery<AdminMembershipType>({
     queryKey: ['admin', 'membership-types', id],
     queryFn: async () => {
-      const res = await api.get<AdminMembershipType[]>('/membership/types');
+      const res = await api.get<AdminMembershipType[]>('/membership/types?includePaused=true');
       const type = res.data.find((t) => t.id === id);
       if (!type) throw new Error('Membership type not found.');
       return type;

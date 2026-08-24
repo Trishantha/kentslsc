@@ -79,6 +79,30 @@ export interface UserItem {
   createdAt: string;
 }
 
+export interface ExportedUser {
+  id: string;
+  name: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  emailVerifiedAt: string | null;
+  passwordChangedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  buildingStreet: string;
+  locality: string;
+  townCity: string;
+  postcode: string;
+  latestMembershipType: string;
+  latestMembershipStatus: string;
+  latestMembershipStartDate: string | null;
+  latestMembershipEndDate: string | null;
+  latestMembershipCardUrl: string;
+}
+
 export interface UserDetail extends UserItem {
   firstName?: string | null;
   lastName?: string | null;

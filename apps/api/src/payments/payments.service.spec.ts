@@ -292,6 +292,7 @@ describe('PaymentsService', () => {
       expect(result.id).toBe('cs_test_123');
       expect(result.amountTotal).toBe(1035);
       expect(result.customerEmail).toBe('user@example.com');
+      expect(result.paymentIntentId).toBeNull();
       expect(result.lineItems).toHaveLength(2);
       expect(result.lineItems?.[1]?.description).toBe('Processing fee');
     });

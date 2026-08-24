@@ -85,6 +85,10 @@ export class AdminService {
     return this.usersService.listUsers(page, limit, role, search);
   }
 
+  exportUsers(role?: string, search?: string) {
+    return this.usersService.exportUsers(role, search);
+  }
+
   findUserById(id: string) {
     return this.usersService.findByIdWithDetails(id);
   }
@@ -120,6 +124,64 @@ export class AdminService {
       page,
       limit
     }));
+  }
+
+  async exportMemberships(status?: string) {
+    const where: { deletedAt: null; status?: DbMembershipStatus } = { deletedAt: null };
+    if (status && Object.values(DbMembershipStatus).includes(status as DbMembershipStatus)) {
+      where.status = status as DbMembershipStatus;
+    }
+
+    const memberships = await this.prisma.membership.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: true,
+        membershipType: true
+      }
+    });
+
+    return memberships.map((m) => {
+      const address = m.user.address as
+        | { buildingStreet?: string; locality?: string; townCity?: string; postcode?: string }
+        | null;
+      const dependants = (m.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [];
+
+      return {
+        membershipId: m.membershipId,
+        membershipStatus: m.status,
+        membershipType: m.membershipType.name,
+        membershipTypeDescription: m.membershipType.description ?? '',
+        membershipPrice: Number(m.membershipType.price),
+        membershipDurationMonths: m.membershipType.durationMonths,
+        startDate: m.startDate ? m.startDate.toISOString() : null,
+        endDate: m.endDate ? m.endDate.toISOString() : null,
+        issuedAt: m.issuedAt ? m.issuedAt.toISOString() : null,
+        paidAt: m.paidAt ? m.paidAt.toISOString() : null,
+        paymentMethod: m.paymentMethod ?? '',
+        subscriptionStatus: m.subscriptionStatus ?? '',
+        creditAmountApplied: m.creditAmountApplied ? Number(m.creditAmountApplied) : null,
+        creditMonthsGranted: m.creditMonthsGranted ?? null,
+        membershipCardUrl: m.membershipCardUrl ?? '',
+        qrCodeValue: m.qrCodeValue ?? '',
+        dependantsCount: dependants.length,
+        dependants: dependants.map((d) => `${d.name} (${d.relationship})`).join('; '),
+        memberId: m.user.id,
+        memberName: m.user.name,
+        memberFirstName: m.user.firstName ?? '',
+        memberLastName: m.user.lastName ?? '',
+        memberEmail: m.user.email,
+        memberPhone: m.user.phone ?? '',
+        memberRole: m.user.role,
+        memberStatus: m.user.status,
+        memberEmailVerifiedAt: m.user.emailVerifiedAt ? m.user.emailVerifiedAt.toISOString() : null,
+        memberCreatedAt: m.user.createdAt.toISOString(),
+        buildingStreet: address?.buildingStreet ?? '',
+        locality: address?.locality ?? '',
+        townCity: address?.townCity ?? '',
+        postcode: address?.postcode ?? ''
+      };
+    });
   }
 
   updateMembershipStatus(id: string, status: MembershipStatusDto) {

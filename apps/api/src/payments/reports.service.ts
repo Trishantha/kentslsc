@@ -17,6 +17,7 @@ export interface RevenueReportFilters {
 export interface RevenueReportRow {
   id: string;
   date: string;
+  receiptNumber: string | null;
   name: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
@@ -75,6 +76,7 @@ export class PaymentReportsService {
         { description: { contains: term, mode: 'insensitive' } },
         { providerPaymentId: { contains: term, mode: 'insensitive' } },
         { providerCheckoutId: { contains: term, mode: 'insensitive' } },
+        { receiptNumber: { contains: term, mode: 'insensitive' } },
         { notes: { contains: term, mode: 'insensitive' } }
       ];
     }
@@ -124,6 +126,7 @@ export class PaymentReportsService {
       return {
         id: p.id,
         date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
+        receiptNumber: p.receiptNumber,
         name: userName ?? p.payerName,
         addressLine1: userAddress?.buildingStreet ?? p.payerAddressLine1,
         addressLine2: userAddress?.locality ?? p.payerAddressLine2,
@@ -195,6 +198,7 @@ export class PaymentReportsService {
       return {
         id: p.id,
         date: p.purchasedAt?.toISOString() ?? p.createdAt.toISOString(),
+        receiptNumber: p.receiptNumber,
         name: userName ?? p.payerName,
         addressLine1: userAddress?.buildingStreet ?? p.payerAddressLine1,
         addressLine2: userAddress?.locality ?? p.payerAddressLine2,

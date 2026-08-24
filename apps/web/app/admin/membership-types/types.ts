@@ -13,4 +13,5 @@ export interface AdminMembershipType {
   benefits: string[];
   features: MembershipFeature[];
   autoActivate: boolean;
+  isPaused: boolean;
 }
