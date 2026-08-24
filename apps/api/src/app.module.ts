@@ -40,6 +40,7 @@ import { CsrfModule } from './csrf/csrf.module.js';
 import { CsrfGuard } from './csrf/csrf.guard.js';
 import { AppThrottlerGuard } from './common/guards/throttler.guard.js';
 import { HealthModule } from './health/health.module.js';
+import { QueueModule } from './queue/queue.module.js';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { HealthModule } from './health/health.module.js';
     }),
     PrismaModule,
     SupabaseModule,
+    QueueModule,
     AuthModule,
     UsersModule,
     MembershipsModule,

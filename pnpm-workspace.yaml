@@ -24,6 +24,7 @@ allowBuilds:
   bcrypt: true
   core-js: true
   esbuild: false
+  msgpackr-extract: true
   prisma: true
   sharp: true
   unrs-resolver: true

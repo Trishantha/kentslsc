@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { PaymentsService } from '../payments/payments.service.js';
-import { EmailService } from '../email/email.service.js';
+import { EmailQueueService } from '../email/email-queue.service.js';
 import type Stripe from 'stripe';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
@@ -62,7 +62,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     @Inject('PAYMENTS_SERVICE')
     private readonly paymentsService: PaymentsService,
-    private readonly emailService: EmailService,
+    private readonly emailQueueService: EmailQueueService,
     private readonly configService: ConfigService<EnvConfig, true>
   ) {}
 
@@ -439,6 +439,11 @@ export class EventsService {
     const sessionRef = paymentDetails?.providerCheckoutId;
 
     const tickets = await this.prisma.$transaction(async (tx) => {
+      // Lock the event row so concurrent ticket purchases for the same event are
+      // serialised. This prevents overselling when two requests try to buy the
+      // last remaining tickets at the same time.
+      await tx.$executeRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`;
+
       // Re-check capacity inside the transaction to avoid overselling.
       const sold = await tx.ticket.count({
         where: { eventId, status: { not: TicketStatus.CANCELLED }, deletedAt: null }
@@ -546,11 +551,12 @@ export class EventsService {
     });
 
     const cardUrl = `${origin}/dashboard/tickets`;
-    await this.emailService
-      .sendTicket(user.email, event.title, cardUrl, tickets)
-      .catch(() => {
-        // Log and continue if email fails
-      });
+    await this.emailQueueService.addSendTicketEmailJob({
+      email: user.email,
+      eventTitle: event.title,
+      cardUrl,
+      tickets
+    });
 
     return tickets;
   }
@@ -619,9 +625,12 @@ export class EventsService {
     }
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
     const cardUrl = `${origin}/dashboard/tickets`;
-    await this.emailService.sendTicket(email, ticket.event.title, cardUrl, [
-      { id: ticket.id, qrCodeValue: ticket.qrCodeValue }
-    ]);
+    await this.emailQueueService.addSendTicketEmailJob({
+      email,
+      eventTitle: ticket.event.title,
+      cardUrl,
+      tickets: [{ id: ticket.id, qrCodeValue: ticket.qrCodeValue }]
+    });
     return { sent: true };
   }
 

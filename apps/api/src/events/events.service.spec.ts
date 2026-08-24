@@ -72,6 +72,7 @@ describe('EventsService', () => {
     },
     $transaction: jest.fn(async (cb: any) => {
       const tx = {
+        $executeRaw: jest.fn(() => Promise.resolve(undefined)),
         event: mockPrisma.event,
         ticket: {
           count: mockPrisma.ticket.count,
@@ -91,8 +92,8 @@ describe('EventsService', () => {
     getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1')
   };
 
-  const mockEmailService: any = {
-    sendTicket: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
+  const mockEmailQueueService: any = {
+    addSendTicketEmailJob: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
   };
 
   const mockConfigService: any = {
@@ -110,7 +111,7 @@ describe('EventsService', () => {
     service = new EventsService(
       mockPrisma as any,
       mockPaymentsService as any,
-      mockEmailService as any,
+      mockEmailQueueService as any,
       mockConfigService as any
     );
   });
@@ -138,7 +139,7 @@ describe('EventsService', () => {
       expect(result.free).toBe(true);
       expect(result.tickets).toHaveLength(2);
       expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
-      expect(mockEmailService.sendTicket).toHaveBeenCalled();
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
       expect(mockPrisma.payment.create).toHaveBeenCalled();
     });
 
@@ -227,7 +228,7 @@ describe('EventsService', () => {
 
       expect(result).toEqual(existing);
       expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
-      expect(mockEmailService.sendTicket).not.toHaveBeenCalled();
+      expect(mockEmailQueueService.addSendTicketEmailJob).not.toHaveBeenCalled();
     });
 
     it('returns null when metadata is missing', async () => {
@@ -292,11 +293,13 @@ describe('EventsService', () => {
       const result = await service.resendTicketEmail(ticket.id, mockUser.id, mockUser.email);
 
       expect(result).toEqual({ sent: true });
-      expect(mockEmailService.sendTicket).toHaveBeenCalledWith(
-        mockUser.email,
-        mockEvent.title,
-        'http://localhost:3000/dashboard/tickets',
-        [{ id: ticket.id, qrCodeValue: ticket.qrCodeValue }]
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: mockUser.email,
+          eventTitle: mockEvent.title,
+          cardUrl: 'http://localhost:3000/dashboard/tickets',
+          tickets: [{ id: ticket.id, qrCodeValue: ticket.qrCodeValue }]
+        })
       );
     });
 

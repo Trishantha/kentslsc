@@ -12,6 +12,9 @@ export const envValidationSchema = z.object({
   API_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().url().optional(),
+  // Optional Redis-backed queue. When REDIS_URL is set, queues default to enabled.
+  QUEUE_ENABLED: z.enum(['true', 'false']).optional(),
+  QUEUE_CONCURRENCY: z.coerce.number().default(5),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
