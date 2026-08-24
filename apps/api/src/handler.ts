@@ -28,11 +28,12 @@ export async function createApiApp() {
     validateProductionConfig(configService);
   }
   const trustProxy = configService.get<string>('TRUST_PROXY');
-  // Default to trusting X-Forwarded-* headers in production because the API runs
-  // behind Hostinger's reverse proxy. The throttler and security features depend
-  // on seeing the real client IP, not the proxy's. Operators can still opt out
-  // by setting TRUST_PROXY=false explicitly.
-  if (trustProxy === 'true' || (trustProxy === undefined && isProduction)) {
+  // Only trust X-Forwarded-* headers when the operator explicitly opts in.
+  // Defaulting to "trust" in production lets clients spoof their IP by sending
+  // their own forwarding headers, which weakens throttling and audit trails.
+  // Set TRUST_PROXY=true only when the deployment is behind a sanitising proxy
+  // that strips or overwrites untrusted forwarding headers.
+  if (trustProxy === 'true') {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
 

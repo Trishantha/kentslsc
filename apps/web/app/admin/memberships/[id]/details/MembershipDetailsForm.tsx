@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,7 +15,9 @@ import {
   Hash,
   Banknote,
   Copy,
-  Check
+  Check,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -34,6 +36,33 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   const [error, setError] = useState<string | null>(null);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const supportsDependants = membership.membershipType.features?.includes('DEPENDANTS') ?? false;
+  const [dependants, setDependants] = useState(membership.dependants ?? []);
+  const [dependantsError, setDependantsError] = useState<string | null>(null);
+  const [dependantsSuccess, setDependantsSuccess] = useState(false);
+
+  useEffect(() => {
+    setDependants(membership.dependants ?? []);
+  }, [membership.dependants?.length]);
+
+  const dependantsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.put(`/admin/memberships/${membership.id}/dependants`, { dependants });
+      return res.data;
+    },
+    onSuccess: () => {
+      setDependantsError(null);
+      setDependantsSuccess(true);
+      setTimeout(() => setDependantsSuccess(false), 3000);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'memberships'] });
+      router.refresh();
+    },
+    onError: (err) => {
+      setDependantsError(getApiErrorMessage(err));
+      setDependantsSuccess(false);
+    }
+  });
 
   const statusMutation = useMutation({
     mutationFn: async (nextStatus: string) => {
@@ -254,27 +283,128 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           <h2 className="text-lg font-semibold">Dependants</h2>
         </div>
 
-        {membership.dependants?.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-slate-500 dark:text-slate-400">
-                  <th className="py-2 font-medium">Name</th>
-                  <th className="py-2 font-medium">Relationship</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {membership.dependants.map((dependant, idx) => (
-                  <tr key={idx}>
-                    <td className="py-2">{dependant.name}</td>
-                    <td className="py-2 text-slate-500">{dependant.relationship}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {!supportsDependants ? (
+          <p className="text-sm text-slate-500">
+            This membership type does not include dependants. Upgrade the membership type to enable dependants.
+          </p>
         ) : (
-          <p className="text-sm text-slate-500">No dependants on this membership.</p>
+          <div className="space-y-4">
+            {dependants.length === 0 && (
+              <p className="text-sm text-slate-500">No dependants on this membership.</p>
+            )}
+
+            {dependants.map((dependant, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl border border-white/10 bg-white/5 p-4"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold capitalize text-slate-300">
+                    {dependant.relationship}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDependants((prev) => prev.filter((_, i) => i !== idx))}
+                    className="text-red-400 hover:text-red-300"
+                    title="Remove dependant"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">Name</label>
+                    <input
+                      type="text"
+                      value={dependant.name}
+                      onChange={(e) =>
+                        setDependants((prev) =>
+                          prev.map((d, i) => (i === idx ? { ...d, name: e.target.value } : d))
+                        )
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">Age</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={dependant.age}
+                      onChange={(e) =>
+                        setDependants((prev) =>
+                          prev.map((d, i) =>
+                            i === idx ? { ...d, age: Number(e.target.value) || 0 } : d
+                          )
+                        )
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-slate-500">Relationship</label>
+                    <select
+                      value={dependant.relationship}
+                      onChange={(e) =>
+                        setDependants((prev) =>
+                          prev.map((d, i) =>
+                            i === idx
+                              ? { ...d, relationship: e.target.value as 'spouse' | 'child' }
+                              : d
+                          )
+                        )
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                    >
+                      <option value="spouse">Spouse</option>
+                      <option value="child">Child</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex flex-wrap gap-3">
+              {!dependants.some((d) => d.relationship === 'spouse') && (
+                <button
+                  type="button"
+                  onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'spouse' }])}
+                  className="inline-flex items-center gap-2 rounded-xl bg-neon-gold/10 px-4 py-2 text-sm font-semibold text-neon-gold transition-colors hover:bg-neon-gold/20"
+                >
+                  <Plus className="h-4 w-4" /> Add spouse
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'child' }])}
+                className="inline-flex items-center gap-2 rounded-xl bg-neon-blue/10 px-4 py-2 text-sm font-semibold text-neon-blue transition-colors hover:bg-neon-blue/20"
+              >
+                <Plus className="h-4 w-4" /> Add child
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => dependantsMutation.mutate()}
+              disabled={dependantsMutation.isPending}
+              className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {dependantsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save dependants
+            </button>
+
+            {dependantsSuccess && (
+              <p className="text-sm text-green-400">Dependants saved successfully.</p>
+            )}
+            {dependantsError && (
+              <p className="text-sm text-red-400">{dependantsError}</p>
+            )}
+          </div>
         )}
       </section>
     </div>

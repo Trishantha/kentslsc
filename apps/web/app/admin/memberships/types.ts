@@ -1,5 +1,6 @@
 export interface AdminMembershipDependant {
   name: string;
+  age: number;
   relationship: string;
 }
 

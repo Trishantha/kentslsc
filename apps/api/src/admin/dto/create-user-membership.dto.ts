@@ -1,5 +1,7 @@
-import { IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, IsUUID, MinLength, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { MembershipStatus } from '@kentslsc/shared';
+import { DependantDto } from '../../memberships/dto/dependant.dto.js';
 
 export class AdminCreateMembershipDto {
   @IsUUID()
@@ -17,4 +19,10 @@ export class AdminCreateMembershipDto {
   @IsOptional()
   @IsIn(['online', 'offline'])
   declare paymentMode?: 'online' | 'offline';
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DependantDto)
+  declare dependants?: DependantDto[];
 }

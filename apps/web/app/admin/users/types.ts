@@ -28,14 +28,31 @@ export interface MembershipItem {
   };
 }
 
+export interface DependantItem {
+  name: string;
+  age: number;
+  relationship: 'spouse' | 'child';
+  membershipId: string;
+  membershipTypeName: string;
+  membershipStatus: string;
+}
+
 export interface TicketItem {
   id: string;
+  qrCodeValue: string;
+  ticketNumber: string | null;
+  serialNumber: number | null;
   status: string;
   purchaseDatetime: string;
   stripeSessionId: string | null;
   event: {
+    id: string;
     title: string;
     startDatetime: string;
+    endDatetime: string;
+    location: string | null;
+    imageUrl: string | null;
+    ticketDesign: Record<string, unknown> | null;
   };
 }
 
@@ -134,6 +151,7 @@ export interface UserDetail extends UserItem {
   address?: StructuredAddress | null;
   updatedAt: string;
   memberships: MembershipItem[];
+  dependants: DependantItem[];
   tickets: TicketItem[];
   listings: ListingItem[];
   donations: DonationItem[];

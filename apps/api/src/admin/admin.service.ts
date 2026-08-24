@@ -10,7 +10,7 @@ import { BlogService } from '../blog/blog.service.js';
 import { CommitteeService } from '../committee/committee.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
-import type { TokenPayload } from '@kentslsc/shared';
+import type { TokenPayload, DependantInput } from '@kentslsc/shared';
 import {
   MembershipStatus as MembershipStatusDto,
   ContactStatus as ContactStatusDto
@@ -222,7 +222,7 @@ export class AdminService {
           }
         : undefined,
       phone: user.phone ?? undefined,
-      dependants: [],
+      dependants: dto.dependants ?? [],
       membershipType,
       overrideEmail: user.email
     };
@@ -296,7 +296,7 @@ export class AdminService {
         fullName,
         address: address ? JSON.stringify(address) : '',
         phone: user.phone ?? '',
-        dependants: '[]'
+        dependants: JSON.stringify(dto.dependants ?? [])
       }
     });
 
@@ -358,7 +358,7 @@ export class AdminService {
         fullName,
         address: '',
         phone: '',
-        dependants: '[]'
+        dependants: JSON.stringify((membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [])
       }
     });
 
@@ -418,6 +418,10 @@ export class AdminService {
 
   regenerateMembershipCard(membershipId: string) {
     return this.membershipsService.regenerateCard(membershipId);
+  }
+
+  updateMembershipDependants(membershipId: string, dto: { dependants: DependantInput[] }) {
+    return this.membershipsService.updateDependants(membershipId, dto.dependants);
   }
 
   async regenerateAllMembershipCards(options: { onlyActive?: boolean } = {}) {

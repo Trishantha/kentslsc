@@ -8,8 +8,8 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  * same process. Server-side fetches, startup health probes and internal API
  * calls all arrive from 127.0.0.1. Without this exemption they share a single
  * throttle bucket with public traffic and can trigger 429 responses during normal
- * page rendering. Public traffic still uses the real client IP once
- * `TRUST_PROXY=true` is set (or defaulted in production).
+ * page rendering. Public traffic uses the real client IP only when `TRUST_PROXY=true`
+ * is set explicitly.
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {

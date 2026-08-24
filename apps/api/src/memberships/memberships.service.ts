@@ -820,6 +820,54 @@ export class MembershipsService {
     return this.generateAndAttachCard(membership, memberName, dependants);
   }
 
+  async updateDependants(membershipId: string, dependants: DependantInput[]) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id: membershipId, deletedAt: null },
+      include: {
+        membershipType: true,
+        user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } }
+      }
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    if (!membership.membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
+      throw new BadRequestException('This membership type does not include dependants');
+    }
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: {
+        dependantsJson: dependants as unknown as Prisma.InputJsonValue,
+        updatedAt: new Date()
+      },
+      include: {
+        membershipType: true,
+        user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } }
+      }
+    });
+
+    if (updated.status === MembershipStatus.ACTIVE) {
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      return this.generateAndAttachCard(updated, memberName, dependants);
+    }
+
+    return updated;
+  }
+
+  async updateDependantsForUser(userId: string, dependants: DependantInput[]) {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true }
+    });
+    if (!membership) throw new NotFoundException('No membership found');
+    return this.updateDependants(membership.id, dependants);
+  }
+
   async updateStatus(id: string, status: MembershipStatus) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, deletedAt: null },

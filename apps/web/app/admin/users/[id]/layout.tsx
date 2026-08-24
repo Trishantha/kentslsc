@@ -14,6 +14,7 @@ import {
   Store,
   MessageSquare,
   Receipt,
+  Users,
   Loader2
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
@@ -24,6 +25,7 @@ const tabs = [
   { href: 'profile', label: 'Profile', icon: User },
   { href: 'permissions', label: 'Permissions', icon: Shield },
   { href: 'memberships', label: 'Memberships', icon: CreditCard },
+  { href: 'dependants', label: 'Dependants', icon: Users },
   { href: 'tickets', label: 'Tickets', icon: Ticket },
   { href: 'donations', label: 'Donations', icon: Heart },
   { href: 'transactions', label: 'Transactions', icon: Receipt },

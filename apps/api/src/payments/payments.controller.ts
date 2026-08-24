@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permission, type TokenPayload } from '@kentslsc/shared';
 import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
@@ -42,8 +43,13 @@ export class PaymentsController {
 
   @Get('checkout-session/:sessionId')
   @Public()
-  async getCheckoutSession(@Param('sessionId') sessionId: string) {
-    return this.paymentsService.getCheckoutSession(sessionId);
+  @OptionalAuthRoute()
+  @ApiBearerAuth()
+  async getCheckoutSession(
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user?: TokenPayload
+  ) {
+    return this.paymentsService.getCheckoutSession(sessionId, user?.sub);
   }
 
   @Put('settings')

@@ -6,8 +6,8 @@ export const envValidationSchema = z.object({
   PORT: z.coerce.number().default(4000),
   // Trust X-Forwarded-For when running behind a reverse proxy (Hostinger, Vercel,
   // etc.). Without this the throttler sees every request as the proxy IP. Only
-  // enable in deployed environments where the proxy strips untrusted headers.
-  // When omitted, handler.ts defaults this to true in production.
+  // enable in deployed environments where the proxy strips or overwrites untrusted
+  // forwarding headers. Defaults to false in all environments; set to "true" explicitly.
   TRUST_PROXY: z.enum(['true', 'false']).optional(),
   API_URL: z.string().url().optional(),
   DATABASE_URL: z.string().min(1).optional(),
@@ -37,9 +37,11 @@ export const envValidationSchema = z.object({
   ADMIN_SECRET: z.string().optional(),
   // Emergency admin recovery. Set only when you need to reset the admin password
   // or recreate a missing admin account on a host without shell access, then
-  // remove immediately after the first login.
+  // remove immediately after the first login. ADMIN_EMERGENCY_PASSWORD alone is
+  // not sufficient; ADMIN_EMERGENCY_RESET_ENABLED must also be set to "true".
   ADMIN_EMERGENCY_PASSWORD: z.string().optional(),
   ADMIN_EMERGENCY_EMAIL: z.string().email().optional().default('admin@kentslsc.org'),
+  ADMIN_EMERGENCY_RESET_ENABLED: z.enum(['true', 'false']).optional().default('false'),
   // Optional Supabase Storage configuration. When provided, uploads are stored
   // in the configured bucket instead of the local filesystem.
   SUPABASE_URL: z.string().url().optional(),

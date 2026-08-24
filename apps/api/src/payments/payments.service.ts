@@ -47,6 +47,19 @@ export interface CheckoutResult {
   grossAmount?: number;
 }
 
+export interface CheckoutSessionDetail {
+  id: string;
+  status: Stripe.Checkout.Session.Status | null;
+  amountTotal: number;
+  currency: string | null;
+  metadata: Record<string, string> | null;
+  customerEmail: string | null;
+  paymentIntentId: string | null;
+  lineItems:
+    | { description: string | null; amount: number; quantity: number | null }[]
+    | undefined;
+}
+
 export interface SyncedStripePrice {
   productId: string;
   priceId: string;
@@ -230,7 +243,21 @@ export class PaymentsService {
     return key ?? null;
   }
 
-  async getCheckoutSession(sessionId: string) {
+  /**
+   * Retrieve a Stripe Checkout Session for the checkout confirmation page.
+   *
+   * Session IDs appear in browser URLs, so this endpoint treats them as
+   * semi-public. To prevent PII and internal metadata leakage:
+   *
+   * - If the session is bound to a user (metadata.userId), the full detail is
+   *   returned only when the caller is authenticated as that user.
+   * - Anonymous sessions, and sessions accessed by anyone other than the owner,
+   *   receive only the minimal confirmation fields required by the checkout UI.
+   */
+  async getCheckoutSession(
+    sessionId: string,
+    currentUserId?: string
+  ): Promise<CheckoutSessionDetail> {
     const effective = await this.getEffectiveSettings();
     this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
@@ -238,6 +265,9 @@ export class PaymentsService {
     const session = await this.stripe!.checkout.sessions.retrieve(sessionId, {
       expand: ['line_items']
     });
+
+    const isOwner =
+      !!session.metadata?.userId && session.metadata.userId === currentUserId;
 
     const paymentIntentId =
       typeof session.payment_intent === 'string'
@@ -249,9 +279,11 @@ export class PaymentsService {
       status: session.status,
       amountTotal: session.amount_total ?? 0,
       currency: session.currency,
-      metadata: session.metadata,
-      customerEmail: session.customer_details?.email ?? session.customer_email ?? null,
-      paymentIntentId,
+      metadata: isOwner ? session.metadata : null,
+      customerEmail: isOwner
+        ? (session.customer_details?.email ?? session.customer_email ?? null)
+        : null,
+      paymentIntentId: isOwner ? paymentIntentId : null,
       lineItems: session.line_items?.data.map((item) => ({
         description: item.description,
         amount: item.amount_total,
@@ -883,6 +915,13 @@ export class PaymentsService {
       throw new Error('Missing PayPal webhook signature headers.');
     }
 
+    const eventTime = new Date(transmissionTime);
+    const skewMs = Math.abs(Date.now() - eventTime.getTime());
+    const MAX_SKEW_MS = 5 * 60 * 1000;
+    if (Number.isNaN(eventTime.getTime()) || skewMs > MAX_SKEW_MS) {
+      throw new Error('PayPal webhook transmission time is outside the allowed clock-skew window.');
+    }
+
     if (!this.isTrustedPayPalCertUrl(certUrl)) {
       throw new Error('Untrusted PayPal certificate URL.');
     }
@@ -907,6 +946,35 @@ export class PaymentsService {
     if (!isValid) {
       throw new Error('PayPal webhook signature verification failed.');
     }
+
+    const existing = await this.prisma.webhookEvent.findUnique({
+      where: {
+        provider_externalId: {
+          provider: 'paypal',
+          externalId: transmissionId
+        }
+      }
+    });
+    if (existing) {
+      throw new Error(`Duplicate PayPal webhook transmission ${transmissionId} ignored.`);
+    }
+
+    let eventType: string;
+    try {
+      eventType = JSON.parse(rawBody.toString())?.event_type ?? 'unknown';
+    } catch {
+      eventType = 'unknown';
+    }
+
+    await this.prisma.webhookEvent.create({
+      data: {
+        provider: 'paypal',
+        eventType,
+        externalId: transmissionId,
+        payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
+        status: 'received'
+      }
+    });
   }
 
   extractPayPalMetadata(payload: any): Record<string, string> {

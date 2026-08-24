@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import crypto from 'crypto';
 import { PaymentsService } from './payments.service.js';
 
 const mockConfig = {
@@ -265,7 +266,7 @@ describe('PaymentsService', () => {
   });
 
   describe('getCheckoutSession', () => {
-    it('retrieves a Stripe checkout session with line items', async () => {
+    it('returns full details for the session owner', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
       (service as any).stripe = {
         checkout: {
@@ -276,7 +277,8 @@ describe('PaymentsService', () => {
               amount_total: 1035,
               currency: 'gbp',
               customer_details: { email: 'user@example.com' },
-              metadata: { source: 'membership' },
+              payment_intent: 'pi_test_123',
+              metadata: { source: 'membership', userId: 'user-1' },
               line_items: {
                 data: [
                   { description: 'Membership', amount_total: 1000, quantity: 1 },
@@ -288,13 +290,79 @@ describe('PaymentsService', () => {
         }
       };
 
-      const result = await service.getCheckoutSession('cs_test_123');
+      const result = await service.getCheckoutSession('cs_test_123', 'user-1');
       expect(result.id).toBe('cs_test_123');
       expect(result.amountTotal).toBe(1035);
       expect(result.customerEmail).toBe('user@example.com');
-      expect(result.paymentIntentId).toBeNull();
+      expect(result.paymentIntentId).toBe('pi_test_123');
+      expect(result.metadata).toEqual({ source: 'membership', userId: 'user-1' });
       expect(result.lineItems).toHaveLength(2);
       expect(result.lineItems?.[1]?.description).toBe('Processing fee');
+    });
+
+    it('redacts sensitive fields for anonymous sessions', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            retrieve: jest.fn(async () => ({
+              id: 'cs_test_456',
+              status: 'open',
+              amount_total: 1035,
+              currency: 'gbp',
+              customer_details: { email: 'anon@example.com' },
+              payment_intent: 'pi_test_456',
+              metadata: { source: 'donation' },
+              line_items: {
+                data: [
+                  { description: 'Donation', amount_total: 1000, quantity: 1 },
+                  { description: 'Processing fee', amount_total: 35, quantity: 1 }
+                ]
+              }
+            }))
+          }
+        }
+      };
+
+      const result = await service.getCheckoutSession('cs_test_456');
+      expect(result.id).toBe('cs_test_456');
+      expect(result.amountTotal).toBe(1035);
+      expect(result.customerEmail).toBeNull();
+      expect(result.paymentIntentId).toBeNull();
+      expect(result.metadata).toBeNull();
+      expect(result.lineItems).toHaveLength(2);
+    });
+
+    it('redacts sensitive fields when the caller is not the owner', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            retrieve: jest.fn(async () => ({
+              id: 'cs_test_789',
+              status: 'open',
+              amount_total: 1035,
+              currency: 'gbp',
+              customer_details: { email: 'user@example.com' },
+              payment_intent: 'pi_test_789',
+              metadata: { source: 'membership', userId: 'user-1' },
+              line_items: {
+                data: [
+                  { description: 'Membership', amount_total: 1000, quantity: 1 },
+                  { description: 'Processing fee', amount_total: 35, quantity: 1 }
+                ]
+              }
+            }))
+          }
+        }
+      };
+
+      const result = await service.getCheckoutSession('cs_test_789', 'user-2');
+      expect(result.id).toBe('cs_test_789');
+      expect(result.customerEmail).toBeNull();
+      expect(result.paymentIntentId).toBeNull();
+      expect(result.metadata).toBeNull();
+      expect(result.lineItems).toHaveLength(2);
     });
   });
 
@@ -494,6 +562,111 @@ describe('PaymentsService', () => {
 
       expect(result.providerRefundId).toBe('REFUND-1');
       expect(result.status).toBe('COMPLETED');
+    });
+  });
+
+  describe('verifyPayPalWebhook', () => {
+    const validHeaders = {
+      'paypal-transmission-id': 'transmission-1',
+      'paypal-transmission-time': new Date().toISOString(),
+      'paypal-cert-url': 'https://api-m.paypal.com/v1/notifications/certs/Cert',
+      'paypal-auth-algo': 'SHA256withRSA',
+      'paypal-transmission-sig': 'valid-sig'
+    };
+
+    let createVerifySpy: any;
+
+    const paypalConfig = {
+      get: jest.fn((key: string) => {
+        if (key === 'PAYPAL_WEBHOOK_ID') return 'webhook-id-1';
+        if (key === 'PAYPAL_CLIENT_ID') return 'paypal-client-id';
+        if (key === 'PAYPAL_CLIENT_SECRET') return 'paypal-client-secret';
+        if (key === 'PAYPAL_API_BASE_URL') return 'https://api-m.sandbox.paypal.com';
+        return undefined;
+      })
+    };
+
+    beforeEach(() => {
+      createVerifySpy = jest.spyOn(crypto, 'createVerify').mockReturnValue({
+        update: jest.fn().mockReturnThis(),
+        end: jest.fn().mockReturnThis(),
+        verify: jest.fn().mockReturnValue(true)
+      } as unknown as crypto.Verify);
+
+      global.fetch = jest.fn(async () => ({
+        ok: true,
+        text: async () => 'mock-cert'
+      })) as unknown as typeof fetch;
+    });
+
+    afterEach(() => {
+      createVerifySpy.mockRestore();
+    });
+
+    it('throws when the PayPal webhook ID is not configured', async () => {
+      const configWithoutWebhookId = {
+        get: jest.fn((key: string) => {
+          if (key === 'PAYPAL_WEBHOOK_ID') return undefined;
+          return undefined;
+        })
+      };
+      const service = new PaymentsService(configWithoutWebhookId as any, mockPrisma as any);
+
+      await expect(service.verifyPayPalWebhook(Buffer.from('{}'), validHeaders)).rejects.toThrow(
+        'PayPal webhook ID is not configured.'
+      );
+    });
+
+    it('throws when the transmission time is outside the allowed clock-skew window', async () => {
+      const staleHeaders = {
+        ...validHeaders,
+        'paypal-transmission-time': new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      };
+      const service = new PaymentsService(paypalConfig as any, mockPrisma as any);
+
+      await expect(service.verifyPayPalWebhook(Buffer.from('{}'), staleHeaders)).rejects.toThrow(
+        'PayPal webhook transmission time is outside the allowed clock-skew window.'
+      );
+    });
+
+    it('throws when the transmission id has already been recorded', async () => {
+      const prismaWithDuplicate = {
+        ...mockPrisma,
+        webhookEvent: {
+          findUnique: jest.fn(() => Promise.resolve({ id: 'existing-event' })) as any,
+          create: jest.fn() as any
+        }
+      };
+      const service = new PaymentsService(paypalConfig as any, prismaWithDuplicate as any);
+
+      await expect(service.verifyPayPalWebhook(Buffer.from('{}'), validHeaders)).rejects.toThrow(
+        'Duplicate PayPal webhook transmission transmission-1 ignored.'
+      );
+      expect(prismaWithDuplicate.webhookEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('records the webhook event after successful signature verification', async () => {
+      const prismaWithLedger = {
+        ...mockPrisma,
+        webhookEvent: {
+          findUnique: jest.fn(() => Promise.resolve(null)) as any,
+          create: jest.fn(() => Promise.resolve({ id: 'new-event' })) as any
+        }
+      };
+      const service = new PaymentsService(paypalConfig as any, prismaWithLedger as any);
+
+      await service.verifyPayPalWebhook(Buffer.from('{"event_type":"PAYMENT.CAPTURE.COMPLETED"}'), validHeaders);
+
+      expect(prismaWithLedger.webhookEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            provider: 'paypal',
+            eventType: 'PAYMENT.CAPTURE.COMPLETED',
+            externalId: 'transmission-1',
+            status: 'received'
+          })
+        })
+      );
     });
   });
 });

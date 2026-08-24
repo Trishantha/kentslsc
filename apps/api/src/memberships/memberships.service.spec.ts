@@ -622,4 +622,78 @@ describe('MembershipsService', () => {
       );
     });
   });
+
+  describe('updateDependants', () => {
+    it('updates dependantsJson and regenerates the card for active memberships', async () => {
+      const dependantsType = { ...mockMembershipType, features: ['DEPENDANTS'] };
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockCreatedMembership,
+        membershipType: dependantsType,
+        user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
+      });
+      mockPrisma.membership.update.mockResolvedValue({
+        ...mockCreatedMembership,
+        membershipType: dependantsType,
+        user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
+      });
+      mockSupabaseStorage.uploadBuffer.mockResolvedValue({ url: 'https://supabase.test/card.png' });
+
+      const newDependants = [{ name: 'Jane Doe', age: 30, relationship: 'spouse' as const }];
+      await service.updateDependants('membership-1', newDependants);
+
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'membership-1' },
+          data: expect.objectContaining({
+            dependantsJson: newDependants
+          })
+        })
+      );
+      expect(mockSupabaseStorage.uploadBuffer).toHaveBeenCalled();
+    });
+
+    it('throws when the membership type does not support dependants', async () => {
+      mockPrisma.membership.findFirst.mockResolvedValue({
+        ...mockCreatedMembership,
+        membershipType: { ...mockMembershipType, features: [] },
+        user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
+      });
+
+      await expect(
+        service.updateDependants('membership-1', [{ name: 'Jane Doe', age: 30, relationship: 'spouse' as const }])
+      ).rejects.toThrow('This membership type does not include dependants');
+    });
+
+    it('updates dependants for the current user membership', async () => {
+      const dependantsType = { ...mockMembershipType, features: ['DEPENDANTS'] };
+      mockPrisma.membership.findFirst
+        .mockResolvedValueOnce({
+          id: 'membership-1',
+          membershipType: dependantsType,
+          status: MembershipStatus.ACTIVE
+        })
+        .mockResolvedValueOnce({
+          ...mockCreatedMembership,
+          membershipType: dependantsType,
+          user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
+        });
+      mockPrisma.membership.update.mockResolvedValue({
+        ...mockCreatedMembership,
+        membershipType: dependantsType,
+        user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
+      });
+      mockSupabaseStorage.uploadBuffer.mockResolvedValue({ url: 'https://supabase.test/card.png' });
+
+      const newDependants = [{ name: 'Child One', age: 5, relationship: 'child' as const }];
+      await service.updateDependantsForUser('user-1', newDependants);
+
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            dependantsJson: newDependants
+          })
+        })
+      );
+    });
+  });
 });

@@ -1,9 +1,9 @@
-import { IsString, IsNumber, Min, Max, IsEnum } from 'class-validator';
+import { IsString, IsNumber, Min, Max, IsEnum, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class DependantDto {
   @IsString()
-  @Min(1)
+  @MinLength(1)
   declare name: string;
 
   @IsNumber()

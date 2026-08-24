@@ -56,10 +56,16 @@ describe('AuthBootstrapService', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
-  it('should reset the admin password and clear lockout when emergency password is set', async () => {
+  it('should reset the admin password and clear lockout when emergency reset is enabled', async () => {
     jest
       .spyOn(config, 'get')
-      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+      .mockImplementation((key: string) =>
+        key === 'ADMIN_EMERGENCY_PASSWORD'
+          ? 'Emergency123!'
+          : key === 'ADMIN_EMERGENCY_RESET_ENABLED'
+            ? 'true'
+            : undefined
+      );
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(mockUser);
 
     await service.onModuleInit();
@@ -77,12 +83,28 @@ describe('AuthBootstrapService', () => {
     expect(prisma.authEvent.create).toHaveBeenCalledTimes(2);
   });
 
-  it('should create an admin account when emergency email does not exist', async () => {
+  it('should not reset the admin password when emergency reset is not enabled', async () => {
     jest
       .spyOn(config, 'get')
-      .mockImplementation((key: string) =>
-        key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : key === 'ADMIN_EMERGENCY_EMAIL' ? 'info@kentslsc.org' : undefined
-      );
+      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+    (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(mockUser);
+
+    await service.onModuleInit();
+
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.authEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('should create an admin account when emergency email does not exist and reset is enabled', async () => {
+    jest
+      .spyOn(config, 'get')
+      .mockImplementation((key: string) => {
+        if (key === 'ADMIN_EMERGENCY_PASSWORD') return 'Emergency123!';
+        if (key === 'ADMIN_EMERGENCY_RESET_ENABLED') return 'true';
+        if (key === 'ADMIN_EMERGENCY_EMAIL') return 'info@kentslsc.org';
+        return undefined;
+      });
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
 
     await service.onModuleInit();
@@ -99,8 +121,16 @@ describe('AuthBootstrapService', () => {
     expect(prisma.authEvent.create).toHaveBeenCalledTimes(1);
   });
 
-  it('should create the default admin account when no email is configured', async () => {
-    jest.spyOn(config, 'get').mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+  it('should create the default admin account when no email is configured and reset is enabled', async () => {
+    jest
+      .spyOn(config, 'get')
+      .mockImplementation((key: string) =>
+        key === 'ADMIN_EMERGENCY_PASSWORD'
+          ? 'Emergency123!'
+          : key === 'ADMIN_EMERGENCY_RESET_ENABLED'
+            ? 'true'
+            : undefined
+      );
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(null);
 
     await service.onModuleInit();
@@ -115,7 +145,13 @@ describe('AuthBootstrapService', () => {
   it('should warn when the target user is not an admin', async () => {
     jest
       .spyOn(config, 'get')
-      .mockImplementation((key: string) => (key === 'ADMIN_EMERGENCY_PASSWORD' ? 'Emergency123!' : undefined));
+      .mockImplementation((key: string) =>
+        key === 'ADMIN_EMERGENCY_PASSWORD'
+          ? 'Emergency123!'
+          : key === 'ADMIN_EMERGENCY_RESET_ENABLED'
+            ? 'true'
+            : undefined
+      );
     (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue({
       ...mockUser,
       role: UserRole.MEMBER

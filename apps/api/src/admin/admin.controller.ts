@@ -36,6 +36,7 @@ import {
 import type { RequestContext } from '../auth/sessions.service.js';
 import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js';
 import { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
+import { UpdateDependantsDto } from '../memberships/dto/update-dependants.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
 import { CreateEventDto } from '../events/dto/create-event.dto.js';
 import { UpdateEventDto } from '../events/dto/update-event.dto.js';
@@ -311,6 +312,15 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   regenerateMembershipCard(@Param('id') membershipId: string) {
     return this.adminService.regenerateMembershipCard(membershipId);
+  }
+
+  @Put('memberships/:id/dependants')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  updateMembershipDependants(
+    @Param('id') membershipId: string,
+    @Body() dto: UpdateDependantsDto
+  ) {
+    return this.adminService.updateMembershipDependants(membershipId, dto);
   }
 
   @Post('memberships/regenerate-cards')

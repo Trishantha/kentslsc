@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
-import { UpdateUserInput, UserRole } from '@kentslsc/shared';
-import { Prisma, PaymentStatus } from '@kentslsc/database';
+import { UpdateUserInput, UserRole, dependantSchema } from '@kentslsc/shared';
+import { Prisma } from '@kentslsc/database';
 
 function buildName(firstName: string | null | undefined, lastName: string | null | undefined, fallback: string) {
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim();
@@ -82,6 +82,25 @@ export class UsersService {
       })
     ]);
 
+    const dependants = memberships.flatMap((m) => {
+      const raw = m.dependantsJson;
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .map((d) => {
+          const parsed = dependantSchema.safeParse(d);
+          if (!parsed.success) return null;
+          return {
+            name: parsed.data.name,
+            age: parsed.data.age,
+            relationship: parsed.data.relationship,
+            membershipId: m.membershipId,
+            membershipTypeName: m.membershipType.name,
+            membershipStatus: m.status
+          };
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null);
+    });
+
     return {
       ...user,
       name: buildName(user.firstName, user.lastName, user.name),
@@ -90,6 +109,7 @@ export class UsersService {
         price: Number(m.membershipType.price)
       })),
       tickets,
+      dependants,
       listings,
       donations: donations.map((d) => ({
         ...d,

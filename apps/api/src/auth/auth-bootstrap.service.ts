@@ -9,16 +9,19 @@ import { UserRole } from '@kentslsc/shared';
  * Emergency admin account recovery / creation.
  *
  * When a deployment environment has no shell access (e.g. Hostinger Node app
- * manager), a normal CLI reset/seed cannot run. Setting ADMIN_EMERGENCY_PASSWORD
- * in the backend environment variables and redeploying/restarting the API will:
+ * manager), a normal CLI reset/seed cannot run. To use recovery, set both
+ * ADMIN_EMERGENCY_PASSWORD and ADMIN_EMERGENCY_RESET_ENABLED=true in the
+ * backend environment variables and redeploy/restart the API. This will:
  *
  * - Create an admin account for ADMIN_EMERGENCY_EMAIL if it does not exist.
  * - Reset the password and clear any lockout for that account if it does exist.
  *
  * SECURITY:
  * - The password is set in the server environment, never in code or the repo.
- * - If the variable is left set, the password is reset on every restart. Remove
- *   the variable immediately after logging in and change the password from the UI.
+ * - ADMIN_EMERGENCY_PASSWORD alone is not enough to trigger a reset; an explicit
+ *   ADMIN_EMERGENCY_RESET_ENABLED=true flag is required for each restart where
+ *   recovery is intended. Remove both variables immediately after logging in and
+ *   change the password from the UI.
  */
 @Injectable()
 export class AuthBootstrapService implements OnModuleInit {
@@ -32,6 +35,16 @@ export class AuthBootstrapService implements OnModuleInit {
   async onModuleInit() {
     const emergencyPassword = this.config.get<string>('ADMIN_EMERGENCY_PASSWORD');
     if (!emergencyPassword) return;
+
+    const resetEnabled = this.config.get<string>('ADMIN_EMERGENCY_RESET_ENABLED') === 'true';
+    if (!resetEnabled) {
+      this.logger.error(
+        'ADMIN_EMERGENCY_PASSWORD is configured but ADMIN_EMERGENCY_RESET_ENABLED is not "true". ' +
+          'Emergency admin recovery is disabled. Set ADMIN_EMERGENCY_RESET_ENABLED=true only for ' +
+          'the single restart where recovery is required, then remove both variables.'
+      );
+      return;
+    }
 
     const email = (this.config.get<string>('ADMIN_EMERGENCY_EMAIL') ?? 'admin@kentslsc.org').toLowerCase().trim();
     const passwordHash = await bcrypt.hash(emergencyPassword, 12);

@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Patch,
-  Delete,
   Body,
   Param,
   Query,
@@ -26,6 +25,7 @@ import { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import { PauseMembershipTypeDto } from './dto/pause-membership-type.dto.js';
 import { ApplyMembershipDto } from './dto/apply-membership.dto.js';
+import { UpdateDependantsDto } from './dto/update-dependants.dto.js';
 import { RegenerateCardDto } from './dto/regenerate-card.dto.js';
 import { CreateMembershipScanDto } from './dto/create-membership-scan.dto.js';
 
@@ -99,6 +99,15 @@ export class MembershipsController {
   @ApiBearerAuth()
   async getMyMembership(@CurrentUser() user: TokenPayload) {
     return this.membershipsService.findMyMembership(user.sub);
+  }
+
+  @Patch('me/dependants')
+  @ApiBearerAuth()
+  async updateMyDependants(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: UpdateDependantsDto
+  ) {
+    return this.membershipsService.updateDependantsForUser(user.sub, dto.dependants);
   }
 
   @Get('card')
