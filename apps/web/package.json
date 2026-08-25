@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "copy:tinymce": "rm -rf public/tinymce && cp -RL node_modules/tinymce public/tinymce",
-    "postinstall": "pnpm copy:tinymce"
+    "postinstall": "rm -rf public/tinymce && cp -RL node_modules/tinymce public/tinymce"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
