@@ -185,8 +185,8 @@ export default function AboutPageContent({ committeeItems }: AboutPageContentPro
           >
             {committeeItems.map((member) => (
               <motion.div key={member.roleKey} variants={fadeUp}>
-                <div className="glass-card p-6 text-center transition-transform hover:-translate-y-1">
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-slate-200 to-slate-300 text-2xl font-bold text-slate-500 dark:from-slate-700 dark:to-slate-800 dark:text-slate-400">
+                <div className="glass-card p-8 text-center transition-transform hover:-translate-y-1 md:p-10">
+                  <div className="mx-auto flex h-36 w-36 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-slate-200 to-slate-300 text-4xl font-bold text-slate-500 ring-4 ring-white shadow-xl dark:from-slate-700 dark:to-slate-800 dark:text-slate-400 dark:ring-slate-800 md:h-44 md:w-44">
                     {member.photoUrl ? (
                       <img
                         src={member.photoUrl}
@@ -199,8 +199,8 @@ export default function AboutPageContent({ committeeItems }: AboutPageContentPro
                       member.name.charAt(0)
                     )}
                   </div>
-                  <h3 className="mt-4 text-lg font-bold">{t(`roles.${member.roleKey}`)}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{member.name}</p>
+                  <h3 className="mt-6 text-xl font-bold">{t(`roles.${member.roleKey}`)}</h3>
+                  <p className="mt-2 text-base text-slate-500">{member.name}</p>
                 </div>
               </motion.div>
             ))}
