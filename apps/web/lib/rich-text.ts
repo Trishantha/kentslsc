@@ -5,6 +5,7 @@ export function stripRichText(input?: string | null): string {
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
+    .replace(/<[^>]*$/, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
@@ -22,5 +23,9 @@ export function hasRichTextContent(input?: string | null): boolean {
 export function summarizeRichText(input: string | null | undefined, maxLength = 160): string {
   const text = stripRichText(input);
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength).trim()}...`;
+
+  const slice = text.slice(0, maxLength);
+  const lastSpace = slice.lastIndexOf(' ');
+  const end = lastSpace > 0 ? lastSpace : maxLength;
+  return `${text.slice(0, end).trim()}...`;
 }

@@ -36,7 +36,8 @@ const PLUGINS = [
   'media',
   'table',
   'help',
-  'wordcount'
+  'wordcount',
+  'paste'
 ];
 
 const TOOLBAR =
@@ -92,6 +93,9 @@ export function RichTextEditorInner({
         convert_urls: false,
         contextmenu:
           'cut copy paste | bold italic underline strikethrough | link | alignleft aligncenter alignright alignjustify | removeformat',
+        paste_data_images: true,
+        paste_merge_formats: true,
+        smart_paste: true,
         content_style:
           'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; font-size: 16px; line-height: 1.6; }',
         statusbar: false,
