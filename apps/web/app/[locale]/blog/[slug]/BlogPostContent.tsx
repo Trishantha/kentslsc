@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
 import { formatDate } from '@/lib/utils';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
@@ -49,10 +50,15 @@ interface Props {
 
 export default function BlogPostContent({ post }: Props) {
   const t = useTranslations('blogDetail');
+  const router = useRouter();
   const photos = (post.gallery?.photos ?? [])
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const { open, Lightbox } = usePhotoLightbox(photos);
+
+  const navigateToTag = (tag: string) => {
+    router.push(`/blog?tag=${encodeURIComponent(tag)}`);
+  };
 
   return (
     <div className="px-4 py-16 md:px-6">
@@ -82,12 +88,14 @@ export default function BlogPostContent({ post }: Props) {
           {post.tags && post.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {post.tags.map((tag) => (
-                <span
+                <button
                   key={tag}
-                  className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-slate-400"
+                  type="button"
+                  onClick={() => navigateToTag(tag)}
+                  className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-neon-blue/10 hover:text-neon-blue"
                 >
                   {tag}
-                </span>
+                </button>
               ))}
             </div>
           )}

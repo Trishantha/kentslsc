@@ -450,7 +450,11 @@
     "loadError": "Failed to load blog posts",
     "galleryTitle": "Event Gallery",
     "noGallery": "No event gallery available yet.",
-    "viewGallery": "View event gallery"
+    "viewGallery": "View event gallery",
+    "noPosts": "No blog posts yet.",
+    "noPostsForTag": "No posts found for this tag.",
+    "filteredBy": "Showing posts tagged with:",
+    "clearTagFilter": "Clear tag filter"
   },
   "fundraisers": {
     "title": "Fundraising",
