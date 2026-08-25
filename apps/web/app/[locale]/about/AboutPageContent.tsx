@@ -185,7 +185,7 @@ export default function AboutPageContent({ committeeItems }: AboutPageContentPro
           >
             {committeeItems.map((member) => (
               <motion.div key={member.roleKey} variants={fadeUp}>
-                <div className="glass-card p-8 text-center transition-transform hover:-translate-y-1 md:p-10">
+                <div className="glass-card flex h-full flex-col items-center justify-center p-8 text-center transition-transform hover:-translate-y-1 md:p-10">
                   <div className="mx-auto flex h-36 w-36 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-slate-200 to-slate-300 text-4xl font-bold text-slate-500 ring-4 ring-white shadow-xl dark:from-slate-700 dark:to-slate-800 dark:text-slate-400 dark:ring-slate-800 md:h-44 md:w-44">
                     {member.photoUrl ? (
                       <img
