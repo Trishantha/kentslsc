@@ -1,22 +1,12 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Newspaper, Calendar, Images } from 'lucide-react';
-import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
-import { notFound } from 'next/navigation';
+import { ArrowLeft, Newspaper, Calendar, Images, FileText, Search, Eye } from 'lucide-react';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
-import { FileText, Search, Eye } from 'lucide-react';
-import type { AdminBlogPost } from '../types';
+import { BlogPostProvider, useBlogPost } from './BlogPostProvider';
 
 interface BlogDetailLayoutProps {
   children: React.ReactNode;
-  params: Promise<{ id: string }>;
-}
-
-async function getBlogPost(id: string): Promise<AdminBlogPost | null> {
-  const post = await fetchWithOriginFallback<AdminBlogPost>(`/api/blog/admin/posts/${id}`);
-  if (!post) {
-    console.error(`[blog-layout] Could not load admin blog post ${id}`);
-  }
-  return post;
 }
 
 const tabs = [
@@ -26,10 +16,8 @@ const tabs = [
   { href: 'preview', label: 'Preview', icon: Eye }
 ];
 
-export default async function BlogDetailLayout({ children, params }: BlogDetailLayoutProps) {
-  const { id } = await params;
-  const post = await getBlogPost(id);
-  if (!post) notFound();
+function BlogDetailShell({ children }: { children: React.ReactNode }) {
+  const post = useBlogPost();
 
   return (
     <div>
@@ -68,10 +56,18 @@ export default async function BlogDetailLayout({ children, params }: BlogDetailL
       </div>
 
       <div className="mt-4">
-        <AdminDetailTabs tabs={tabs} basePath={`/admin/blog/${id}`} />
+        <AdminDetailTabs tabs={tabs} basePath={`/admin/blog/${post.id}`} />
       </div>
 
       {children}
     </div>
+  );
+}
+
+export default function BlogDetailLayout({ children }: BlogDetailLayoutProps) {
+  return (
+    <BlogPostProvider>
+      <BlogDetailShell>{children}</BlogDetailShell>
+    </BlogPostProvider>
   );
 }
