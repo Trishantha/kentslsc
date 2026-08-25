@@ -36,6 +36,12 @@ export default function BlogPage() {
       <div className="mx-auto max-w-5xl">
         <h1 className="section-title">{t('title')}</h1>
         <p className="mt-4 text-slate-600 dark:text-slate-400">{t('subtitle')}</p>
+        <Link
+          href="/blog/gallery"
+          className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-neon-blue hover:underline"
+        >
+          {t('viewGallery')} →
+        </Link>
 
         {loading && <p className="mt-10 text-slate-500">{tCommon('loading')}</p>}
         {error && <p className="mt-10 text-red-500">{error}</p>}

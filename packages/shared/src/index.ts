@@ -8,6 +8,7 @@ export * from './schemas/directory.js';
 export * from './schemas/forum.js';
 export * from './schemas/fundraising.js';
 export * from './schemas/blog.js';
+export * from './schemas/gallery.js';
 export * from './schemas/contact.js';
 export * from './schemas/ai.js';
 export * from './schemas/pages.js';

@@ -16,6 +16,7 @@ import { DirectoryModule } from './directory/directory.module.js';
 import { ForumModule } from './forum/forum.module.js';
 import { FundraisingModule } from './fundraising/fundraising.module.js';
 import { BlogModule } from './blog/blog.module.js';
+import { GalleryModule } from './gallery/gallery.module.js';
 import { ContactModule } from './contact/contact.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
@@ -71,6 +72,7 @@ import { QueueModule } from './queue/queue.module.js';
     ForumModule,
     FundraisingModule,
     BlogModule,
+    GalleryModule,
     ContactModule,
     AiModule,
     PaymentsModule,

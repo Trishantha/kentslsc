@@ -19,6 +19,7 @@ import {
   Briefcase,
   HeartHandshake,
   Newspaper,
+  Images,
   MessageSquareWarning,
   Mail,
   FileText,
@@ -192,7 +193,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/hero', label: 'Hero', icon: FileText, permission: Permission.MANAGE_HERO },
       { href: '/admin/pages', label: 'Pages', icon: FileText, permission: Permission.MANAGE_PAGES },
-      { href: '/admin/blog', label: 'Blog', icon: Newspaper, permission: Permission.MANAGE_BLOG, prefetch: prefetchBlog }
+      { href: '/admin/blog', label: 'Blog', icon: Newspaper, permission: Permission.MANAGE_BLOG, prefetch: prefetchBlog },
+      { href: '/admin/blog/galleries', label: 'Galleries', icon: Images, permission: Permission.MANAGE_BLOG, prefetch: prefetchBlog }
     ]
   },
   {

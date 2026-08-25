@@ -770,6 +770,40 @@ model BlogPost {
   @@map("blog_posts")
 }
 
+model EventGallery {
+  id          String    @id @default(uuid()) @db.Text
+  title       String
+  slug        String    @unique
+  description String?
+  eventDate   DateTime? @map("event_date") @db.Timestamptz()
+  isPublished Boolean   @default(false) @map("is_published")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
+
+  photos EventGalleryPhoto[]
+
+  @@index([slug])
+  @@index([isPublished])
+  @@index([eventDate])
+  @@map("event_galleries")
+}
+
+model EventGalleryPhoto {
+  id             String   @id @default(uuid()) @db.Text
+  eventGalleryId String   @map("event_gallery_id")
+  url            String
+  path           String?
+  caption        String?
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  eventGallery EventGallery @relation(fields: [eventGalleryId], references: [id], onDelete: Cascade)
+
+  @@index([eventGalleryId])
+  @@map("event_gallery_photos")
+}
+
 model ContactMessage {
   id             String        @id @default(uuid())
   name           String
