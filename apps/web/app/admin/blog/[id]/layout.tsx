@@ -12,7 +12,11 @@ interface BlogDetailLayoutProps {
 }
 
 async function getBlogPost(id: string): Promise<AdminBlogPost | null> {
-  return fetchWithOriginFallback(`/api/blog/admin/posts/${id}`);
+  const post = await fetchWithOriginFallback<AdminBlogPost>(`/api/blog/admin/posts/${id}`);
+  if (!post) {
+    console.error(`[blog-layout] Could not load admin blog post ${id}`);
+  }
+  return post;
 }
 
 const tabs = [

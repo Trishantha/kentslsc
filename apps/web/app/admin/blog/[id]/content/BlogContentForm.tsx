@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { hasRichTextContent } from '@/lib/rich-text';
+import { toDateTimeLocalInput } from '@/lib/utils';
 import type { AdminBlogPost } from '../../types';
 
 const contentSchema = z.object({
@@ -63,7 +64,7 @@ export function BlogContentForm({ post, postId }: BlogContentFormProps) {
       metaDescription: post.metaDescription ?? '',
       tags: formatTags(post.tags),
       galleryId: post.galleryId ?? '',
-      publishedAt: post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 16) : '',
+      publishedAt: toDateTimeLocalInput(post.publishedAt),
       isPublished: post.isPublished
     }
   });
@@ -76,7 +77,7 @@ export function BlogContentForm({ post, postId }: BlogContentFormProps) {
       metaDescription: post.metaDescription ?? '',
       tags: formatTags(post.tags),
       galleryId: post.galleryId ?? '',
-      publishedAt: post.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 16) : '',
+      publishedAt: toDateTimeLocalInput(post.publishedAt),
       isPublished: post.isPublished
     });
   }, [post, reset]);

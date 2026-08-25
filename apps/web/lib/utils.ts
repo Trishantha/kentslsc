@@ -52,3 +52,15 @@ export function getVideoMimeType(url: string): string | undefined {
       return undefined;
   }
 }
+
+/**
+ * Convert an ISO-ish date string into the `datetime-local` input format
+ * (YYYY-MM-DDTHH:mm). Returns an empty string for null/invalid values so a
+ * form input never crashes on a bad date from the API.
+ */
+export function toDateTimeLocalInput(date: string | Date | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 16);
+}
