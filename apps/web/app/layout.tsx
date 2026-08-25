@@ -28,12 +28,14 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'en_GB',
       siteName: 'Kent Sri Lankan Social Club',
       title: 'Kent Sri Lankan Social Club',
-      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.'
+      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+      images: ['/opengraph-image']
     },
     twitter: {
       card: 'summary_large_image',
       title: 'Kent Sri Lankan Social Club',
-      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.'
+      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+      images: ['/opengraph-image']
     },
     alternates: {
       canonical: './'

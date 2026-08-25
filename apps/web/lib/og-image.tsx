@@ -25,7 +25,7 @@ export function generateSharedOgImage() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+          background: 'radial-gradient(circle at 30% 30%, rgba(0, 184, 148, 0.25) 0%, transparent 45%), radial-gradient(circle at 80% 80%, rgba(255, 215, 0, 0.25) 0%, transparent 45%), linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%)',
           color: '#f8fafc',
           padding: '64px',
           textAlign: 'center'
@@ -35,9 +35,9 @@ export function generateSharedOgImage() {
           <img
             src={logoDataUrl}
             alt=""
-            width={140}
-            height={140}
-            style={{ borderRadius: '24px', marginBottom: '32px' }}
+            width={160}
+            height={160}
+            style={{ borderRadius: '28px', marginBottom: '36px' }}
           />
         )}
         <div style={{ fontSize: 64, fontWeight: 800, lineHeight: 1.1 }}>
@@ -45,9 +45,9 @@ export function generateSharedOgImage() {
         </div>
         <div
           style={{
-            marginTop: '24px',
+            marginTop: '28px',
             fontSize: 32,
-            color: '#94a3b8',
+            color: '#cbd5e1',
             maxWidth: '900px',
             lineHeight: 1.4
           }}

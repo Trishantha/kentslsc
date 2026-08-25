@@ -1,8 +1,11 @@
+import type { Metadata } from 'next';
 import BlockRenderer from '@/components/blocks/BlockRenderer';
 import type { HeroBlock, PageBlock } from '@kentslsc/shared';
 import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
 import { getTranslations } from 'next-intl/server';
 import HomePageContent from './HomePageContent';
+
+const FALLBACK_OG_IMAGE = '/opengraph-image';
 
 // Render the home page dynamically so hero-config changes are visible immediately
 // after saving in the admin dashboard.
@@ -40,6 +43,33 @@ async function fetchHeroConfig(): Promise<HeroConfig | null> {
     return null;
   }
   return (await result.response.json()) as HeroConfig;
+}
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'home' });
+  const heroConfig = await fetchHeroConfig();
+  const image = heroConfig?.imageUrl ?? FALLBACK_OG_IMAGE;
+
+  return {
+    title: t('title'),
+    description: t('subtitle'),
+    openGraph: {
+      title: t('title'),
+      description: t('subtitle'),
+      images: [image]
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: t('title'),
+      description: t('subtitle'),
+      images: [image]
+    }
+  };
 }
 
 function mergeHeroConfigIntoBlocks(
