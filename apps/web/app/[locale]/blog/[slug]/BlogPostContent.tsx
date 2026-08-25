@@ -86,13 +86,13 @@ export default function BlogPostContent({ post }: Props) {
           </div>
 
           {post.tags && post.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-1.5">
               {post.tags.map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() => navigateToTag(tag)}
-                  className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-slate-400 transition-colors hover:bg-neon-blue/10 hover:text-neon-blue"
+                  className="rounded-full bg-neon-blue/10 px-2 py-0.5 text-xs font-medium text-neon-blue transition-colors hover:bg-neon-blue/20"
                 >
                   {tag}
                 </button>

@@ -115,7 +115,7 @@ export default function BlogPage() {
                       </p>
                     ) : null}
                     {post.tags && post.tags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-1.5">
                         {post.tags.slice(0, 4).map((tag) => (
                           <button
                             key={tag}
@@ -125,7 +125,7 @@ export default function BlogPage() {
                               e.stopPropagation();
                               navigateToTag(tag);
                             }}
-                            className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-neon-blue/10 hover:text-neon-blue dark:bg-white/10 dark:text-slate-400"
+                            className="rounded-full bg-neon-blue/10 px-2 py-0.5 text-xs font-medium text-neon-blue transition-colors hover:bg-neon-blue/20"
                           >
                             {tag}
                           </button>
