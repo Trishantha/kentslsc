@@ -9,10 +9,12 @@
     "dev:turbo": "rm -rf .next && NODE_OPTIONS='--max-old-space-size=2560' PORT=${PORT:-3000} next dev --turbo",
     "build": "NODE_OPTIONS='--max-old-space-size=2560' next build && node ../../scripts/write-build-info.js .next",
     "build:clean": "rm -rf .next && NODE_OPTIONS='--max-old-space-size=2560' next build && node ../../scripts/write-build-info.js .next",
-    "clean": "rm -rf .next .turbo",
+    "clean": "rm -rf .next .turbo public/tinymce",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "copy:tinymce": "rm -rf public/tinymce && cp -RL node_modules/tinymce public/tinymce",
+    "postinstall": "pnpm copy:tinymce"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -24,6 +26,7 @@
     "@stripe/react-stripe-js": "^6.8.1",
     "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-query": "^5.101.4",
+    "@tinymce/tinymce-react": "^6.3.0",
     "axios": "^1.19.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
@@ -41,6 +44,7 @@
     "sanitize-html": "^2.17.7",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
+    "tinymce": "^8.8.2",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },

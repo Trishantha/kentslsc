@@ -17,5 +17,5 @@ export default defineConfig([
       'react-hooks/refs': 'off',
     },
   },
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'public/tinymce/**']),
 ]);

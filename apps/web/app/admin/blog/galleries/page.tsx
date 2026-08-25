@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Loader2, Images, Eye } from 'lucide-react';
+import { Plus, Loader2, Images, Upload, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
@@ -64,7 +64,7 @@ export default function AdminGalleriesPage() {
                         <Images className="h-4 w-4 text-neon-purple" />
                         <div>
                           <Link
-                            href={`/admin/blog/galleries/${gallery.id}/content`}
+                            href={`/admin/blog/galleries/${gallery.id}/photos`}
                             className="font-medium hover:text-neon-blue"
                           >
                             {gallery.title}
@@ -90,13 +90,20 @@ export default function AdminGalleriesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <Link
-                          href={`/admin/blog/galleries/${gallery.id}/content`}
+                          href={`/admin/blog/galleries/${gallery.id}/photos`}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-1.5 text-neon-blue hover:bg-neon-blue/20"
                         >
-                          <Eye className="h-4 w-4" />
-                          View
+                          <Upload className="h-4 w-4" />
+                          Upload photos
+                        </Link>
+                        <Link
+                          href={`/admin/blog/galleries/${gallery.id}/content`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium hover:bg-white/10"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
                         </Link>
                       </div>
                     </td>

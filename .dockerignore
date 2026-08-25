@@ -29,3 +29,6 @@ apps/web/.next/cache/**
 apps/api/dist
 apps/web/dist
 packages/*/dist
+
+apps/web/public/tinymce
+**/public/tinymce

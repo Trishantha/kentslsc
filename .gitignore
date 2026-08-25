@@ -32,3 +32,8 @@ Thumbs.db
 /apps/api/public/uploads
 /public/cards
 /public/uploads
+
+# Self-hosted TinyMCE assets (copied from node_modules on install)
+/public/tinymce
+apps/web/public/tinymce
+**/public/tinymce
