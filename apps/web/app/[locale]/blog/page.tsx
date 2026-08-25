@@ -5,6 +5,7 @@ import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { stripRichText } from '@/lib/rich-text';
 
 interface BlogPost {
   id: string;
@@ -63,8 +64,10 @@ export default function BlogPage() {
                 )}
                 <div className="flex-1">
                   <h3 className="text-xl font-bold">{post.title}</h3>
-                  {(post.aiTldr ?? post.metaDescription) ? (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{post.aiTldr ?? post.metaDescription}</p>
+                  {post.metaDescription || post.aiTldr ? (
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                      {stripRichText(post.metaDescription || post.aiTldr)}
+                    </p>
                   ) : null}
                   {post.tags && post.tags.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
