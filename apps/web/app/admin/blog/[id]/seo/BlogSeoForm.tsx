@@ -10,7 +10,8 @@ import { api } from '@/lib/api';
 import type { AdminBlogPost } from '../../types';
 
 const seoSchema = z.object({
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and hyphens only')
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and hyphens only'),
+  metaDescription: z.string().max(160).optional().or(z.literal(''))
 });
 
 type SeoForm = z.infer<typeof seoSchema>;
@@ -22,18 +23,21 @@ interface BlogSeoFormProps {
 
 export function BlogSeoForm({ post, postId }: BlogSeoFormProps) {
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<SeoForm>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<SeoForm>({
     resolver: zodResolver(seoSchema),
-    defaultValues: { slug: post.slug }
+    defaultValues: { slug: post.slug, metaDescription: post.metaDescription ?? '' }
   });
 
   useEffect(() => {
-    reset({ slug: post.slug });
+    reset({ slug: post.slug, metaDescription: post.metaDescription ?? '' });
   }, [post, reset]);
 
   const updateMutation = useMutation({
     mutationFn: async (values: SeoForm) => {
-      const res = await api.put(`/admin/blog/posts/${postId}`, values);
+      const res = await api.put(`/admin/blog/posts/${postId}`, {
+        slug: values.slug,
+        metaDescription: values.metaDescription
+      });
       return res.data;
     },
     onSuccess: () => {
@@ -42,7 +46,7 @@ export function BlogSeoForm({ post, postId }: BlogSeoFormProps) {
     }
   });
 
-  const publicUrl = `/blog/${post.slug}`;
+  const publicUrl = `/blog/${watch('slug') ?? post.slug}`;
 
   return (
     <form
@@ -58,19 +62,28 @@ export function BlogSeoForm({ post, postId }: BlogSeoFormProps) {
         {errors.slug && <p className="mt-1 text-xs text-red-400">{errors.slug.message}</p>}
       </div>
 
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+          Meta description
+          <span className="ml-2 text-xs font-normal text-slate-500">{watch('metaDescription')?.length ?? 0}/160</span>
+        </label>
+        <textarea
+          {...register('metaDescription')}
+          rows={3}
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+        />
+        {errors.metaDescription && <p className="mt-1 text-xs text-red-400">{errors.metaDescription.message}</p>}
+        <p className="mt-1 text-xs text-slate-500">
+          Used for search engines and social sharing. Leave blank to fall back to the AI summary or content excerpt.
+        </p>
+      </div>
+
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Globe className="h-4 w-4" />
           <span>Public URL preview</span>
         </div>
         <p className="mt-1 break-all text-sm text-neon-blue">{publicUrl}</p>
-      </div>
-
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-        <p className="text-sm text-amber-400">
-          Meta title and meta description fields are not currently available in the blog model.
-          The public page uses the post title and an AI-generated summary (or the first part of the content) for SEO.
-        </p>
       </div>
 
       <div className="flex gap-3 pt-2">

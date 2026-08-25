@@ -19,11 +19,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await fetchPost(slug);
   if (!post) return {};
   const fallback = summarizeRichText(post.content, 160);
-  const description = (post.aiTldr ?? fallback) || undefined;
+  const description = post.metaDescription || post.aiTldr || fallback || undefined;
   const image = post.imageUrl ?? '/opengraph-image';
+  const keywords = post.tags?.length ? post.tags : undefined;
   return {
     title: post.title,
     description,
+    keywords,
     openGraph: {
       title: post.title,
       description,
@@ -54,7 +56,7 @@ export default async function BlogPostPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: post.title,
-    description: post.aiTldr ?? summarizeRichText(post.content, 160),
+    description: post.metaDescription ?? post.aiTldr ?? summarizeRichText(post.content, 160),
     image: post.imageUrl ?? `${baseUrl}/opengraph-image`,
     datePublished: post.publishedAt ?? post.createdAt,
     dateModified: post.updatedAt ?? post.createdAt,

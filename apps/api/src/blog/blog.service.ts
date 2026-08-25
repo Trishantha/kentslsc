@@ -3,6 +3,34 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import type { BlogPostInput } from '@kentslsc/shared';
 
+const PUBLIC_POST_INCLUDE = {
+  author: { select: { id: true, name: true } },
+  gallery: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      photos: { orderBy: { sortOrder: 'asc' as const } }
+    }
+  }
+} as const;
+
+const ADMIN_POST_INCLUDE = {
+  author: { select: { id: true, name: true } },
+  gallery: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      eventDate: true,
+      isPublished: true,
+      photos: { orderBy: { sortOrder: 'asc' as const } }
+    }
+  }
+} as const;
+
 @Injectable()
 export class BlogService {
   private readonly logger = new Logger(BlogService.name);
@@ -21,6 +49,8 @@ export class BlogService {
         title: true,
         slug: true,
         imageUrl: true,
+        metaDescription: true,
+        tags: true,
         aiTldr: true,
         publishedAt: true,
         createdAt: true
@@ -32,7 +62,7 @@ export class BlogService {
   async findBySlug(slug: string) {
     const item = await this.prisma.blogPost.findUnique({
       where: { slug, deletedAt: null },
-      include: { author: { select: { id: true, name: true } } }
+      include: PUBLIC_POST_INCLUDE
     });
     if (!item) throw new NotFoundException('Blog post not found');
     if (!item.isPublished) throw new NotFoundException('Blog post not found');
@@ -43,7 +73,7 @@ export class BlogService {
     const items = await this.prisma.blogPost.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: 'desc' },
-      include: { author: { select: { id: true, name: true } } }
+      include: ADMIN_POST_INCLUDE
     });
     return items;
   }
@@ -51,7 +81,7 @@ export class BlogService {
   async findAdminById(id: string) {
     const item = await this.prisma.blogPost.findUnique({
       where: { id, deletedAt: null },
-      include: { author: { select: { id: true, name: true } } }
+      include: ADMIN_POST_INCLUDE
     });
     if (!item) throw new NotFoundException('Blog post not found');
     return item;
@@ -65,12 +95,15 @@ export class BlogService {
         slug: data.slug,
         content: data.content,
         imageUrl: data.imageUrl,
+        metaDescription: data.metaDescription,
+        tags: data.tags ?? [],
+        galleryId: data.galleryId || null,
         authorUserId,
         isPublished: data.isPublished ?? false,
         publishedAt,
         aiTldr: null
       },
-      include: { author: { select: { id: true, name: true } } }
+      include: ADMIN_POST_INCLUDE
     });
 
     if (data.isPublished && data.content?.trim()) {
@@ -102,10 +135,13 @@ export class BlogService {
         ...(data.slug !== undefined && { slug: data.slug }),
         ...(data.content !== undefined && { content: data.content }),
         ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
+        ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription }),
+        ...(data.tags !== undefined && { tags: data.tags ?? [] }),
+        ...(data.galleryId !== undefined && { galleryId: data.galleryId || null }),
         ...(data.isPublished !== undefined && { isPublished: data.isPublished }),
         ...(publishedAt !== undefined && { publishedAt })
       },
-      include: { author: { select: { id: true, name: true } } }
+      include: ADMIN_POST_INCLUDE
     });
 
     if (willPublish || data.isPublished === true) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,15 +17,33 @@ const blogSchema = z.object({
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and hyphens only'),
   content: z.string().refine((value) => hasRichTextContent(value), 'Content is required'),
   imageUrl: z.string().url().optional().or(z.literal('')),
+  metaDescription: z.string().max(160).optional().or(z.literal('')),
+  tags: z.string().optional(),
+  galleryId: z.string().optional().or(z.literal('')),
   publishedAt: z.string().optional(),
   isPublished: z.boolean().default(false)
 });
 
 type BlogForm = z.infer<typeof blogSchema>;
 
+function parseTags(value: string): string[] {
+  return value
+    .split(/[,\n]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 export default function NewBlogPostPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: galleries = [] } = useQuery({
+    queryKey: ['admin', 'galleries'],
+    queryFn: async () => {
+      const res = await api.get('/galleries/admin/all');
+      return res.data as { id: string; title: string; slug: string }[];
+    }
+  });
+
   const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BlogForm>({
     resolver: zodResolver(blogSchema),
     defaultValues: {
@@ -33,6 +51,9 @@ export default function NewBlogPostPage() {
       slug: '',
       content: '',
       imageUrl: '',
+      metaDescription: '',
+      tags: '',
+      galleryId: '',
       publishedAt: '',
       isPublished: false
     }
@@ -43,6 +64,9 @@ export default function NewBlogPostPage() {
       const res = await api.post('/admin/blog/posts', {
         ...values,
         imageUrl: values.imageUrl || undefined,
+        metaDescription: values.metaDescription || undefined,
+        tags: parseTags(values.tags ?? ''),
+        galleryId: values.galleryId || '',
         publishedAt: values.publishedAt || undefined
       });
       return res.data as { id: string };
@@ -103,11 +127,58 @@ export default function NewBlogPostPage() {
           </div>
 
           <ImageUpload
-            label="Image"
+            label="Featured image"
             value={watch('imageUrl')}
             onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
             hideUrlInput
           />
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              Meta description
+              <span className="ml-2 text-xs font-normal text-slate-500">{watch('metaDescription')?.length ?? 0}/160</span>
+            </label>
+            <textarea
+              {...register('metaDescription')}
+              rows={3}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.metaDescription && <p className="mt-1 text-xs text-red-400">{errors.metaDescription.message}</p>}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Tags</label>
+            <input
+              {...register('tags')}
+              placeholder="e.g. KSLSC, community, culture"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            <p className="mt-1 text-xs text-slate-500">Comma-separated tags used for SEO and internal links.</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Photo gallery</label>
+            <div className="flex gap-2">
+              <select
+                {...register('galleryId')}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+              >
+                <option value="">No gallery</option>
+                {galleries.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title} (/{g.slug})
+                  </option>
+                ))}
+              </select>
+              <Link
+                href="/admin/blog/galleries/new"
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium hover:bg-white/10"
+              >
+                <Plus className="h-4 w-4" />
+                New
+              </Link>
+            </div>
+          </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Published at</label>

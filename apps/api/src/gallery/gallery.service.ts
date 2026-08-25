@@ -78,16 +78,18 @@ export class GalleryService {
   async update(id: string, data: UpdateGalleryDto) {
     const existing = await this.findAdminById(id);
 
-    if (data.photos !== undefined) {
-      const removedPaths = existing.photos
+    // Determine which previously-stored photo paths are no longer present so
+    // we can clean up storage only for genuinely removed files. Reordered or
+    // recaptioned photos keep their original path, so we must not delete them.
+    const retainedPaths = new Set(
+      (data.photos ?? [])
         .map((p) => p.path)
-        .filter((p): p is string => Boolean(p));
-      for (const path of removedPaths) {
-        await this.supabase.delete(path).catch((e) =>
-          this.logger.warn(`Failed to delete old gallery photo ${path}: ${String(e)}`)
-        );
-      }
-    }
+        .filter((p): p is string => Boolean(p))
+    );
+    const removedPaths = existing.photos
+      .map((p) => p.path)
+      .filter((p): p is string => Boolean(p))
+      .filter((p) => !retainedPaths.has(p));
 
     const item = await this.prisma.eventGallery.update({
       where: { id },
@@ -106,6 +108,15 @@ export class GalleryService {
       },
       include: ADMIN_GALLERY_INCLUDE
     });
+
+    // Storage cleanup happens after the DB update succeeds. Failures are logged
+    // but do not roll back the saved gallery state.
+    for (const path of removedPaths) {
+      await this.supabase.delete(path).catch((e) =>
+        this.logger.warn(`Failed to delete removed gallery photo ${path}: ${String(e)}`)
+      );
+    }
+
     return this.toAdminResponse(item);
   }
 

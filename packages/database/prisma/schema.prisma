@@ -749,20 +749,24 @@ model FundraiserPhoto {
 }
 
 model BlogPost {
-  id            String    @id @default(uuid())
-  title         String
-  slug          String    @unique
-  content       String
-  authorUserId  String    @map("author_user_id")
-  publishedAt  DateTime? @map("published_at")
-  isPublished   Boolean   @default(false) @map("is_published")
-  imageUrl      String?   @map("image_url")
-  aiTldr        String?   @map("ai_tldr")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  id              String    @id @default(uuid())
+  title           String
+  slug            String    @unique
+  content         String
+  authorUserId    String    @map("author_user_id")
+  publishedAt     DateTime? @map("published_at")
+  isPublished     Boolean   @default(false) @map("is_published")
+  imageUrl        String?   @map("image_url")
+  metaDescription String?   @map("meta_description")
+  tags            String[]  @default([])
+  galleryId       String?   @unique @map("gallery_id") @db.Text
+  aiTldr          String?   @map("ai_tldr")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
-  author User @relation(fields: [authorUserId], references: [id], name: "AuthorBlogPosts")
+  author  User          @relation(fields: [authorUserId], references: [id], name: "AuthorBlogPosts")
+  gallery EventGallery? @relation(fields: [galleryId], references: [id], onDelete: SetNull)
 
   @@index([slug])
   @@index([isPublished])
@@ -781,7 +785,8 @@ model EventGallery {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
 
-  photos EventGalleryPhoto[]
+  photos    EventGalleryPhoto[]
+  blogPost  BlogPost?
 
   @@index([slug])
   @@index([isPublished])

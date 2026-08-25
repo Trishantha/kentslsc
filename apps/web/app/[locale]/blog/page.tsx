@@ -11,6 +11,8 @@ interface BlogPost {
   title: string;
   slug: string;
   imageUrl?: string;
+  metaDescription?: string;
+  tags?: string[];
   aiTldr?: string;
   publishedAt: string;
   createdAt: string;
@@ -61,9 +63,21 @@ export default function BlogPage() {
                 )}
                 <div className="flex-1">
                   <h3 className="text-xl font-bold">{post.title}</h3>
-                  {post.aiTldr ? (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{post.aiTldr}</p>
+                  {(post.aiTldr ?? post.metaDescription) ? (
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{post.aiTldr ?? post.metaDescription}</p>
                   ) : null}
+                  {post.tags && post.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {post.tags.slice(0, 4).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-slate-500"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <span className="mt-4 inline-block text-xs text-slate-500">
                     {post.publishedAt
                       ? formatDate(post.publishedAt)

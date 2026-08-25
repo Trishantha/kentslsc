@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, Newspaper, Calendar } from 'lucide-react';
+import { ArrowLeft, Newspaper, Calendar, Images } from 'lucide-react';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { notFound } from 'next/navigation';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
@@ -18,6 +18,7 @@ async function getBlogPost(id: string): Promise<AdminBlogPost | null> {
 const tabs = [
   { href: 'content', label: 'Content', icon: FileText },
   { href: 'seo', label: 'SEO', icon: Search },
+  { href: 'gallery', label: 'Gallery', icon: Images },
   { href: 'preview', label: 'Preview', icon: Eye }
 ];
 

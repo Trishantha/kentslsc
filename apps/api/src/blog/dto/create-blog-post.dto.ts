@@ -1,5 +1,5 @@
-import { IsBoolean, IsDate, IsOptional, IsString, IsUrl, Matches, MinLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsDate, IsOptional, IsString, IsUrl, IsUUID, Matches, MinLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateBlogPostDto {
   @IsString()
@@ -18,6 +18,20 @@ export class CreateBlogPostDto {
   @IsOptional()
   @IsUrl()
   declare imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  declare metaDescription?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  declare tags?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  @Transform(({ value }) => (value ? value : null))
+  declare galleryId?: string;
 
   @IsOptional()
   @IsDate()
