@@ -17,8 +17,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="dark"
+      enableSystem={false}
       storageKey="kentslsc-theme"
       disableTransitionOnChange
       enableColorScheme={false}

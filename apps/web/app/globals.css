@@ -19,6 +19,75 @@
   --color-slate-950: #020617;
   --shadow-neon: 0 0 20px rgba(0, 184, 148, 0.35);
   --shadow-gold: 0 0 20px rgba(255, 215, 0, 0.35);
+
+  /* Theme-aware subtle surfaces for consistent light/dark cards and panels */
+  --surface-subtle: rgba(241, 245, 249, 0.9);
+  --surface-subtle-strong: rgba(226, 232, 240, 0.95);
+  --surface-solid: #ffffff;
+  --border-subtle: rgb(203, 213, 225);
+  --border-subtle-strong: rgb(148, 163, 184);
+  --text-heading: rgb(15, 23, 42);
+  --text-body: rgb(51, 65, 85);
+  --text-muted: rgb(71, 85, 105);
+}
+
+.dark {
+  --surface-subtle: rgba(255, 255, 255, 0.05);
+  --surface-subtle-strong: rgba(255, 255, 255, 0.1);
+  --surface-solid: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-subtle-strong: rgba(255, 255, 255, 0.2);
+  --text-heading: rgb(248, 250, 252);
+  --text-body: rgb(226, 232, 240);
+  --text-muted: rgb(148, 163, 184);
+}
+
+/* Make Tailwind's translucent-white utilities theme-aware so every card/panel
+   using bg-white/5, bg-white/10, border-white/10 etc. stays consistent. */
+.bg-white\/5,
+.hover\:bg-white\/5:hover {
+  background-color: var(--surface-subtle);
+}
+
+.bg-white\/10,
+.hover\:bg-white\/10:hover {
+  background-color: var(--surface-subtle-strong);
+}
+
+.border-white\/10 {
+  border-color: var(--border-subtle);
+}
+
+.border-white\/20 {
+  border-color: var(--border-subtle-strong);
+}
+
+.bg-white\/20,
+.hover\:bg-white\/20:hover {
+  background-color: var(--surface-solid);
+}
+
+.dark .bg-white\/20,
+.dark .hover\:bg-white\/20:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .bg-white\/5,
+.dark .hover\:bg-white\/5:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark .bg-white\/10,
+.dark .hover\:bg-white\/10:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 html {
@@ -47,11 +116,12 @@ select option {
 
 @layer components {
   .glass {
-    @apply bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl;
+    @apply bg-slate-100/90 backdrop-blur-lg border border-slate-300 shadow-md;
   }
 
   .dark .glass {
-    @apply bg-black/30 border-white/10;
+    background-color: rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   .glass-card {
@@ -71,7 +141,7 @@ select option {
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-xl border border-neon-gold/50 bg-gradient-to-r from-neon-gold/20 to-amber-500/20 px-6 py-3 font-semibold text-amber-700 transition-transform hover:scale-105 active:scale-95 dark:text-neon-gold;
+    @apply inline-flex items-center justify-center rounded-xl border border-amber-500 bg-gradient-to-r from-amber-100/60 to-amber-200/60 px-6 py-3 font-semibold text-amber-900 transition-transform hover:scale-105 active:scale-95 dark:border-neon-gold/50 dark:from-neon-gold/20 dark:to-amber-500/20 dark:text-neon-gold;
   }
 
   .section-title {

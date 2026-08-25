@@ -69,8 +69,8 @@ export default function AddToCalendar({ event, className, variant = 'default' }:
         className={cn(
           'flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition',
           variant === 'default'
-            ? 'bg-white/10 text-slate-200 hover:bg-white/20'
-            : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+            ? 'bg-white/10 text-slate-700 hover:bg-white/20 dark:text-slate-200'
+            : 'border border-white/10 bg-white/5 text-slate-600 hover:bg-white/10 dark:text-slate-300'
         )}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -90,7 +90,7 @@ export default function AddToCalendar({ event, className, variant = 'default' }:
                 option.onClick();
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/10"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-white/10 dark:text-slate-200"
             >
               {option.icon && <option.icon className="h-4 w-4 text-neon-blue" />}
               <span>{option.label}</span>

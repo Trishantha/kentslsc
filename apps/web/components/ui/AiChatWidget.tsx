@@ -45,7 +45,7 @@ export function AiChatWidget() {
                     'max-w-[80%] rounded-xl px-3 py-2 text-sm',
                     m.role === 'user'
                       ? 'ml-auto bg-neon-blue text-white'
-                      : 'bg-white/20 dark:bg-black/20'
+                      : 'bg-white/20 text-slate-700 dark:bg-black/20 dark:text-slate-200'
                   )}
                 >
                   {m.text}

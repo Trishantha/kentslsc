@@ -91,7 +91,7 @@ export default function PurchasesPage() {
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === tab.key
                     ? 'bg-neon-blue text-white'
-                    : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                    : 'bg-white/5 text-slate-600 hover:bg-white/10 dark:text-slate-300'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -117,7 +117,7 @@ export default function PurchasesPage() {
             <Link
               key={payment.id}
               href={getHref(payment)}
-              className="block rounded-2xl border border-white/10 bg-white/5 p-5 transition-colors hover:bg-white/[0.07]"
+              className="block rounded-2xl border border-white/10 bg-white/5 p-5 transition-colors hover:bg-white/10"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
