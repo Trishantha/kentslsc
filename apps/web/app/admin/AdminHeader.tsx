@@ -24,7 +24,6 @@ export function AdminHeader({ onMenuOpen }: AdminHeaderProps) {
               alt="Kent SLSC logo"
               width={40}
               height={40}
-              priority
               className="h-full w-full object-contain"
             />
           </span>

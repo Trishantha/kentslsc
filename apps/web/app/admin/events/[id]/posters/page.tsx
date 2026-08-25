@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, use, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, X, GripVertical, Loader2, Save } from 'lucide-react';
@@ -14,12 +15,9 @@ interface PosterImage {
   caption?: string;
 }
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function EventPostersPage({ params }: Props) {
-  const { id: eventId } = use(params);
+export default function EventPostersPage() {
+  const params = useParams<{ id: string }>();
+  const { id: eventId } = params;
   const queryClient = useQueryClient();
 
   const { data: event } = useQuery<AdminEvent>({

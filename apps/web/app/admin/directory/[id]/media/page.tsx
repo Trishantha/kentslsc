@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, ImageIcon, X } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -8,12 +9,9 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { cn } from '@/lib/utils';
 import type { AdminBusiness } from '../../types';
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function DirectoryMediaPage({ params }: Props) {
-  const { id: businessId } = use(params);
+export default function DirectoryMediaPage() {
+  const params = useParams<{ id: string }>();
+  const { id: businessId } = params;
   const queryClient = useQueryClient();
 
   const { data: business, isLoading } = useQuery<AdminBusiness>({

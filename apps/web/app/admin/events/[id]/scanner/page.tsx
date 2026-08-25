@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Loader2,
@@ -39,12 +40,9 @@ interface TicketPreview {
   };
 }
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function EventScannerPage({ params }: Props) {
-  const { id: eventId } = use(params);
+export default function EventScannerPage() {
+  const params = useParams<{ id: string }>();
+  const { id: eventId } = params;
   const [manualCode, setManualCode] = useState('');
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
 

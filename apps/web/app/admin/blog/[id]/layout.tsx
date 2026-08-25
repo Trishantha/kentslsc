@@ -41,7 +41,7 @@ export default async function BlogDetailLayout({ children, params }: BlogDetailL
             <h1 className="section-title">{post.title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <Newspaper className="h-3.5 w-3.5" />
-              <span>{post.author.name}</span>
+              <span>{post.author?.name ?? 'Unknown author'}</span>
               <span>·</span>
               <Calendar className="h-3.5 w-3.5" />
               <span>

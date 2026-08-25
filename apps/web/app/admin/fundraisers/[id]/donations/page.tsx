@@ -1,13 +1,10 @@
 'use client';
 
-import { use } from 'react';
+import { useParams } from 'next/navigation';
 import { FundraiserDonations } from './FundraiserDonations';
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function FundraiserDonationsPage({ params }: Props) {
-  const { id } = use(params);
+export default function FundraiserDonationsPage() {
+  const params = useParams<{ id: string }>();
+  const { id } = params;
   return <FundraiserDonations fundraiserId={id} />;
 }

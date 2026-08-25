@@ -1,14 +1,15 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Loader2, Newspaper, Eye } from 'lucide-react';
+import { Plus, Loader2, Newspaper, Eye, Trash2, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import type { AdminBlogPost } from './types';
 
 export default function AdminBlogPage() {
+  const queryClient = useQueryClient();
   const { data: posts, isLoading, error } = useQuery<AdminBlogPost[]>({
     queryKey: ['admin', 'blog'],
     queryFn: async () => {
@@ -16,6 +17,39 @@ export default function AdminBlogPage() {
       return res.data;
     }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/admin/blog/posts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] });
+    }
+  });
+
+  const togglePublishMutation = useMutation({
+    mutationFn: async ({ id, isPublished }: { id: string; isPublished: boolean }) => {
+      const res = await api.put(`/admin/blog/posts/${id}`, { isPublished });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] });
+    }
+  });
+
+  const handleDelete = (post: AdminBlogPost) => {
+    if (confirm(`Are you sure you want to delete "${post.title}"?`)) {
+      deleteMutation.mutate(post.id);
+    }
+  };
+
+  const handleTogglePublish = (post: AdminBlogPost) => {
+    const next = !post.isPublished;
+    const action = next ? 'publish' : 'unpublish';
+    if (confirm(`${next ? 'Publish' : 'Unpublish'} "${post.title}"?`)) {
+      togglePublishMutation.mutate({ id: post.id, isPublished: next });
+    }
+  };
 
   return (
     <AdminListLayout
@@ -88,14 +122,43 @@ export default function AdminBlogPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublish(post)}
+                          disabled={togglePublishMutation.isPending}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-500/10 px-3 py-1.5 text-slate-400 hover:bg-slate-500/20 disabled:opacity-50"
+                          title={post.isPublished ? 'Unpublish' : 'Publish'}
+                        >
+                          {post.isPublished ? (
+                            <>
+                              <EyeOff className="h-4 w-4" />
+                              <span className="hidden sm:inline">Unpublish</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4" />
+                              <span className="hidden sm:inline">Publish</span>
+                            </>
+                          )}
+                        </button>
                         <Link
                           href={`/admin/blog/${post.id}/content`}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-1.5 text-neon-blue hover:bg-neon-blue/20"
                         >
                           <Eye className="h-4 w-4" />
-                          View
+                          <span className="hidden sm:inline">View</span>
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(post)}
+                          disabled={deleteMutation.isPending}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Delete</span>
+                        </button>
                       </div>
                     </td>
                   </motion.tr>

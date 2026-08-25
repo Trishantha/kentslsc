@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, QrCode, TicketCheck, TicketX, Search, Download } from 'lucide-react';
@@ -18,12 +19,9 @@ interface TicketRow {
   user: { id: string; name: string; email: string };
 }
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
-export default function EventTicketsPage({ params }: Props) {
-  const { id: eventId } = use(params);
+export default function EventTicketsPage() {
+  const params = useParams<{ id: string }>();
+  const { id: eventId } = params;
   const queryClient = useQueryClient();
   const [quantity, setQuantity] = useState(1);
   const [prefix, setPrefix] = useState('');

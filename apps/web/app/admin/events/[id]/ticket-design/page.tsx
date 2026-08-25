@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Ticket } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -17,10 +18,6 @@ interface TicketDesign {
   layout?: 'standard' | 'compact';
 }
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
-
 const defaultDesign: TicketDesign = {
   primaryColor: '#0ea5e9',
   secondaryColor: '#1e293b',
@@ -28,8 +25,9 @@ const defaultDesign: TicketDesign = {
   footerText: 'Kent Sri Lankan Social Club'
 };
 
-export default function EventTicketDesignPage({ params }: Props) {
-  const { id: eventId } = use(params);
+export default function EventTicketDesignPage() {
+  const params = useParams<{ id: string }>();
+  const { id: eventId } = params;
   const queryClient = useQueryClient();
 
   const { data: event } = useQuery<AdminEvent>({

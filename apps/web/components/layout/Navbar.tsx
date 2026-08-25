@@ -69,7 +69,6 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               alt={t('logoAlt')}
               width={compact ? 44 : 144}
               height={compact ? 44 : 144}
-              priority
               className={cn(
                 'max-w-none rounded-full object-contain transition-all duration-300',
                 compact ? 'h-11 w-11' : 'h-32 w-32 md:h-36 md:w-36'
@@ -192,7 +191,6 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
                 src="/logo.png"
                 alt={t('logoAlt')}
                 fill
-                priority
                 sizes="132px"
                 className="rounded-full object-contain transition-all duration-300"
               />
@@ -213,7 +211,6 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
                   src="/logo.png"
                   alt={t('logoAlt')}
                   fill
-                  priority
                   sizes="44px"
                   className="max-w-none rounded-full object-contain transition-all duration-300"
                 />
