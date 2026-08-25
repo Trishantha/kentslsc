@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
-import { summarizeRichText } from '@/lib/rich-text';
+import { stripRichText, summarizeRichText } from '@/lib/rich-text';
 import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await fetchPost(slug);
   if (!post) return {};
   const fallback = summarizeRichText(post.content, 160);
-  const description = post.metaDescription || post.aiTldr || fallback || undefined;
+  const description = post.metaDescription || stripRichText(post.aiTldr) || fallback || undefined;
   const image = post.imageUrl ?? '/opengraph-image';
   const keywords = post.tags?.length ? post.tags : undefined;
   return {
@@ -56,7 +56,7 @@ export default async function BlogPostPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: post.title,
-    description: post.metaDescription ?? post.aiTldr ?? summarizeRichText(post.content, 160),
+    description: post.metaDescription ?? stripRichText(post.aiTldr) ?? summarizeRichText(post.content, 160),
     image: post.imageUrl ?? `${baseUrl}/opengraph-image`,
     datePublished: post.publishedAt ?? post.createdAt,
     dateModified: post.updatedAt ?? post.createdAt,

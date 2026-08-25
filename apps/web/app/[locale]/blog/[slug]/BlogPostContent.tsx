@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { formatDate } from '@/lib/utils';
+import { stripRichText } from '@/lib/rich-text';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 
 interface Author {
@@ -92,7 +94,9 @@ export default function BlogPostContent({ post }: Props) {
           {post.aiTldr && (
             <div className="mt-6 rounded-xl border border-neon-blue/20 bg-neon-blue/5 p-4 dark:bg-neon-blue/10">
               <p className="text-sm font-semibold text-neon-blue">{t('aiTldr')}</p>
-              <p className="mt-1 text-slate-700 dark:text-slate-300">{post.aiTldr}</p>
+              <p className="mt-1 text-slate-700 dark:text-slate-300">
+                {stripRichText(post.aiTldr)}
+              </p>
             </div>
           )}
 
@@ -108,26 +112,11 @@ export default function BlogPostContent({ post }: Props) {
               {photos.length > 0 ? (
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {photos.map((photo) => (
-                    <div
+                    <PhotoCard
                       key={photo.id}
-                      className="group relative overflow-hidden rounded-xl border border-white/10 bg-slate-800"
-                    >
-                      <div className="aspect-[4/3]">
-                        <Image
-                          src={photo.url}
-                          alt={photo.caption || post.gallery!.title}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          className="object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                      {photo.caption && (
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                          <p className="text-xs text-white">{photo.caption}</p>
-                        </div>
-                      )}
-                    </div>
+                      photo={photo}
+                      galleryTitle={post.gallery!.title}
+                    />
                   ))}
                 </div>
               ) : (
@@ -137,6 +126,42 @@ export default function BlogPostContent({ post }: Props) {
           )}
         </article>
       </div>
+    </div>
+  );
+}
+
+interface PhotoCardProps {
+  photo: GalleryPhoto;
+  galleryTitle: string;
+}
+
+function PhotoCard({ photo, galleryTitle }: PhotoCardProps) {
+  const [error, setError] = useState(false);
+  const alt = photo.caption || galleryTitle;
+
+  return (
+    <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+      <div className="relative aspect-[4/3]">
+        {photo.url && !error ? (
+          <img
+            src={photo.url}
+            alt={alt}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+            onError={() => setError(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-800 p-4 text-center text-slate-400">
+            <span className="text-xs uppercase tracking-wider">Image unavailable</span>
+            <span className="text-xs">{alt}</span>
+          </div>
+        )}
+      </div>
+      {photo.caption && (
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+          <p className="text-xs text-white">{photo.caption}</p>
+        </div>
+      )}
     </div>
   );
 }
