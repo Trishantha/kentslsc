@@ -36,8 +36,7 @@ const PLUGINS = [
   'media',
   'table',
   'help',
-  'wordcount',
-  'hr'
+  'wordcount'
 ];
 
 const TOOLBAR =
