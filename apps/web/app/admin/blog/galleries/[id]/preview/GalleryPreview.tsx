@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import type { AdminGallery } from '../../types';
 
 export function GalleryPreview({ gallery }: { gallery: AdminGallery }) {
@@ -12,8 +13,9 @@ export function GalleryPreview({ gallery }: { gallery: AdminGallery }) {
   const rows = useMemo(() => {
     const result: (typeof photos)[] = [[], [], []];
     photos.forEach((photo, idx) => result[idx % 3]!.push(photo));
-    return result;
+    return result.filter((row) => row.length > 0);
   }, [photos]);
+  const { open, Lightbox } = usePhotoLightbox(photos);
 
   if (photos.length === 0) {
     return (
@@ -44,29 +46,36 @@ export function GalleryPreview({ gallery }: { gallery: AdminGallery }) {
           return (
             <div key={rowIndex} className="relative flex overflow-hidden">
               <div
-                className="flex gap-3"
+                className="flex gap-3 hover:[animation-play-state:paused]"
                 style={{
                   animation: `${animationName} 40s linear infinite`,
                   minWidth: '200%'
                 }}
               >
-                {doubled.map((photo, idx) => (
-                  <div
-                    key={`${photo.id}-${idx}`}
-                    className="relative h-40 w-64 flex-shrink-0 overflow-hidden rounded-lg"
-                  >
-                    <img
-                      src={photo.url}
-                      alt={photo.caption || ''}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                ))}
+                {doubled.map((photo, idx) => {
+                  const originalIndex = (idx % row.length) * rows.length + rowIndex;
+                  return (
+                    <button
+                      key={`${photo.id}-${idx}`}
+                      type="button"
+                      onClick={() => open(originalIndex)}
+                      className="relative h-40 w-64 flex-shrink-0 overflow-hidden rounded-lg text-left"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={photo.caption || ''}
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );
         })}
       </div>
+
+      <Lightbox />
 
       <style jsx>{`
         @keyframes gallery-scroll-left {

@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Save, Trash2, ArrowUp, ArrowDown, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import type { AdminFundraiser, FundraiserPhoto } from '../../types';
 
 interface Props {
@@ -18,6 +19,7 @@ export function FundraiserPhotosManager({ fundraiser, fundraiserId }: Props) {
     fundraiser.photos?.slice().sort((a, b) => a.sortOrder - b.sortOrder) ?? []
   );
   const [saveError, setSaveError] = useState<string | null>(null);
+  const { open, Lightbox } = usePhotoLightbox(photos.map((p) => ({ id: p.id, url: p.url })));
 
   const updateMutation = useMutation({
     mutationFn: async (values: FundraiserPhoto[]) => {
@@ -93,13 +95,28 @@ export function FundraiserPhotosManager({ fundraiser, fundraiserId }: Props) {
               key={photo.id}
               className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5"
             >
-              <img
-                src={photo.url}
-                alt=""
-                className="h-full w-full object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => open(index)}
+                className="h-full w-full cursor-pointer"
+                aria-label="View larger"
+              >
+                <img
+                  src={photo.url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </button>
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                 <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => open(index)}
+                    className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+                    aria-label="View larger"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => movePhoto(index, -1)}
@@ -146,6 +163,8 @@ export function FundraiserPhotosManager({ fundraiser, fundraiserId }: Props) {
         {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save gallery
       </button>
+
+      <Lightbox />
     </div>
   );
 }

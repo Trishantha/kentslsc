@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import { ProgressStats } from '@/components/fundraising/ProgressStats';
 import { DonationForm } from '@/components/fundraising/DonationForm';
 import { DonationList } from '@/components/fundraising/DonationList';
@@ -45,6 +46,12 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   const [activeTab, setActiveTab] = useState<'updates' | 'donations'>('donations');
   const success = searchParams?.get('success');
   const canceled = searchParams?.get('canceled');
+
+  const sortedPhotos = useMemo(
+    () => (fundraiser.photos ? [...fundraiser.photos].sort((a, b) => a.sortOrder - b.sortOrder) : []),
+    [fundraiser.photos]
+  );
+  const { open, Lightbox } = usePhotoLightbox(sortedPhotos);
 
   return (
     <div className="px-4 py-12 md:px-6">
@@ -99,27 +106,24 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
               </div>
             )}
 
-            {fundraiser.photos && fundraiser.photos.length > 0 && (
+            {sortedPhotos.length > 0 && (
               <div className="mt-8">
                 <h2 className="mb-3 text-lg font-semibold">{t('gallery')}</h2>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {fundraiser.photos
-                    .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map((photo) => (
-                      <a
-                        key={photo.id}
-                        href={photo.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group relative aspect-square overflow-hidden rounded-xl border border-slate-100 dark:border-slate-700"
-                      >
-                        <img
-                          src={photo.url}
-                          alt=""
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      </a>
-                    ))}
+                  {sortedPhotos.map((photo, index) => (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      onClick={() => open(index)}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-slate-100 text-left dark:border-slate-700"
+                    >
+                      <img
+                        src={photo.url}
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -173,6 +177,7 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
           </div>
         </div>
       </div>
+      <Lightbox />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { ArrowLeft, Calendar, Images } from 'lucide-react';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 
 interface GalleryPhoto {
   id: string;
@@ -57,6 +58,7 @@ export default function BlogGalleryPage() {
     photos.forEach((photo, idx) => result[idx % 3]!.push(photo));
     return result.filter((row) => row.length > 0);
   }, [photos]);
+  const { open, Lightbox } = usePhotoLightbox(photos);
 
   return (
     <div className="px-4 py-16 md:px-6">
@@ -115,36 +117,43 @@ export default function BlogGalleryPage() {
               return (
                 <div key={rowIndex} className="relative flex overflow-hidden">
                   <div
-                    className="flex gap-4"
+                    className="flex gap-4 hover:[animation-play-state:paused]"
                     style={{
                       animation: `${reverse ? 'gallery-scroll-right' : 'gallery-scroll-left'} 50s linear infinite`,
                       minWidth: '200%'
                     }}
                   >
-                    {doubled.map((photo, idx) => (
-                      <div
-                        key={`${photo.id}-${idx}`}
-                        className="relative h-56 w-80 flex-shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-800"
-                      >
-                        <img
-                          src={photo.url}
-                          alt={photo.caption || ''}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                        {photo.caption && (
-                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                            <p className="text-xs text-white">{photo.caption}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {doubled.map((photo, idx) => {
+                      const originalIndex = (idx % row.length) * rows.length + rowIndex;
+                      return (
+                        <button
+                          key={`${photo.id}-${idx}`}
+                          type="button"
+                          onClick={() => open(originalIndex)}
+                          className="relative h-56 w-80 flex-shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-800 text-left"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.caption || ''}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                          {photo.caption && (
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                              <p className="text-xs text-white">{photo.caption}</p>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
+
+        <Lightbox />
 
         <style jsx>{`
           @keyframes gallery-scroll-left {

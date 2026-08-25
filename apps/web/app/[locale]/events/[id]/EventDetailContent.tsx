@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 import { ShareButtons } from '@/components/ui/ShareButtons';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import EventLocationLink from '@/components/events/EventLocationLink';
 import AddToCalendar from '@/components/events/AddToCalendar';
 import { calculateProcessingFee, EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
@@ -117,6 +118,12 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
 
   const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
 
+  const posterPhotos = useMemo(
+    () => (event?.posterImages ?? []).map((p, i) => ({ id: `poster-${i}`, url: p.url, caption: p.caption })),
+    [event?.posterImages]
+  );
+  const { open, Lightbox } = usePhotoLightbox(posterPhotos);
+
   if (isLoading || authLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -208,12 +215,17 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
               <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
             )}
 
-            {event.posterImages && event.posterImages.length > 0 && (
+            {posterPhotos.length > 0 && (
               <div className="mt-8">
                 <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {event.posterImages.map((poster, idx) => (
-                    <div key={idx} className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                  {posterPhotos.map((poster, idx) => (
+                    <button
+                      key={poster.id}
+                      type="button"
+                      onClick={() => open(idx)}
+                      className="overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left"
+                    >
                       <img
                         src={poster.url}
                         alt={poster.caption || `${event.title} poster ${idx + 1}`}
@@ -222,7 +234,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                       {poster.caption && (
                         <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -315,6 +327,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
           </div>
         </div>
       </div>
+      <Lightbox />
     </div>
   );
 }

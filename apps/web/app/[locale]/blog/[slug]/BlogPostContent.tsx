@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { formatDate } from '@/lib/utils';
-import { stripRichText } from '@/lib/rich-text';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 
 interface Author {
   id: string;
@@ -52,6 +52,7 @@ export default function BlogPostContent({ post }: Props) {
   const photos = (post.gallery?.photos ?? [])
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const { open, Lightbox } = usePhotoLightbox(photos);
 
   return (
     <div className="px-4 py-16 md:px-6">
@@ -91,15 +92,6 @@ export default function BlogPostContent({ post }: Props) {
             </div>
           )}
 
-          {post.aiTldr && (
-            <div className="mt-6 rounded-xl border border-neon-blue/20 bg-neon-blue/5 p-4 dark:bg-neon-blue/10">
-              <p className="text-sm font-semibold text-neon-blue">{t('aiTldr')}</p>
-              <p className="mt-1 text-slate-700 dark:text-slate-300">
-                {stripRichText(post.aiTldr)}
-              </p>
-            </div>
-          )}
-
           <RichTextContent html={post.content} className="mt-8" />
 
           {post.gallery && (
@@ -111,11 +103,12 @@ export default function BlogPostContent({ post }: Props) {
 
               {photos.length > 0 ? (
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {photos.map((photo) => (
+                  {photos.map((photo, index) => (
                     <PhotoCard
                       key={photo.id}
                       photo={photo}
                       galleryTitle={post.gallery!.title}
+                      onClick={() => open(index)}
                     />
                   ))}
                 </div>
@@ -126,6 +119,7 @@ export default function BlogPostContent({ post }: Props) {
           )}
         </article>
       </div>
+      <Lightbox />
     </div>
   );
 }
@@ -133,14 +127,19 @@ export default function BlogPostContent({ post }: Props) {
 interface PhotoCardProps {
   photo: GalleryPhoto;
   galleryTitle: string;
+  onClick: () => void;
 }
 
-function PhotoCard({ photo, galleryTitle }: PhotoCardProps) {
+function PhotoCard({ photo, galleryTitle, onClick }: PhotoCardProps) {
   const [error, setError] = useState(false);
   const alt = photo.caption || galleryTitle;
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative overflow-hidden rounded-xl border border-white/10 bg-slate-800 text-left"
+    >
       <div className="relative aspect-[4/3]">
         {photo.url && !error ? (
           <img
@@ -162,6 +161,6 @@ function PhotoCard({ photo, galleryTitle }: PhotoCardProps) {
           <p className="text-xs text-white">{photo.caption}</p>
         </div>
       )}
-    </div>
+    </button>
   );
 }

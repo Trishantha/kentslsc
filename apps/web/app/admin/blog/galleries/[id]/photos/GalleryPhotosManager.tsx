@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Save, Trash2, ArrowUp, ArrowDown, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import type { AdminGallery, GalleryPhoto } from '../../types';
 
 interface Props {
@@ -91,6 +92,8 @@ export function GalleryPhotosManager({ gallery, galleryId }: Props) {
         .map((p) => ({ url: p.url, caption: p.caption }))
     );
 
+  const { open, Lightbox } = usePhotoLightbox(photos);
+
   return (
     <div className="glass-card space-y-6 p-6">
       <div>
@@ -118,13 +121,28 @@ export function GalleryPhotosManager({ gallery, galleryId }: Props) {
               className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5"
             >
               <div className="relative aspect-[4/3]">
-                <img
-                  src={photo.url}
-                  alt={photo.caption || ''}
-                  className="h-full w-full object-cover"
-                />
+                <button
+                  type="button"
+                  onClick={() => open(index)}
+                  className="h-full w-full cursor-pointer"
+                  aria-label={`View ${photo.caption || 'photo'}`}
+                >
+                  <img
+                    src={photo.url}
+                    alt={photo.caption || ''}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => open(index)}
+                      className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+                      aria-label="View larger"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => movePhoto(index, -1)}
@@ -189,6 +207,8 @@ export function GalleryPhotosManager({ gallery, galleryId }: Props) {
         )}
         Save photos
       </button>
+
+      <Lightbox />
     </div>
   );
 }
