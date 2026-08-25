@@ -90,6 +90,8 @@ export function RichTextEditorInner({
         relative_urls: false,
         remove_script_host: false,
         convert_urls: false,
+        contextmenu:
+          'cut copy paste | bold italic underline strikethrough | link | alignleft aligncenter alignright alignjustify | removeformat',
         content_style:
           'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; font-size: 16px; line-height: 1.6; }',
         statusbar: false,

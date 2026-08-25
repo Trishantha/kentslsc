@@ -78,7 +78,13 @@ export const sanitizeOptions: sanitizeHtml.IOptions = {
       'background-color': [COLOR_REGEX],
       'font-size': [SIZE_REGEX],
       'font-family': [FONT_FAMILY_REGEX],
-      'text-align': [/^(left|right|center|justify)$/]
+      'text-align': [/^(left|right|center|justify)$/],
+      'font-weight': [/^normal|bold|bolder|lighter|\d+$/],
+      'font-style': [/^normal|italic|oblique$/],
+      'text-decoration': [/^none|underline|line-through|overline$/],
+      'text-transform': [/^none|capitalize|uppercase|lowercase$/],
+      'margin-left': [LENGTH_REGEX],
+      'padding-left': [LENGTH_REGEX]
     },
     table: {
       border: [BORDER_REGEX],

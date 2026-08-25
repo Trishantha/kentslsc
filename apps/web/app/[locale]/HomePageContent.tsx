@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { summarizeRichText } from '@/lib/rich-text';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { getVideoMimeType } from '@/lib/utils';
@@ -715,7 +716,9 @@ export default function HomePageContent() {
                         <div className="p-6">
                           <h3 className="text-lg font-bold group-hover:text-neon-blue">{post.title}</h3>
                           <p className="mt-2 line-clamp-3 text-sm text-slate-700 dark:text-slate-400">
-                            {post.aiTldr ?? t('blogFallback')}
+                            {post.aiTldr
+                              ? summarizeRichText(post.aiTldr, 160)
+                              : t('blogFallback')}
                           </p>
                           {post.publishedAt && (
                             <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
