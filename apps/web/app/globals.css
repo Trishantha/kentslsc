@@ -141,7 +141,7 @@ select option {
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-xl border border-amber-500 bg-gradient-to-r from-amber-100/60 to-amber-200/60 px-6 py-3 font-semibold text-amber-900 transition-transform hover:scale-105 active:scale-95 dark:border-neon-gold/50 dark:from-neon-gold/20 dark:to-amber-500/20 dark:text-neon-gold;
+    @apply inline-flex items-center justify-center rounded-xl border border-amber-500 bg-gradient-to-r from-amber-100 to-amber-200 px-6 py-3 font-semibold text-amber-900 shadow-sm transition-transform hover:scale-105 active:scale-95 dark:border-neon-gold/50 dark:from-neon-gold/20 dark:to-amber-500/20 dark:text-neon-gold dark:shadow-none;
   }
 
   .section-title {

@@ -60,7 +60,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
       {!compact && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-20 bg-gradient-to-b from-transparent to-slate-950/80" />
       )}
-      <nav className="relative z-10 mx-auto flex h-[68px] max-w-7xl items-center justify-between overflow-visible px-4 md:px-6">
+      <nav className="relative z-10 mx-auto flex h-[68px] max-w-7xl items-center justify-between overflow-visible px-4 md:px-8">
         {/* Desktop logo + text */}
         <Link href="/" className="relative hidden items-center gap-3 md:flex">
           <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
@@ -88,7 +88,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
         </Link>
 
         {/* Desktop links / auth */}
-        <div className="hidden items-center gap-6 md:flex">
+        <div className="hidden items-center gap-8 md:flex">
           {publicNavLinks.map((link) => (
             <Link
               key={link.href}
@@ -135,7 +135,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               {canAccessAdmin && (
                 <NextLink
                   href="/admin"
-                  className="whitespace-nowrap rounded-xl border border-neon-gold/60 px-4 py-2 text-xs font-semibold text-amber-900 transition-transform hover:scale-105 dark:text-neon-gold"
+                  className="whitespace-nowrap rounded-xl border border-neon-gold/60 bg-amber-100/80 px-4 py-2 text-xs font-semibold text-amber-900 transition-transform hover:scale-105 dark:bg-transparent dark:text-neon-gold"
                 >
                   {t('adminDashboard')}
                 </NextLink>
@@ -159,7 +159,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               className={cn(
                 'whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-semibold transition-transform hover:scale-105',
                 compact
-                  ? 'border-neon-gold/60 text-amber-900 dark:text-neon-gold'
+                  ? 'border-neon-gold/60 bg-amber-100/80 text-amber-900 dark:bg-transparent dark:text-neon-gold'
                   : 'border-white/50 text-white drop-shadow-md'
               )}
             >
