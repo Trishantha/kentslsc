@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTheme } from 'next-themes';
 import { Editor } from '@tinymce/tinymce-react';
 
@@ -54,13 +54,8 @@ export function RichTextEditorInner({
   const { resolvedTheme } = useTheme();
   const theme = resolvedTheme === 'dark' ? 'dark' : 'light';
   const height = useMemo(() => parseMinHeight(minHeightClassName), [minHeightClassName]);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || !resolvedTheme) {
+  if (!resolvedTheme) {
     return (
       <div
         className="animate-pulse rounded-xl border border-white/10 bg-white/5"
