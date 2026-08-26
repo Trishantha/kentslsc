@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Calendar, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from '@/i18n/routing';
@@ -17,7 +18,6 @@ interface EventCardEvent {
   isFree: boolean;
   imageUrl?: string;
   category?: EventCategory;
-  remainingCount?: number | null;
 }
 
 interface Props {
@@ -25,8 +25,7 @@ interface Props {
   index?: number;
   shareUrl?: string;
   viewDetailsLabel: string;
-  soldOutLabel: string;
-  remainingLabel: (count: number) => string;
+  startingFromLabel: (price: string) => string;
   freeLabel: string;
   shareText?: string;
   dateOverlay?: boolean;
@@ -37,29 +36,30 @@ export default function EventCard({
   index = 0,
   shareUrl,
   viewDetailsLabel,
-  soldOutLabel,
-  remainingLabel,
+  startingFromLabel,
   freeLabel,
   shareText = `Join us for "${event.title}" on Kent SLSC`,
   dateOverlay = false
 }: Props) {
-  const isSoldOut = typeof event.remainingCount === 'number' && event.remainingCount === 0;
+  const router = useRouter();
   const start = new Date(event.startDatetime);
   const dayOfWeek = start.toLocaleDateString('en-GB', { weekday: 'short' });
   const dayNumber = start.getDate();
   const monthShort = start.toLocaleDateString('en-GB', { month: 'short' });
+
+  const handleCardClick = () => {
+    router.push(`/events/${event.id}`);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="glass-card group flex flex-col overflow-hidden sm:flex-row"
+      onClick={handleCardClick}
+      className="glass-card group flex cursor-pointer flex-col overflow-hidden sm:flex-row"
     >
-      <Link
-        href={`/events/${event.id}`}
-        className="relative block w-full shrink-0 overflow-hidden bg-black/10 sm:w-40 md:w-48"
-      >
+      <div className="relative w-full shrink-0 overflow-hidden bg-black/10 sm:w-40 md:w-48">
         <div
           className={cn(
             'flex aspect-[3/4] items-center justify-center bg-gradient-to-br',
@@ -97,7 +97,15 @@ export default function EventCard({
             <span className="text-[9px] font-medium uppercase text-slate-300">{monthShort}</span>
           </div>
         )}
-      </Link>
+
+        <div className="mt-2 flex flex-col items-center justify-center rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-center text-white backdrop-blur-sm sm:mx-2 sm:mb-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-neon-blue">
+            {monthShort}
+          </span>
+          <span className="text-3xl font-bold leading-none sm:text-4xl">{dayNumber}</span>
+          <span className="text-[10px] font-medium uppercase text-slate-300">{dayOfWeek}</span>
+        </div>
+      </div>
 
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <h3 className="text-base font-bold leading-tight group-hover:text-neon-blue sm:text-lg">
@@ -110,35 +118,25 @@ export default function EventCard({
             {formatDate(event.startDatetime)}
           </div>
           {event.location && (
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-2" onClick={(e) => e.stopPropagation()}>
               <MapPin className="mt-0.5 h-4 w-4 text-neon-blue" />
               <EventLocationLink location={event.location} />
             </div>
           )}
           <div className="font-medium text-slate-800 dark:text-slate-200">
-            {event.isFree || Number(event.ticketPrice) === 0 ? freeLabel : formatCurrency(event.ticketPrice)}
+            {event.isFree || Number(event.ticketPrice) === 0
+              ? freeLabel
+              : startingFromLabel(formatCurrency(event.ticketPrice))}
           </div>
-          {typeof event.remainingCount === 'number' && (
-            <div
-              className={cn(
-                'text-xs font-medium',
-                event.remainingCount <= 5 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
-              )}
-            >
-              {isSoldOut ? soldOutLabel : remainingLabel(event.remainingCount)}
-            </div>
-          )}
         </div>
 
         <div className="mt-auto flex flex-col gap-3 pt-4">
           <Link
             href={`/events/${event.id}`}
-            className={cn(
-              'btn-primary block w-full text-center text-sm',
-              isSoldOut && 'pointer-events-none opacity-60'
-            )}
+            onClick={(e) => e.stopPropagation()}
+            className="btn-primary block w-full text-center text-sm"
           >
-            {isSoldOut ? soldOutLabel : viewDetailsLabel}
+            {viewDetailsLabel}
           </Link>
 
           {shareUrl && (

@@ -164,18 +164,26 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
     );
   }
 
-  const startDate = new Date(event.startDatetime);
-  const endDate = new Date(event.endDatetime);
+  // The database stores datetimes as UTC, but event times are intended as local
+  // UK wall-clock times. Parse the ISO string directly so the displayed time
+  // matches what was entered in the admin form (and the poster/description).
+  function parseWallClock(isoString: string) {
+    const [datePart = '', timePart = ''] = isoString.split('T');
+    const [year = 0, month = 1, day = 1] = datePart.split('-').map(Number);
+    const [hour = 0, minute = 0] = timePart.split(':').map(Number);
+    return { year, month, day, hour, minute };
+  }
 
-  // Format date/time in the event's local timezone (UK) so the displayed time
-  // doesn't shift based on the user's browser timezone.
-  const formatInUK = (date: Date, options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', ...options }).format(date);
-
-  const monthShort = formatInUK(startDate, { month: 'short' });
-  const weekdayLong = formatInUK(startDate, { weekday: 'long' });
-  const dayNumber = Number(formatInUK(startDate, { day: 'numeric' }));
-  const timeRange = `${formatInUK(startDate, { hour: '2-digit', minute: '2-digit' })} – ${formatInUK(endDate, { hour: '2-digit', minute: '2-digit' })}`;
+  const start = parseWallClock(event.startDatetime);
+  const end = parseWallClock(event.endDatetime);
+  const startDateObj = new Date(start.year, start.month - 1, start.day);
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const weekdayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const monthShort = monthNames[start.month - 1]!;
+  const weekdayLong = weekdayNames[startDateObj.getDay()]!;
+  const dayNumber = start.day;
+  const timeRange = `${String(start.hour).padStart(2, '0')}:${String(start.minute).padStart(2, '0')} – ${String(end.hour).padStart(2, '0')}:${String(end.minute).padStart(2, '0')}`;
+  const fullDate = `${weekdayNames[startDateObj.getDay()]!}, ${start.day} ${monthNames[start.month - 1]!} ${start.year}`;
 
   return (
     <div className="px-4 py-12 md:px-6">
@@ -192,7 +200,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                 <img
                   src={event.imageUrl || event.posterImageUrl || undefined}
                   alt={event.title}
-                  className="h-auto w-full object-contain"
+                  className="h-auto max-h-[45vh] w-full object-contain md:max-h-none"
                 />
               ) : (
                 <div className="flex aspect-[3/2] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
@@ -258,7 +266,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
 
           {/* Right column: title, big date, add to calendar, tickets — sticky on desktop */}
           <aside className="space-y-6 lg:sticky lg:top-8 lg:self-start">
-            <div className="glass-card p-6 md:p-8">
+            <div className="glass-card p-5 md:p-6">
               {event.category && (
                 <span
                   className={cn(
@@ -281,7 +289,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                 <div className="flex flex-col justify-center gap-1.5">
                   <div className="flex items-center gap-2 text-lg font-semibold">
                     <Calendar className="h-5 w-5 text-neon-blue" />
-                    {formatDate(event.startDatetime)}
+                    {fullDate}
                   </div>
                   <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                     <Clock className="h-4 w-4 text-neon-blue" />
@@ -309,7 +317,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                 />
               </div>
 
-              <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">
+              <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-white/5 p-4 dark:bg-black/20">
                 {isExternal ? (
                   <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
                 ) : (

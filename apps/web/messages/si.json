@@ -404,7 +404,8 @@
     "viewDetails": "විස්තර බලන්න",
     "noEvents": "වැඩසටහන් හමු නොවිණි. ඉක්මනින් නැවත පරීක්ෂා කරන්න!",
     "soldOut": "Sold out",
-    "remaining": "{count} left"
+    "remaining": "{count} left",
+    "startingFrom": "Tickets starting from {price}"
   },
   "directory": {
     "title": "ව්යාපාර නාමාවලිය",

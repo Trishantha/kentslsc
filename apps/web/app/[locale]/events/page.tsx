@@ -153,12 +153,11 @@ export default function EventsPage() {
             events={events}
             shareBaseUrl={origin}
             viewDetailsLabel={t('viewDetails')}
-            soldOutLabel={t('soldOut')}
-            remainingLabel={(count) => t('remaining', { count })}
+            startingFromLabel={(price) => t('startingFrom', { price })}
             freeLabel={tCommon('free')}
           />
         ) : (
-          <div className="mt-10 grid gap-4 lg:grid-cols-2">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="glass-card flex animate-pulse flex-col overflow-hidden sm:flex-row">
@@ -178,8 +177,7 @@ export default function EventsPage() {
                 index={index}
                 shareUrl={`${origin}/events/${event.id}`}
                 viewDetailsLabel={t('viewDetails')}
-                soldOutLabel={t('soldOut')}
-                remainingLabel={(count) => t('remaining', { count })}
+                startingFromLabel={(price) => t('startingFrom', { price })}
                 freeLabel={tCommon('free')}
                 shareText={tDetail('shareText', { title: event.title })}
               />

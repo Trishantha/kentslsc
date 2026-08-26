@@ -404,7 +404,8 @@
     "viewDetails": "View Details",
     "noEvents": "No events found. Check back soon!",
     "soldOut": "Sold out",
-    "remaining": "{count} left"
+    "remaining": "{count} left",
+    "startingFrom": "Tickets starting from {price}"
   },
   "directory": {
     "title": "Business Directory",

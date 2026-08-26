@@ -21,8 +21,7 @@ interface Props {
   events: MonthEvent[];
   shareBaseUrl?: string;
   viewDetailsLabel: string;
-  soldOutLabel: string;
-  remainingLabel: (count: number) => string;
+  startingFromLabel: (price: string) => string;
   freeLabel: string;
 }
 
@@ -38,8 +37,7 @@ export default function EventMonthView({
   events,
   shareBaseUrl = '',
   viewDetailsLabel,
-  soldOutLabel,
-  remainingLabel,
+  startingFromLabel,
   freeLabel
 }: Props) {
   const [origin, setOrigin] = useState(shareBaseUrl);
@@ -95,8 +93,7 @@ export default function EventMonthView({
                 index={sectionIndex * 10 + index}
                 shareUrl={`${origin}/events/${event.id}`}
                 viewDetailsLabel={viewDetailsLabel}
-                soldOutLabel={soldOutLabel}
-                remainingLabel={remainingLabel}
+                startingFromLabel={startingFromLabel}
                 freeLabel={freeLabel}
                 shareText={`Join us for "${event.title}" on Kent SLSC`}
                 dateOverlay

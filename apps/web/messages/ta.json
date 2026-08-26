@@ -404,7 +404,8 @@
     "viewDetails": "விவரங்களைக் காண்க",
     "noEvents": "நிகழ்வுகள் எதுவும் இல்லை. விரைவில் மீண்டும் பார்க்கவும்!",
     "soldOut": "Sold out",
-    "remaining": "{count} left"
+    "remaining": "{count} left",
+    "startingFrom": "Tickets starting from {price}"
   },
   "directory": {
     "title": "வணிக அடைவு",
