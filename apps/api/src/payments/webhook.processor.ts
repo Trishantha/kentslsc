@@ -86,6 +86,8 @@ export class WebhookProcessor {
       await this.membershipsService.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
     } else if (event.type === 'customer.subscription.deleted') {
       await this.membershipsService.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+    } else if (event.type === 'invoice.paid') {
+      await this.membershipsService.handleInvoicePaid(event.data.object as Stripe.Invoice);
     }
   }
 }

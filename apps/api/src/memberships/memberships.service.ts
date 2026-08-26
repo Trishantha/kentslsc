@@ -1020,13 +1020,18 @@ export class MembershipsService {
         include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
       });
 
-      if (existing && (existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_APPROVAL)) {
+      if (existing && existing.status !== MembershipStatus.CANCELLED) {
+        const activate =
+          existing.status === MembershipStatus.PENDING ||
+          existing.status === MembershipStatus.AWAITING_APPROVAL;
+
         await this.prisma.membership.update({
           where: { id: existing.id },
           data: {
+            status: activate ? MembershipStatus.ACTIVE : existing.status,
             paidAt: new Date(),
             paymentMethod: 'stripe',
-            startDate: new Date(),
+            startDate: activate ? new Date() : existing.startDate,
             endDate: currentPeriodEnd,
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
@@ -1139,40 +1144,50 @@ export class MembershipsService {
           throw new BadRequestException('Membership user mismatch');
         }
 
-        if (existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_APPROVAL) {
-          const startDate = new Date();
-          const endDate = subscriptionContext?.currentPeriodEnd ?? this.computeEndDate(existing.membershipType, startDate);
-          const updated = await this.prisma.membership.update({
-            where: { id: existing.id },
-            data: {
-              paidAt: new Date(),
-              paymentMethod,
-              startDate,
-              endDate,
-              stripeSubscriptionId: subscriptionContext?.subscriptionId ?? existing.stripeSubscriptionId,
-              stripeCustomerId: subscriptionContext?.stripeCustomerId ?? existing.stripeCustomerId,
-              stripePriceId: subscriptionContext?.stripePriceId ?? existing.stripePriceId
-            },
-            include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
-          });
-          await this.recordMembershipPayment(updated, {
-            channel: gatewayContext?.channel ?? paymentMethod,
-            method: paymentMethod,
-            currency: gatewayContext?.currency ?? metadata.currency ?? 'GBP',
-            amountPence:
-              gatewayContext?.amountPence ??
-              (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
-            providerCheckoutId: gatewayContext?.providerCheckoutId,
-            providerPaymentId: gatewayContext?.providerPaymentId,
-            payerEmail: customerEmail ?? updated.user?.email ?? null,
-            payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
-            payerPhone: gatewayContext?.payerPhone ?? null,
-            notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
-          });
-          return { received: true, membershipId: updated.membershipId };
+        if (existing.status === MembershipStatus.CANCELLED) {
+          // Cancelled memberships should not be resurrected by a webhook.
+          return { received: true, membershipId: existing.membershipId };
         }
-        // Already active (or cancelled/etc.) — do not create a duplicate.
-        return { received: true, membershipId: existing.membershipId };
+
+        const activate =
+          existing.status === MembershipStatus.PENDING ||
+          existing.status === MembershipStatus.AWAITING_APPROVAL;
+        const startDate = activate ? new Date() : existing.startDate;
+        const endDate =
+          subscriptionContext?.currentPeriodEnd ??
+          (activate ? this.computeEndDate(existing.membershipType, new Date()) : existing.endDate);
+
+        const updated = await this.prisma.membership.update({
+          where: { id: existing.id },
+          data: {
+            status: activate ? MembershipStatus.ACTIVE : existing.status,
+            paidAt: new Date(),
+            paymentMethod,
+            startDate,
+            endDate,
+            stripeSubscriptionId: subscriptionContext?.subscriptionId ?? existing.stripeSubscriptionId,
+            stripeCustomerId: subscriptionContext?.stripeCustomerId ?? existing.stripeCustomerId,
+            stripePriceId: subscriptionContext?.stripePriceId ?? existing.stripePriceId,
+            subscriptionStatus:
+              subscriptionContext?.subscriptionStatus ?? existing.subscriptionStatus
+          },
+          include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+        });
+        await this.recordMembershipPayment(updated, {
+          channel: gatewayContext?.channel ?? paymentMethod,
+          method: paymentMethod,
+          currency: gatewayContext?.currency ?? metadata.currency ?? 'GBP',
+          amountPence:
+            gatewayContext?.amountPence ??
+            (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
+          providerCheckoutId: gatewayContext?.providerCheckoutId,
+          providerPaymentId: gatewayContext?.providerPaymentId,
+          payerEmail: customerEmail ?? updated.user?.email ?? null,
+          payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
+          payerPhone: gatewayContext?.payerPhone ?? null,
+          notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
+        });
+        return { received: true, membershipId: updated.membershipId };
       }
       // Fall through to create a new membership if the referenced one is missing.
     }
@@ -1339,6 +1354,61 @@ export class MembershipsService {
         endDate: new Date(),
         subscriptionStatus: subscription.status
       }
+    });
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  async handleInvoicePaid(invoice: Stripe.Invoice) {
+    // Stripe SDK v22 typings omit some Invoice fields that are present at runtime,
+    // so we read them through a type-safe cast.
+    const invoiceAny = invoice as any;
+    const subscriptionId =
+      typeof invoiceAny.subscription === 'string'
+        ? invoiceAny.subscription
+        : invoiceAny.subscription?.id;
+
+    if (!subscriptionId) {
+      return { received: true, membershipId: null };
+    }
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { stripeSubscriptionId: subscriptionId, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    const periodEnd = invoice.lines?.data?.[0]?.period?.end;
+    const endDate = periodEnd ? new Date(periodEnd * 1000) : membership.endDate;
+    const paidAt = invoice.status_transitions?.paid_at
+      ? new Date(invoice.status_transitions.paid_at * 1000)
+      : new Date();
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        paidAt,
+        paymentMethod: 'stripe',
+        endDate,
+        subscriptionStatus: 'active'
+      }
+    });
+
+    const paymentIntent = invoiceAny.payment_intent;
+    await this.recordMembershipPayment(membership, {
+      channel: 'stripe',
+      method: 'subscription',
+      currency: (invoice.currency ?? 'gbp').toUpperCase(),
+      amountPence: invoice.amount_paid ?? invoice.amount_due,
+      providerCheckoutId: invoice.id,
+      providerPaymentId:
+        typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id ?? null,
+      payerEmail: invoice.customer_email ?? membership.user?.email ?? null,
+      payerName: invoice.customer_name ?? membership.user?.name ?? null,
+      notes: 'Membership subscription renewal via Stripe invoice'
     });
 
     return { received: true, membershipId: membership.membershipId };

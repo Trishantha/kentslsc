@@ -117,4 +117,17 @@ export class PaymentsController {
       search
     });
   }
+
+  @Post('reports/sync-stripe')
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
+  @ApiBearerAuth()
+  async syncStripeRevenue(
+    @Body('from') from?: string,
+    @Body('to') to?: string
+  ) {
+    return this.paymentsService.syncStripeRevenue({
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined
+    });
+  }
 }

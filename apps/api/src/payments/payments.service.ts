@@ -9,6 +9,8 @@ import {
   type ProcessingFeeResult
 } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
+import type { Prisma } from '@kentslsc/database';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 
 const STRIPE_TIMEOUT_MS = 30_000;
@@ -351,6 +353,318 @@ export class PaymentsService {
       this.logger.warn(
         `Could not sync Stripe fees for session ${session.id}: ${(err as Error).message}`
       );
+    }
+  }
+
+  /**
+   * Pull completed Stripe Checkout sessions into the local Payment ledger so the
+   * revenue report matches Stripe. Creates missing Payment rows and updates
+   * existing ones with actual fees, net settlement and refund status.
+   */
+  async syncStripeRevenue(dateRange?: {
+    from?: Date;
+    to?: Date;
+  }): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const now = new Date();
+    const maxLookback = new Date(now);
+    maxLookback.setDate(maxLookback.getDate() - 90);
+
+    const from = dateRange?.from ? new Date(dateRange.from) : maxLookback;
+    const to = dateRange?.to ? new Date(dateRange.to) : now;
+
+    // Clamp to a sane window to avoid rate limits and huge scans.
+    if (from < maxLookback) {
+      from.setTime(maxLookback.getTime());
+    }
+    if (to > now) {
+      to.setTime(now.getTime());
+    }
+
+    const params: Stripe.Checkout.SessionListParams = {
+      limit: 100,
+      status: 'complete',
+      created: {
+        gte: Math.floor(from.getTime() / 1000),
+        lte: Math.ceil(to.getTime() / 1000)
+      }
+    };
+
+    const result = { created: 0, updated: 0, skipped: 0, errors: [] as string[] };
+
+    let hasMore = true;
+    let startingAfter: string | undefined;
+
+    while (hasMore) {
+      const page = await this.stripe!.checkout.sessions.list({
+        ...params,
+        ...(startingAfter && { starting_after: startingAfter })
+      });
+
+      for (const session of page.data) {
+        try {
+          if (session.payment_status !== 'paid') {
+            result.skipped++;
+            continue;
+          }
+
+          const existing = await this.prisma.payment.findFirst({
+            where: { providerCheckoutId: session.id, deletedAt: null },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              providerPaymentId: true,
+              paymentStatus: true,
+              refundedAmount: true,
+              grossAmount: true
+            }
+          });
+
+          if (existing) {
+            await this.updatePaymentFromStripeSession(existing, session);
+            result.updated++;
+          } else {
+            await this.createPaymentFromStripeSession(session);
+            result.created++;
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Stripe sync failed for session ${session.id}: ${message}`);
+          result.errors.push(`session ${session.id}: ${message}`);
+        }
+      }
+
+      hasMore = page.has_more && page.data.length > 0;
+      startingAfter = hasMore ? page.data[page.data.length - 1]!.id : undefined;
+    }
+
+    return result;
+  }
+
+  private async updatePaymentFromStripeSession(
+    payment: {
+      id: string;
+      providerPaymentId: string | null;
+      paymentStatus: PaymentStatus;
+      refundedAmount: number | Prisma.Decimal | null;
+      grossAmount: number | Prisma.Decimal;
+    },
+    session: Stripe.Checkout.Session
+  ): Promise<void> {
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    const updateData: Prisma.PaymentUpdateInput = {};
+
+    const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+    if (feeDetails) {
+      updateData.processingFee = feeDetails.fee;
+      updateData.netAmount = feeDetails.net;
+    }
+
+    const refundInfo = await this.getStripeRefundInfo(paymentIntentId);
+    if (refundInfo && refundInfo.refundedAmount > 0) {
+      const currentRefunded = Number(payment.refundedAmount ?? 0);
+      const newRefunded = refundInfo.refundedAmount / 100;
+      if (newRefunded > currentRefunded) {
+        updateData.refundedAmount = newRefunded;
+        const grossAmount = Number(payment.grossAmount);
+        if (grossAmount > 0 && newRefunded >= grossAmount - 0.001) {
+          updateData.paymentStatus = PaymentStatus.REFUNDED;
+        } else if (payment.paymentStatus !== PaymentStatus.REFUNDED) {
+          updateData.paymentStatus = PaymentStatus.PARTIALLY_REFUNDED;
+        }
+      }
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.prisma.payment.update({ where: { id: payment.id }, data: updateData });
+    }
+  }
+
+  private async createPaymentFromStripeSession(session: Stripe.Checkout.Session): Promise<void> {
+    const metadata = session.metadata ?? {};
+    const sourceType = this.inferSourceType(metadata);
+    const currency = (session.currency ?? 'gbp').toUpperCase();
+    const grossAmount = this.amountFromSession(session);
+
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
+
+    const customer = session.customer_details;
+    const purchasedAt = session.created ? new Date(session.created * 1000) : new Date();
+
+    let fee = 0;
+    let net = grossAmount;
+    if (paymentIntentId) {
+      const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+      if (feeDetails) {
+        fee = feeDetails.fee;
+        net = feeDetails.net;
+      }
+    }
+
+    const description = this.inferDescription(sourceType, session);
+    const sourceIds = await this.inferSourceIds(sourceType, metadata, session);
+
+    await this.prisma.payment.create({
+      data: {
+        paymentChannel: 'stripe',
+        paymentMethod: session.payment_method_types?.[0] ?? 'card',
+        paymentStatus: PaymentStatus.COMPLETED,
+        providerCheckoutId: session.id,
+        providerPaymentId: paymentIntentId,
+        currency,
+        grossAmount,
+        processingFee: fee,
+        netAmount: net,
+        description,
+        notes: 'Synced from Stripe Checkout',
+        payerName: customer?.name ?? null,
+        payerEmail: customer?.email ?? session.customer_email ?? null,
+        payerPhone: customer?.phone ?? null,
+        payerAddressLine1: customer?.address?.line1 ?? null,
+        payerAddressLine2: customer?.address?.line2 ?? null,
+        payerCity: customer?.address?.city ?? null,
+        payerPostcode: customer?.address?.postal_code ?? null,
+        payerCountry: customer?.address?.country ?? null,
+        purchasedAt,
+        sourceType,
+        ...sourceIds,
+        metadata: {
+          ...metadata,
+          syncedAt: new Date().toISOString(),
+          sessionRef: session.id
+        } as unknown as Prisma.InputJsonValue
+      }
+    });
+  }
+
+  private amountFromSession(session: Stripe.Checkout.Session): number {
+    return (session.amount_total ?? 0) / 100;
+  }
+
+  private inferSourceType(metadata: Record<string, string>): PaymentSourceType {
+    if (metadata.source === 'membership') return PaymentSourceType.MEMBERSHIP;
+    switch (metadata.type) {
+      case 'event_ticket':
+        return PaymentSourceType.TICKET;
+      case 'donation':
+        return PaymentSourceType.DONATION;
+      case 'directory_promotion':
+        return PaymentSourceType.DIRECTORY_PROMOTION;
+      case 'job_publish':
+        return PaymentSourceType.JOB_PUBLISH;
+      default:
+        return PaymentSourceType.MANUAL;
+    }
+  }
+
+  private inferDescription(
+    sourceType: PaymentSourceType,
+    session: Stripe.Checkout.Session
+  ): string | null {
+    const metadata = session.metadata ?? {};
+    switch (sourceType) {
+      case PaymentSourceType.TICKET:
+        return metadata.eventTitle ? `Ticket(s) for ${metadata.eventTitle}` : 'Ticket purchase';
+      case PaymentSourceType.MEMBERSHIP:
+        return metadata.membershipTypeName
+          ? `Membership: ${metadata.membershipTypeName}`
+          : 'Membership payment';
+      case PaymentSourceType.DONATION:
+        return metadata.fundraiserTitle
+          ? `Donation to ${metadata.fundraiserTitle}`
+          : 'Donation';
+      case PaymentSourceType.DIRECTORY_PROMOTION:
+        return metadata.businessName
+          ? `Directory promotion: ${metadata.businessName}`
+          : 'Directory promotion';
+      case PaymentSourceType.JOB_PUBLISH:
+        return metadata.jobTitle ? `Job publish: ${metadata.jobTitle}` : 'Job publish';
+      default:
+        return session.line_items?.data[0]?.description ?? 'Stripe payment';
+    }
+  }
+
+  private async inferSourceIds(
+    sourceType: PaymentSourceType,
+    metadata: Record<string, string>,
+    session: Stripe.Checkout.Session
+  ): Promise<{
+    userId: string | null;
+    eventId?: string | null;
+    ticketId?: string | null;
+    membershipId?: string | null;
+    donationId?: string | null;
+    businessListingId?: string | null;
+    jobAdId?: string | null;
+  }> {
+    const ids: {
+      userId: string | null;
+      eventId?: string | null;
+      ticketId?: string | null;
+      membershipId?: string | null;
+      donationId?: string | null;
+      businessListingId?: string | null;
+      jobAdId?: string | null;
+    } = { userId: metadata.userId ?? null };
+
+    const customerId =
+      typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
+
+    switch (sourceType) {
+      case PaymentSourceType.TICKET:
+        ids.eventId = metadata.eventId ?? null;
+        break;
+      case PaymentSourceType.MEMBERSHIP:
+        ids.membershipId = metadata.membershipId ?? null;
+        break;
+      case PaymentSourceType.DONATION:
+        ids.donationId = metadata.donationId ?? null;
+        break;
+      case PaymentSourceType.DIRECTORY_PROMOTION:
+        ids.businessListingId = metadata.businessListingId ?? null;
+        break;
+      case PaymentSourceType.JOB_PUBLISH:
+        ids.jobAdId = metadata.jobAdId ?? null;
+        break;
+    }
+
+    if (!ids.userId && customerId) {
+      // Best-effort lookup by Stripe customer id.
+      const user = await this.prisma.user.findFirst({
+        where: { stripeCustomerId: customerId, deletedAt: null },
+        select: { id: true }
+      });
+      if (user) ids.userId = user.id;
+    }
+
+    return ids;
+  }
+
+  private async getStripeRefundInfo(
+    paymentIntentId: string
+  ): Promise<{ refundedAmount: number } | null> {
+    this.ensureEnabled();
+    try {
+      const refunds = await this.stripe!.refunds.list({ payment_intent: paymentIntentId, limit: 100 });
+      const refundedAmount = refunds.data.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+      if (refundedAmount <= 0) return null;
+      return { refundedAmount };
+    } catch (err) {
+      this.logger.warn(
+        `Could not fetch Stripe refunds for ${paymentIntentId}: ${(err as Error).message}`
+      );
+      return null;
     }
   }
 
@@ -710,6 +1024,14 @@ export class PaymentsService {
     this.ensureEnabled();
 
     return this.stripe!.subscriptions.retrieve(stripeSubscriptionId);
+  }
+
+  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    return this.stripe!.invoices.retrieve(invoiceId);
   }
 
   async refundStripePaymentIntent(paymentIntentId: string, amount?: number, reason?: string) {

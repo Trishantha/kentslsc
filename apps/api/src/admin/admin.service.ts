@@ -435,7 +435,9 @@ export class AdminService {
     return this.membershipsService.updateDependants(membershipId, dto.dependants);
   }
 
-  async regenerateAllMembershipCards(_options: { onlyActive?: boolean } = {}) {
+  async regenerateAllMembershipCards(options: { onlyActive?: boolean } = {}) {
+    // Unused options variable prefix removed for lint compliance
+    void options;
     // Cards are only generated for active memberships. The onlyActive option is
     // preserved for API compatibility but is always enforced now.
     const where = {

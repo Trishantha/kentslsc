@@ -32,6 +32,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'fundraising/fundraising.controller.ts::webhook',
   'memberships/memberships.controller.ts::webhook',
   'payments/stripe-webhook.controller.ts::handleWebhook',
+  'payments/stripe-webhook.controller.ts::confirmSession',
 
   // Anonymous auth surface
   'auth/auth.controller.ts::features',
@@ -71,6 +72,8 @@ const PUBLIC_ALLOWLIST = new Set([
   'fundraising/fundraising.controller.ts::findOne',
   'fundraising/fundraising.controller.ts::list',
   'hero-config/hero-config.controller.ts::get',
+  'gallery/gallery.controller.ts::list',
+  'gallery/gallery.controller.ts::findOne',
   'memberships/memberships.controller.ts::getFeatures',
   'memberships/memberships.controller.ts::getTypes',
   'memberships/memberships.controller.ts::verify',

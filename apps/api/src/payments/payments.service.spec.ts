@@ -565,6 +565,222 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('syncStripeRevenue', () => {
+    it('creates missing Payment rows from completed Stripe sessions', async () => {
+      const prismaWithNoPayments = {
+        ...mockPrisma,
+        payment: {
+          findFirst: jest.fn(() => Promise.resolve(null)) as any,
+          create: jest.fn(() => Promise.resolve({ id: 'pay-new' })) as any
+        }
+      };
+
+      const service = new PaymentsService(mockConfig as any, prismaWithNoPayments as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            list: jest.fn(async () => ({
+              data: [
+                {
+                  id: 'cs_test_123',
+                  payment_status: 'paid',
+                  status: 'complete',
+                  amount_total: 1035,
+                  currency: 'gbp',
+                  created: Math.floor(Date.now() / 1000),
+                  metadata: { type: 'event_ticket', eventId: 'event-1', userId: 'user-1' },
+                  payment_intent: 'pi_test_123',
+                  payment_method_types: ['card'],
+                  customer_details: {
+                    name: 'Jane Doe',
+                    email: 'jane@example.com',
+                    phone: '01234567890',
+                    address: {
+                      line1: '1 The Street',
+                      line2: null,
+                      city: 'London',
+                      postal_code: 'SW1A 1AA',
+                      country: 'GB'
+                    }
+                  }
+                }
+              ],
+              has_more: false
+            }))
+          }
+        },
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({
+            id: 'pi_test_123',
+            latest_charge: {
+              id: 'ch_test_123',
+              balance_transaction: {
+                id: 'bt_test_123',
+                fee: 35,
+                net: 1000
+              }
+            }
+          }))
+        },
+        refunds: {
+          list: jest.fn(async () => ({ data: [] }))
+        }
+      };
+
+      const result = await service.syncStripeRevenue();
+
+      expect(result.created).toBe(1);
+      expect(result.updated).toBe(0);
+      expect(prismaWithNoPayments.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerCheckoutId: 'cs_test_123',
+            providerPaymentId: 'pi_test_123',
+            paymentChannel: 'stripe',
+            paymentStatus: 'COMPLETED',
+            grossAmount: 10.35,
+            processingFee: 0.35,
+            netAmount: 10,
+            currency: 'GBP',
+            sourceType: 'TICKET',
+            eventId: 'event-1',
+            userId: 'user-1'
+          })
+        })
+      );
+    });
+
+    it('updates existing Payment rows with actual Stripe fees and refunds', async () => {
+      const prismaWithExistingPayment = {
+        ...mockPrisma,
+        payment: {
+          findFirst: jest.fn(() =>
+            Promise.resolve({
+              id: 'pay-existing',
+              providerPaymentId: 'pi_test_123',
+              paymentStatus: 'COMPLETED',
+              refundedAmount: null,
+              grossAmount: 10.35
+            })
+          ) as any,
+          update: jest.fn(() => Promise.resolve({ id: 'pay-existing' })) as any
+        }
+      };
+
+      const service = new PaymentsService(mockConfig as any, prismaWithExistingPayment as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            list: jest.fn(async () => ({
+              data: [
+                {
+                  id: 'cs_test_123',
+                  payment_status: 'paid',
+                  status: 'complete',
+                  amount_total: 1035,
+                  currency: 'gbp',
+                  created: Math.floor(Date.now() / 1000),
+                  metadata: { type: 'event_ticket' },
+                  payment_intent: 'pi_test_123',
+                  payment_method_types: ['card'],
+                  customer_details: null
+                }
+              ],
+              has_more: false
+            }))
+          }
+        },
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({
+            id: 'pi_test_123',
+            latest_charge: {
+              id: 'ch_test_123',
+              balance_transaction: {
+                id: 'bt_test_123',
+                fee: 30,
+                net: 1005
+              }
+            }
+          }))
+        },
+        refunds: {
+          list: jest.fn(async () => ({
+            data: [{ amount: 1035 }]
+          }))
+        }
+      };
+
+      const result = await service.syncStripeRevenue();
+
+      expect(result.created).toBe(0);
+      expect(result.updated).toBe(1);
+      expect(prismaWithExistingPayment.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'pay-existing' },
+          data: expect.objectContaining({
+            processingFee: 0.3,
+            netAmount: 10.05,
+            refundedAmount: 10.35,
+            paymentStatus: 'REFUNDED'
+          })
+        })
+      );
+    });
+
+    it('skips unpaid sessions and reports errors without failing', async () => {
+      const prismaWithNoPayments = {
+        ...mockPrisma,
+        payment: {
+          findFirst: jest.fn(() => Promise.resolve(null)) as any,
+          create: jest.fn(() => Promise.resolve({ id: 'pay-new' })) as any
+        }
+      };
+
+      const service = new PaymentsService(mockConfig as any, prismaWithNoPayments as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            list: jest.fn(async () => ({
+              data: [
+                {
+                  id: 'cs_test_unpaid',
+                  payment_status: 'unpaid',
+                  status: 'complete',
+                  amount_total: 1035,
+                  currency: 'gbp',
+                  created: Math.floor(Date.now() / 1000),
+                  metadata: {},
+                  payment_intent: null,
+                  payment_method_types: ['card'],
+                  customer_details: null
+                }
+              ],
+              has_more: false
+            }))
+          }
+        }
+      };
+
+      const result = await service.syncStripeRevenue();
+
+      expect(result.skipped).toBe(1);
+      expect(result.created).toBe(0);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('throws when Stripe is not configured', async () => {
+      const configWithoutStripe = {
+        get: jest.fn((key: string) => {
+          if (key === 'STRIPE_SECRET_KEY') return undefined;
+          return undefined;
+        })
+      };
+      const service = new PaymentsService(configWithoutStripe as any, mockPrisma as any);
+
+      await expect(service.syncStripeRevenue()).rejects.toThrow('Stripe is not configured');
+    });
+  });
+
   describe('verifyPayPalWebhook', () => {
     const validHeaders = {
       'paypal-transmission-id': 'transmission-1',

@@ -110,6 +110,7 @@ export default function RevenueReportPage() {
   const [refundPayment, setRefundPayment] = useState<ReportRow | null>(null);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const filters = useMemo(
     () => ({
@@ -156,6 +157,39 @@ export default function RevenueReportPage() {
       return data;
     },
     enabled: false
+  });
+
+  const syncMutation = useMutation<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: string[];
+  }>({
+    mutationFn: async () => {
+      const { data } = await api.post('/payments/reports/sync-stripe', {
+        from: from || undefined,
+        to: to || undefined
+      });
+      return data;
+    },
+    onSuccess: (result) => {
+      const parts = [
+        result.created > 0 && `${result.created} created`,
+        result.updated > 0 && `${result.updated} updated`,
+        result.skipped > 0 && `${result.skipped} skipped`
+      ].filter(Boolean);
+      const summary = parts.length > 0 ? parts.join(', ') : 'Already up to date';
+      setSyncMessage(
+        `Sync complete: ${summary}.${result.errors.length > 0 ? ` ${result.errors.length} error(s).` : ''}`
+      );
+      void queryClient.invalidateQueries({ queryKey: ['payments', 'reports'] });
+      void refetch();
+    },
+    onError: (err: any) => {
+      setSyncMessage(
+        `Sync failed: ${err?.response?.data?.message ?? err?.message ?? 'Unknown error'}`
+      );
+    }
   });
 
   const refundMutation = useMutation({
@@ -351,11 +385,18 @@ export default function RevenueReportPage() {
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => refetch()}
-          disabled={isLoading}
+          onClick={() => {
+            setSyncMessage(null);
+            syncMutation.mutate();
+          }}
+          disabled={syncMutation.isPending || isLoading}
           className="btn-secondary inline-flex items-center gap-2"
         >
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {syncMutation.isPending || isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Refresh
         </button>
         <button
@@ -377,6 +418,19 @@ export default function RevenueReportPage() {
           Export PDF
         </button>
       </div>
+
+      {/* Sync message */}
+      {syncMessage && (
+        <div
+          className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+            syncMessage.startsWith('Sync failed')
+              ? 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400'
+              : 'border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400'
+          }`}
+        >
+          {syncMessage}
+        </div>
+      )}
 
       {/* Aggregates */}
       {agg && (

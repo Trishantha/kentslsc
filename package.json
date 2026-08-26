@@ -19,7 +19,8 @@
     "db:migrate": "corepack pnpm --filter database migrate",
     "db:seed": "corepack pnpm --filter database seed",
     "db:studio": "corepack pnpm --filter database studio",
-    "reconcile:payments": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/reconcile-payments.ts"
+    "reconcile:payments": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/reconcile-payments.ts",
+    "backfill:membership-payment-status": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/backfill-membership-payment-status.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3"
