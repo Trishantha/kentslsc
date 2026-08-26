@@ -99,7 +99,7 @@ export function ShareButtons({
 
   if (compact) {
     return (
-      <div className={cn('flex flex-wrap justify-center gap-2', className)}>
+      <div className={cn('flex flex-wrap justify-center gap-1.5', className)}>
         {shares.map((s) => (
           <a
             key={s.label}
@@ -110,7 +110,7 @@ export function ShareButtons({
             aria-label={s.label}
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800',
+              'flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-transparent transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800',
               s.iconColor
             )}
           >
@@ -124,9 +124,9 @@ export function ShareButtons({
             onClick={(e) => { e.stopPropagation(); nativeShare(); }}
             title="Share"
             aria-label="Share"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-purple-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-transparent text-purple-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
           >
-            <Smartphone className="h-4 w-4" />
+            <Smartphone className="h-3 w-3" />
             <span className="sr-only">Share</span>
           </button>
         )}
@@ -135,13 +135,13 @@ export function ShareButtons({
           onClick={(e) => { e.stopPropagation(); copyLink(); }}
           title={copied ? copiedLabel : copyLabel}
           aria-label={copied ? copiedLabel : copyLabel}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
         >
-          {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+          {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
           <span className="sr-only">{copied ? copiedLabel : copyLabel}</span>
         </button>
         {nativeShareError && (
-          <p className="w-full text-xs text-rose-500">{nativeShareError}</p>
+          <p className="w-full text-center text-xs text-rose-500">{nativeShareError}</p>
         )}
       </div>
     );

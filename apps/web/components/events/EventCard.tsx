@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Calendar, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from '@/i18n/routing';
-import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { ShareButtons } from '@/components/ui/ShareButtons';
 import EventLocationLink from '@/components/events/EventLocationLink';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
@@ -55,15 +55,12 @@ export default function EventCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       onClick={handleCardClick}
-      className="glass-card group flex h-64 cursor-pointer overflow-hidden"
+      className="glass-card group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl sm:h-[340px] sm:flex-row"
     >
-      <div className="relative flex h-full w-40 shrink-0 flex-col overflow-hidden bg-black/10 sm:w-44">
-        <div
-          className={cn(
-            'flex flex-1 items-center justify-center bg-gradient-to-br',
-            event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/30 to-neon-gold/30'
-          )}
-        >
+      {/* Left column: poster + date block */}
+      <div className="relative flex w-full flex-col overflow-hidden bg-slate-950 sm:h-full sm:w-[42%]">
+        {/* Poster */}
+        <div className="relative flex aspect-[3/4] flex-1 items-center justify-center overflow-hidden p-3 sm:aspect-auto">
           {event.imageUrl ? (
             <img
               src={event.imageUrl}
@@ -71,60 +68,69 @@ export default function EventCard({
               className="h-full w-full object-contain"
             />
           ) : (
-            <Calendar className="h-12 w-12 text-slate-400" />
+            <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
+              <span className="text-5xl font-bold text-slate-400">{dayNumber}</span>
+            </div>
+          )}
+
+          {event.category && (
+            <span
+              className={cn(
+                'absolute right-2 top-2 rounded-full px-2.5 py-1 text-[10px] font-semibold shadow-md',
+                eventCategoryColors[event.category]
+              )}
+            >
+              {eventCategoryLabels[event.category]}
+            </span>
           )}
         </div>
 
-        {event.category && (
-          <span
-            className={cn(
-              'absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-medium shadow-md',
-              eventCategoryColors[event.category]
-            )}
-          >
-            {eventCategoryLabels[event.category]}
-          </span>
-        )}
-
-        <div className="flex h-24 shrink-0 flex-col items-center justify-center border-t border-white/10 bg-slate-950/90 text-center text-white backdrop-blur-sm">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-neon-blue">
+        {/* Date block */}
+        <div className="flex h-[110px] shrink-0 flex-col items-center justify-center border-t border-white/10 bg-slate-900/90 text-center text-white backdrop-blur-sm">
+          <span className="text-xs font-bold uppercase tracking-[0.15em] text-neon-blue">
             {monthShort}
           </span>
-          <span className="text-4xl font-bold leading-none">{dayNumber}</span>
-          <span className="text-[10px] font-medium uppercase text-slate-300">{dayOfWeek}</span>
+          <span className="text-5xl font-bold leading-none md:text-6xl">{dayNumber}</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            {dayOfWeek}
+          </span>
         </div>
       </div>
 
-      <div className="flex h-full min-w-0 flex-1 flex-col justify-between p-4 sm:p-5">
+      {/* Right column: event info */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between p-4 sm:h-full sm:p-5">
         <div className="min-h-0">
           <h3 className="line-clamp-2 text-base font-bold leading-tight group-hover:text-neon-blue sm:text-lg">
             {event.title}
           </h3>
 
-          <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-neon-blue" />
-              {formatDate(event.startDatetime)}
+          <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+            <Calendar className="h-4 w-4 shrink-0 text-neon-blue" />
+            <span>{formatDate(event.startDatetime)}</span>
+          </div>
+
+          {event.location && (
+            <div
+              className="mt-2 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-neon-gold" />
+              <EventLocationLink location={event.location} className="line-clamp-2 text-sm" showIcon={false} />
             </div>
-            {event.location && (
-              <div className="flex items-start gap-2" onClick={(e) => e.stopPropagation()}>
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-neon-blue" />
-                <EventLocationLink location={event.location} />
-              </div>
-            )}
-            <div className="font-medium text-slate-800 dark:text-slate-200">
-              {event.isFree || Number(event.ticketPrice) === 0
-                ? freeLabel
-                : startingFromLabel(formatCurrency(event.ticketPrice))}
-            </div>
+          )}
+
+          <div className="mt-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+            {event.isFree || Number(event.ticketPrice) === 0
+              ? freeLabel
+              : startingFromLabel(formatCurrency(event.ticketPrice))}
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 pt-3">
+        <div className="flex flex-col gap-2 pt-2">
           <Link
             href={`/events/${event.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="btn-primary block w-full text-center text-sm"
+            className="btn-primary block w-full py-2.5 text-center text-sm"
           >
             {viewDetailsLabel}
           </Link>

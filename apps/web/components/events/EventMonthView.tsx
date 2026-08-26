@@ -85,7 +85,7 @@ export default function EventMonthView({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {monthEvents.map((event, index) => (
               <EventCard
                 key={event.id}
