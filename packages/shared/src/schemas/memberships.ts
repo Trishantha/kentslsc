@@ -24,7 +24,8 @@ export const membershipTypeSchema = z.object({
   maxIssuances: z.number().int().min(1).nullable().optional(),
   benefits: z.array(z.string()).default([]),
   features: z.array(z.nativeEnum(MembershipFeature)).default([]),
-  autoActivate: z.boolean().default(false)
+  autoActivate: z.boolean().default(false),
+  grantsMemberRole: z.boolean().default(true)
 });
 
 export const membershipApplySchema = z.object({

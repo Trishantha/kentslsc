@@ -357,6 +357,36 @@ export class PaymentsService {
   }
 
   /**
+   * Update a Payment row with the actual fee and net settlement from Stripe's
+   * balance transaction, looked up by PaymentIntent id. This is used for
+   * subscription renewals and any other payment where we know the PaymentIntent
+   * but not the original Checkout Session.
+   */
+  async syncStripeFeesByPaymentIntent(
+    paymentIntentId: string,
+    paymentId?: string
+  ): Promise<void> {
+    if (!paymentIntentId || !paymentId || !paymentIntentId.startsWith('pi_')) return;
+
+    try {
+      const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+      if (!feeDetails) return;
+
+      await this.prisma.payment.update({
+        where: { id: paymentId },
+        data: {
+          processingFee: feeDetails.fee,
+          netAmount: feeDetails.net
+        }
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Could not sync Stripe fees for payment ${paymentId}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  /**
    * Pull completed Stripe Checkout sessions into the local Payment ledger so the
    * revenue report matches Stripe. Creates missing Payment rows and updates
    * existing ones with actual fees, net settlement and refund status.

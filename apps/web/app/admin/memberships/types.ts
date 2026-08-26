@@ -12,6 +12,9 @@ export interface AdminMembershipType {
   isFree?: boolean;
   durationMonths?: number;
   features?: string[];
+  autoActivate?: boolean;
+  grantsMemberRole?: boolean;
+  isPaused?: boolean;
 }
 
 export interface AdminMembership {

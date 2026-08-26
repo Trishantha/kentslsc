@@ -13,7 +13,8 @@ import type { AdminMembershipType } from '../../types';
 const detailsSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  autoActivate: z.boolean().default(false)
+  autoActivate: z.boolean().default(false),
+  grantsMemberRole: z.boolean().default(true)
 });
 
 type DetailsForm = z.infer<typeof detailsSchema>;
@@ -33,7 +34,8 @@ export function MembershipTypeDetailsForm({ membershipType }: MembershipTypeDeta
     defaultValues: {
       name: membershipType.name,
       description: membershipType.description ?? '',
-      autoActivate: membershipType.autoActivate
+      autoActivate: membershipType.autoActivate,
+      grantsMemberRole: membershipType.grantsMemberRole ?? true
     }
   });
 
@@ -41,7 +43,8 @@ export function MembershipTypeDetailsForm({ membershipType }: MembershipTypeDeta
     reset({
       name: membershipType.name,
       description: membershipType.description ?? '',
-      autoActivate: membershipType.autoActivate
+      autoActivate: membershipType.autoActivate,
+      grantsMemberRole: membershipType.grantsMemberRole ?? true
     });
   }, [membershipType, reset]);
 
@@ -135,6 +138,15 @@ export function MembershipTypeDetailsForm({ membershipType }: MembershipTypeDeta
             className="rounded border-white/10 bg-white/5"
           />
           Auto-activate new memberships of this type
+        </label>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            {...register('grantsMemberRole')}
+            className="rounded border-white/10 bg-white/5"
+          />
+          Grants member role while active
         </label>
 
         {updateMutation.isError && (

@@ -8,6 +8,7 @@ import {
   IsEnum,
   Min
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { EventCategory } from '@kentslsc/shared';
 
 export class CreateEventDto {
@@ -47,6 +48,11 @@ export class CreateEventDto {
   @IsOptional()
   @IsUrl()
   declare imageUrl?: string;
+
+  @IsOptional()
+  @IsUrl()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  declare externalTicketingUrl?: string;
 
   @IsOptional()
   @IsBoolean()

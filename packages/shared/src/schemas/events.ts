@@ -12,6 +12,7 @@ export const eventSchema = z.object({
   maxTickets: z.number().int().min(1).optional(),
   category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   imageUrl: z.string().url().optional(),
+  externalTicketingUrl: z.string().url().optional().or(z.literal('')),
   isPublished: z.boolean().default(false)
 });
 

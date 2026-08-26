@@ -159,6 +159,7 @@ model User {
 
   memberships           Membership[]
   tickets               Ticket[]
+  externalTicketClicks  EventExternalTicketClick[]
   businessListings      BusinessListing[]
   forumTopics           ForumTopic[]
   forumPosts            ForumPost[]
@@ -320,6 +321,8 @@ model MembershipType {
   benefits       String[] @default([])
   features       String[] @default([])
   autoActivate   Boolean  @default(false) @map("auto_activate")
+  // Whether this tier should automatically grant the MEMBER system role while active.
+  grantsMemberRole Boolean @default(true) @map("grants_member_role")
   stripeProductId String?  @map("stripe_product_id")
   stripePriceId   String?  @map("stripe_price_id")
   isPaused       Boolean  @default(false) @map("is_paused")
@@ -403,6 +406,7 @@ model Event {
   posterImageUrl String?      @map("poster_image_url")
   posterImages  Json?         @map("poster_images") @db.JsonB
   ticketDesign  Json?         @map("ticket_design") @db.JsonB
+  externalTicketingUrl String?       @map("external_ticketing_url")
   isPublished   Boolean       @default(false) @map("is_published")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -410,11 +414,31 @@ model Event {
 
   tickets Ticket[]
   payments Payment[]
+  externalTicketClicks EventExternalTicketClick[]
 
   @@index([startDatetime])
   @@index([isPublished])
   @@index([category])
   @@map("events")
+}
+
+model EventExternalTicketClick {
+  id          String   @id @default(uuid())
+  eventId     String   @map("event_id")
+  userId      String?  @map("user_id")
+  url         String
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  clickedAt   DateTime @default(now()) @map("clicked_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  event       Event    @relation(fields: [eventId], references: [id])
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([clickedAt])
+  @@map("event_external_ticket_clicks")
 }
 
 model Ticket {

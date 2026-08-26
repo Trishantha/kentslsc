@@ -10,14 +10,15 @@ import {
   Query,
   Headers,
   RawBody,
+  Req,
   Res
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto } from './dto/index.js';
+import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, RecordExternalTicketClickDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -146,6 +147,27 @@ export class EventsController {
       dto.sessionId,
       dto.provider,
       dto.quantity ?? 1
+    );
+  }
+
+  @Post(':id/external-ticket-click')
+  @Public()
+  async recordExternalTicketClick(
+    @Param('id') eventId: string,
+    @Body() _dto: RecordExternalTicketClickDto,
+    @Req() req: Request,
+    @CurrentUser() user?: TokenPayload
+  ) {
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+      req.ip ||
+      undefined;
+    const userAgent = req.headers['user-agent'] as string | undefined;
+    return this.eventsService.recordExternalTicketClick(
+      eventId,
+      user?.sub,
+      ipAddress,
+      userAgent
     );
   }
 

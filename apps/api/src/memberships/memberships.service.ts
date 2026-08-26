@@ -11,7 +11,8 @@ import {
   MembershipScanResult,
   Prisma,
   PaymentStatus,
-  PaymentSourceType
+  PaymentSourceType,
+  AuthEventType
 } from '@kentslsc/database';
 import { TokenPayload, DependantInput, MembershipFeature, UserRole } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
@@ -156,6 +157,81 @@ export class MembershipsService {
   }
 
   /**
+   * Keep the user's system role in sync with their active qualifying memberships.
+   * Promotes GUEST → MEMBER while an active membership of a type that grants the
+   * member role exists; demotes MEMBER → GUEST when none remain. Never touches
+   * ADMIN or BUSINESS_OWNER roles.
+   */
+  async syncMemberRole(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    if (!user) return;
+
+    if (user.role === UserRole.ADMIN || user.role === UserRole.BUSINESS_OWNER) {
+      return;
+    }
+
+    const now = new Date();
+    const qualifyingMembership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+        status: MembershipStatus.ACTIVE,
+        endDate: { gt: now },
+        membershipType: { grantsMemberRole: true }
+      }
+    });
+
+    const shouldBeMember = Boolean(qualifyingMembership);
+
+    if (shouldBeMember && user.role === UserRole.GUEST) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: UserRole.MEMBER, updatedAt: new Date() }
+      });
+      await this.recordRoleChange(userId, UserRole.GUEST, UserRole.MEMBER);
+      this.logger.log(`Promoted user ${userId} to MEMBER`);
+    } else if (!shouldBeMember && user.role === UserRole.MEMBER) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { role: UserRole.GUEST, updatedAt: new Date() }
+      });
+      await this.revokeAllSessions(userId);
+      await this.recordRoleChange(userId, UserRole.MEMBER, UserRole.GUEST);
+      this.logger.log(`Demoted user ${userId} to GUEST`);
+    }
+  }
+
+  private async revokeAllSessions(userId: string): Promise<void> {
+    await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: 'membership_lapsed' }
+    });
+  }
+
+  private async recordRoleChange(
+    userId: string,
+    fromRole: UserRole,
+    toRole: UserRole
+  ): Promise<void> {
+    try {
+      await this.prisma.authEvent.create({
+        data: {
+          userId,
+          type: AuthEventType.ROLE_CHANGED,
+          metadata: { from: fromRole, to: toRole, source: 'membership_sync' }
+        }
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to record role change event for ${userId}: ${(err as Error).message}`
+      );
+    }
+  }
+
+  /**
    * Find the user's current effective paid membership. Free and pending/awaiting
    * approval memberships are ignored because they carry no refundable monetary value.
    */
@@ -288,7 +364,8 @@ export class MembershipsService {
         maxIssuances: dto.maxIssuances,
         benefits: dto.benefits ?? [],
         features: dto.features ?? [],
-        autoActivate: dto.autoActivate ?? false
+        autoActivate: dto.autoActivate ?? false,
+        grantsMemberRole: dto.grantsMemberRole ?? true
       }
     });
   }
@@ -306,7 +383,8 @@ export class MembershipsService {
         maxIssuances: dto.maxIssuances,
         benefits: dto.benefits,
         features: dto.features,
-        autoActivate: dto.autoActivate
+        autoActivate: dto.autoActivate,
+        grantsMemberRole: dto.grantsMemberRole
       }
     });
   }
@@ -418,6 +496,7 @@ export class MembershipsService {
         status: MembershipStatus.ACTIVE
       });
       await this.cancelPreviousMemberships(userId, membership.id);
+      await this.syncMemberRole(userId);
       return { membership, paid: false };
     }
 
@@ -530,6 +609,7 @@ export class MembershipsService {
       const memberName = await this.resolveMemberName(data.userId, data.fullName);
       membership = await this.generateAndAttachCard(membership, memberName, dependants);
       await this.sendWelcomeEmail(data.userId, memberName, data.overrideEmail, membership.membershipCardUrl);
+      await this.syncMemberRole(data.userId);
     }
 
     return membership;
@@ -886,6 +966,17 @@ export class MembershipsService {
         : this.computeEndDate(membership.membershipType, startDate);
       data.startDate = startDate;
       data.endDate = endDate;
+
+      // Paid memberships activated manually or offline may be missing payment
+      // metadata. Backfill it so the UI no longer shows them as "Unpaid".
+      if (!membership.membershipType.isFree && Number(membership.membershipType.price) > 0) {
+        if (!membership.paymentMethod) {
+          data.paymentMethod = 'manual';
+        }
+        if (!membership.paidAt) {
+          data.paidAt = new Date();
+        }
+      }
     }
 
     const updated = await this.prisma.membership.update({
@@ -899,6 +990,14 @@ export class MembershipsService {
       const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
       const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
       await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+    }
+
+    if (
+      status === MembershipStatus.ACTIVE ||
+      status === MembershipStatus.CANCELLED ||
+      status === MembershipStatus.EXPIRED
+    ) {
+      await this.syncMemberRole(updated.userId);
     }
 
     return updated;
@@ -929,6 +1028,7 @@ export class MembershipsService {
       amountPence: number;
       providerPaymentId?: string | null;
       providerCheckoutId?: string | null;
+      stripePaymentIntentId?: string | null;
       payerEmail?: string | null;
       payerName?: string | null;
       payerPhone?: string | null;
@@ -947,7 +1047,7 @@ export class MembershipsService {
 
     const amount = input.amountPence / 100;
 
-    return this.prisma.payment.create({
+    const payment = await this.prisma.payment.create({
       data: {
         userId: membership.userId,
         membershipId: membership.id,
@@ -970,6 +1070,22 @@ export class MembershipsService {
         sourceId: membership.id
       }
     });
+
+    // Overwrite the estimated (zero) fee with Stripe's actual fee so the
+    // revenue report matches Stripe's payout reporting.
+    if (
+      payment &&
+      input.channel === 'stripe' &&
+      input.stripePaymentIntentId &&
+      payment.providerPaymentId !== input.stripePaymentIntentId
+    ) {
+      await this.paymentsService.syncStripeFeesByPaymentIntent(
+        input.stripePaymentIntentId,
+        payment.id
+      );
+    }
+
+    return payment;
   }
 
   async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
@@ -1040,6 +1156,10 @@ export class MembershipsService {
           }
         });
         const updated = await this.findMembershipById(existing.id);
+        const sessionPaymentIntentId =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id;
         await this.recordMembershipPayment(updated, {
           channel: 'stripe',
           method: 'subscription',
@@ -1047,11 +1167,13 @@ export class MembershipsService {
           amountPence,
           providerCheckoutId: session.id,
           providerPaymentId: subscriptionId,
+          stripePaymentIntentId: sessionPaymentIntentId,
           payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
           payerName: session.customer_details?.name ?? null,
           payerPhone: session.customer_details?.phone ?? null,
           notes: 'Membership subscription payment via Stripe Checkout'
         });
+        await this.syncMemberRole(existing.userId);
         return { received: true, membershipId: updated.membershipId };
       }
     }
@@ -1182,11 +1304,13 @@ export class MembershipsService {
             (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
           providerCheckoutId: gatewayContext?.providerCheckoutId,
           providerPaymentId: gatewayContext?.providerPaymentId,
+          stripePaymentIntentId: gatewayContext?.providerPaymentId,
           payerEmail: customerEmail ?? updated.user?.email ?? null,
           payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
           payerPhone: gatewayContext?.payerPhone ?? null,
           notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
         });
+        await this.syncMemberRole(metadata.userId);
         return { received: true, membershipId: updated.membershipId };
       }
       // Fall through to create a new membership if the referenced one is missing.
@@ -1257,6 +1381,7 @@ export class MembershipsService {
           (metadata.amountPence ? Number(metadata.amountPence) : Number(membershipWithType.membershipType.price) * 100),
         providerCheckoutId: gatewayContext?.providerCheckoutId,
         providerPaymentId: gatewayContext?.providerPaymentId,
+        stripePaymentIntentId: gatewayContext?.providerPaymentId,
         payerEmail: customerEmail ?? membershipWithType.user?.email ?? null,
         payerName: gatewayContext?.payerName ?? membershipWithType.user?.name ?? null,
         payerPhone: gatewayContext?.payerPhone ?? null,
@@ -1335,6 +1460,8 @@ export class MembershipsService {
       }
     });
 
+    await this.syncMemberRole(membership.userId);
+
     return { received: true, membershipId: membership.membershipId };
   }
 
@@ -1355,6 +1482,8 @@ export class MembershipsService {
         subscriptionStatus: subscription.status
       }
     });
+
+    await this.syncMemberRole(membership.userId);
 
     return { received: true, membershipId: membership.membershipId };
   }
@@ -1398,14 +1527,16 @@ export class MembershipsService {
     });
 
     const paymentIntent = invoiceAny.payment_intent;
+    const paymentIntentId =
+      typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id ?? null;
     await this.recordMembershipPayment(membership, {
       channel: 'stripe',
       method: 'subscription',
       currency: (invoice.currency ?? 'gbp').toUpperCase(),
       amountPence: invoice.amount_paid ?? invoice.amount_due,
       providerCheckoutId: invoice.id,
-      providerPaymentId:
-        typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id ?? null,
+      providerPaymentId: paymentIntentId,
+      stripePaymentIntentId: paymentIntentId,
       payerEmail: invoice.customer_email ?? membership.user?.email ?? null,
       payerName: invoice.customer_name ?? membership.user?.name ?? null,
       notes: 'Membership subscription renewal via Stripe invoice'

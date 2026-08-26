@@ -65,14 +65,12 @@ export default function BlogPostContent({ post }: Props) {
       <div className="mx-auto max-w-3xl">
         <article className="glass-card p-8 md:p-12">
           {post.imageUrl ? (
-            <div className="relative mb-8 h-64 w-full overflow-hidden rounded-xl">
-              <Image
+            <div className="mb-8 w-full overflow-hidden rounded-xl bg-black">
+              <img
                 src={post.imageUrl}
                 alt={post.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 768px"
-                className="object-cover"
-                priority
+                className="h-auto w-full object-contain"
+                loading="eager"
               />
             </div>
           ) : (

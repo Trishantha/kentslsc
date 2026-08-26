@@ -14,6 +14,7 @@ const mockMembershipType = {
   benefits: [],
   features: [],
   autoActivate: true,
+  grantsMemberRole: true,
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null
@@ -127,6 +128,12 @@ describe('MembershipsService', () => {
     payment: {
       findFirst: jest.fn(),
       create: jest.fn()
+    },
+    authEvent: {
+      create: jest.fn()
+    },
+    session: {
+      updateMany: jest.fn()
     }
   };
 
@@ -148,7 +155,8 @@ describe('MembershipsService', () => {
       current_period_end: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
       status: 'active'
     }),
-    cancelSubscription: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
+    cancelSubscription: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined),
+    syncStripeFeesByPaymentIntent: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
   };
 
   const mockEmailService: any = {
@@ -682,6 +690,78 @@ describe('MembershipsService', () => {
           })
         })
       );
+    });
+  });
+
+  describe('syncMemberRole', () => {
+    it('promotes GUEST to MEMBER when an active qualifying membership exists', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'GUEST' });
+      mockPrisma.membership.findFirst.mockResolvedValue(mockCreatedMembership);
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-1', role: 'MEMBER' });
+      mockPrisma.authEvent.create.mockResolvedValue({});
+
+      await service.syncMemberRole('user-1');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({ role: 'MEMBER' })
+        })
+      );
+      expect(mockPrisma.authEvent.create).toHaveBeenCalled();
+      expect(mockPrisma.session.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('does not promote when the membership type does not grant the member role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'GUEST' });
+      // The real query filters by membershipType.grantsMemberRole = true, so a
+      // non-granting type returns no qualifying membership.
+      mockPrisma.membership.findFirst.mockResolvedValue(null);
+
+      await service.syncMemberRole('user-1');
+
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('demotes MEMBER to GUEST when no qualifying membership exists and revokes sessions', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'MEMBER' });
+      mockPrisma.membership.findFirst.mockResolvedValue(null);
+      mockPrisma.user.update.mockResolvedValue({ id: 'user-1', role: 'GUEST' });
+      mockPrisma.authEvent.create.mockResolvedValue({});
+
+      await service.syncMemberRole('user-1');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: expect.objectContaining({ role: 'GUEST' })
+        })
+      );
+      expect(mockPrisma.session.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1', revokedAt: null },
+          data: expect.objectContaining({ revokedReason: 'membership_lapsed' })
+        })
+      );
+      expect(mockPrisma.authEvent.create).toHaveBeenCalled();
+    });
+
+    it('does not change ADMIN role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'ADMIN' });
+
+      await service.syncMemberRole('user-1');
+
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.membership.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('does not change BUSINESS_OWNER role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ role: 'BUSINESS_OWNER' });
+
+      await service.syncMemberRole('user-1');
+
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.membership.findFirst).not.toHaveBeenCalled();
     });
   });
 });

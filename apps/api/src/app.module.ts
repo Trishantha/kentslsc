@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { fileURLToPath } from 'url';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { envValidationSchema } from './core/config/env.validation.js';
@@ -61,6 +62,7 @@ import { QueueModule } from './queue/queue.module.js';
         }
       ]
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     SupabaseModule,
     QueueModule,

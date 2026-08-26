@@ -493,6 +493,8 @@
     "reserveTickets": "டிக்கெட்டுகளை முன்பதிவு செய்யுங்கள்",
     "buyFor": "{amount}க்கு வாங்கவும்",
     "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக",
+    "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
+    "getTicketsExternal": "Get tickets",
     "addToCalendar": "Add to calendar",
     "downloadIcs": "Download .ics",
     "shareTitle": "Share this event",

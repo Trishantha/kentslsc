@@ -23,6 +23,7 @@ const eventSchema = z.object({
   maxTickets: z.coerce.number().int().min(1).optional(),
   category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   imageUrl: z.string().url().optional().or(z.literal('')),
+  externalTicketingUrl: z.string().url().optional().or(z.literal('')),
   isPublished: z.boolean().default(false)
 });
 
@@ -151,6 +152,18 @@ export default function NewEventPage() {
             onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
             hideUrlInput
           />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">External ticketing URL</label>
+            <input
+              {...register('externalTicketingUrl')}
+              placeholder="https://example.com/tickets"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.externalTicketingUrl && (
+              <p className="mt-1 text-xs text-red-400">{errors.externalTicketingUrl.message}</p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">If set, visitors are redirected here to buy tickets instead of using the built-in checkout.</p>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" {...register('isPublished')} className="rounded border-white/10 bg-white/5" />
             Published

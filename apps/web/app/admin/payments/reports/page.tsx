@@ -44,6 +44,7 @@ interface ReportRow {
   paymentStatus: string;
   sourceType: string;
   sourceId: string | null;
+  subscriptionId: string | null;
   description: string | null;
   createdAt: string;
 }
@@ -231,6 +232,7 @@ export default function RevenueReportPage() {
     { key: 'refundedAmount', label: 'Refunded', width: 80 },
     { key: 'paymentChannel', label: 'Channel', width: 80 },
     { key: 'paymentId', label: 'Payment ID', width: 120 },
+    { key: 'subscriptionId', label: 'Subscription ID', width: 120 },
     { key: 'paymentDate', label: 'Payment Date', width: 90 },
     { key: 'paymentMethod', label: 'Method', width: 80 },
     { key: 'paymentStatus', label: 'Status', width: 90 },
@@ -260,6 +262,7 @@ export default function RevenueReportPage() {
       'Refunded Amount': row.refundedAmount ?? 0,
       'Payment Channel': row.paymentChannel,
       'Payment ID': row.paymentId ?? '',
+      'Subscription ID': row.subscriptionId ?? '',
       'Payment Date': row.paymentDate ? new Date(row.paymentDate).toLocaleString() : '',
       'Payment Method': row.paymentMethod ?? '',
       'Payment Status': row.paymentStatus,
@@ -298,13 +301,14 @@ export default function RevenueReportPage() {
       formatCurrency(row.fees),
       formatCurrency(row.netPayment),
       row.paymentChannel,
+      row.subscriptionId ?? '',
       row.paymentStatus
     ]);
 
     autoTable(doc, {
       startY: 28,
       head: [
-        ['Date', 'Receipt #', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Status']
+        ['Date', 'Receipt #', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Subscription ID', 'Status']
       ],
       body,
       styles: { fontSize: 8 },

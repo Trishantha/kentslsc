@@ -23,7 +23,8 @@ const membershipTypeSchema = z.object({
   ),
   benefits: z.string().optional(),
   features: z.array(z.nativeEnum(MembershipFeature)).default([]),
-  autoActivate: z.boolean().default(false)
+  autoActivate: z.boolean().default(false),
+  grantsMemberRole: z.boolean().default(true)
 });
 
 type MembershipTypeForm = z.infer<typeof membershipTypeSchema>;
@@ -45,7 +46,8 @@ export default function NewMembershipTypePage() {
       isFree: false,
       durationMonths: 12,
       features: [],
-      autoActivate: false
+      autoActivate: false,
+      grantsMemberRole: true
     }
   });
 
@@ -145,7 +147,7 @@ export default function NewMembershipTypePage() {
               />
               {errors.maxIssuances && <p className="mt-1 text-xs text-red-400">{errors.maxIssuances.message}</p>}
             </div>
-            <div className="flex items-center gap-6 pt-6">
+            <div className="flex flex-wrap items-center gap-6 pt-6">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -165,6 +167,14 @@ export default function NewMembershipTypePage() {
                   className="rounded border-white/10 bg-white/5"
                 />
                 Auto-activate
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  {...register('grantsMemberRole')}
+                  className="rounded border-white/10 bg-white/5"
+                />
+                Grants member role while active
               </label>
             </div>
           </div>

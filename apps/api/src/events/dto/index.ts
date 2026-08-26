@@ -7,3 +7,4 @@ export * from './update-event-ticket-design.dto.js';
 export * from './generate-tickets.dto.js';
 export * from './confirm-checkout.dto.js';
 export * from './issue-tickets.dto.js';
+export * from './record-external-click.dto.js';

@@ -21,7 +21,7 @@ export default function ImageBlockComponent({ block }: Props) {
         className="mx-auto max-w-5xl"
       >
         <div className="glass-card overflow-hidden p-0">
-          <img src={imageUrl} alt={alt || ''} className="h-auto w-full object-cover" />
+          <img src={imageUrl} alt={alt || ''} className="h-auto w-full object-contain" />
         </div>
         {caption && (
           <p className="mt-3 text-center text-sm text-slate-500">{caption}</p>

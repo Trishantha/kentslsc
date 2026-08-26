@@ -34,6 +34,7 @@ export interface Event {
   isPublished: boolean;
   tickets?: { id: string }[];
   _count?: { tickets: number };
+  externalTicketingUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,8 +89,27 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
     }
   });
 
+  const externalTicketClick = useMutation({
+    mutationFn: async () => {
+      if (!event) throw new Error('Event not loaded');
+      const { data } = await api.post<{ url: string }>(`/events/${event.id}/external-ticket-click`, {});
+      return data;
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
+      const text = err.response?.data?.message || err.message || t('purchaseFailed');
+      setMessage({ type: 'error', text });
+    }
+  });
+
   const handleBuy = () => {
     if (!event) return;
+    if (event.externalTicketingUrl) {
+      externalTicketClick.mutate();
+      return;
+    }
     if (!user) {
       router.push(`/auth/login?returnTo=/events/${event.id}`);
       return;
@@ -117,6 +137,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   }, [subtotal, isFree, paymentSettings]);
 
   const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
+  const isExternal = !!event?.externalTicketingUrl;
 
   const posterPhotos = useMemo(
     () => (event?.posterImages ?? []).map((p, i) => ({ id: `poster-${i}`, url: p.url, caption: p.caption })),
@@ -241,55 +262,61 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
             )}
 
             <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold">
-                  {t('priceEach', { price: isFree ? t('freeTicket') : formatCurrency(Number(event.ticketPrice)) })}
-                </span>
-                {remaining !== null && (
-                  <span className={cn('text-sm', remaining <= 5 ? 'text-red-500' : 'text-slate-500')}>
-                    {t('remaining', { count: remaining })}
-                  </span>
-                )}
-              </div>
+              {isExternal ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold">
+                      {t('priceEach', { price: isFree ? t('freeTicket') : formatCurrency(Number(event.ticketPrice)) })}
+                    </span>
+                    {remaining !== null && (
+                      <span className={cn('text-sm', remaining <= 5 ? 'text-red-500' : 'text-slate-500')}>
+                        {t('remaining', { count: remaining })}
+                      </span>
+                    )}
+                  </div>
 
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium">{t('quantity')}</span>
-                <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-1 dark:bg-black/20">
-                  <button
-                    type="button"
-                    disabled={quantity <= 1}
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <span className="w-8 text-center font-semibold">{quantity}</span>
-                  <button
-                    type="button"
-                    disabled={!hasCapacity || quantity >= (remaining ?? 10) || quantity >= 10}
-                    onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-                    className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium">{t('quantity')}</span>
+                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-1 dark:bg-black/20">
+                      <button
+                        type="button"
+                        disabled={quantity <= 1}
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="w-8 text-center font-semibold">{quantity}</span>
+                      <button
+                        type="button"
+                        disabled={!hasCapacity || quantity >= (remaining ?? 10) || quantity >= 10}
+                        onClick={() => setQuantity((q) => Math.min(10, q + 1))}
+                        className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
 
-              {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>{tCommon('tickets')}</span>
-                    <span>{formatCurrency(feeBreakdown.net / 100)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                    <span>{tCommon('processingFee')}</span>
-                    <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-white/10 pt-1 font-semibold">
-                    <span>{tCommon('total')}</span>
-                    <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
-                  </div>
-                </div>
+                  {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                        <span>{tCommon('tickets')}</span>
+                        <span>{formatCurrency(feeBreakdown.net / 100)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                        <span>{tCommon('processingFee')}</span>
+                        <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-white/10 pt-1 font-semibold">
+                        <span>{tCommon('total')}</span>
+                        <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {message && (
@@ -305,7 +332,20 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                 </div>
               )}
 
-              {user ? (
+              {isExternal ? (
+                <button
+                  onClick={handleBuy}
+                  disabled={externalTicketClick.isPending}
+                  className="btn-primary w-full"
+                >
+                  {externalTicketClick.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Ticket className="mr-2 h-4 w-4" />
+                  )}
+                  {t('getTicketsExternal')}
+                </button>
+              ) : user ? (
                 <button
                   onClick={handleBuy}
                   disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}

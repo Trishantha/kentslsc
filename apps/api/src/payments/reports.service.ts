@@ -39,6 +39,7 @@ export interface RevenueReportRow {
   paymentStatus: PaymentStatus;
   sourceType: PaymentSourceType;
   sourceId: string | null;
+  subscriptionId: string | null;
   description: string | null;
   createdAt: string;
 }
@@ -98,7 +99,7 @@ export class PaymentReportsService {
         include: {
           event: { select: { id: true, title: true } },
           ticket: true,
-          membership: { select: { id: true, membershipId: true } },
+          membership: { select: { id: true, membershipId: true, stripeSubscriptionId: true } },
           donation: true,
           businessListing: { select: { id: true, businessName: true } },
           jobAd: { select: { id: true, title: true } },
@@ -148,6 +149,7 @@ export class PaymentReportsService {
         paymentStatus: p.paymentStatus,
         sourceType: p.sourceType,
         sourceId: p.sourceId,
+        subscriptionId: p.membership?.stripeSubscriptionId ?? null,
         description: p.description,
         createdAt: p.createdAt.toISOString()
       };
@@ -176,7 +178,7 @@ export class PaymentReportsService {
       include: {
         event: { select: { id: true, title: true } },
         ticket: true,
-        membership: { select: { id: true, membershipId: true } },
+        membership: { select: { id: true, membershipId: true, stripeSubscriptionId: true } },
         donation: true,
         businessListing: { select: { id: true, businessName: true } },
         jobAd: { select: { id: true, title: true } },
@@ -220,6 +222,7 @@ export class PaymentReportsService {
         paymentStatus: p.paymentStatus,
         sourceType: p.sourceType,
         sourceId: p.sourceId,
+        subscriptionId: p.membership?.stripeSubscriptionId ?? null,
         description: p.description,
         createdAt: p.createdAt.toISOString()
       };

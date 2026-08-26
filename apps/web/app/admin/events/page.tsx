@@ -23,6 +23,7 @@ export interface AdminEvent {
   posterImageUrl: string | null;
   posterImages: unknown;
   ticketDesign: unknown;
+  externalTicketingUrl: string | null;
   isPublished: boolean;
   _count?: { tickets: number };
   soldCount?: number;

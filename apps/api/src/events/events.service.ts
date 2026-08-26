@@ -177,6 +177,7 @@ export class EventsService {
         maxTickets: dto.maxTickets,
         category: dto.category ?? EventCategory.OTHER,
         imageUrl: dto.imageUrl,
+        externalTicketingUrl: dto.externalTicketingUrl || null,
         isPublished: dto.isPublished ?? false
       }
     });
@@ -206,6 +207,9 @@ export class EventsService {
         ...(dto.maxTickets !== undefined && { maxTickets: dto.maxTickets }),
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+        ...(dto.externalTicketingUrl !== undefined && {
+          externalTicketingUrl: dto.externalTicketingUrl || null
+        }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished })
       }
     });
@@ -237,6 +241,28 @@ export class EventsService {
     });
   }
 
+  async recordExternalTicketClick(
+    eventId: string,
+    userId: string | undefined,
+    ipAddress: string | undefined,
+    userAgent: string | undefined
+  ) {
+    const event = await this.findById(eventId);
+    if (!event.externalTicketingUrl) {
+      throw new BadRequestException('Event does not use external ticketing');
+    }
+    const click = await this.prisma.eventExternalTicketClick.create({
+      data: {
+        eventId,
+        userId,
+        url: event.externalTicketingUrl,
+        ipAddress,
+        userAgent
+      }
+    });
+    return { url: event.externalTicketingUrl, click };
+  }
+
   private async getNextTicketSerial(eventId: string) {
     const lastTicket = await this.prisma.ticket.findFirst({
       where: { eventId, deletedAt: null },
@@ -248,6 +274,9 @@ export class EventsService {
 
   async generateTickets(adminUserId: string, eventId: string, dto: GenerateTicketsDto) {
     const event = await this.findByIdWithTicketCount(eventId);
+    if (event.externalTicketingUrl) {
+      throw new BadRequestException('Tickets for this event are sold through an external platform');
+    }
     const prefix = dto.prefix?.trim() || event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
 
     const remaining = event.maxTickets ? event.maxTickets - event._count.tickets : null;
@@ -297,6 +326,9 @@ export class EventsService {
     const event = await this.findById(dto.eventId);
     if (!event.isPublished) throw new ForbiddenException('Event is not published');
     if (event.startDatetime < new Date()) throw new BadRequestException('Event has already started');
+    if (event.externalTicketingUrl) {
+      throw new BadRequestException('Tickets for this event are sold through an external platform');
+    }
 
     const remaining = await this.getRemainingCapacity(dto.eventId);
     if (remaining !== null && dto.quantity > remaining) {
@@ -728,6 +760,10 @@ export class EventsService {
     provider: 'stripe' | 'paypal',
     quantity = 1
   ) {
+    const event = await this.findById(eventId);
+    if (event.externalTicketingUrl) {
+      throw new BadRequestException('Tickets for this event are sold through an external platform');
+    }
     const existingTickets = await this.prisma.ticket.findMany({
       where: { stripeSessionId: sessionId, deletedAt: null },
       include: { event: true, user: { select: { id: true, name: true, email: true } } }

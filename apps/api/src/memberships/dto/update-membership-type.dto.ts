@@ -43,4 +43,8 @@ export class UpdateMembershipTypeDto {
   @IsOptional()
   @IsBoolean()
   declare autoActivate?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  declare grantsMemberRole?: boolean;
 }
