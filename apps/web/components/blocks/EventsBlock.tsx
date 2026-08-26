@@ -71,11 +71,20 @@ export default function EventsBlockComponent({ block }: Props) {
                   <div className="glass-card group overflow-hidden">
                     <div
                       className={cn(
-                        'h-40 bg-gradient-to-br',
-                        event.imageUrl ? 'bg-cover bg-center' : 'from-neon-blue/40 to-neon-gold/40'
+                        'flex aspect-[3/4] items-center justify-center overflow-hidden bg-gradient-to-br',
+                        event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/40 to-neon-gold/40'
                       )}
-                      style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
-                    />
+                    >
+                      {event.imageUrl ? (
+                        <img
+                          src={event.imageUrl}
+                          alt={event.title}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Calendar className="h-16 w-16 text-slate-400" />
+                      )}
+                    </div>
                     <div className="p-5">
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="text-lg font-bold group-hover:text-neon-blue">{event.title}</h3>

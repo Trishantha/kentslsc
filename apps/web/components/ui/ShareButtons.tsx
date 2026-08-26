@@ -24,6 +24,7 @@ interface ShareButtonsProps {
   copyLabel?: string;
   copiedLabel?: string;
   className?: string;
+  compact?: boolean;
 }
 
 export function ShareButtons({
@@ -33,7 +34,8 @@ export function ShareButtons({
   shareText = `Check out "${title}"`,
   copyLabel = 'Copy link',
   copiedLabel = 'Copied!',
-  className
+  className,
+  compact = false
 }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
   const [nativeShareError, setNativeShareError] = useState<string | null>(null);
@@ -91,6 +93,55 @@ export function ShareButtons({
     }
   };
 
+  if (compact) {
+    return (
+      <div className={cn('flex flex-wrap gap-1.5', className)}>
+        {shares.map((s) => (
+          <a
+            key={s.label}
+            href={s.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={s.label}
+            aria-label={s.label}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors',
+              s.color
+            )}
+          >
+            {s.icon}
+            <span className="sr-only">{s.label}</span>
+          </a>
+        ))}
+        {typeof navigator.share === 'function' && (
+          <button
+            type="button"
+            onClick={nativeShare}
+            title="Share"
+            aria-label="Share"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-white transition-colors hover:bg-purple-700"
+          >
+            <Smartphone className="h-4 w-4" />
+            <span className="sr-only">Share</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={copyLink}
+          title={copied ? copiedLabel : copyLabel}
+          aria-label={copied ? copiedLabel : copyLabel}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+          <span className="sr-only">{copied ? copiedLabel : copyLabel}</span>
+        </button>
+        {nativeShareError && (
+          <p className="w-full text-xs text-rose-500">{nativeShareError}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
       <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -115,6 +166,7 @@ export function ShareButtons({
         ))}
         {typeof navigator.share === 'function' && (
           <button
+            type="button"
             onClick={nativeShare}
             className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-purple-700"
           >
@@ -123,6 +175,7 @@ export function ShareButtons({
           </button>
         )}
         <button
+          type="button"
           onClick={copyLink}
           className="flex items-center gap-1.5 rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
         >

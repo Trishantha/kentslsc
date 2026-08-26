@@ -1037,8 +1037,10 @@ export class MembershipsService {
   ) {
     const existing = await this.prisma.payment.findFirst({
       where: {
-        membershipId: membership.id,
-        providerCheckoutId: input.providerCheckoutId ?? undefined
+        OR: [
+          { membershipId: membership.id, providerCheckoutId: input.providerCheckoutId ?? undefined },
+          ...(input.providerPaymentId ? [{ providerPaymentId: input.providerPaymentId }] : [])
+        ]
       }
     });
     if (existing) {
@@ -1047,8 +1049,10 @@ export class MembershipsService {
 
     const amount = input.amountPence / 100;
 
-    const payment = await this.prisma.payment.create({
-      data: {
+    let payment;
+    try {
+      payment = await this.prisma.payment.create({
+        data: {
         userId: membership.userId,
         membershipId: membership.id,
         paymentChannel: input.channel,
@@ -1068,8 +1072,22 @@ export class MembershipsService {
         purchasedAt: new Date(),
         sourceType: PaymentSourceType.MEMBERSHIP,
         sourceId: membership.id
+        }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const duplicate = await this.prisma.payment.findFirst({
+          where: {
+            OR: [
+              ...(input.providerCheckoutId ? [{ providerCheckoutId: input.providerCheckoutId }] : []),
+              ...(input.providerPaymentId ? [{ providerPaymentId: input.providerPaymentId }] : [])
+            ]
+          }
+        });
+        if (duplicate) return duplicate;
       }
-    });
+      throw error;
+    }
 
     // Overwrite the estimated (zero) fee with Stripe's actual fee so the
     // revenue report matches Stripe's payout reporting.

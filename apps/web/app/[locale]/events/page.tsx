@@ -1,15 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Link } from '@/i18n/routing';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Search, List } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Calendar as CalendarIcon, Search, List } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatDate, formatCurrency, cn } from '@/lib/utils';
-import EventCalendar from '@/components/events/EventCalendar';
-import EventLocationLink from '@/components/events/EventLocationLink';
+import { cn } from '@/lib/utils';
+import EventCard from '@/components/events/EventCard';
+import EventMonthView from '@/components/events/EventMonthView';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 interface Event {
@@ -40,10 +38,18 @@ interface EventsResponse {
 export default function EventsPage() {
   const t = useTranslations('events');
   const tCommon = useTranslations('common');
+  const tDetail = useTranslations('eventDetail');
   const [search, setSearch] = useState('');
   const [upcoming, setUpcoming] = useState(true);
   const [category, setCategory] = useState<string>('');
   const [view, setView] = useState<'list' | 'calendar'>('list');
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   const { data, isLoading } = useQuery<EventsResponse>({
     queryKey: ['events', 'list', search, upcoming, category, view],
@@ -129,94 +135,46 @@ export default function EventsPage() {
                 view === 'calendar' ? 'bg-neon-blue text-white' : 'text-slate-600 dark:text-slate-300'
               )}
             >
-              <Calendar className="h-4 w-4" /> {t('calendarView')}
+              <CalendarIcon className="h-4 w-4" /> {t('monthView')}
             </button>
           </div>
         </div>
 
         {view === 'calendar' ? (
-          <div className="mt-8">
-            <EventCalendar events={events} />
-          </div>
+          <EventMonthView
+            events={events}
+            shareBaseUrl={origin}
+            viewDetailsLabel={t('viewDetails')}
+            soldOutLabel={t('soldOut')}
+            remainingLabel={(count) => t('remaining', { count })}
+            freeLabel={tCommon('free')}
+          />
         ) : (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="glass-card h-80 animate-pulse overflow-hidden">
-                  <div className="h-40 bg-slate-200 dark:bg-slate-800" />
+                <div key={i} className="glass-card animate-pulse overflow-hidden">
+                  <div className="aspect-[3/4] bg-slate-200 dark:bg-slate-800" />
                   <div className="space-y-3 p-5">
                     <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-800" />
                     <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />
+                    <div className="h-9 w-full rounded bg-slate-200 dark:bg-slate-800" />
                   </div>
                 </div>
               ))}
 
             {events.map((event, index) => (
-              <motion.div
+              <EventCard
                 key={event.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="glass-card group overflow-hidden"
-              >
-                <div
-                  className={cn(
-                    'h-40 bg-gradient-to-br',
-                    event.imageUrl
-                      ? 'bg-cover bg-center'
-                      : 'from-neon-blue/30 to-neon-gold/30'
-                  )}
-                  style={event.imageUrl ? { backgroundImage: `url(${event.imageUrl})` } : undefined}
-                />
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-xl font-bold">{event.title}</h3>
-                    {event.category && (
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
-                          eventCategoryColors[event.category]
-                        )}
-                      >
-                        {eventCategoryLabels[event.category]}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3 space-y-1.5 text-sm text-slate-600 dark:text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-neon-blue" />
-                      {formatDate(event.startDatetime)}
-                    </div>
-                    {event.location && (
-                      <EventLocationLink location={event.location} />
-                    )}
-                    <div className="font-medium text-slate-800 dark:text-slate-200">
-                      {event.isFree || Number(event.ticketPrice) === 0 ? tCommon('free') : formatCurrency(event.ticketPrice)}
-                    </div>
-                    {typeof event.remainingCount === 'number' && (
-                      <div
-                        className={cn(
-                          'text-xs font-medium',
-                          event.remainingCount <= 5 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'
-                        )}
-                      >
-                        {event.remainingCount === 0
-                          ? t('soldOut')
-                          : t('remaining', { count: event.remainingCount })}
-                      </div>
-                    )}
-                  </div>
-                  <Link
-                    href={`/events/${event.id}`}
-                    className={cn(
-                      'btn-primary mt-5 block w-full text-center text-sm',
-                      event.remainingCount === 0 && 'pointer-events-none opacity-60'
-                    )}
-                  >
-                    {event.remainingCount === 0 ? t('soldOut') : t('viewDetails')}
-                  </Link>
-                </div>
-              </motion.div>
+                event={event}
+                index={index}
+                shareUrl={`${origin}/events/${event.id}`}
+                viewDetailsLabel={t('viewDetails')}
+                soldOutLabel={t('soldOut')}
+                remainingLabel={(count) => t('remaining', { count })}
+                freeLabel={tCommon('free')}
+                shareText={tDetail('shareText', { title: event.title })}
+              />
             ))}
           </div>
         )}

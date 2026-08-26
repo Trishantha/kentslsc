@@ -90,10 +90,14 @@ async function backfillFromPayments(prisma: PrismaClient): Promise<number> {
 
     const paymentMethod = firstPayment.paymentMethod || firstPayment.paymentChannel || 'stripe';
     const paidAt = firstPayment.purchasedAt ?? firstPayment.createdAt;
+    const data = {
+      ...(membership.paymentMethod ? {} : { paymentMethod }),
+      ...(membership.paidAt ? {} : { paidAt })
+    };
 
     if (DRY_RUN) {
       console.log(
-        `[DRY-RUN] membership ${membership.membershipId}: set paymentMethod=${paymentMethod}, paidAt=${paidAt.toISOString()}`
+        `[DRY-RUN] membership ${membership.membershipId}: ${JSON.stringify(data)}`
       );
       updated++;
       continue;
@@ -101,10 +105,7 @@ async function backfillFromPayments(prisma: PrismaClient): Promise<number> {
 
     await prisma.membership.update({
       where: { id: membership.id },
-      data: {
-        paymentMethod,
-        paidAt
-      }
+      data
     });
     updated++;
   }
@@ -114,7 +115,8 @@ async function backfillFromPayments(prisma: PrismaClient): Promise<number> {
 
 async function backfillFromStripe(
   prisma: PrismaClient,
-  stripe: Stripe
+  stripe: Stripe,
+  errors: string[]
 ): Promise<number> {
   const memberships = await prisma.membership.findMany({
     where: {
@@ -125,45 +127,47 @@ async function backfillFromStripe(
   });
 
   let updated = 0;
-  for (const membership of memberships) {
-    try {
-      const subscription = await stripe.subscriptions.retrieve(membership.stripeSubscriptionId!, {
-        expand: ['latest_invoice']
-      });
+  const concurrency = 5;
+  for (let index = 0; index < memberships.length; index += concurrency) {
+    const batch = memberships.slice(index, index + concurrency);
+    const results = await Promise.all(batch.map(async (membership) => {
+      try {
+        const subscription = await stripe.subscriptions.retrieve(membership.stripeSubscriptionId!, {
+          expand: ['latest_invoice']
+        });
 
-      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-        continue;
-      }
-
-      const latestInvoice = subscription.latest_invoice as Stripe.Invoice | undefined | null;
-      const paidAt =
-        latestInvoice?.status_transitions?.paid_at
-          ? new Date(latestInvoice.status_transitions.paid_at * 1000)
-          : subscription.start_date
-            ? new Date(subscription.start_date * 1000)
-            : membership.createdAt;
-
-      if (DRY_RUN) {
-        console.log(
-          `[DRY-RUN] membership ${membership.membershipId}: set paymentMethod=stripe, paidAt=${paidAt.toISOString()} (stripe subscription ${subscription.id})`
-        );
-        updated++;
-        continue;
-      }
-
-      await prisma.membership.update({
-        where: { id: membership.id },
-        data: {
-          paymentMethod: 'stripe',
-          paidAt,
-          subscriptionStatus: subscription.status
+        if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+          return 0;
         }
-      });
-      updated++;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`Stripe lookup failed for ${membership.membershipId}: ${message}`);
-    }
+
+        const latestInvoice = subscription.latest_invoice as Stripe.Invoice | undefined | null;
+        const paidAt = latestInvoice?.status_transitions?.paid_at
+          ? new Date(latestInvoice.status_transitions.paid_at * 1000)
+          : null;
+        if (!paidAt) return 0;
+        const data = {
+          ...(membership.paymentMethod ? {} : { paymentMethod: 'stripe' }),
+          ...(membership.paidAt ? {} : { paidAt }),
+          subscriptionStatus: subscription.status
+        };
+
+        if (DRY_RUN) {
+          console.log(
+            `[DRY-RUN] membership ${membership.membershipId}: ${JSON.stringify(data)} (stripe subscription ${subscription.id})`
+          );
+          return 1;
+        }
+
+        await prisma.membership.update({ where: { id: membership.id }, data });
+        return 1;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`Stripe lookup failed for ${membership.membershipId}: ${message}`);
+        errors.push(`membership ${membership.membershipId}: ${message}`);
+        return 0;
+      }
+    }));
+    updated += results.reduce((total, value) => total + value, 0);
   }
 
   return updated;
@@ -181,7 +185,7 @@ async function main(): Promise<void> {
     if (!ONLY || ONLY === 'stripe') {
       const stripe = await getStripeClient(prisma);
       if (stripe) {
-        result.updatedFromStripe = await backfillFromStripe(prisma, stripe);
+        result.updatedFromStripe = await backfillFromStripe(prisma, stripe, result.errors);
       }
     }
 

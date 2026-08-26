@@ -166,203 +166,207 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
 
   return (
     <div className="px-4 py-12 md:px-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <Link href="/events" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-neon-blue dark:text-slate-400">
           <ArrowLeft className="h-4 w-4" /> {t('backToEvents')}
         </Link>
 
         <div className="mt-6 glass-card overflow-hidden">
-          <div className="overflow-hidden">
-            {(event.imageUrl || event.posterImageUrl) ? (
-              <img
-                src={event.imageUrl || event.posterImageUrl || undefined}
-                alt={event.title}
-                className="h-auto w-full"
-              />
-            ) : (
-              <div className="h-64 w-full bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
-            )}
-          </div>
-          <div className="p-6 md:p-10">
-            <h1 className="text-3xl font-bold md:text-4xl">{event.title}</h1>
-            {event.category && (
-              <span
-                className={cn(
-                  'mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium',
-                  eventCategoryColors[event.category]
-                )}
-              >
-                {eventCategoryLabels[event.category]}
-              </span>
-            )}
-
-            <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-neon-blue" />
-                {formatDate(event.startDatetime)}
-              </div>
-              {event.location && (
-                <EventLocationLink location={event.location} />
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]">
+            <div className="relative flex items-center justify-center bg-black/20">
+              {(event.imageUrl || event.posterImageUrl) ? (
+                <img
+                  src={event.imageUrl || event.posterImageUrl || undefined}
+                  alt={event.title}
+                  className="h-auto max-h-[55vh] w-full object-contain lg:absolute lg:inset-0 lg:h-full lg:max-h-none lg:w-full"
+                />
+              ) : (
+                <div className="flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30 lg:absolute lg:inset-0 lg:aspect-auto lg:h-full">
+                  <Ticket className="h-16 w-16 text-white/20" />
+                </div>
               )}
             </div>
-
-            <div className="mt-4">
-              <AddToCalendar
-                event={{
-                  id: event.id,
-                  title: event.title,
-                  description: event.description,
-                  location: event.location,
-                  startDatetime: event.startDatetime,
-                  endDatetime: event.endDatetime
-                }}
-              />
-            </div>
-
-            {shareUrl && (
-              <div className="mt-6">
-                <ShareButtons
-                  url={shareUrl}
-                  title={event.title}
-                  heading={t('shareTitle')}
-                  shareText={t('shareText', { title: event.title })}
-                  copyLabel={tCommon('copyLink')}
-                  copiedLabel={tCommon('copied')}
+            <div className="p-6 md:p-10">
+              <h1 className="text-3xl font-bold md:text-4xl">{event.title}</h1>
+              {event.category && (
+                <span
+                  className={cn(
+                    'mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium',
+                    eventCategoryColors[event.category]
+                  )}
+                >
+                  {eventCategoryLabels[event.category]}
+                </span>
+              )}
+  
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-neon-blue" />
+                  {formatDate(event.startDatetime)}
+                </div>
+                {event.location && (
+                  <EventLocationLink location={event.location} />
+                )}
+              </div>
+  
+              <div className="mt-4">
+                <AddToCalendar
+                  event={{
+                    id: event.id,
+                    title: event.title,
+                    description: event.description,
+                    location: event.location,
+                    startDatetime: event.startDatetime,
+                    endDatetime: event.endDatetime
+                  }}
                 />
               </div>
-            )}
-
-            {event.description && (
-              <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
-            )}
-
-            {posterPhotos.length > 0 && (
-              <div className="mt-8">
-                <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {posterPhotos.map((poster, idx) => (
-                    <button
-                      key={poster.id}
-                      type="button"
-                      onClick={() => open(idx)}
-                      className="overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left"
-                    >
-                      <img
-                        src={poster.url}
-                        alt={poster.caption || `${event.title} poster ${idx + 1}`}
-                        className="h-auto w-full object-cover"
-                      />
-                      {poster.caption && (
-                        <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
-                      )}
-                    </button>
-                  ))}
+  
+              {shareUrl && (
+                <div className="mt-6">
+                  <ShareButtons
+                    url={shareUrl}
+                    title={event.title}
+                    heading={t('shareTitle')}
+                    shareText={t('shareText', { title: event.title })}
+                    copyLabel={tCommon('copyLink')}
+                    copiedLabel={tCommon('copied')}
+                  />
                 </div>
-              </div>
-            )}
-
-            <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">
-              {isExternal ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-semibold">
-                      {t('priceEach', { price: isFree ? t('freeTicket') : formatCurrency(Number(event.ticketPrice)) })}
-                    </span>
-                    {remaining !== null && (
-                      <span className={cn('text-sm', remaining <= 5 ? 'text-red-500' : 'text-slate-500')}>
-                        {t('remaining', { count: remaining })}
+              )}
+  
+              {event.description && (
+                <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
+              )}
+  
+              {posterPhotos.length > 0 && (
+                <div className="mt-8">
+                  <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {posterPhotos.map((poster, idx) => (
+                      <button
+                        key={poster.id}
+                        type="button"
+                        onClick={() => open(idx)}
+                        className="overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left"
+                      >
+                        <img
+                          src={poster.url}
+                          alt={poster.caption || `${event.title} poster ${idx + 1}`}
+                          className="h-auto w-full object-cover"
+                        />
+                        {poster.caption && (
+                          <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+  
+              <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">
+                {isExternal ? (
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg font-semibold">
+                        {t('priceEach', { price: isFree ? t('freeTicket') : formatCurrency(Number(event.ticketPrice)) })}
                       </span>
+                      {remaining !== null && (
+                        <span className={cn('text-sm', remaining <= 5 ? 'text-red-500' : 'text-slate-500')}>
+                          {t('remaining', { count: remaining })}
+                        </span>
+                      )}
+                    </div>
+  
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-medium">{t('quantity')}</span>
+                      <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-1 dark:bg-black/20">
+                        <button
+                          type="button"
+                          disabled={quantity <= 1}
+                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                          className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-8 text-center font-semibold">{quantity}</span>
+                        <button
+                          type="button"
+                          disabled={!hasCapacity || quantity >= (remaining ?? 10) || quantity >= 10}
+                          onClick={() => setQuantity((q) => Math.min(10, q + 1))}
+                          className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+  
+                    {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>{tCommon('tickets')}</span>
+                          <span>{formatCurrency(feeBreakdown.net / 100)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>{tCommon('processingFee')}</span>
+                          <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-white/10 pt-1 font-semibold">
+                          <span>{tCommon('total')}</span>
+                          <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
+                        </div>
+                      </div>
                     )}
+                  </>
+                )}
+  
+                {message && (
+                  <div
+                    className={cn(
+                      'rounded-xl p-3 text-sm',
+                      message.type === 'success'
+                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                        : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                    )}
+                  >
+                    {message.text}
                   </div>
-
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium">{t('quantity')}</span>
-                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-1 dark:bg-black/20">
-                      <button
-                        type="button"
-                        disabled={quantity <= 1}
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-8 text-center font-semibold">{quantity}</span>
-                      <button
-                        type="button"
-                        disabled={!hasCapacity || quantity >= (remaining ?? 10) || quantity >= 10}
-                        onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-                        className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>{tCommon('tickets')}</span>
-                        <span>{formatCurrency(feeBreakdown.net / 100)}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>{tCommon('processingFee')}</span>
-                        <span>{formatCurrency(feeBreakdown.fee / 100)}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-white/10 pt-1 font-semibold">
-                        <span>{tCommon('total')}</span>
-                        <span>{formatCurrency(feeBreakdown.gross / 100)}</span>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {message && (
-                <div
-                  className={cn(
-                    'rounded-xl p-3 text-sm',
-                    message.type === 'success'
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                  )}
-                >
-                  {message.text}
-                </div>
-              )}
-
-              {isExternal ? (
-                <button
-                  onClick={handleBuy}
-                  disabled={externalTicketClick.isPending}
-                  className="btn-primary w-full"
-                >
-                  {externalTicketClick.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Ticket className="mr-2 h-4 w-4" />
-                  )}
-                  {t('getTicketsExternal')}
-                </button>
-              ) : user ? (
-                <button
-                  onClick={handleBuy}
-                  disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
-                  className="btn-primary w-full"
-                >
-                  {purchase.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Ticket className="mr-2 h-4 w-4" />
-                  )}
-                  {isFree ? t('reserveTickets') : t('buyFor', { amount: formatCurrency(total) })}
-                </button>
-              ) : (
-                <button onClick={handleBuy} className="btn-primary w-full">
-                  <Ticket className="mr-2 h-4 w-4" /> {t('loginToBuy')}
-                </button>
-              )}
+                )}
+  
+                {isExternal ? (
+                  <button
+                    onClick={handleBuy}
+                    disabled={externalTicketClick.isPending}
+                    className="btn-primary w-full"
+                  >
+                    {externalTicketClick.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ticket className="mr-2 h-4 w-4" />
+                    )}
+                    {t('getTicketsExternal')}
+                  </button>
+                ) : user ? (
+                  <button
+                    onClick={handleBuy}
+                    disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
+                    className="btn-primary w-full"
+                  >
+                    {purchase.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ticket className="mr-2 h-4 w-4" />
+                    )}
+                    {isFree ? t('reserveTickets') : t('buyFor', { amount: formatCurrency(total) })}
+                  </button>
+                ) : (
+                  <button onClick={handleBuy} className="btn-primary w-full">
+                    <Ticket className="mr-2 h-4 w-4" /> {t('loginToBuy')}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

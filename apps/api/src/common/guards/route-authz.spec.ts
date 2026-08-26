@@ -29,6 +29,7 @@ const PUBLIC_ALLOWLIST = new Set([
   // session -- Stripe has no cookie to send.
   'directory/directory.controller.ts::webhook',
   'events/events.controller.ts::webhook',
+  'events/events.controller.ts::recordExternalTicketClick',
   'fundraising/fundraising.controller.ts::webhook',
   'memberships/memberships.controller.ts::webhook',
   'payments/stripe-webhook.controller.ts::handleWebhook',

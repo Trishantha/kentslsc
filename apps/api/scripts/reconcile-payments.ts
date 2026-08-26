@@ -473,7 +473,10 @@ async function reconcileMemberships(
   const where: Prisma.MembershipWhereInput = {
     deletedAt: null,
     payments: { none: {} },
-    membershipType: { isFree: false, price: { gt: 0 } }
+    membershipType: { isFree: false, price: { gt: 0 } },
+    paymentMethod: { not: null },
+    paidAt: { not: null },
+    NOT: { paymentMethod: { contains: 'stripe', mode: 'insensitive' } }
   };
   if (FROM_DATE) {
     where.createdAt = { gte: FROM_DATE };

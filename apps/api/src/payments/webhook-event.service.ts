@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { Prisma } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 
 export type WebhookStatus = 'received' | 'processed' | 'ignored' | 'failed';
@@ -43,16 +44,32 @@ export class WebhookEventService {
       }
     }
 
-    const event = await this.prisma.webhookEvent.create({
-      data: {
-        provider: input.provider,
-        eventType: input.eventType,
-        externalId: input.externalId ?? null,
-        payloadHash,
-        status: input.status ?? 'received',
-        errorMessage: input.errorMessage ?? null
+    let event;
+    try {
+      event = await this.prisma.webhookEvent.create({
+        data: {
+          provider: input.provider,
+          eventType: input.eventType,
+          externalId: input.externalId ?? null,
+          payloadHash,
+          status: input.status ?? 'received',
+          errorMessage: input.errorMessage ?? null
+        }
+      });
+    } catch (error) {
+      if (input.externalId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await this.prisma.webhookEvent.findUnique({
+          where: {
+            provider_externalId: {
+              provider: input.provider,
+              externalId: input.externalId
+            }
+          }
+        });
+        if (existing) return { event: existing, isDuplicate: true };
       }
-    });
+      throw error;
+    }
 
     return { event, isDuplicate: false };
   }
