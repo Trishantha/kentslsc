@@ -306,6 +306,19 @@ export class PaymentsService {
   }
 
   /**
+   * Retrieve a full Stripe Checkout Session without owner-based metadata
+   * filtering. This is intended for trusted backend confirmation flows where
+   * the session id has already been validated.
+   */
+  async getFullCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    return this.stripe!.checkout.sessions.retrieve(sessionId);
+  }
+
+  /**
    * Update a Payment row with the actual fee and net settlement from Stripe's
    * balance transaction. This makes the revenue report match Stripe's payout
    * reporting instead of the estimated processing fee added at checkout.

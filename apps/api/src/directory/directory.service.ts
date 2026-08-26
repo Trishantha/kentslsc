@@ -183,7 +183,7 @@ export class DirectoryService {
       amount: PROMOTION_PRICE_PENCE,
       currency: 'gbp',
       description: `Promote ${listing.businessName} for 30 days`,
-      successUrl: `${frontendUrl}/directory/${id}?promoted=success`,
+      successUrl: `${frontendUrl}/directory/${id}?promoted=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
       uiMode: 'embedded_page',
       metadata: {
@@ -304,7 +304,7 @@ export class DirectoryService {
       amount: 5000,
       currency: 'gbp',
       description: `Publish job ad: ${job.title}`,
-      successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success`,
+      successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
       uiMode: 'embedded_page',
       metadata: {
@@ -384,7 +384,7 @@ export class DirectoryService {
       currency: 'gbp',
       description: `Promote ${listing.businessName} for 30 days`,
       customer: stripeCustomerId,
-      successUrl: `${this.frontendUrl}/directory/${id}?promoted=success`,
+      successUrl: `${this.frontendUrl}/directory/${id}?promoted=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${this.frontendUrl}/directory/${id}?promoted=cancel`,
       metadata: {
         type: 'directory_promotion',

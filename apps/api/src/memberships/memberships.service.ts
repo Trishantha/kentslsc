@@ -127,7 +127,7 @@ export class MembershipsService {
     const where: Prisma.MembershipWhereInput = {
       userId,
       deletedAt: null,
-      status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+      status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
     };
     if (excludeId) {
       where.id = { not: excludeId };
@@ -143,7 +143,7 @@ export class MembershipsService {
     const where: Prisma.MembershipWhereInput = {
       userId,
       deletedAt: null,
-      status: MembershipStatus.PENDING
+      status: { in: [MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
     };
     if (excludeId) {
       where.id = { not: excludeId };
@@ -156,15 +156,15 @@ export class MembershipsService {
   }
 
   /**
-   * Find the user's current effective paid membership. Free and pending
-   * memberships are ignored because they carry no refundable monetary value.
+   * Find the user's current effective paid membership. Free and pending/awaiting
+   * approval memberships are ignored because they carry no refundable monetary value.
    */
   private async findCurrentPaidMembership(userId: string) {
     return this.prisma.membership.findFirst({
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] },
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] },
         membershipType: { isFree: false }
       },
       orderBy: { createdAt: 'desc' },
@@ -463,9 +463,11 @@ export class MembershipsService {
       };
     }
 
-    // New paid membership: create pending record and subscription checkout.
+    // New paid membership: create an awaiting-approval record. The admin will
+    // review the application, collect payment (or send a payment link), and
+    // then activate the membership. Only then is the digital card generated.
     await this.cancelPreviousPendingMemberships(userId);
-    const pendingMembership = await this.createMembership({
+    const awaitingMembership = await this.createMembership({
       userId,
       membershipTypeId: type.id,
       fullName: dto.fullName,
@@ -474,37 +476,15 @@ export class MembershipsService {
       dependants,
       membershipType: type,
       overrideEmail: email,
-      status: MembershipStatus.PENDING,
+      status: MembershipStatus.AWAITING_APPROVAL,
       stripeCustomerId,
       stripePriceId: synced.priceId
     });
 
-    const checkout = await this.paymentsService.createSubscriptionCheckout({
-      priceId: synced.priceId,
-      customer: stripeCustomerId,
-      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
-      cancelUrl: `${this.frontendUrl}/membership?canceled=1`,
-      uiMode: 'embedded_page',
-      metadata: {
-        source: 'membership',
-        membershipId: pendingMembership.id,
-        userId,
-        membershipTypeId: type.id,
-        fullName: dto.fullName,
-        address: dto.address ? JSON.stringify(dto.address) : '',
-        phone: dto.phone ?? '',
-        dependants: JSON.stringify(dependants),
-        amountPence: String(Math.round(Number(type.price) * 100)),
-        currency: 'GBP'
-      }
-    });
-
     return {
-      sessionId: checkout.id,
-      url: checkout.url,
+      membership: awaitingMembership,
       paid: true,
-      provider: checkout.provider,
-      clientSecret: checkout.clientSecret
+      awaitingApproval: true
     };
   }
 
@@ -516,7 +496,11 @@ export class MembershipsService {
     const qrValue = `${this.frontendUrl}/membership/verify/${membershipPublicId}`;
 
     const dependants = data.dependants ?? [];
-    const status = data.status ?? (data.membershipType.autoActivate ? MembershipStatus.ACTIVE : MembershipStatus.PENDING);
+    const status =
+      data.status ??
+      (data.membershipType.isFree || data.membershipType.autoActivate
+        ? MembershipStatus.ACTIVE
+        : MembershipStatus.AWAITING_APPROVAL);
 
     let membership = await this.prisma.membership.create({
       data: {
@@ -624,13 +608,14 @@ export class MembershipsService {
   }
 
   async findMyMembership(userId: string) {
-    // Prefer the current effective membership (active or pending). If none
-    // exists, fall back to the latest record so the UI can show a status.
+    // Prefer the current effective membership (active, pending, or awaiting
+    // approval). If none exists, fall back to the latest record so the UI can
+    // show a status.
     let membership = await this.prisma.membership.findFirst({
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
       },
       orderBy: { createdAt: 'desc' },
       include: { membershipType: true }
@@ -713,7 +698,7 @@ export class MembershipsService {
         where: {
           userId: user.sub,
           deletedAt: null,
-          status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+          status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
         },
         orderBy: { createdAt: 'desc' },
         select: { membershipId: true, membershipCardUrl: true }
@@ -783,6 +768,10 @@ export class MembershipsService {
       throw new NotFoundException('Membership not found');
     }
 
+    if (membership.status !== MembershipStatus.ACTIVE) {
+      throw new BadRequestException('Membership cards can only be generated for active memberships');
+    }
+
     const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
     const memberName = await this.resolveMemberName(membership.userId);
 
@@ -791,12 +780,12 @@ export class MembershipsService {
 
   async regenerateMyCard(userId: string) {
     // Match the dashboard's definition of "current" membership: prefer the
-    // active/pending record, then fall back to the latest record of any status.
+    // active/pending/awaiting record, then fall back to the latest record of any status.
     let membership = await this.prisma.membership.findFirst({
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
       },
       orderBy: { createdAt: 'desc' },
       include: { membershipType: true }
@@ -812,6 +801,10 @@ export class MembershipsService {
 
     if (!membership) {
       throw new NotFoundException('No membership found');
+    }
+
+    if (membership.status !== MembershipStatus.ACTIVE) {
+      throw new BadRequestException('Membership cards can only be generated for active memberships');
     }
 
     const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
@@ -859,7 +852,7 @@ export class MembershipsService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
       },
       orderBy: { createdAt: 'desc' },
       select: { id: true }
@@ -883,8 +876,14 @@ export class MembershipsService {
 
     const data: Prisma.MembershipUpdateInput = { status };
     if (status === MembershipStatus.ACTIVE) {
+      // If the membership has already been paid (online or offline), preserve the
+      // existing billing period. Otherwise, start the clock from activation.
+      const isAlreadyPaid =
+        membership.paidAt || membership.stripeSubscriptionId || membership.paymentMethod;
       const startDate = membership.startDate ?? new Date();
-      const endDate = this.computeEndDate(membership.membershipType, startDate);
+      const endDate = isAlreadyPaid
+        ? membership.endDate ?? this.computeEndDate(membership.membershipType, startDate)
+        : this.computeEndDate(membership.membershipType, startDate);
       data.startDate = startDate;
       data.endDate = endDate;
     }
@@ -1021,12 +1020,10 @@ export class MembershipsService {
         include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
       });
 
-      if (existing && existing.status === MembershipStatus.PENDING) {
-        await this.cancelPreviousMemberships(existing.userId, existing.id);
+      if (existing && (existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_APPROVAL)) {
         await this.prisma.membership.update({
           where: { id: existing.id },
           data: {
-            status: MembershipStatus.ACTIVE,
             paidAt: new Date(),
             paymentMethod: 'stripe',
             startDate: new Date(),
@@ -1037,8 +1034,8 @@ export class MembershipsService {
             subscriptionStatus: stripeSubscription.status
           }
         });
-        const activated = await this.findMembershipById(existing.id);
-        await this.recordMembershipPayment(activated, {
+        const updated = await this.findMembershipById(existing.id);
+        await this.recordMembershipPayment(updated, {
           channel: 'stripe',
           method: 'subscription',
           currency,
@@ -1050,7 +1047,7 @@ export class MembershipsService {
           payerPhone: session.customer_details?.phone ?? null,
           notes: 'Membership subscription payment via Stripe Checkout'
         });
-        return { received: true, membershipId: activated.membershipId };
+        return { received: true, membershipId: updated.membershipId };
       }
     }
 
@@ -1126,8 +1123,9 @@ export class MembershipsService {
       throw new BadRequestException('Missing membership metadata');
     }
 
-    // If a membership record already exists for this checkout, ensure it is active
-    // and return it. This makes webhook processing idempotent across retries.
+    // If a membership record already exists for this checkout, record the
+    // payment but keep it awaiting admin approval. Card generation and welcome
+    // emails only happen when an admin explicitly activates the membership.
     if (metadata.membershipId) {
       const existing = await this.prisma.membership.findUnique({
         where: { id: metadata.membershipId, deletedAt: null },
@@ -1136,19 +1134,17 @@ export class MembershipsService {
       if (existing) {
         if (existing.userId !== metadata.userId) {
           this.logger.warn(
-            `Membership ${existing.id} belongs to user ${existing.userId} but checkout metadata references ${metadata.userId}. Refusing to activate.`
+            `Membership ${existing.id} belongs to user ${existing.userId} but checkout metadata references ${metadata.userId}. Refusing to record payment.`
           );
           throw new BadRequestException('Membership user mismatch');
         }
 
-        if (existing.status === MembershipStatus.PENDING) {
-          await this.cancelPreviousMemberships(metadata.userId, existing.id);
+        if (existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_APPROVAL) {
           const startDate = new Date();
           const endDate = subscriptionContext?.currentPeriodEnd ?? this.computeEndDate(existing.membershipType, startDate);
-          const activated = await this.prisma.membership.update({
+          const updated = await this.prisma.membership.update({
             where: { id: existing.id },
             data: {
-              status: MembershipStatus.ACTIVE,
               paidAt: new Date(),
               paymentMethod,
               startDate,
@@ -1159,21 +1155,21 @@ export class MembershipsService {
             },
             include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
           });
-          await this.recordMembershipPayment(activated, {
+          await this.recordMembershipPayment(updated, {
             channel: gatewayContext?.channel ?? paymentMethod,
             method: paymentMethod,
             currency: gatewayContext?.currency ?? metadata.currency ?? 'GBP',
             amountPence:
               gatewayContext?.amountPence ??
-              (metadata.amountPence ? Number(metadata.amountPence) : Number(activated.membershipType.price) * 100),
+              (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
             providerCheckoutId: gatewayContext?.providerCheckoutId,
             providerPaymentId: gatewayContext?.providerPaymentId,
-            payerEmail: customerEmail ?? activated.user?.email ?? null,
-            payerName: gatewayContext?.payerName ?? activated.user?.name ?? null,
+            payerEmail: customerEmail ?? updated.user?.email ?? null,
+            payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
             payerPhone: gatewayContext?.payerPhone ?? null,
             notes: gatewayContext?.notes ?? `Membership payment (${paymentMethod})`
           });
-          return { received: true, membershipId: activated.membershipId };
+          return { received: true, membershipId: updated.membershipId };
         }
         // Already active (or cancelled/etc.) — do not create a duplicate.
         return { received: true, membershipId: existing.membershipId };
@@ -1221,7 +1217,7 @@ export class MembershipsService {
       dependants,
       membershipType,
       overrideEmail: customerEmail,
-      status: MembershipStatus.ACTIVE,
+      status: MembershipStatus.AWAITING_APPROVAL,
       paidAt: new Date(),
       paymentMethod,
       startDate,
@@ -1261,7 +1257,7 @@ export class MembershipsService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] },
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] },
         stripeCustomerId: { not: null }
       },
       orderBy: { createdAt: 'desc' },
@@ -1288,12 +1284,17 @@ export class MembershipsService {
     }
 
     const status = subscription.status;
+    // Do not auto-activate memberships that are awaiting admin approval. Stripe
+    // subscription events only update subscription metadata; activation is a
+    // deliberate admin action.
     const membershipStatus =
-      status === 'active' || status === 'trialing'
-        ? MembershipStatus.ACTIVE
-        : status === 'canceled' || status === 'incomplete_expired'
-          ? MembershipStatus.CANCELLED
-          : membership.status;
+      membership.status === MembershipStatus.AWAITING_APPROVAL
+        ? MembershipStatus.AWAITING_APPROVAL
+        : status === 'active' || status === 'trialing'
+          ? MembershipStatus.ACTIVE
+          : status === 'canceled' || status === 'incomplete_expired'
+            ? MembershipStatus.CANCELLED
+            : membership.status;
 
     const priceId = subscription.items.data[0]?.price.id;
 

@@ -17,7 +17,7 @@ export interface AdminMembershipType {
 export interface AdminMembership {
   id: string;
   membershipId: string;
-  status: 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'AWAITING_APPROVAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
   startDate: string | null;
   endDate: string | null;
   createdAt: string;

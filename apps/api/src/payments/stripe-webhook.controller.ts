@@ -1,10 +1,14 @@
-import { Controller, Logger, Post, Headers, RawBody, Res } from '@nestjs/common';
+import { Controller, Logger, Post, Headers, RawBody, Res, Body, BadRequestException } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { Public } from '../common/decorators/public.decorator.js';
+import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { PaymentsService } from './payments.service.js';
 import { WebhookEventService } from './webhook-event.service.js';
 import { WebhookQueueService } from './webhook-queue.service.js';
+import { WebhookProcessor } from './webhook.processor.js';
+import type { WebhookJobData } from '../queue/queue.types.js';
 
 /**
  * Single production Stripe webhook endpoint.
@@ -22,7 +26,8 @@ export class StripeWebhookController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly webhookEvents: WebhookEventService,
-    private readonly webhookQueue: WebhookQueueService
+    private readonly webhookQueue: WebhookQueueService,
+    private readonly webhookProcessor: WebhookProcessor
   ) {}
 
   @Post('webhook')
@@ -72,5 +77,69 @@ export class StripeWebhookController {
       await this.webhookEvents.markStatus(ledgerEvent.id, 'failed', message);
       return res.status(500).send(`Webhook error: ${message}`);
     }
+  }
+
+  /**
+   * Explicit success confirmation for any Stripe/PayPal checkout session.
+   *
+   * The frontend calls this when the payer returns from the gateway. It
+   * protects against webhooks that are delayed, misconfigured, or dropped:
+   * we ask Stripe/PayPal for the session status and run the same handlers
+   * that the webhook worker would run. All handlers are idempotent, so
+   * calling this after a successful webhook is safe.
+   */
+  @Post('confirm-session')
+  @Public()
+  @OptionalAuthRoute()
+  @ApiBearerAuth()
+  async confirmSession(@Body() body: { sessionId: string; provider: 'stripe' | 'paypal' }) {
+    const { sessionId, provider } = body;
+
+    if (!sessionId || !provider) {
+      throw new BadRequestException('sessionId and provider are required');
+    }
+
+    if (provider === 'paypal') {
+      throw new BadRequestException('PayPal confirmation is not yet supported');
+    }
+
+    const session = await this.paymentsService.getFullCheckoutSession(sessionId);
+
+    if (session.status !== 'complete' || session.payment_status !== 'paid') {
+      throw new BadRequestException(
+        `Checkout session is not complete (status: ${session.status}, payment_status: ${session.payment_status})`
+      );
+    }
+
+    // Record a synthetic webhook event so the processor can update its ledger.
+    const externalId = `confirm:${sessionId}`;
+    const recordResult = await this.webhookEvents.record({
+      provider: 'stripe',
+      eventType: 'checkout.session.completed',
+      externalId,
+      payload: Buffer.from(JSON.stringify(session)),
+      status: 'received'
+    });
+
+    if (recordResult.isDuplicate) {
+      return { received: true, duplicate: true };
+    }
+
+    const syntheticEvent = {
+      id: externalId,
+      type: 'checkout.session.completed',
+      data: { object: session }
+    } as unknown as Stripe.Event;
+
+    const job: WebhookJobData = {
+      ledgerId: recordResult.event.id,
+      provider: 'stripe',
+      eventType: 'checkout.session.completed',
+      payload: syntheticEvent
+    };
+
+    await this.webhookProcessor.process(job);
+
+    return { received: true };
   }
 }

@@ -340,7 +340,7 @@ export class FundraisingService {
       currency: 'gbp',
       includeProcessingFee: dto.addProcessingFee ?? false,
       description: `Donation to ${fundraiser.title}`,
-      successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1`,
+      successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
       uiMode: 'embedded_page',
       metadata: {

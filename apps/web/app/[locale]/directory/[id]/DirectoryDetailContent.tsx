@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -106,6 +106,26 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
   const [showPromotedBanner, setShowPromotedBanner] = useState(searchParams?.get('promoted') === 'success');
+
+  const confirmDirectoryPayment = useMutation({
+    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
+    }
+  });
+
+  useEffect(() => {
+    const sessionId = searchParams?.get('session_id');
+    const provider = searchParams?.get('provider') ?? 'stripe';
+    const promoted = searchParams?.get('promoted');
+    const jobPublished = searchParams?.get('jobPublished');
+    if (sessionId && !confirmDirectoryPayment.isPending && (promoted === 'success' || jobPublished === 'success')) {
+      confirmDirectoryPayment.mutate({ sessionId, provider });
+    }
+  }, [searchParams, confirmDirectoryPayment]);
 
   const promotionFee = useMemo(() => {
     if (!paymentSettings) return null;

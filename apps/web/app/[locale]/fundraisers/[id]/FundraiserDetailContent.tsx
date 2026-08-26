@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useMutation } from '@tanstack/react-query';
 import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
+import { api } from '@/lib/api';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import { ProgressStats } from '@/components/fundraising/ProgressStats';
 import { DonationForm } from '@/components/fundraising/DonationForm';
@@ -46,6 +48,21 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   const [activeTab, setActiveTab] = useState<'updates' | 'donations'>('donations');
   const success = searchParams?.get('success');
   const canceled = searchParams?.get('canceled');
+
+  const confirmDonation = useMutation({
+    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+      return res.data;
+    }
+  });
+
+  useEffect(() => {
+    const sessionId = searchParams?.get('session_id');
+    const provider = searchParams?.get('provider') ?? 'stripe';
+    if (success && sessionId && !confirmDonation.isPending) {
+      confirmDonation.mutate({ sessionId, provider });
+    }
+  }, [searchParams, success, confirmDonation]);
 
   const sortedPhotos = useMemo(
     () => (fundraiser.photos ? [...fundraiser.photos].sort((a, b) => a.sortOrder - b.sortOrder) : []),

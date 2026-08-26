@@ -22,6 +22,7 @@ enum UserStatus {
 
 enum MembershipStatus {
   PENDING
+  AWAITING_APPROVAL
   ACTIVE
   EXPIRED
   CANCELLED

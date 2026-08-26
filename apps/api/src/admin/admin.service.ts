@@ -58,7 +58,12 @@ export class AdminService {
     ] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
       this.prisma.membership.count({ where: { deletedAt: null } }),
-      this.prisma.membership.count({ where: { deletedAt: null, status: DbMembershipStatus.PENDING } }),
+      this.prisma.membership.count({
+        where: {
+          deletedAt: null,
+          status: { in: [DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] }
+        }
+      }),
       this.prisma.event.count({ where: { deletedAt: null } }),
       this.prisma.businessListing.count({ where: { deletedAt: null } }),
       this.prisma.fundraiser.count({ where: { deletedAt: null } }),
@@ -235,17 +240,20 @@ export class AdminService {
         status: dto.status as DbMembershipStatus | undefined
       });
     } else if (paymentMode === 'offline') {
+      // Paid + offline: payment is recorded, but the membership still needs an
+      // explicit admin activation before the card is generated.
       membership = await this.membershipsService.createMembership({
         ...baseData,
-        status: DbMembershipStatus.ACTIVE,
+        status: DbMembershipStatus.AWAITING_APPROVAL,
         paidAt: new Date(),
         paymentMethod: 'offline'
       });
     } else {
-      // Paid + online: create a pending record and send a payment link.
+      // Paid + online: create an awaiting-approval record. The admin will send
+      // a payment link and then activate the membership once payment is received.
       membership = await this.membershipsService.createMembership({
         ...baseData,
-        status: DbMembershipStatus.PENDING
+        status: DbMembershipStatus.AWAITING_APPROVAL
       });
     }
 
@@ -256,7 +264,7 @@ export class AdminService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING] },
+        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] },
         id: { not: membership.id }
       },
       data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
@@ -286,7 +294,7 @@ export class AdminService {
     const checkout = await this.paymentsService.createSubscriptionCheckout({
       priceId: synced.priceId,
       customer: stripeCustomerId,
-      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
       metadata: {
         source: 'membership',
@@ -322,8 +330,11 @@ export class AdminService {
       include: { membershipType: true, user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } } }
     });
     if (!membership) throw new NotFoundException('Membership not found');
-    if (membership.status !== DbMembershipStatus.PENDING) {
-      throw new BadRequestException('Only pending memberships can be sent a payment link');
+    if (
+      membership.status !== DbMembershipStatus.PENDING &&
+      membership.status !== DbMembershipStatus.AWAITING_APPROVAL
+    ) {
+      throw new BadRequestException('Only pending or awaiting-approval memberships can be sent a payment link');
     }
     if (membership.membershipType.isFree || Number(membership.membershipType.price) === 0) {
       throw new BadRequestException('Free memberships do not require payment');
@@ -348,7 +359,7 @@ export class AdminService {
     const checkout = await this.paymentsService.createSubscriptionCheckout({
       priceId: synced.priceId,
       customer: stripeCustomerId,
-      successUrl: `${this.frontendUrl}/dashboard?membership=success`,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
       metadata: {
         source: 'membership',
@@ -376,7 +387,7 @@ export class AdminService {
     const pending = await this.prisma.membership.findMany({
       where: {
         deletedAt: null,
-        status: DbMembershipStatus.PENDING,
+        status: { in: [DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] },
         paidAt: null,
         paymentMethod: null,
         membershipType: { isFree: false, price: { gt: 0 } }
@@ -424,10 +435,12 @@ export class AdminService {
     return this.membershipsService.updateDependants(membershipId, dto.dependants);
   }
 
-  async regenerateAllMembershipCards(options: { onlyActive?: boolean } = {}) {
+  async regenerateAllMembershipCards(_options: { onlyActive?: boolean } = {}) {
+    // Cards are only generated for active memberships. The onlyActive option is
+    // preserved for API compatibility but is always enforced now.
     const where = {
       deletedAt: null,
-      ...(options.onlyActive !== false ? { status: DbMembershipStatus.ACTIVE } : {})
+      status: DbMembershipStatus.ACTIVE
     };
 
     const memberships = await this.prisma.membership.findMany({

@@ -12,6 +12,7 @@ export enum UserStatus {
 
 export enum MembershipStatus {
   PENDING = 'PENDING',
+  AWAITING_APPROVAL = 'AWAITING_APPROVAL',
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   CANCELLED = 'CANCELLED'

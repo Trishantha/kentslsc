@@ -46,7 +46,7 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
           <button
             type="button"
             onClick={() => regenerateMutation.mutate()}
-            disabled={regenerateMutation.isPending}
+            disabled={regenerateMutation.isPending || membership.status !== 'ACTIVE'}
             className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50"
           >
             {regenerateMutation.isPending ? (
@@ -102,13 +102,15 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
             <div>
               <p className="font-medium">No card generated yet</p>
               <p className="text-sm text-slate-500">
-                Regenerate the card to create a membership card for this member.
+                {membership.status === 'ACTIVE'
+                  ? 'Regenerate the card to create a membership card for this member.'
+                  : 'The membership must be active before a card can be generated.'}
               </p>
             </div>
             <button
               type="button"
               onClick={() => regenerateMutation.mutate()}
-              disabled={regenerateMutation.isPending}
+              disabled={regenerateMutation.isPending || membership.status !== 'ACTIVE'}
               className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
             >
               {regenerateMutation.isPending ? (

@@ -67,6 +67,13 @@ const mockPendingMembership = {
   membershipType: mockPaidMembershipType
 };
 
+const mockAwaitingApprovalMembership = {
+  ...mockCreatedMembership,
+  id: 'membership-awaiting',
+  status: MembershipStatus.AWAITING_APPROVAL,
+  membershipType: mockPaidMembershipType
+};
+
 const mockActivePaidMembership = {
   ...mockCreatedMembership,
   id: 'membership-active-paid',
@@ -207,7 +214,7 @@ describe('MembershipsService', () => {
           where: expect.objectContaining({
             userId: 'user-1',
             deletedAt: null,
-            status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
+            status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
           }),
           data: { status: MembershipStatus.CANCELLED, updatedAt: expect.any(Date) }
         })
@@ -223,7 +230,7 @@ describe('MembershipsService', () => {
       );
     });
 
-    it('creates a pending membership for paid types and includes membershipId in checkout metadata', async () => {
+    it('creates an awaiting-approval membership for paid types and does not create a checkout session', async () => {
       const dto: ApplyMembershipDto = {
         membershipTypeId: 'type-paid',
         fullName: 'Test User',
@@ -239,46 +246,33 @@ describe('MembershipsService', () => {
 
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
-      mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.create.mockResolvedValue(mockAwaitingApprovalMembership);
       mockPrisma.membership.findFirst.mockResolvedValue(null);
       mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
 
       const result = await service.processApplication('user-1', 'test@example.com', dto);
 
       expect(result).toEqual({
-        sessionId: mockSubscriptionCheckoutResult.id,
-        url: mockSubscriptionCheckoutResult.url,
+        membership: mockAwaitingApprovalMembership,
         paid: true,
-        provider: mockSubscriptionCheckoutResult.provider,
-        clientSecret: mockSubscriptionCheckoutResult.clientSecret
+        awaitingApproval: true
       });
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             userId: 'user-1',
             membershipTypeId: 'type-paid',
-            status: MembershipStatus.PENDING,
+            status: MembershipStatus.AWAITING_APPROVAL,
             stripeCustomerId: 'cus_test_user_1',
             stripePriceId: mockSyncedPrice.priceId
           })
         })
       );
-      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
-        expect.objectContaining({
-          priceId: mockSyncedPrice.priceId,
-          customer: 'cus_test_user_1',
-          metadata: expect.objectContaining({
-            source: 'membership',
-            membershipId: mockPendingMembership.id,
-            userId: 'user-1',
-            membershipTypeId: 'type-paid'
-          })
-        })
-      );
+      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
       expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith('user-1', 'test@example.com');
     });
 
-    it('cancels previous pending memberships when re-applying for a paid type', async () => {
+    it('cancels previous awaiting-approval memberships when re-applying for a paid type', async () => {
       const dto: ApplyMembershipDto = {
         membershipTypeId: 'type-paid',
         fullName: 'Test User',
@@ -294,7 +288,7 @@ describe('MembershipsService', () => {
 
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
-      mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.create.mockResolvedValue(mockAwaitingApprovalMembership);
       mockPrisma.membership.findFirst.mockResolvedValue(null);
       mockPrisma.user.update.mockResolvedValue({ id: 'user-1' });
 
@@ -305,7 +299,7 @@ describe('MembershipsService', () => {
           where: expect.objectContaining({
             userId: 'user-1',
             deletedAt: null,
-            status: MembershipStatus.PENDING
+            status: { in: [MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
           }),
           data: { status: MembershipStatus.CANCELLED, updatedAt: expect.any(Date) }
         })
@@ -408,7 +402,7 @@ describe('MembershipsService', () => {
       );
     });
 
-    it('creates a new subscription checkout when the existing paid membership has no subscription', async () => {
+    it('creates an awaiting-approval membership when the existing paid membership has expired without a subscription', async () => {
       const dto: ApplyMembershipDto = {
         membershipTypeId: 'type-paid',
         fullName: 'Test User',
@@ -424,7 +418,7 @@ describe('MembershipsService', () => {
 
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
-      mockPrisma.membership.create.mockResolvedValue(mockPendingMembership);
+      mockPrisma.membership.create.mockResolvedValue(mockAwaitingApprovalMembership);
       mockPrisma.membership.findFirst.mockResolvedValue({
         ...mockActivePaidMembership,
         startDate: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
@@ -437,31 +431,32 @@ describe('MembershipsService', () => {
 
       await service.processApplication('user-1', 'test@example.com', dto);
 
-      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
+      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+      expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          priceId: mockSyncedPrice.priceId,
-          customer: 'cus_test_user_1'
+          data: expect.objectContaining({
+            status: MembershipStatus.AWAITING_APPROVAL
+          })
         })
       );
     });
   });
 
   describe('handleCheckoutSessionCompleted', () => {
-    it('activates an existing pending membership when membershipId is provided', async () => {
+    it('records payment for an existing awaiting-approval membership without activating it', async () => {
       mockPrisma.membership.findUnique.mockResolvedValue({
-        ...mockPendingMembership,
+        ...mockAwaitingApprovalMembership,
         stripePriceId: 'price_test_1',
         user: { id: 'user-1', name: 'Test User', email: 'test@example.com' }
       });
       mockPrisma.membership.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.membership.update.mockResolvedValue({
-        ...mockPendingMembership,
-        status: MembershipStatus.ACTIVE,
+        ...mockAwaitingApprovalMembership,
         membershipId: 'MEM-ABCDEFGH',
         user: { id: 'user-1', name: 'Test User', email: 'test@example.com' }
       });
       mockPrisma.membership.findFirst.mockResolvedValue({
-        ...mockPendingMembership,
+        ...mockAwaitingApprovalMembership,
         user: { email: 'test@example.com', name: 'Test User' }
       });
 
@@ -470,7 +465,7 @@ describe('MembershipsService', () => {
         subscription: 'sub_test_1',
         metadata: {
           source: 'membership',
-          membershipId: mockPendingMembership.id,
+          membershipId: mockAwaitingApprovalMembership.id,
           userId: 'user-1',
           membershipTypeId: 'type-paid',
           fullName: 'Test User',
@@ -481,19 +476,12 @@ describe('MembershipsService', () => {
         customer_email: 'test@example.com'
       } as any);
 
-      expect(mockPrisma.membership.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            userId: 'user-1',
-            deletedAt: null,
-            status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
-          })
-        })
-      );
+      expect(mockPrisma.membership.updateMany).not.toHaveBeenCalled();
       expect(mockPaymentsService.getSubscription).toHaveBeenCalledWith('sub_test_1');
       expect(mockPrisma.membership.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
+            paymentMethod: 'stripe',
             subscriptionStatus: 'active'
           })
         })
@@ -501,7 +489,7 @@ describe('MembershipsService', () => {
       expect(result.membershipId).toBe('MEM-ABCDEFGH');
     });
 
-    it('creates a new active membership when membershipId is not provided', async () => {
+    it('creates a new awaiting-approval membership when membershipId is not provided', async () => {
       mockPrisma.membershipType.findUnique.mockResolvedValue(mockPaidMembershipType);
       mockPrisma.membership.count.mockResolvedValue(0);
       mockPrisma.membership.create.mockResolvedValue(mockCreatedMembership);
@@ -529,7 +517,7 @@ describe('MembershipsService', () => {
           data: expect.objectContaining({
             userId: 'user-1',
             membershipTypeId: 'type-paid',
-            status: MembershipStatus.ACTIVE,
+            status: MembershipStatus.AWAITING_APPROVAL,
             stripeSubscriptionId: 'sub_test_1',
             subscriptionStatus: 'active'
           })

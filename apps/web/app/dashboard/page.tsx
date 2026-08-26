@@ -462,13 +462,33 @@ export default function DashboardPage() {
   const [cardRetry, setCardRetry] = useState(Date.now);
   const [cardRetryCount, setCardRetryCount] = useState(0);
 
-  // Refetch membership details after an upgrade redirect so the UI doesn't
-  // show stale/cached data from before the membership changed.
-  useEffect(() => {
-    if (searchParams.get('membership')) {
+  const confirmMembershipPayment = useMutation({
+    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+      return res.data;
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['my-membership'] });
     }
-  }, [searchParams, queryClient]);
+  });
+
+  // Refetch membership details after an upgrade redirect so the UI doesn't
+  // show stale/cached data from before the membership changed.
+  // Also confirm the payment when returning from Stripe so memberships are
+  // activated even if the webhook was delayed or dropped.
+  const membershipParam = searchParams.get('membership');
+  const sessionIdParam = searchParams.get('session_id');
+  const providerParam = searchParams.get('provider') ?? 'stripe';
+
+  useEffect(() => {
+    if (membershipParam) {
+      queryClient.invalidateQueries({ queryKey: ['my-membership'] });
+    }
+
+    if (membershipParam === 'success' && sessionIdParam && !confirmMembershipPayment.isPending) {
+      confirmMembershipPayment.mutate({ sessionId: sessionIdParam, provider: providerParam });
+    }
+  }, [membershipParam, sessionIdParam, providerParam, queryClient, confirmMembershipPayment]);
 
   const {
     data: membership,
@@ -614,10 +634,14 @@ export default function DashboardPage() {
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
                         membership.status === 'ACTIVE'
                           ? 'bg-green-500/20 text-green-400'
-                          : 'bg-yellow-500/20 text-yellow-400'
+                          : membership.status === 'AWAITING_APPROVAL'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
                       }`}
                     >
-                      {membership.status}
+                      {membership.status === 'AWAITING_APPROVAL'
+                        ? 'Awaiting approval'
+                        : membership.status}
                     </span>
                   </div>
                   {(membership.creditAmountApplied ?? 0) > 0 && (
@@ -771,27 +795,46 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="mt-6 flex flex-col items-center gap-4 rounded-2xl border border-slate-300 bg-slate-200/50 p-8 text-center dark:border-white/10 dark:bg-white/5">
-                    <p className="text-slate-700 dark:text-slate-400">
-                      Your digital membership card is not available yet. This can happen while the card is being generated or if storage is temporarily unavailable.
-                    </p>
-                    {regenerateCard.isError && (
-                      <p className="text-sm text-red-400">
-                        Could not generate the card. Please check that storage is configured and try again.
-                      </p>
+                    {membership.status === 'AWAITING_APPROVAL' ? (
+                      <>
+                        <p className="text-slate-700 dark:text-slate-400">
+                          Your application is being reviewed. Once an admin approves it and payment is confirmed, your digital membership card will be generated here.
+                        </p>
+                        {membership.paymentMethod ? (
+                          <p className="text-sm font-semibold text-green-400">
+                            Payment received ({membership.paymentMethod})
+                          </p>
+                        ) : (
+                          <p className="text-sm font-semibold text-yellow-400">
+                            Awaiting payment confirmation
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-slate-700 dark:text-slate-400">
+                          Your digital membership card is not available yet. This can happen while the card is being generated or if storage is temporarily unavailable.
+                        </p>
+                        {regenerateCard.isError && (
+                          <p className="text-sm text-red-400">
+                            Could not generate the card. Please check that storage is configured and try again.
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => regenerateCard.mutate()}
+                          disabled={regenerateCard.isPending}
+                          className="btn-primary inline-flex items-center disabled:opacity-50"
+                        >
+                          {regenerateCard.isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                          )}
+                          Generate card
+                        </button>
+                      </>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => regenerateCard.mutate()}
-                      disabled={regenerateCard.isPending}
-                      className="btn-primary inline-flex items-center disabled:opacity-50"
-                    >
-                      {regenerateCard.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                      )}
-                      Generate card
-                    </button>
                   </div>
                 )}
               </motion.div>

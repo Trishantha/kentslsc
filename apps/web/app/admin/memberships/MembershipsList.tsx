@@ -51,12 +51,12 @@ export function MembershipsList({ memberships }: MembershipsListProps) {
                       'rounded-full px-2 py-0.5 text-xs font-semibold',
                       m.status === 'ACTIVE'
                         ? 'bg-green-500/10 text-green-400'
-                        : m.status === 'PENDING'
+                        : m.status === 'PENDING' || m.status === 'AWAITING_APPROVAL'
                           ? 'bg-yellow-500/10 text-yellow-400'
                           : 'bg-red-500/10 text-red-400'
                     )}
                   >
-                    {m.status}
+                    {m.status === 'AWAITING_APPROVAL' ? 'Awaiting approval' : m.status}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">

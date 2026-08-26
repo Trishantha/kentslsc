@@ -5,6 +5,7 @@ import { StripeWebhookController } from './stripe-webhook.controller.js';
 import type { PaymentsService } from './payments.service.js';
 import type { WebhookEventService } from './webhook-event.service.js';
 import type { WebhookQueueService } from './webhook-queue.service.js';
+import type { WebhookProcessor } from './webhook.processor.js';
 
 type MockResponse = {
   json: jest.Mock;
@@ -48,7 +49,8 @@ function buildEvent(session: Stripe.Checkout.Session): Stripe.Event {
 describe('StripeWebhookController', () => {
   const paymentsService = {
     constructEvent: jest.fn(),
-    syncStripeFeesFromSession: jest.fn()
+    syncStripeFeesFromSession: jest.fn(),
+    getFullCheckoutSession: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
   const webhookEvents = {
@@ -60,6 +62,10 @@ describe('StripeWebhookController', () => {
     addWebhookJob: jest.fn()
   } as unknown as jest.Mocked<WebhookQueueService>;
 
+  const webhookProcessor = {
+    process: jest.fn()
+  } as unknown as jest.Mocked<WebhookProcessor>;
+
   let controller: StripeWebhookController;
 
   beforeEach(() => {
@@ -70,7 +76,8 @@ describe('StripeWebhookController', () => {
     controller = new StripeWebhookController(
       paymentsService as unknown as PaymentsService,
       webhookEvents as unknown as WebhookEventService,
-      webhookQueue as unknown as WebhookQueueService
+      webhookQueue as unknown as WebhookQueueService,
+      webhookProcessor as unknown as WebhookProcessor
     );
   });
 
@@ -142,5 +149,84 @@ describe('StripeWebhookController', () => {
     );
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.send).toHaveBeenCalledWith('Webhook error: Redis unreachable');
+  });
+
+  describe('confirmSession', () => {
+    function buildStripeSession(overrides?: Partial<Stripe.Checkout.Session>): Stripe.Checkout.Session {
+      return {
+        id: 'cs_test_123',
+        status: 'complete',
+        payment_status: 'paid',
+        metadata: { source: 'membership', membershipTypeId: 'type-1', userId: 'user-1', fullName: 'Test User' },
+        customer_email: 'test@example.com',
+        amount_total: 2500,
+        currency: 'gbp',
+        payment_intent: 'pi_123',
+        ...overrides
+      } as unknown as Stripe.Checkout.Session;
+    }
+
+    it('retrieves the session, records a synthetic event and processes it', async () => {
+      const session = buildStripeSession();
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+      webhookProcessor.process.mockResolvedValue(undefined);
+
+      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+
+      expect(paymentsService.getFullCheckoutSession).toHaveBeenCalledWith('cs_test_123');
+      expect(webhookEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'stripe',
+          eventType: 'checkout.session.completed',
+          externalId: 'confirm:cs_test_123',
+          status: 'received'
+        })
+      );
+      expect(webhookProcessor.process).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ledgerId: 'ledger-1',
+          provider: 'stripe',
+          eventType: 'checkout.session.completed'
+        })
+      );
+      expect(result).toEqual({ received: true });
+    });
+
+    it('returns duplicate when the session has already been confirmed', async () => {
+      const session = buildStripeSession();
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+      webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: true });
+
+      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+
+      expect(webhookProcessor.process).not.toHaveBeenCalled();
+      expect(result).toEqual({ received: true, duplicate: true });
+    });
+
+    it('throws when the checkout session is not complete', async () => {
+      const session = buildStripeSession({ status: 'open', payment_status: 'unpaid' });
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+
+      await expect(controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' })).rejects.toThrow(
+        'Checkout session is not complete'
+      );
+      expect(webhookEvents.record).not.toHaveBeenCalled();
+      expect(webhookProcessor.process).not.toHaveBeenCalled();
+    });
+
+    it('throws when provider is paypal', async () => {
+      await expect(controller.confirmSession({ sessionId: 'cs_test_123', provider: 'paypal' })).rejects.toThrow(
+        'PayPal confirmation is not yet supported'
+      );
+    });
+
+    it('throws when sessionId or provider is missing', async () => {
+      await expect(controller.confirmSession({ sessionId: '', provider: 'stripe' })).rejects.toThrow(
+        'sessionId and provider are required'
+      );
+      await expect(controller.confirmSession({ sessionId: 'cs_test_123', provider: '' as any })).rejects.toThrow(
+        'sessionId and provider are required'
+      );
+    });
   });
 });

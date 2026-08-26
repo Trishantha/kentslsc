@@ -131,7 +131,9 @@ export default function MembershipPlansPage() {
               const isMember = Boolean(
                 user &&
                   currentMembership &&
-                  (currentMembership.status === 'ACTIVE' || currentMembership.status === 'PENDING')
+                  (currentMembership.status === 'ACTIVE' ||
+                    currentMembership.status === 'PENDING' ||
+                    currentMembership.status === 'AWAITING_APPROVAL')
               );
               const isCurrent = isMember && type.id === currentTypeId;
               const isUpgrade = isMember && type.price > (currentMembership?.membershipType?.price ?? 0);

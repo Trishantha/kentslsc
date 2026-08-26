@@ -23,7 +23,12 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { AdminMembership } from '../../types';
 
-const STATUSES = ['PENDING', 'ACTIVE', 'EXPIRED', 'CANCELLED'] as const;
+const STATUSES = ['PENDING', 'AWAITING_APPROVAL', 'ACTIVE', 'EXPIRED', 'CANCELLED'] as const;
+
+function statusLabel(status: string) {
+  if (status === 'AWAITING_APPROVAL') return 'Awaiting approval';
+  return status;
+}
 
 interface MembershipDetailsFormProps {
   membership: AdminMembership;
@@ -193,7 +198,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
@@ -213,7 +218,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           </button>
         </div>
 
-        {membership.status === 'PENDING' && (
+        {(membership.status === 'PENDING' || membership.status === 'AWAITING_APPROVAL') && (
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
@@ -236,7 +241,11 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           </div>
         )}
 
-        {membership.status === 'PENDING' && membership.membershipType.isFree === false && typeof membership.membershipType.price === 'number' && membership.membershipType.price > 0 && !membership.paymentMethod && (
+        {(membership.status === 'PENDING' || membership.status === 'AWAITING_APPROVAL') &&
+          membership.membershipType.isFree === false &&
+          typeof membership.membershipType.price === 'number' &&
+          membership.membershipType.price > 0 &&
+          !membership.paymentMethod && (
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-3">
               <button
