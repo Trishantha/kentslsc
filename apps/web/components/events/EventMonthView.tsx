@@ -85,7 +85,7 @@ export default function EventMonthView({
             </span>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {monthEvents.map((event, index) => (
               <EventCard
                 key={event.id}
@@ -96,7 +96,6 @@ export default function EventMonthView({
                 startingFromLabel={startingFromLabel}
                 freeLabel={freeLabel}
                 shareText={`Join us for "${event.title}" on Kent SLSC`}
-                dateOverlay
               />
             ))}
           </div>

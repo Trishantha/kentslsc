@@ -70,7 +70,7 @@ export default function EventsPage() {
 
   return (
     <div className="px-4 py-16 md:px-6">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <h1 className="section-title">{t('title')}</h1>
         <p className="mt-4 text-slate-600 dark:text-slate-400">
           {t('subtitle')}
@@ -157,11 +157,11 @@ export default function EventsPage() {
             freeLabel={tCommon('free')}
           />
         ) : (
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="glass-card flex animate-pulse flex-col overflow-hidden sm:flex-row">
-                  <div className="aspect-[3/4] w-full bg-slate-200 sm:w-40 md:w-48 dark:bg-slate-800" />
+                <div key={i} className="glass-card flex h-64 animate-pulse overflow-hidden">
+                  <div className="w-40 shrink-0 bg-slate-200 sm:w-44 dark:bg-slate-800" />
                   <div className="flex-1 space-y-3 p-5">
                     <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-800" />
                     <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />

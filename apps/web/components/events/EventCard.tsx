@@ -28,7 +28,6 @@ interface Props {
   startingFromLabel: (price: string) => string;
   freeLabel: string;
   shareText?: string;
-  dateOverlay?: boolean;
 }
 
 export default function EventCard({
@@ -38,8 +37,7 @@ export default function EventCard({
   viewDetailsLabel,
   startingFromLabel,
   freeLabel,
-  shareText = `Join us for "${event.title}" on Kent SLSC`,
-  dateOverlay = false
+  shareText = `Join us for "${event.title}" on Kent SLSC`
 }: Props) {
   const router = useRouter();
   const start = new Date(event.startDatetime);
@@ -57,12 +55,12 @@ export default function EventCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       onClick={handleCardClick}
-      className="glass-card group flex cursor-pointer flex-col overflow-hidden sm:flex-row"
+      className="glass-card group flex h-64 cursor-pointer overflow-hidden"
     >
-      <div className="relative w-full shrink-0 overflow-hidden bg-black/10 sm:w-40 md:w-48">
+      <div className="relative flex h-full w-40 shrink-0 flex-col overflow-hidden bg-black/10 sm:w-44">
         <div
           className={cn(
-            'flex aspect-[3/4] items-center justify-center bg-gradient-to-br',
+            'flex flex-1 items-center justify-center bg-gradient-to-br',
             event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/30 to-neon-gold/30'
           )}
         >
@@ -88,49 +86,41 @@ export default function EventCard({
           </span>
         )}
 
-        {dateOverlay && (
-          <div className="absolute bottom-2 left-2 flex flex-col items-center rounded-lg border border-white/10 bg-slate-950/80 px-2 py-1.5 text-center text-white shadow-lg backdrop-blur-sm">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-neon-blue">
-              {dayOfWeek}
-            </span>
-            <span className="text-xl font-bold leading-none">{dayNumber}</span>
-            <span className="text-[9px] font-medium uppercase text-slate-300">{monthShort}</span>
-          </div>
-        )}
-
-        <div className="mt-2 flex flex-col items-center justify-center rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-center text-white backdrop-blur-sm sm:mx-2 sm:mb-2">
+        <div className="flex h-24 shrink-0 flex-col items-center justify-center border-t border-white/10 bg-slate-950/90 text-center text-white backdrop-blur-sm">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-neon-blue">
             {monthShort}
           </span>
-          <span className="text-3xl font-bold leading-none sm:text-4xl">{dayNumber}</span>
+          <span className="text-4xl font-bold leading-none">{dayNumber}</span>
           <span className="text-[10px] font-medium uppercase text-slate-300">{dayOfWeek}</span>
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4 sm:p-5">
-        <h3 className="text-base font-bold leading-tight group-hover:text-neon-blue sm:text-lg">
-          {event.title}
-        </h3>
+      <div className="flex h-full min-w-0 flex-1 flex-col justify-between p-4 sm:p-5">
+        <div className="min-h-0">
+          <h3 className="line-clamp-2 text-base font-bold leading-tight group-hover:text-neon-blue sm:text-lg">
+            {event.title}
+          </h3>
 
-        <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-neon-blue" />
-            {formatDate(event.startDatetime)}
-          </div>
-          {event.location && (
-            <div className="flex items-start gap-2" onClick={(e) => e.stopPropagation()}>
-              <MapPin className="mt-0.5 h-4 w-4 text-neon-blue" />
-              <EventLocationLink location={event.location} />
+          <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 shrink-0 text-neon-blue" />
+              {formatDate(event.startDatetime)}
             </div>
-          )}
-          <div className="font-medium text-slate-800 dark:text-slate-200">
-            {event.isFree || Number(event.ticketPrice) === 0
-              ? freeLabel
-              : startingFromLabel(formatCurrency(event.ticketPrice))}
+            {event.location && (
+              <div className="flex items-start gap-2" onClick={(e) => e.stopPropagation()}>
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-neon-blue" />
+                <EventLocationLink location={event.location} />
+              </div>
+            )}
+            <div className="font-medium text-slate-800 dark:text-slate-200">
+              {event.isFree || Number(event.ticketPrice) === 0
+                ? freeLabel
+                : startingFromLabel(formatCurrency(event.ticketPrice))}
+            </div>
           </div>
         </div>
 
-        <div className="mt-auto flex flex-col gap-3 pt-4">
+        <div className="flex flex-col gap-3 pt-3">
           <Link
             href={`/events/${event.id}`}
             onClick={(e) => e.stopPropagation()}
