@@ -118,24 +118,32 @@ export default function EventsPage() {
             })}
           </div>
 
-          <div className="flex rounded-xl border border-white/10 bg-white/5 p-1">
+          <div className="flex overflow-hidden rounded-full border border-slate-300 dark:border-slate-600">
             <button
               onClick={() => setView('list')}
+              aria-label={t('listView')}
+              title={t('listView')}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                view === 'list' ? 'bg-neon-blue text-white' : 'text-slate-600 dark:text-slate-300'
+                'flex h-10 w-12 items-center justify-center transition',
+                view === 'list'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
               )}
             >
-              <List className="h-4 w-4" /> {t('listView')}
+              <List className="h-5 w-5" />
             </button>
             <button
               onClick={() => setView('calendar')}
+              aria-label={t('monthView')}
+              title={t('monthView')}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                view === 'calendar' ? 'bg-neon-blue text-white' : 'text-slate-600 dark:text-slate-300'
+                'flex h-10 w-12 items-center justify-center transition',
+                view === 'calendar'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
               )}
             >
-              <CalendarIcon className="h-4 w-4" /> {t('monthView')}
+              <CalendarIcon className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -154,7 +162,7 @@ export default function EventsPage() {
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="glass-card animate-pulse overflow-hidden">
-                  <div className="aspect-[3/4] bg-slate-200 dark:bg-slate-800" />
+                  <div className="aspect-[3/2] bg-slate-200 dark:bg-slate-800" />
                   <div className="space-y-3 p-5">
                     <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-800" />
                     <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />

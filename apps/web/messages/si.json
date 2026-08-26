@@ -500,6 +500,7 @@
     "downloadIcs": "Download .ics",
     "shareTitle": "Share this event",
     "shareText": "Join us for \"{title}\" on Kent SLSC",
+    "locationTitle": "Location",
     "postersTitle": "Posters"
   },
   "directoryDetail": {

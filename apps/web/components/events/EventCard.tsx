@@ -53,7 +53,7 @@ export default function EventCard({
       <Link href={`/events/${event.id}`} className="relative block overflow-hidden bg-black/10">
         <div
           className={cn(
-            'flex aspect-[3/4] items-center justify-center bg-gradient-to-br',
+            'flex aspect-[3/2] items-center justify-center bg-gradient-to-br',
             event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/30 to-neon-gold/30'
           )}
         >

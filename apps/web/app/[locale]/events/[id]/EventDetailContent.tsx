@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Calendar, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
@@ -164,52 +164,133 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
     );
   }
 
+  const startDate = new Date(event.startDatetime);
+  const endDate = new Date(event.endDatetime);
+  const monthShort = startDate.toLocaleDateString('en-GB', { month: 'short' });
+  const weekdayLong = startDate.toLocaleDateString('en-GB', { weekday: 'long' });
+  const dayNumber = startDate.getDate();
+  const timeRange = `${startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} – ${endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+
   return (
     <div className="px-4 py-12 md:px-6">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <Link href="/events" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-neon-blue dark:text-slate-400">
           <ArrowLeft className="h-4 w-4" /> {t('backToEvents')}
         </Link>
 
-        <div className="mt-6 glass-card overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.42fr)_minmax(0,1fr)]">
-            <div className="relative flex items-center justify-center bg-black/20">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(360px,420px)]">
+          {/* Left column: poster, location, share, description, extra posters */}
+          <div className="space-y-6">
+            <div className="glass-card overflow-hidden">
               {(event.imageUrl || event.posterImageUrl) ? (
                 <img
                   src={event.imageUrl || event.posterImageUrl || undefined}
                   alt={event.title}
-                  className="h-auto max-h-[55vh] w-full object-contain lg:absolute lg:inset-0 lg:h-full lg:max-h-none lg:w-full"
+                  className="h-auto w-full object-contain"
                 />
               ) : (
-                <div className="flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30 lg:absolute lg:inset-0 lg:aspect-auto lg:h-full">
+                <div className="flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
                   <Ticket className="h-16 w-16 text-white/20" />
                 </div>
               )}
             </div>
-            <div className="p-6 md:p-10">
-              <h1 className="text-3xl font-bold md:text-4xl">{event.title}</h1>
+
+            {event.location && (
+              <div className="glass-card p-6">
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                  <MapPin className="h-5 w-5 text-neon-blue" />
+                  {t('locationTitle')}
+                </h2>
+                <EventLocationLink location={event.location} className="text-base" />
+              </div>
+            )}
+
+            {shareUrl && (
+              <div className="glass-card p-6">
+                <ShareButtons
+                  url={shareUrl}
+                  title={event.title}
+                  heading={t('shareTitle')}
+                  shareText={t('shareText', { title: event.title })}
+                  copyLabel={tCommon('copyLink')}
+                  copiedLabel={tCommon('copied')}
+                />
+              </div>
+            )}
+
+            {event.description && (
+              <div className="glass-card p-6 md:p-8">
+                <RichTextContent html={event.description} className="text-slate-700 dark:text-slate-300" />
+              </div>
+            )}
+
+            {posterPhotos.length > 0 && (
+              <div className="glass-card p-6">
+                <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {posterPhotos.map((poster, idx) => (
+                    <button
+                      key={poster.id}
+                      type="button"
+                      onClick={() => open(idx)}
+                      className="overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left"
+                    >
+                      <img
+                        src={poster.url}
+                        alt={poster.caption || `${event.title} poster ${idx + 1}`}
+                        className="h-auto w-full object-cover"
+                      />
+                      {poster.caption && (
+                        <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right column: title, big date, add to calendar, tickets — sticky on desktop */}
+          <aside className="space-y-6 lg:sticky lg:top-8 lg:self-start">
+            <div className="glass-card p-6 md:p-8">
               {event.category && (
                 <span
                   className={cn(
-                    'mt-3 inline-flex rounded-full px-3 py-1 text-sm font-medium',
+                    'mb-4 inline-flex rounded-full px-3 py-1 text-sm font-medium',
                     eventCategoryColors[event.category]
                   )}
                 >
                   {eventCategoryLabels[event.category]}
                 </span>
               )}
-  
-              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-neon-blue" />
-                  {formatDate(event.startDatetime)}
+
+              <h1 className="text-3xl font-bold md:text-4xl">{event.title}</h1>
+
+              <div className="mt-6 flex items-stretch gap-4">
+                <div className="flex min-w-[90px] flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-neon-blue to-emerald-600 px-4 py-5 text-center text-white shadow-neon">
+                  <span className="text-xs font-bold uppercase tracking-widest">{monthShort}</span>
+                  <span className="text-5xl font-bold leading-none md:text-6xl">{dayNumber}</span>
+                  <span className="mt-1 text-xs font-medium uppercase">{weekdayLong}</span>
                 </div>
-                {event.location && (
-                  <EventLocationLink location={event.location} />
-                )}
+                <div className="flex flex-col justify-center gap-1.5">
+                  <div className="flex items-center gap-2 text-lg font-semibold">
+                    <Calendar className="h-5 w-5 text-neon-blue" />
+                    {formatDate(event.startDatetime)}
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <Clock className="h-4 w-4 text-neon-blue" />
+                    {timeRange}
+                  </div>
+                  {event.location && (
+                    <div className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <MapPin className="mt-0.5 h-4 w-4 text-neon-blue" />
+                      <span>{event.location}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-  
-              <div className="mt-4">
+
+              <div className="mt-5">
                 <AddToCalendar
                   event={{
                     id: event.id,
@@ -221,49 +302,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   }}
                 />
               </div>
-  
-              {shareUrl && (
-                <div className="mt-6">
-                  <ShareButtons
-                    url={shareUrl}
-                    title={event.title}
-                    heading={t('shareTitle')}
-                    shareText={t('shareText', { title: event.title })}
-                    copyLabel={tCommon('copyLink')}
-                    copiedLabel={tCommon('copied')}
-                  />
-                </div>
-              )}
-  
-              {event.description && (
-                <RichTextContent html={event.description} className="mt-6 text-slate-700 dark:text-slate-300" />
-              )}
-  
-              {posterPhotos.length > 0 && (
-                <div className="mt-8">
-                  <h2 className="mb-4 text-lg font-semibold">{t('postersTitle')}</h2>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {posterPhotos.map((poster, idx) => (
-                      <button
-                        key={poster.id}
-                        type="button"
-                        onClick={() => open(idx)}
-                        className="overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left"
-                      >
-                        <img
-                          src={poster.url}
-                          alt={poster.caption || `${event.title} poster ${idx + 1}`}
-                          className="h-auto w-full object-cover"
-                        />
-                        {poster.caption && (
-                          <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-  
+
               <div className="mt-8 flex flex-col gap-6 rounded-2xl bg-white/5 p-6 dark:bg-black/20">
                 {isExternal ? (
                   <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
@@ -279,7 +318,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                         </span>
                       )}
                     </div>
-  
+
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium">{t('quantity')}</span>
                       <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-1 dark:bg-black/20">
@@ -302,7 +341,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                         </button>
                       </div>
                     </div>
-  
+
                     {!isFree && feeBreakdown && feeBreakdown.fee > 0 && (
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between text-slate-600 dark:text-slate-400">
@@ -321,7 +360,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                     )}
                   </>
                 )}
-  
+
                 {message && (
                   <div
                     className={cn(
@@ -334,7 +373,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                     {message.text}
                   </div>
                 )}
-  
+
                 {isExternal ? (
                   <button
                     onClick={handleBuy}
@@ -368,7 +407,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                 )}
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </div>
       <Lightbox />
