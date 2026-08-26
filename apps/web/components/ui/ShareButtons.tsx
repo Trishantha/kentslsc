@@ -48,25 +48,29 @@ export function ShareButtons({
       label: 'WhatsApp',
       href: `https://wa.me/?text=${encodedTitle}%20${encoded}`,
       icon: <MessageCircle className="h-4 w-4" />,
-      color: 'bg-green-500 hover:bg-green-600'
+      color: 'bg-green-500 hover:bg-green-600',
+      iconColor: 'text-green-500'
     },
     {
       label: 'Facebook',
       href: `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
       icon: <FacebookIcon />,
-      color: 'bg-blue-600 hover:bg-blue-700'
+      color: 'bg-blue-600 hover:bg-blue-700',
+      iconColor: 'text-blue-600 dark:text-blue-500'
     },
     {
       label: 'X',
       href: `https://x.com/intent/post?text=${encodedTitle}&url=${encoded}`,
       icon: <X_ICON />,
-      color: 'bg-black hover:bg-slate-800'
+      color: 'bg-black hover:bg-slate-800',
+      iconColor: 'text-slate-900 dark:text-white'
     },
     {
       label: 'Email',
       href: `mailto:?subject=${encodedTitle}&body=${encodedTitle}%0A${encoded}`,
       icon: <Mail className="h-4 w-4" />,
-      color: 'bg-slate-600 hover:bg-slate-700'
+      color: 'bg-slate-600 hover:bg-slate-700',
+      iconColor: 'text-slate-500 dark:text-slate-400'
     }
   ];
 
@@ -95,7 +99,7 @@ export function ShareButtons({
 
   if (compact) {
     return (
-      <div className={cn('flex flex-wrap gap-1.5', className)}>
+      <div className={cn('flex flex-wrap gap-2', className)}>
         {shares.map((s) => (
           <a
             key={s.label}
@@ -105,8 +109,8 @@ export function ShareButtons({
             title={s.label}
             aria-label={s.label}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors',
-              s.color
+              'flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800',
+              s.iconColor
             )}
           >
             {s.icon}
@@ -119,7 +123,7 @@ export function ShareButtons({
             onClick={nativeShare}
             title="Share"
             aria-label="Share"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-600 text-white transition-colors hover:bg-purple-700"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-purple-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
           >
             <Smartphone className="h-4 w-4" />
             <span className="sr-only">Share</span>
@@ -130,7 +134,7 @@ export function ShareButtons({
           onClick={copyLink}
           title={copied ? copiedLabel : copyLabel}
           aria-label={copied ? copiedLabel : copyLabel}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-transparent text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
           <span className="sr-only">{copied ? copiedLabel : copyLabel}</span>

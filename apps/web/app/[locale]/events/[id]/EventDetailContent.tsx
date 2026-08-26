@@ -166,10 +166,16 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
 
   const startDate = new Date(event.startDatetime);
   const endDate = new Date(event.endDatetime);
-  const monthShort = startDate.toLocaleDateString('en-GB', { month: 'short' });
-  const weekdayLong = startDate.toLocaleDateString('en-GB', { weekday: 'long' });
-  const dayNumber = startDate.getDate();
-  const timeRange = `${startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} – ${endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+
+  // Format date/time in the event's local timezone (UK) so the displayed time
+  // doesn't shift based on the user's browser timezone.
+  const formatInUK = (date: Date, options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', ...options }).format(date);
+
+  const monthShort = formatInUK(startDate, { month: 'short' });
+  const weekdayLong = formatInUK(startDate, { weekday: 'long' });
+  const dayNumber = Number(formatInUK(startDate, { day: 'numeric' }));
+  const timeRange = `${formatInUK(startDate, { hour: '2-digit', minute: '2-digit' })} – ${formatInUK(endDate, { hour: '2-digit', minute: '2-digit' })}`;
 
   return (
     <div className="px-4 py-12 md:px-6">
@@ -178,7 +184,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
           <ArrowLeft className="h-4 w-4" /> {t('backToEvents')}
         </Link>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(360px,420px)]">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(300px,420px)_1fr]">
           {/* Left column: poster, location, share, description, extra posters */}
           <div className="space-y-6">
             <div className="glass-card overflow-hidden">
@@ -189,7 +195,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   className="h-auto w-full object-contain"
                 />
               ) : (
-                <div className="flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
+                <div className="flex aspect-[3/2] w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
                   <Ticket className="h-16 w-16 text-white/20" />
                 </div>
               )}
@@ -282,9 +288,9 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                     {timeRange}
                   </div>
                   {event.location && (
-                    <div className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <MapPin className="mt-0.5 h-4 w-4 text-neon-blue" />
-                      <span>{event.location}</span>
+                    <div className="flex items-start gap-2 text-sm">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-neon-blue" />
+                      <EventLocationLink location={event.location} />
                     </div>
                   )}
                 </div>

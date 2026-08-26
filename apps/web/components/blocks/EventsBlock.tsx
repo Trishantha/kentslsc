@@ -58,7 +58,7 @@ export default function EventsBlockComponent({ block }: Props) {
         ) : events.length === 0 ? (
           <p className="text-slate-600 dark:text-slate-400">No upcoming events right now.</p>
         ) : (
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-4">
             {events.slice(0, limit).map((event, index) => (
               <motion.div
                 key={event.id}
@@ -68,10 +68,10 @@ export default function EventsBlockComponent({ block }: Props) {
                 transition={{ delay: index * 0.05 }}
               >
                 <SmartLink href={`/events/${event.id}`}>
-                  <div className="glass-card group overflow-hidden">
+                  <div className="glass-card group flex flex-col overflow-hidden sm:flex-row">
                     <div
                       className={cn(
-                        'flex aspect-[3/4] items-center justify-center overflow-hidden bg-gradient-to-br',
+                        'flex aspect-[3/4] w-full items-center justify-center overflow-hidden bg-gradient-to-br',
                         event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/40 to-neon-gold/40'
                       )}
                     >
@@ -82,16 +82,16 @@ export default function EventsBlockComponent({ block }: Props) {
                           className="h-full w-full object-contain"
                         />
                       ) : (
-                        <Calendar className="h-16 w-16 text-slate-400" />
+                        <Calendar className="h-12 w-12 text-slate-400" />
                       )}
                     </div>
-                    <div className="p-5">
+                    <div className="flex flex-1 flex-col p-5">
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-lg font-bold group-hover:text-neon-blue">{event.title}</h3>
+                        <h3 className="text-base font-bold group-hover:text-neon-blue sm:text-lg">{event.title}</h3>
                         {event.category && (
                           <span
                             className={cn(
-                              'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                              'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
                               eventCategoryColors[event.category]
                             )}
                           >
@@ -99,7 +99,7 @@ export default function EventsBlockComponent({ block }: Props) {
                           </span>
                         )}
                       </div>
-                      <div className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-400">
+                      <div className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-400">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-neon-blue" />
                           {formatDate(event.startDatetime)}
@@ -108,7 +108,7 @@ export default function EventsBlockComponent({ block }: Props) {
                           <EventLocationLink location={event.location} />
                         )}
                       </div>
-                      <div className="mt-3 font-medium">
+                      <div className="mt-2 font-medium">
                         {event.isFree || Number(event.ticketPrice) === 0 ? 'Free' : formatCurrency(event.ticketPrice)}
                       </div>
                     </div>

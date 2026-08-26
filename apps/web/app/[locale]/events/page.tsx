@@ -158,12 +158,12 @@ export default function EventsPage() {
             freeLabel={tCommon('free')}
           />
         ) : (
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid gap-4 lg:grid-cols-2">
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="glass-card animate-pulse overflow-hidden">
-                  <div className="aspect-[3/2] bg-slate-200 dark:bg-slate-800" />
-                  <div className="space-y-3 p-5">
+                <div key={i} className="glass-card flex animate-pulse flex-col overflow-hidden sm:flex-row">
+                  <div className="aspect-[3/4] w-full bg-slate-200 sm:w-40 md:w-48 dark:bg-slate-800" />
+                  <div className="flex-1 space-y-3 p-5">
                     <div className="h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-800" />
                     <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />
                     <div className="h-9 w-full rounded bg-slate-200 dark:bg-slate-800" />
