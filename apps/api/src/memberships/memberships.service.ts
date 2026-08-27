@@ -1318,6 +1318,16 @@ export class MembershipsService {
           typeof session.payment_intent === 'string'
             ? session.payment_intent
             : session.payment_intent?.id;
+        const latestInvoice =
+          stripeSubscription.latest_invoice &&
+          typeof stripeSubscription.latest_invoice !== 'string'
+            ? (stripeSubscription.latest_invoice as Stripe.Invoice)
+            : null;
+        const invoicePaymentIntentId =
+          sessionPaymentIntentId ??
+          (typeof (latestInvoice as any)?.payment_intent === 'string'
+            ? (latestInvoice as any).payment_intent
+            : (latestInvoice as any)?.payment_intent?.id);
         await this.recordMembershipPayment(updated, {
           channel: 'stripe',
           method: 'subscription',
@@ -1325,7 +1335,7 @@ export class MembershipsService {
           amountPence,
           providerCheckoutId: session.id,
           providerPaymentId: subscriptionId,
-          stripePaymentIntentId: sessionPaymentIntentId,
+          stripePaymentIntentId: invoicePaymentIntentId,
           payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
           payerName: session.customer_details?.name ?? null,
           payerPhone: session.customer_details?.phone ?? null,
@@ -1340,6 +1350,15 @@ export class MembershipsService {
     }
 
     // No existing membership record: create one from metadata.
+    const subscriptionLatestInvoice =
+      stripeSubscription.latest_invoice &&
+      typeof stripeSubscription.latest_invoice !== 'string'
+        ? (stripeSubscription.latest_invoice as Stripe.Invoice)
+        : null;
+    const subscriptionPaymentIntentId =
+      typeof (subscriptionLatestInvoice as any)?.payment_intent === 'string'
+        ? (subscriptionLatestInvoice as any).payment_intent
+        : (subscriptionLatestInvoice as any)?.payment_intent?.id;
     return this.handleMembershipCheckoutCompleted(
       metadata,
       'stripe',
@@ -1349,6 +1368,7 @@ export class MembershipsService {
         channel: 'stripe',
         providerCheckoutId: session.id,
         providerPaymentId: subscriptionId,
+        stripePaymentIntentId: subscriptionPaymentIntentId,
         amountPence,
         currency,
         payerName: session.customer_details?.name ?? null,
@@ -1398,6 +1418,7 @@ export class MembershipsService {
       channel: string;
       providerCheckoutId?: string | null;
       providerPaymentId?: string | null;
+      stripePaymentIntentId?: string | null;
       amountPence?: number;
       currency?: string;
       payerName?: string | null;
@@ -1467,7 +1488,7 @@ export class MembershipsService {
             (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
           providerCheckoutId: gatewayContext?.providerCheckoutId,
           providerPaymentId: gatewayContext?.providerPaymentId,
-          stripePaymentIntentId: gatewayContext?.providerPaymentId,
+          stripePaymentIntentId: gatewayContext?.stripePaymentIntentId,
           payerEmail: customerEmail ?? updated.user?.email ?? null,
           payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
           payerPhone: gatewayContext?.payerPhone ?? null,
@@ -1547,7 +1568,7 @@ export class MembershipsService {
           (metadata.amountPence ? Number(metadata.amountPence) : Number(membershipWithType.membershipType.price) * 100),
         providerCheckoutId: gatewayContext?.providerCheckoutId,
         providerPaymentId: gatewayContext?.providerPaymentId,
-        stripePaymentIntentId: gatewayContext?.providerPaymentId,
+        stripePaymentIntentId: gatewayContext?.stripePaymentIntentId,
         payerEmail: customerEmail ?? membershipWithType.user?.email ?? null,
         payerName: gatewayContext?.payerName ?? membershipWithType.user?.name ?? null,
         payerPhone: gatewayContext?.payerPhone ?? null,

@@ -135,6 +135,38 @@ function isStripeCheckoutId(id: string | null | undefined): boolean {
 }
 
 /**
+ * Resolve the PaymentIntent id tied to a Checkout Session. For one-off payments
+ * it is on the session directly; for subscription checkouts the session has no
+ * payment_intent and the charge lives on the subscription's latest invoice.
+ */
+async function resolvePaymentIntentIdFromSession(
+  stripe: Stripe,
+  sessionId: string
+): Promise<string | null> {
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['subscription.latest_invoice.payment_intent']
+  });
+
+  const direct =
+    typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id;
+  if (direct) return direct;
+
+  const subscription =
+    typeof session.subscription === 'string' ? null : session.subscription;
+  const latestInvoice =
+    typeof subscription?.latest_invoice === 'string'
+      ? null
+      : subscription?.latest_invoice;
+  const invoicePaymentIntent =
+    typeof (latestInvoice as any)?.payment_intent === 'string'
+      ? (latestInvoice as any).payment_intent
+      : (latestInvoice as any)?.payment_intent?.id;
+  return invoicePaymentIntent ?? null;
+}
+
+/**
  * Update a Payment row with the actual fee and net settlement from Stripe's
  * balance transaction. This makes the revenue report match Stripe's payout
  * reporting instead of the estimated processing fee.
@@ -148,10 +180,16 @@ async function syncStripeFeesForSession(
     where: { providerCheckoutId: sessionId, deletedAt: null },
     orderBy: { createdAt: 'desc' }
   });
-  if (!payment?.providerPaymentId) return;
+  if (!payment) return;
+
+  let paymentIntentId = payment.providerPaymentId;
+  if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+    paymentIntentId = await resolvePaymentIntentIdFromSession(stripe, sessionId);
+  }
+  if (!paymentIntentId) return;
 
   try {
-    const pi = await stripe.paymentIntents.retrieve(payment.providerPaymentId, {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
       expand: ['latest_charge.balance_transaction']
     });
     const latestCharge = pi.latest_charge;

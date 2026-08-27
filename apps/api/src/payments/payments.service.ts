@@ -321,15 +321,37 @@ export class PaymentsService {
   }
 
   /**
+   * Resolve the PaymentIntent id tied to a Checkout Session. For one-off payments
+   * it is on the session directly; for subscription checkouts the session has no
+   * payment_intent and the charge lives on the subscription's latest invoice.
+   */
+  private resolvePaymentIntentIdFromSession(session: Stripe.Checkout.Session): string | null {
+    const direct =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (direct) return direct;
+
+    const subscription =
+      typeof session.subscription === 'string' ? null : session.subscription;
+    const latestInvoice =
+      subscription && typeof subscription.latest_invoice !== 'string'
+        ? (subscription.latest_invoice as Stripe.Invoice)
+        : null;
+    const invoicePaymentIntent =
+      typeof (latestInvoice as any)?.payment_intent === 'string'
+        ? (latestInvoice as any).payment_intent
+        : (latestInvoice as any)?.payment_intent?.id;
+    return invoicePaymentIntent ?? null;
+  }
+
+  /**
    * Update a Payment row with the actual fee and net settlement from Stripe's
    * balance transaction. This makes the revenue report match Stripe's payout
    * reporting instead of the estimated processing fee added at checkout.
    */
   async syncStripeFeesFromSession(session: Stripe.Checkout.Session): Promise<void> {
-    const paymentIntentId =
-      typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : session.payment_intent?.id;
+    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
     if (!paymentIntentId) return;
 
     const payment = await this.prisma.payment.findFirst({
@@ -417,6 +439,7 @@ export class PaymentsService {
     const params: Stripe.Checkout.SessionListParams = {
       limit: 100,
       status: 'complete',
+      expand: ['data.subscription.latest_invoice.payment_intent'],
       created: {
         gte: Math.floor(from.getTime() / 1000),
         lte: Math.ceil(to.getTime() / 1000)
@@ -484,10 +507,7 @@ export class PaymentsService {
     },
     session: Stripe.Checkout.Session
   ): Promise<void> {
-    const paymentIntentId =
-      typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : session.payment_intent?.id;
+    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
     if (!paymentIntentId) return;
 
     const updateData: Prisma.PaymentUpdateInput = {};
@@ -524,10 +544,7 @@ export class PaymentsService {
     const currency = (session.currency ?? 'gbp').toUpperCase();
     const grossAmount = this.amountFromSession(session);
 
-    const paymentIntentId =
-      typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : session.payment_intent?.id ?? null;
+    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
 
     const customer = session.customer_details;
     const purchasedAt = session.created ? new Date(session.created * 1000) : new Date();
@@ -1053,7 +1070,9 @@ export class PaymentsService {
     this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
 
-    return this.stripe!.subscriptions.retrieve(stripeSubscriptionId);
+    return this.stripe!.subscriptions.retrieve(stripeSubscriptionId, {
+      expand: ['latest_invoice.payment_intent']
+    });
   }
 
   async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
