@@ -35,6 +35,7 @@ import {
 } from './dto/back-office-user.dto.js';
 import type { RequestContext } from '../auth/sessions.service.js';
 import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js';
+import { RejectMembershipDto } from './dto/reject-membership.dto.js';
 import { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
 import { UpdateDependantsDto } from '../memberships/dto/update-dependants.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
@@ -305,7 +306,13 @@ export class AdminController {
     @Param('id') id: string,
     @Body() dto: UpdateMembershipStatusDto
   ) {
-    return this.adminService.updateMembershipStatus(id, dto.status);
+    return this.adminService.updateMembershipStatus(id, dto.status, dto.confirmManualPayment);
+  }
+
+  @Post('memberships/:id/reject')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  rejectMembership(@Param('id') id: string, @Body() dto: RejectMembershipDto) {
+    return this.adminService.rejectMembership(id, dto.reason);
   }
 
   @Post('memberships/:id/regenerate-card')

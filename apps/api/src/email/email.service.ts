@@ -274,6 +274,50 @@ ${isFullRefund ? '<p>Your ticket(s) have been cancelled and are no longer valid 
     });
   }
 
+  async sendMembershipAwaitingApprovalEmail(email: string, name: string, membershipTypeName: string) {
+    return this.send({
+      to: email,
+      subject: 'We received your Kent SLSC membership payment',
+      html: `<p>Hi ${escapeHtml(name)},</p>
+<p>Thank you for your payment for the <strong>${escapeHtml(membershipTypeName)}</strong> membership.</p>
+<p>Your application is now awaiting review by a club admin. We will let you know as soon as a decision has been made.</p>
+<p>You can track the progress of your application from your dashboard at any time.</p>`
+    });
+  }
+
+  async sendMembershipApplicationAdminNotification(
+    adminEmail: string,
+    memberName: string,
+    membershipTypeName: string,
+    reviewUrl: string
+  ) {
+    return this.send({
+      to: adminEmail,
+      subject: 'New membership application awaiting approval',
+      html: `<p>Hi,</p>
+<p><strong>${escapeHtml(memberName)}</strong> has paid for the <strong>${escapeHtml(membershipTypeName)}</strong> membership and is awaiting approval.</p>
+<p><a href="${reviewUrl}">Review this application</a></p>`
+    });
+  }
+
+  async sendMembershipRejectedEmail(
+    email: string,
+    name: string,
+    membershipTypeName: string,
+    refunded: boolean,
+    reason?: string | null
+  ) {
+    return this.send({
+      to: email,
+      subject: 'Update on your Kent SLSC membership application',
+      html: `<p>Hi ${escapeHtml(name)},</p>
+<p>Unfortunately, at this time we are unable to accept your application for the <strong>${escapeHtml(membershipTypeName)}</strong> membership.</p>
+${reason ? `<p>Reason: ${escapeHtml(reason)}</p>` : ''}
+${refunded ? '<p>Your payment has been refunded in full and should appear back on your original payment method within a few business days.</p>' : ''}
+<p>If you believe this is a mistake or would like more information, please contact the club admin.</p>`
+    });
+  }
+
   async sendDirectoryPromotionPaymentLink(email: string, businessName: string, paymentUrl: string) {
     return this.send({
       to: email,

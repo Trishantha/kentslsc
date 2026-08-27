@@ -30,6 +30,45 @@ function statusLabel(status: string) {
   return status;
 }
 
+const PROGRESS_STEPS = [
+  { key: 'FORM_SUBMITTED', label: 'Form submitted' },
+  { key: 'PAYMENT_PROCESSED', label: 'Payment processed' },
+  { key: 'AWAITING_APPROVAL', label: 'Awaiting approval' },
+  { key: 'APPROVED', label: 'Approved' }
+] as const;
+
+function ProgressTracker({ stage }: { stage?: AdminMembership['progressStage'] }) {
+  if (stage === 'REJECTED') {
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400">
+        <XCircle className="h-4 w-4" /> Application rejected
+      </div>
+    );
+  }
+
+  const activeIndex = PROGRESS_STEPS.findIndex((s) => s.key === stage);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {PROGRESS_STEPS.map((step, index) => {
+        const done = activeIndex >= 0 && index <= activeIndex;
+        return (
+          <div key={step.key} className="flex items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-slate-500'
+              }`}
+            >
+              {step.label}
+            </span>
+            {index < PROGRESS_STEPS.length - 1 && <span className="text-slate-600">→</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface MembershipDetailsFormProps {
   membership: AdminMembership;
 }
@@ -70,11 +109,29 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   });
 
   const statusMutation = useMutation({
-    mutationFn: async (nextStatus: string) => {
-      const res = await api.put(`/admin/memberships/${membership.id}/status`, { status: nextStatus });
+    mutationFn: async ({ nextStatus, confirmManualPayment }: { nextStatus: string; confirmManualPayment?: boolean }) => {
+      const res = await api.put(`/admin/memberships/${membership.id}/status`, {
+        status: nextStatus,
+        confirmManualPayment
+      });
       return res.data;
     },
     onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'memberships'] });
+      router.refresh();
+    },
+    onError: (err) => setError(getApiErrorMessage(err))
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async () => {
+      const reason = window.prompt('Reason for rejecting this application (optional). The member will be refunded and notified.') ?? undefined;
+      const res = await api.post(`/admin/memberships/${membership.id}/reject`, { reason });
+      return res.data;
+    },
+    onSuccess: () => {
+      setError(null);
       queryClient.invalidateQueries({ queryKey: ['admin', 'memberships'] });
       router.refresh();
     },
@@ -105,14 +162,36 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
     }
   };
 
-  const handleApprove = () => statusMutation.mutate('ACTIVE');
-  const handleReject = () => statusMutation.mutate('CANCELLED');
-  const handleSaveStatus = () => statusMutation.mutate(status);
+  const handleApprove = () => {
+    const isPaidType =
+      membership.membershipType.isFree === false &&
+      typeof membership.membershipType.price === 'number' &&
+      membership.membershipType.price > 0;
+    if (isPaidType && !membership.paymentMethod) {
+      const confirmed = window.confirm(
+        'This membership has not been paid online yet. Approve and mark it as paid manually (e.g. paid offline)?'
+      );
+      if (!confirmed) return;
+      statusMutation.mutate({ nextStatus: 'ACTIVE', confirmManualPayment: true });
+      return;
+    }
+    statusMutation.mutate({ nextStatus: 'ACTIVE' });
+  };
+  const handleReject = () => rejectMutation.mutate();
+  const handleSaveStatus = () => statusMutation.mutate({ nextStatus: status });
 
   const isExpired = membership.endDate ? new Date(membership.endDate) < new Date() : false;
 
   return (
     <div className="max-w-3xl space-y-6">
+      <section className="glass-card p-6">
+        <h2 className="mb-4 text-lg font-semibold">Progress</h2>
+        <ProgressTracker stage={membership.progressStage} />
+        {membership.rejectionReason && (
+          <p className="mt-3 text-sm text-red-400">Rejection reason: {membership.rejectionReason}</p>
+        )}
+      </section>
+
       <section className="glass-card p-6">
         <h2 className="mb-4 text-lg font-semibold">Membership details</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -232,11 +311,15 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
             <button
               type="button"
               onClick={handleReject}
-              disabled={statusMutation.isPending}
+              disabled={statusMutation.isPending || rejectMutation.isPending}
               className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
             >
-              <XCircle className="h-4 w-4" />
-              Reject
+              {rejectMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
+              Reject &amp; refund
             </button>
           </div>
         )}

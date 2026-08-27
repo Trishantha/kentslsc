@@ -46,6 +46,8 @@ interface MembershipResponse {
   id: string;
   membershipId: string;
   status: string;
+  progressStage?: 'FORM_SUBMITTED' | 'PAYMENT_PROCESSED' | 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string | null;
   startDate: string;
   endDate: string;
   cardUrl: string | null;
@@ -107,6 +109,42 @@ const quickActions = [
     icon: MessageSquare
   }
 ] as const;
+
+function MembershipProgressSteps({ stage }: { stage?: MembershipResponse['progressStage'] }) {
+  if (stage === 'REJECTED') {
+    return (
+      <div className="mt-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400">
+        Your application was not accepted. If you paid online, it has been refunded.
+      </div>
+    );
+  }
+
+  const steps = [
+    { key: 'FORM_SUBMITTED', label: 'Form submitted' },
+    { key: 'PAYMENT_PROCESSED', label: 'Payment processed' },
+    { key: 'AWAITING_APPROVAL', label: 'Awaiting approval' },
+    { key: 'APPROVED', label: 'Approved' }
+  ] as const;
+  const activeIndex = steps.findIndex((s) => s.key === stage);
+
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {steps.map((step, index) => {
+        const done = activeIndex >= 0 && index <= activeIndex;
+        return (
+          <span
+            key={step.key}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              done ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-slate-500'
+            }`}
+          >
+            {step.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function ProfileCard() {
   const queryClient = useQueryClient();
@@ -622,6 +660,10 @@ export default function DashboardPage() {
                   <CreditCard className="h-6 w-6 text-neon-blue" />
                   <h2 className="text-xl font-bold">Membership Status</h2>
                 </div>
+
+                {membership.status !== 'ACTIVE' && membership.status !== 'EXPIRED' && (
+                  <MembershipProgressSteps stage={membership.progressStage} />
+                )}
 
                 <div className="mt-6 space-y-4">
                   <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">

@@ -123,7 +123,8 @@ export class AdminService {
         membershipType: {
           ...item.membershipType,
           price: Number(item.membershipType.price)
-        }
+        },
+        progressStage: this.membershipsService.computeProgressStage(item)
       })),
       total,
       page,
@@ -189,8 +190,12 @@ export class AdminService {
     });
   }
 
-  updateMembershipStatus(id: string, status: MembershipStatusDto) {
-    return this.membershipsService.updateStatus(id, status as DbMembershipStatus);
+  updateMembershipStatus(id: string, status: MembershipStatusDto, confirmManualPayment?: boolean) {
+    return this.membershipsService.updateStatus(id, status as DbMembershipStatus, confirmManualPayment);
+  }
+
+  rejectMembership(id: string, reason?: string) {
+    return this.membershipsService.rejectMembership(id, reason);
   }
 
   findMembership(id: string) {

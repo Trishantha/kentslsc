@@ -348,6 +348,7 @@ model Membership {
   qrCodeValue        String?          @unique @map("qr_code_value")
   paidAt             DateTime?        @map("paid_at")
   paymentMethod      String?          @map("payment_method")
+  rejectionReason    String?          @map("rejection_reason")
   // Prorated credit carried over from a previous paid membership when downgrading.
   // Stored in the major currency unit (e.g. GBP) and converted to free months on the new plan.
   creditAmountApplied Decimal?        @map("credit_amount_applied") @db.Decimal(10, 2)

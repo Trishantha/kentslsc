@@ -21,6 +21,8 @@ export interface AdminMembership {
   id: string;
   membershipId: string;
   status: 'PENDING' | 'AWAITING_APPROVAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  progressStage?: 'FORM_SUBMITTED' | 'PAYMENT_PROCESSED' | 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string | null;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;

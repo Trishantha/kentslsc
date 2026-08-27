@@ -134,6 +134,9 @@ describe('MembershipsService', () => {
     },
     session: {
       updateMany: jest.fn()
+    },
+    siteSettings: {
+      findFirst: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(null)
     }
   };
 
@@ -160,7 +163,10 @@ describe('MembershipsService', () => {
   };
 
   const mockEmailService: any = {
-    send: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
+    send: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined),
+    sendMembershipAwaitingApprovalEmail: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined),
+    sendMembershipApplicationAdminNotification: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined),
+    sendMembershipRejectedEmail: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
   };
 
   const mockAiService: any = {
@@ -179,11 +185,16 @@ describe('MembershipsService', () => {
     uploadBuffer: jest.fn()
   };
 
+  const mockRefundsService: any = {
+    refundPayment: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     service = new MembershipsService(
       mockPrisma,
       mockPaymentsService,
+      mockRefundsService,
       mockEmailService,
       mockAiService,
       mockConfigService,
@@ -238,7 +249,7 @@ describe('MembershipsService', () => {
       );
     });
 
-    it('creates an awaiting-approval membership for paid types and does not create a checkout session', async () => {
+    it('creates an awaiting-approval membership for paid types and creates an embedded checkout session', async () => {
       const dto: ApplyMembershipDto = {
         membershipTypeId: 'type-paid',
         fullName: 'Test User',
@@ -263,7 +274,10 @@ describe('MembershipsService', () => {
       expect(result).toEqual({
         membership: mockAwaitingApprovalMembership,
         paid: true,
-        awaitingApproval: true
+        awaitingApproval: true,
+        sessionId: mockSubscriptionCheckoutResult.id,
+        clientSecret: mockSubscriptionCheckoutResult.clientSecret,
+        url: mockSubscriptionCheckoutResult.url
       });
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -276,7 +290,17 @@ describe('MembershipsService', () => {
           })
         })
       );
-      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          priceId: mockSyncedPrice.priceId,
+          customer: 'cus_test_user_1',
+          uiMode: 'embedded',
+          metadata: expect.objectContaining({
+            source: 'membership',
+            membershipId: mockAwaitingApprovalMembership.id
+          })
+        })
+      );
       expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith('user-1', 'test@example.com');
     });
 
@@ -439,7 +463,6 @@ describe('MembershipsService', () => {
 
       await service.processApplication('user-1', 'test@example.com', dto);
 
-      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
