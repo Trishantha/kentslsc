@@ -20,6 +20,12 @@ export const businessListingSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
   address: z.string().optional(),
+  facebook: optionalUrl('Enter a valid Facebook URL'),
+  instagram: optionalUrl('Enter a valid Instagram URL'),
+  twitter: optionalUrl('Enter a valid X/Twitter URL'),
+  youtube: optionalUrl('Enter a valid YouTube URL'),
+  linkedin: optionalUrl('Enter a valid LinkedIn URL'),
+  tiktok: optionalUrl('Enter a valid TikTok URL'),
   isPaid: z.boolean().default(false),
   category: z
     .string()

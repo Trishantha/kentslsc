@@ -40,6 +40,30 @@ export class UpdateBusinessListingDto {
   declare category?: string;
 
   @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare facebook?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare instagram?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare twitter?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare youtube?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare linkedin?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  declare tiktok?: string;
+
+  @IsOptional()
   @IsBoolean()
   declare isPaid?: boolean;
 }

@@ -59,7 +59,15 @@ export default async function DirectoryDetailPage({ params }: Props) {
       : undefined,
     telephone: business.phone,
     email: business.email,
-    sameAs: business.websiteUrl ? [business.websiteUrl] : undefined
+    sameAs: [
+      business.websiteUrl,
+      business.facebook,
+      business.instagram,
+      business.twitter,
+      business.youtube,
+      business.linkedin,
+      business.tiktok
+    ].filter((url): url is string => typeof url === 'string' && url.length > 0)
   };
 
   return (

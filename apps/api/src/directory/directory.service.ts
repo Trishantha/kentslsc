@@ -107,6 +107,12 @@ export class DirectoryService {
         phone: dto.phone,
         address: dto.address,
         category: dto.category,
+        facebook: dto.facebook,
+        instagram: dto.instagram,
+        twitter: dto.twitter,
+        youtube: dto.youtube,
+        linkedin: dto.linkedin,
+        tiktok: dto.tiktok,
         isPaid: isAdmin ? dto.isPaid : false
       }
     });
@@ -132,6 +138,12 @@ export class DirectoryService {
         phone: dto.phone,
         address: dto.address,
         category: dto.category,
+        facebook: dto.facebook,
+        instagram: dto.instagram,
+        twitter: dto.twitter,
+        youtube: dto.youtube,
+        linkedin: dto.linkedin,
+        tiktok: dto.tiktok,
         ...(isAdmin && { isPaid: dto.isPaid })
       }
     });

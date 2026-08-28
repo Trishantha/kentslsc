@@ -1,11 +1,11 @@
 'use client';
 
 import type React from 'react';
-import type { SiteSettingsInput } from '@kentslsc/shared';
 
-interface SocialLinksProps {
-  settings: SiteSettingsInput;
+interface SocialLinksProps<T extends Record<string, string | null | undefined>> {
+  links: T;
   className?: string;
+  iconSize?: 'sm' | 'md';
 }
 
 const FacebookIcon = () => (
@@ -50,7 +50,16 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-const platforms: { key: keyof SiteSettingsInput; label: string; icon: () => React.JSX.Element }[] = [
+type PlatformKey =
+  | 'facebook'
+  | 'instagram'
+  | 'twitter'
+  | 'youtube'
+  | 'linkedin'
+  | 'tiktok'
+  | 'whatsapp';
+
+const platforms: { key: PlatformKey; label: string; icon: () => React.JSX.Element }[] = [
   { key: 'facebook', label: 'Facebook', icon: FacebookIcon },
   { key: 'instagram', label: 'Instagram', icon: InstagramIcon },
   { key: 'twitter', label: 'X', icon: XIcon },
@@ -60,18 +69,26 @@ const platforms: { key: keyof SiteSettingsInput; label: string; icon: () => Reac
   { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon }
 ];
 
-export function SocialLinks({ settings, className }: SocialLinksProps) {
-  const visible = platforms.filter((p) => settings[p.key]);
+export function SocialLinks<T extends Partial<Record<PlatformKey, string | null | undefined>>>({
+  links,
+  className,
+  iconSize = 'md'
+}: SocialLinksProps<T>) {
+  const visible = platforms.filter((p) => links[p.key]);
 
   if (!visible.length) return null;
+
+  const sizeClass = iconSize === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
 
   return (
     <div className={className}>
       {visible.map((p) => {
         const Icon = p.icon;
-        const href = p.key === 'whatsapp' && settings.whatsapp
-          ? `https://wa.me/${settings.whatsapp.replace(/\D/g, '')}`
-          : (settings[p.key] as string);
+        const rawValue = links[p.key];
+        const href =
+          p.key === 'whatsapp' && rawValue
+            ? `https://wa.me/${rawValue.replace(/\D/g, '')}`
+            : (rawValue as string);
         return (
           <a
             key={p.key}
@@ -79,7 +96,7 @@ export function SocialLinks({ settings, className }: SocialLinksProps) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={p.label}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-slate-700 transition-colors hover:bg-neon-blue hover:text-white dark:text-slate-300"
+            className={`inline-flex ${sizeClass} items-center justify-center rounded-full bg-white/10 text-slate-700 transition-colors hover:bg-neon-blue hover:text-white dark:text-slate-300`}
           >
             <Icon />
           </a>

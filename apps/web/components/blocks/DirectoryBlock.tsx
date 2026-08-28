@@ -62,10 +62,21 @@ export default function DirectoryBlockComponent({ block }: Props) {
                 <SmartLink href={`/directory/${business.id}`}>
                   <div className="glass-card flex h-full flex-col p-6">
                     <div className="flex items-start justify-between">
-                      <div
-                        className="h-14 w-14 rounded-xl bg-gradient-to-br from-neon-gold to-amber-500"
-                        style={business.logoUrl ? { backgroundImage: `url(${business.logoUrl})`, backgroundSize: 'cover' } : undefined}
-                      />
+                      {business.logoUrl ? (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
+                          <img
+                            src={business.logoUrl}
+                            alt={business.businessName}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
+                          <span className="text-sm font-bold text-amber-950">
+                            {business.businessName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                       {business.isPromoted && (
                         <span className="rounded-full bg-neon-gold/20 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-neon-gold/10 dark:text-neon-gold">
                           Promoted

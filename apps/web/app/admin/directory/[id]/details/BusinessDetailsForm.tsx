@@ -33,6 +33,12 @@ const businessSchema = z.object({
       message: 'Select a valid category'
     })
     .optional(),
+  facebook: optionalUrl('Enter a valid Facebook URL').or(z.literal('')),
+  instagram: optionalUrl('Enter a valid Instagram URL').or(z.literal('')),
+  twitter: optionalUrl('Enter a valid X/Twitter URL').or(z.literal('')),
+  youtube: optionalUrl('Enter a valid YouTube URL').or(z.literal('')),
+  linkedin: optionalUrl('Enter a valid LinkedIn URL').or(z.literal('')),
+  tiktok: optionalUrl('Enter a valid TikTok URL').or(z.literal('')),
   isPaid: z.boolean().default(false)
 });
 
@@ -65,6 +71,12 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
         phone: business.phone ?? '',
         address: business.address ?? '',
         category: business.category ?? '',
+        facebook: business.facebook ?? '',
+        instagram: business.instagram ?? '',
+        twitter: business.twitter ?? '',
+        youtube: business.youtube ?? '',
+        linkedin: business.linkedin ?? '',
+        tiktok: business.tiktok ?? '',
         isPaid: business.isPaid
       }
     });
@@ -80,6 +92,12 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
       phone: business.phone ?? '',
       address: business.address ?? '',
       category: business.category ?? '',
+      facebook: business.facebook ?? '',
+      instagram: business.instagram ?? '',
+      twitter: business.twitter ?? '',
+      youtube: business.youtube ?? '',
+      linkedin: business.linkedin ?? '',
+      tiktok: business.tiktok ?? '',
       isPaid: business.isPaid
     });
   }, [business, reset]);
@@ -261,6 +279,84 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
         {errors.logoUrl && (
           <p className="mt-1 text-xs text-red-400">{errors.logoUrl.message}</p>
         )}
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        <h4 className="mb-3 text-sm font-semibold">Social media</h4>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              Facebook
+            </label>
+            <input
+              {...register('facebook')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.facebook && (
+              <p className="mt-1 text-xs text-red-400">{errors.facebook.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              Instagram
+            </label>
+            <input
+              {...register('instagram')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.instagram && (
+              <p className="mt-1 text-xs text-red-400">{errors.instagram.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              X / Twitter
+            </label>
+            <input
+              {...register('twitter')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.twitter && (
+              <p className="mt-1 text-xs text-red-400">{errors.twitter.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              YouTube
+            </label>
+            <input
+              {...register('youtube')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.youtube && (
+              <p className="mt-1 text-xs text-red-400">{errors.youtube.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              LinkedIn
+            </label>
+            <input
+              {...register('linkedin')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.linkedin && (
+              <p className="mt-1 text-xs text-red-400">{errors.linkedin.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              TikTok
+            </label>
+            <input
+              {...register('tiktok')}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.tiktok && (
+              <p className="mt-1 text-xs text-red-400">{errors.tiktok.message}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm">

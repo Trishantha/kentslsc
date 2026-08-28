@@ -30,11 +30,14 @@ import {
   Sparkles,
   Plus,
   Trash2,
-  X
+  X,
+  Navigation,
+  ExternalLink
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { SocialLinks } from '@/components/layout/SocialLinks';
 
 const updateBusinessSchema = businessListingSchema.partial();
 const createJobSchema = jobAdSchema.extend({
@@ -69,6 +72,12 @@ export interface Business {
   phone?: string;
   address?: string;
   category?: string;
+  facebook?: string;
+  instagram?: string;
+  twitter?: string;
+  youtube?: string;
+  linkedin?: string;
+  tiktok?: string;
   isPaid: boolean;
   isPromoted: boolean;
   promotedUntil?: string;
@@ -163,6 +172,12 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
           phone: business.phone,
           address: business.address,
           category: business.category,
+          facebook: business.facebook,
+          instagram: business.instagram,
+          twitter: business.twitter,
+          youtube: business.youtube,
+          linkedin: business.linkedin,
+          tiktok: business.tiktok,
           isPaid: business.isPaid
         }
       : undefined
@@ -271,118 +286,190 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
           </div>
         )}
 
-        <div className="mt-6 glass-card p-6 md:p-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-5">
-              {business.logoUrl ? (
-                <img
-                  src={business.logoUrl}
-                  alt={business.businessName}
-                  className="h-20 w-20 rounded-2xl object-cover"
-                />
-              ) : (
-                <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500" />
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold">{business.businessName}</h1>
-                  {business.isPromoted && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-medium text-neon-gold">
-                      <Crown className="h-3 w-3" /> {tDirectory('promoted')}
+        <div className="mt-6 glass-card overflow-hidden p-0">
+          {/* Hero header with crisp logo and primary actions */}
+          <div className="relative p-6 md:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                {business.logoUrl ? (
+                  <div className="shrink-0 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-white">
+                    <img
+                      src={business.logoUrl}
+                      alt={business.businessName}
+                      className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500 sm:h-28 sm:w-28">
+                    <span className="text-2xl font-bold text-amber-950">
+                      {business.businessName.charAt(0).toUpperCase()}
                     </span>
-                  )}
-                </div>
-                {business.category && (
-                  <p className="text-sm text-slate-500">
-                    {getDirectoryCategoryLabel(business.category)}
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
-                  {business.address && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" /> {business.address}
-                    </span>
-                  )}
-                  {business.phone && (
-                    <span className="flex items-center gap-1">
-                      <Phone className="h-4 w-4" /> {business.phone}
-                    </span>
-                  )}
-                  {business.email && (
-                    <a
-                      href={`mailto:${business.email}`}
-                      className="flex items-center gap-1 hover:text-neon-blue"
-                    >
-                      <Mail className="h-4 w-4" /> {business.email}
-                    </a>
-                  )}
-                  {business.websiteUrl && (
-                    <a
-                      href={business.websiteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1 hover:text-neon-blue"
-                    >
-                      <Globe className="h-4 w-4" /> {t('website')}
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {canManage && (
-              <div className="flex flex-col gap-2">
-                {promotionFee && promotionFee.fee > 0 && (
-                  <div className="text-right text-xs text-slate-500">
-                    <span>{formatCurrency(promotionFee.net / 100)} + {formatCurrency(promotionFee.fee / 100)} fee = </span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(promotionFee.gross / 100)}</span>
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => summarise.mutate()}
-                    disabled={summarise.isPending}
-                    className="btn-secondary inline-flex items-center gap-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    {summarise.isPending ? t('aiSummarising') : t('aiSummarise')}
-                  </button>
-                  <button
-                    onClick={() => promote.mutate()}
-                    disabled={promote.isPending}
-                    className="btn-primary inline-flex items-center gap-2"
-                  >
-                    <Crown className="h-4 w-4" />
-                    {promote.isPending ? tCommon('loading') : t('promote30Days')}
-                  </button>
-                  <button
-                    onClick={() => deleteBusiness.mutate()}
-                    disabled={deleteBusiness.isPending}
-                    className="inline-flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/20"
-                  >
-                    <Trash2 className="h-4 w-4" /> {t('delete')}
-                  </button>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold sm:text-3xl">{business.businessName}</h1>
+                    {business.isPromoted && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2.5 py-1 text-xs font-medium text-neon-gold">
+                        <Crown className="h-3 w-3" /> {tDirectory('promoted')}
+                      </span>
+                    )}
+                  </div>
+                  {business.category && (
+                    <p className="mt-1 text-sm font-medium text-neon-blue">
+                      {getDirectoryCategoryLabel(business.category)}
+                    </p>
+                  )}
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    {business.address && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 dark:border-white/10 dark:bg-white/5">
+                        <MapPin className="h-3.5 w-3.5 text-neon-blue" /> {business.address}
+                      </span>
+                    )}
+                    {business.phone && (
+                      <a
+                        href={`tel:${business.phone.replace(/\s/g, '')}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 transition-colors hover:border-neon-blue/30 hover:text-neon-blue dark:border-white/10 dark:bg-white/5"
+                      >
+                        <Phone className="h-3.5 w-3.5 text-neon-blue" /> {business.phone}
+                      </a>
+                    )}
+                    {business.email && (
+                      <a
+                        href={`mailto:${business.email}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 transition-colors hover:border-neon-blue/30 hover:text-neon-blue dark:border-white/10 dark:bg-white/5"
+                      >
+                        <Mail className="h-3.5 w-3.5 text-neon-blue" /> {business.email}
+                      </a>
+                    )}
+                    {business.websiteUrl && (
+                      <a
+                        href={business.websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 transition-colors hover:border-neon-blue/30 hover:text-neon-blue dark:border-white/10 dark:bg-white/5"
+                      >
+                        <Globe className="h-3.5 w-3.5 text-neon-blue" /> {t('website')}
+                      </a>
+                    )}
+                  </div>
+
+                  {(business.facebook || business.instagram || business.twitter || business.youtube || business.linkedin || business.tiktok) && (
+                    <SocialLinks
+                      links={business}
+                      className="mt-4 flex flex-wrap gap-2"
+                      iconSize="sm"
+                    />
+                  )}
                 </div>
               </div>
-            )}
+
+              {canManage && (
+                <div className="flex flex-col gap-2 lg:items-end">
+                  {promotionFee && promotionFee.fee > 0 && (
+                    <div className="text-xs text-slate-500 lg:text-right">
+                      <span>{formatCurrency(promotionFee.net / 100)} + {formatCurrency(promotionFee.fee / 100)} fee = </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(promotionFee.gross / 100)}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => summarise.mutate()}
+                      disabled={summarise.isPending}
+                      className="btn-secondary inline-flex items-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {summarise.isPending ? t('aiSummarising') : t('aiSummarise')}
+                    </button>
+                    <button
+                      onClick={() => promote.mutate()}
+                      disabled={promote.isPending}
+                      className="btn-primary inline-flex items-center gap-2"
+                    >
+                      <Crown className="h-4 w-4" />
+                      {promote.isPending ? tCommon('loading') : t('promote30Days')}
+                    </button>
+                    <button
+                      onClick={() => deleteBusiness.mutate()}
+                      disabled={deleteBusiness.isPending}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/20"
+                    >
+                      <Trash2 className="h-4 w-4" /> {t('delete')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Primary action buttons */}
+            <div className="mt-6 flex flex-wrap gap-3 border-t border-white/10 pt-6">
+              {business.address && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(business.address)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  <Navigation className="h-4 w-4" />
+                  {t('getDirections')}
+                </a>
+              )}
+              {business.phone && (
+                <a
+                  href={`tel:${business.phone.replace(/\s/g, '')}`}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <Phone className="h-4 w-4" />
+                  {t('callNow')}
+                </a>
+              )}
+              {business.websiteUrl && (
+                <a
+                  href={business.websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-neon-blue hover:text-white dark:text-slate-200"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {t('visitWebsite')}
+                </a>
+              )}
+              {business.email && (
+                <a
+                  href={`mailto:${business.email}`}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-neon-blue hover:text-white dark:text-slate-200"
+                >
+                  <Mail className="h-4 w-4" />
+                  {t('emailBusiness')}
+                </a>
+              )}
+            </div>
           </div>
 
-          <div className="mt-6 border-t border-white/10 pt-6">
-            <h2 className="text-lg font-bold">{t('about')}</h2>
-            <p className="mt-2 whitespace-pre-line text-slate-600 dark:text-slate-400">
-              {business.description || t('noDescription')}
-            </p>
-            {business.servicesText && (
-              <div className="mt-4">
-                <h3 className="font-semibold">{t('services')}</h3>
-                <p className="mt-1 whitespace-pre-line text-slate-600 dark:text-slate-400">
+          {/* About / Services */}
+          <div className="grid gap-px border-t border-white/10 bg-white/10 md:grid-cols-2">
+            <div className="bg-slate-50/50 p-6 dark:bg-slate-950/30 md:p-8">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <Sparkles className="h-4 w-4 text-neon-gold" /> {t('about')}
+              </h2>
+              <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-600 dark:text-slate-400">
+                {business.description || t('noDescription')}
+              </p>
+            </div>
+            {business.servicesText ? (
+              <div className="bg-slate-50/50 p-6 dark:bg-slate-950/30 md:p-8">
+                <h2 className="text-lg font-bold">{t('services')}</h2>
+                <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-600 dark:text-slate-400">
                   {business.servicesText}
                 </p>
               </div>
+            ) : (
+              <div className="hidden bg-slate-50/50 dark:bg-slate-950/30 md:block" />
             )}
           </div>
         </div>
 
+        {/* Jobs section */}
         <div className="mt-8 glass-card p-6 md:p-8">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-xl font-bold">
@@ -503,6 +590,35 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
                     {...updateForm.register('servicesText')}
                     className={`${inputClass} resize-none`}
                   />
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h4 className="mb-3 text-sm font-semibold">{t('socialMedia')}</h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs text-slate-500">Facebook</label>
+                      <input {...updateForm.register('facebook')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">Instagram</label>
+                      <input {...updateForm.register('instagram')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">X / Twitter</label>
+                      <input {...updateForm.register('twitter')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">YouTube</label>
+                      <input {...updateForm.register('youtube')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">LinkedIn</label>
+                      <input {...updateForm.register('linkedin')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">TikTok</label>
+                      <input {...updateForm.register('tiktok')} className={inputClass} />
+                    </div>
+                  </div>
                 </div>
                 <button
                   type="submit"

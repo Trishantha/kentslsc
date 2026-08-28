@@ -9,6 +9,12 @@ export interface AdminBusiness {
   phone: string | null;
   address: string | null;
   category: string | null;
+  facebook: string | null;
+  instagram: string | null;
+  twitter: string | null;
+  youtube: string | null;
+  linkedin: string | null;
+  tiktok: string | null;
   isPaid: boolean;
   isPromoted?: boolean;
   promotedUntil?: string | null;

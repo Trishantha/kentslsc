@@ -9,7 +9,10 @@ services:
     env_file:
       - .env
     environment:
-      NODE_ENV: production
+      # This compose file is for local development. Production deployments must not
+      # point FRONTEND_URL at localhost; the API explicitly rejects localhost
+      # origins in production to prevent broken callbacks and insecure setup.
+      NODE_ENV: development
       PORT: 3000
       FRONTEND_URL: http://localhost:3000
       NEXT_PUBLIC_API_URL: http://localhost:3000

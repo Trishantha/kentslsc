@@ -38,6 +38,12 @@ interface Business {
   description?: string;
   category?: string;
   address?: string;
+  facebook?: string;
+  instagram?: string;
+  twitter?: string;
+  youtube?: string;
+  linkedin?: string;
+  tiktok?: string;
   isPromoted: boolean;
   promotedUntil?: string;
   _count: { jobAds: number };
@@ -187,13 +193,19 @@ export default function DirectoryPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-4">
                           {business.logoUrl ? (
-                            <img
-                              src={business.logoUrl}
-                              alt={business.businessName}
-                              className="h-14 w-14 rounded-full object-cover"
-                            />
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
+                              <img
+                                src={business.logoUrl}
+                                alt={business.businessName}
+                                className="h-full w-full object-contain"
+                              />
+                            </div>
                           ) : (
-                            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-neon-gold to-amber-500" />
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
+                              <span className="text-sm font-bold text-amber-950">
+                                {business.businessName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
                           )}
                           <div>
                             <h3 className="text-lg font-bold">{business.businessName}</h3>
@@ -240,13 +252,19 @@ export default function DirectoryPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
                       {business.logoUrl ? (
-                        <img
-                          src={business.logoUrl}
-                          alt={business.businessName}
-                          className="h-14 w-14 rounded-full object-cover"
-                        />
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
+                          <img
+                            src={business.logoUrl}
+                            alt={business.businessName}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
                       ) : (
-                        <div className="h-14 w-14 rounded-full bg-gradient-to-br from-neon-gold to-amber-500" />
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
+                          <span className="text-sm font-bold text-amber-950">
+                            {business.businessName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
                       )}
                       <div>
                         <h3 className="text-lg font-bold">{business.businessName}</h3>
@@ -392,6 +410,35 @@ export default function DirectoryPage() {
                     {...businessForm.register('description')}
                     className={`${inputClass} resize-none`}
                   />
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <h4 className="mb-3 text-sm font-semibold">{t('directoryDetail.socialMedia')}</h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs text-slate-500">Facebook</label>
+                      <input {...businessForm.register('facebook')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">Instagram</label>
+                      <input {...businessForm.register('instagram')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">X / Twitter</label>
+                      <input {...businessForm.register('twitter')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">YouTube</label>
+                      <input {...businessForm.register('youtube')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">LinkedIn</label>
+                      <input {...businessForm.register('linkedin')} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">TikTok</label>
+                      <input {...businessForm.register('tiktok')} className={inputClass} />
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <ImageUpload

@@ -58,7 +58,7 @@ export function Footer() {
               </div>
             )}
             <SocialLinks
-              settings={settings || {}}
+              links={settings || {}}
               className="mt-4 flex flex-wrap gap-3"
             />
           </div>
