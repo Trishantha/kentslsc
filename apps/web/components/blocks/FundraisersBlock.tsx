@@ -65,7 +65,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
                   <SmartLink href={`/fundraisers/${f.id}`}>
                     <div className="glass-card flex h-full flex-col p-6">
                       {f.imageUrl ? (
-                        <img src={f.imageUrl} alt={f.title} className="mb-4 h-40 w-full rounded-xl object-cover" />
+                        <img src={f.imageUrl} alt={f.title} className="mb-4 h-40 w-full rounded-xl object-contain" />
                       ) : (
                         <div className="mb-4 h-40 w-full rounded-xl bg-gradient-to-br from-neon-blue/40 to-neon-gold/40" />
                       )}

@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EventCard from '@/components/events/EventCard';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
@@ -47,7 +48,7 @@ function formatFullDate(date: Date) {
   }).format(date);
 }
 
-function AgendaEventCard({ event, index }: { event: MonthEvent; index: number }) {
+function AgendaEventCard({ event }: { event: MonthEvent }) {
   const router = useRouter();
   const start = new Date(event.startDatetime);
   const day = start.getDate();
@@ -58,30 +59,33 @@ function AgendaEventCard({ event, index }: { event: MonthEvent; index: number })
   return (
     <div
       onClick={() => router.push(`/events/${event.id}`)}
-      className="group flex cursor-pointer items-center gap-3 rounded-xl bg-white/5 p-3 ring-1 ring-white/10 transition hover:bg-white/10"
+      className="group relative flex cursor-pointer items-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 p-4 ring-1 ring-white/10 transition hover:ring-neon-blue/50"
     >
+      {/* Left neon accent */}
+      <div className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-neon-blue via-neon-gold to-neon-blue" />
+
       {/* Date block */}
-      <div className="flex h-[72px] w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-slate-900 text-center text-white">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-neon-blue">
+      <div className="flex h-[100px] w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-black text-center text-white shadow-lg">
+        <span className="text-xs font-extrabold uppercase tracking-widest text-neon-blue">
           {weekday}
         </span>
-        <span className="text-2xl font-bold leading-none">{day}</span>
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-300">
+        <span className="text-4xl font-black leading-none text-white">{day}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
           {monthShort} {year}
         </span>
       </div>
 
       {/* Poster */}
-      <div className="h-[72px] w-14 shrink-0 overflow-hidden rounded-lg bg-slate-800">
+      <div className="h-[100px] w-20 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/10">
         {event.imageUrl ? (
           <img
             src={event.imageUrl}
             alt={event.title}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-contain transition duration-300 group-hover:scale-110"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
-            <span className="text-2xl font-bold text-slate-400">{day}</span>
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neon-blue/40 to-neon-gold/40">
+            <span className="text-3xl font-black text-white/90">{day}</span>
           </div>
         )}
       </div>
@@ -91,14 +95,15 @@ function AgendaEventCard({ event, index }: { event: MonthEvent; index: number })
         {event.category && (
           <span
             className={cn(
-              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold',
+              'mb-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider',
               eventCategoryColors[event.category]
             )}
           >
             {eventCategoryLabels[event.category]}
           </span>
         )}
-        <h3 className="line-clamp-2 text-sm font-bold leading-tight group-hover:text-neon-blue">
+        <h3 className="line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-neon-blue">
+          <PartyPopper className="mr-1.5 inline h-4 w-4 shrink-0 text-neon-gold" />
           {event.title}
         </h3>
       </div>
@@ -174,8 +179,8 @@ export default function EventMonthView({
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
             </div>
             <div className="space-y-3">
-              {dateEvents.map((event, index) => (
-                <AgendaEventCard key={event.id} event={event} index={index} />
+              {dateEvents.map((event) => (
+                <AgendaEventCard key={event.id} event={event} />
               ))}
             </div>
           </section>

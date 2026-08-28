@@ -52,7 +52,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
       className={cn(
         'relative sticky top-0 z-50 overflow-visible transition-all duration-300',
         compact
-          ? 'bg-white/[0.08] shadow-sm backdrop-blur-3xl dark:bg-black/[0.15]'
+          ? 'bg-white/85 shadow-sm backdrop-blur-2xl dark:bg-slate-950/85'
           : ''
       )}
     >
@@ -165,8 +165,15 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               {t('login')}
             </Link>
           )}
-          <LanguageSwitcher className={cn('hidden md:flex', !compact && 'text-white')} />
-          <ThemeToggle className={cn(!compact && 'text-white')} />
+          <LanguageSwitcher
+            className={cn(
+              'hidden md:flex',
+              compact ? 'text-slate-700 dark:text-slate-300' : 'text-white'
+            )}
+          />
+          <ThemeToggle
+            className={cn(compact ? 'text-slate-700 dark:text-slate-300' : 'text-white')}
+          />
         </div>
 
         {/* Mobile layouts with cross-fade */}
@@ -202,7 +209,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
             initial={false}
             animate={compact ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="absolute inset-x-0 top-0 flex h-full items-center justify-between"
+            className="absolute inset-x-0 top-0 flex h-full items-center justify-between text-slate-800 dark:text-slate-200"
             style={{ pointerEvents: compact ? 'auto' : 'none' }}
           >
             <Link href="/" className="relative flex items-center gap-3">

@@ -84,7 +84,7 @@ export default function MyCampaignsPage() {
               return (
                 <div key={c.id} className="glass-card flex gap-4 p-5">
                   {c.imageUrl ? (
-                    <img src={c.imageUrl} alt={c.title} className="h-20 w-28 shrink-0 rounded-xl object-cover" />
+                    <img src={c.imageUrl} alt={c.title} className="h-20 w-28 shrink-0 rounded-xl object-contain" />
                   ) : (
                     <div className="h-20 w-28 shrink-0 rounded-xl bg-gradient-to-br from-neon-blue/20 to-neon-gold/20" />
                   )}

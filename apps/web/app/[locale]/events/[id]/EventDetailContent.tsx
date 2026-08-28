@@ -252,7 +252,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                       <img
                         src={poster.url}
                         alt={poster.caption || `${event.title} poster ${idx + 1}`}
-                        className="h-auto w-full object-cover"
+                        className="h-auto w-full object-contain"
                       />
                       {poster.caption && (
                         <p className="p-3 text-xs text-slate-500 dark:text-slate-400">{poster.caption}</p>

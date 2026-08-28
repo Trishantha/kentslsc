@@ -414,7 +414,7 @@ export default function HomePageContent() {
                           <img
                             src={evt.imageUrl}
                             alt={evt.title}
-                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            className="h-full w-full object-contain transition-transform duration-700 group-hover:scale-110"
                             loading="lazy"
                           />
                         ) : (
@@ -519,7 +519,7 @@ export default function HomePageContent() {
                             <img
                               src={f.imageUrl}
                               alt={f.title}
-                              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                              className="h-full w-full object-contain transition-transform duration-700 group-hover:scale-110"
                               loading="lazy"
                             />
                           ) : (

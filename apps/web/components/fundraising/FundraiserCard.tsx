@@ -50,7 +50,7 @@ export function FundraiserCard({ fundraiser: f }: Props) {
     <div className="glass-card flex flex-col overflow-hidden p-0">
       <div className="relative">
         {f.imageUrl ? (
-          <img src={f.imageUrl} alt={f.title} className="h-44 w-full object-cover" />
+          <img src={f.imageUrl} alt={f.title} className="h-44 w-full object-contain" />
         ) : (
           <div className="h-44 w-full bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
         )}

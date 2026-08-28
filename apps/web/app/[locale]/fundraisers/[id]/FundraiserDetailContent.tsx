@@ -93,7 +93,7 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
               <img
                 src={fundraiser.imageUrl}
                 alt={fundraiser.title}
-                className="mb-6 h-72 w-full rounded-2xl object-cover shadow"
+                className="mb-6 h-72 w-full rounded-2xl object-contain shadow"
               />
             ) : (
               <div className="mb-6 h-72 w-full rounded-2xl bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
