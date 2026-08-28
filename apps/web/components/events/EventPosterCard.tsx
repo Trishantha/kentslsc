@@ -35,7 +35,7 @@ export default function EventPosterCard({ event, index = 0 }: Props) {
       {/* Top neon accent */}
       <div className="absolute left-0 right-0 top-0 z-10 h-1 bg-gradient-to-r from-neon-blue via-neon-gold to-neon-blue" />
 
-      <div className="relative aspect-[3/4] w-full overflow-hidden">
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-gradient-to-br from-neon-blue/50 via-slate-900 to-neon-gold/50">
         {event.imageUrl ? (
           <img
             src={event.imageUrl}
@@ -43,11 +43,10 @@ export default function EventPosterCard({ event, index = 0 }: Props) {
             className="h-full w-full object-contain transition duration-300 group-hover:scale-110"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neon-blue/50 via-slate-900 to-neon-gold/50">
+          <div className="flex h-full w-full items-center justify-center">
             <span className="text-5xl font-black text-white/90">{day}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 
         {event.category && (
           <span

@@ -86,9 +86,9 @@ export default function EventsPage() {
   }, [events]);
 
   return (
-    <div className="px-4 py-16 md:px-6">
+    <div className="px-4 py-8 md:px-6 md:py-10">
       <div className="mx-auto max-w-[1600px]">
-        <h1 className="section-title">{t('title')}</h1>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t('title')}</h1>
 
         {/* Desktop filters */}
         <div className="mt-6 hidden flex-col gap-4 md:flex md:flex-row md:items-center">

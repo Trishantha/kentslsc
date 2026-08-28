@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpdateHeroConfigDto {
   @IsOptional()
@@ -7,11 +7,11 @@ export class UpdateHeroConfigDto {
   declare mediaType?: string;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsString()
   declare imageUrl?: string;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsString()
   declare videoUrl?: string;
 
   @IsOptional()

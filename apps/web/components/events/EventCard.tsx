@@ -58,7 +58,7 @@ export default function EventCard({
       className="glass-card group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl sm:h-[340px] sm:flex-row"
     >
       {/* Left column: poster + date block */}
-      <div className="relative flex w-full flex-col overflow-hidden bg-slate-950 sm:h-full sm:w-[42%]">
+      <div className="relative flex w-full flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 sm:h-full sm:w-[42%]">
         {/* Poster */}
         <div className="relative flex aspect-[3/4] flex-1 items-center justify-center overflow-hidden p-3 sm:aspect-auto">
           {event.imageUrl ? (
@@ -86,12 +86,12 @@ export default function EventCard({
         </div>
 
         {/* Date block */}
-        <div className="flex h-[110px] shrink-0 flex-col items-center justify-center border-t border-white/10 bg-slate-900/90 text-center text-white backdrop-blur-sm">
+        <div className="flex h-[110px] shrink-0 flex-col items-center justify-center border-t border-slate-200 bg-white text-center text-slate-900 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/90 dark:text-white">
           <span className="text-xs font-bold uppercase tracking-[0.15em] text-neon-blue">
             {monthShort}
           </span>
-          <span className="text-5xl font-bold leading-none md:text-6xl">{dayNumber}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <span className="text-3xl font-bold leading-none md:text-4xl">{dayNumber}</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
             {dayOfWeek}
           </span>
         </div>
@@ -100,7 +100,7 @@ export default function EventCard({
       {/* Right column: event info */}
       <div className="flex min-w-0 flex-1 flex-col justify-between p-4 sm:h-full sm:p-5">
         <div className="min-h-0">
-          <h3 className="line-clamp-2 text-base font-bold leading-tight group-hover:text-neon-blue sm:text-lg">
+          <h3 className="line-clamp-2 text-sm font-bold leading-tight group-hover:text-neon-blue sm:text-base">
             {event.title}
           </h3>
 

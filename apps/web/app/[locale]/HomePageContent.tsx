@@ -136,6 +136,7 @@ const DEFAULT_HERO: HeroConfig = {
 
 export default function HomePageContent() {
   const t = useTranslations('home');
+  const tCommon = useTranslations('common');
   const { data: user } = useAuth();
 
   const { data: heroConfig } = useQuery<HeroConfig>({
@@ -409,7 +410,7 @@ export default function HomePageContent() {
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                       className="glass-card group relative overflow-hidden"
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden">
+                      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-neon-blue/50 via-slate-900 to-neon-gold/50">
                         {evt.imageUrl ? (
                           <img
                             src={evt.imageUrl}
@@ -418,11 +419,10 @@ export default function HomePageContent() {
                             loading="lazy"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neon-blue/30 to-neon-gold/30">
+                          <div className="flex h-full w-full items-center justify-center">
                             <Calendar className="h-16 w-16 text-white/60" />
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
                         {showingPastEvents && (
                           <div className="absolute left-3 top-3 rounded-full bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-300 backdrop-blur-sm">
                             {t('pastEventBadge')}
@@ -445,9 +445,11 @@ export default function HomePageContent() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-4 inline-flex items-center text-sm font-semibold text-neon-blue">
-                          {evt.isFree || Number(evt.ticketPrice) === 0 ? t('free') : formatCurrency(evt.ticketPrice)}
-                          <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        <div className="mt-4">
+                          <span className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm">
+                            {t('viewInfo')}
+                            <ArrowRight className="h-4 w-4" />
+                          </span>
                         </div>
                       </div>
                     </motion.div>
@@ -514,7 +516,7 @@ export default function HomePageContent() {
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                         className="glass-card group flex h-full flex-col overflow-hidden"
                       >
-                        <div className="relative aspect-video overflow-hidden">
+                        <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-rose-500/50 via-slate-900 to-neon-blue/50">
                           {f.imageUrl ? (
                             <img
                               src={f.imageUrl}
@@ -523,11 +525,10 @@ export default function HomePageContent() {
                               loading="lazy"
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-rose-500/30 to-neon-blue/30">
+                            <div className="flex h-full w-full items-center justify-center">
                               <Heart className="h-16 w-16 text-white/60" />
                             </div>
                           )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
                         </div>
                         <div className="flex flex-1 flex-col p-5">
                           <h3 className="text-lg font-bold transition-colors group-hover:text-rose-500">{f.title}</h3>
@@ -549,9 +550,11 @@ export default function HomePageContent() {
                               <span className="text-slate-600 dark:text-slate-400">{t('goal', { amount: formatCurrency(f.targetAmount) })}</span>
                             </div>
                           </div>
-                          <div className="mt-4 inline-flex items-center text-sm font-semibold text-neon-blue">
-                            {t('donateNow')}
-                            <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          <div className="mt-4">
+                            <span className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm">
+                              {tCommon('learnMore')}
+                              <ArrowRight className="h-4 w-4" />
+                            </span>
                           </div>
                         </div>
                       </motion.div>

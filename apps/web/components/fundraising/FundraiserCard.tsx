@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Users, Calendar } from 'lucide-react';
+import { Heart, Users, Calendar, ArrowRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { stripRichText } from '@/lib/rich-text';
@@ -43,16 +43,19 @@ interface Props {
 
 export function FundraiserCard({ fundraiser: f }: Props) {
   const t = useTranslations('fundraisers');
+  const tCommon = useTranslations('common');
   const progress = f.targetAmount > 0 ? Math.min((f.raisedAmount / f.targetAmount) * 100, 100) : 0;
   const daysLeft = Math.max(0, Math.ceil((new Date(f.endDate).getTime() - Date.now()) / 86_400_000));
 
   return (
     <div className="glass-card flex flex-col overflow-hidden p-0">
-      <div className="relative">
+      <div className="relative bg-gradient-to-br from-rose-500/50 via-slate-900 to-neon-blue/50">
         {f.imageUrl ? (
           <img src={f.imageUrl} alt={f.title} className="h-44 w-full object-contain" />
         ) : (
-          <div className="h-44 w-full bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
+          <div className="flex h-44 w-full items-center justify-center">
+            <Heart className="h-16 w-16 text-white/60" />
+          </div>
         )}
         <span className={`absolute left-3 top-3 rounded-full px-2 py-0.5 text-xs font-semibold ${CATEGORY_COLORS[f.category] ?? CATEGORY_COLORS.OTHER}`}>
           {CATEGORY_LABELS[f.category] ?? f.category}
@@ -95,8 +98,8 @@ export function FundraiserCard({ fundraiser: f }: Props) {
         </div>
 
         <Link href={`/fundraisers/${f.id}`} className="btn-primary mt-4 flex items-center justify-center gap-2 py-2 text-sm">
-          <Heart className="h-4 w-4" />
-          {t('donate')}
+          {tCommon('learnMore')}
+          <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
     </div>

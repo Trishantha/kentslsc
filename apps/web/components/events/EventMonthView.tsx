@@ -59,24 +59,24 @@ function AgendaEventCard({ event }: { event: MonthEvent }) {
   return (
     <div
       onClick={() => router.push(`/events/${event.id}`)}
-      className="group relative flex cursor-pointer items-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 p-4 ring-1 ring-white/10 transition hover:ring-neon-blue/50"
+      className="group relative flex cursor-pointer items-center gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-neon-blue/50 dark:border-transparent dark:bg-gradient-to-r dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-none dark:ring-1 dark:ring-white/10 dark:hover:ring-neon-blue/50"
     >
       {/* Left neon accent */}
       <div className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-neon-blue via-neon-gold to-neon-blue" />
 
       {/* Date block */}
-      <div className="flex h-[100px] w-20 shrink-0 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-black text-center text-white shadow-lg">
-        <span className="text-xs font-extrabold uppercase tracking-widest text-neon-blue">
+      <div className="flex h-[100px] w-20 shrink-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-center shadow-sm dark:border-transparent dark:bg-gradient-to-br dark:from-slate-800 dark:to-black dark:shadow-lg">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-neon-blue">
           {weekday}
         </span>
-        <span className="text-4xl font-black leading-none text-white">{day}</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
+        <span className="text-2xl font-black leading-none text-slate-900 dark:text-white">{day}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">
           {monthShort} {year}
         </span>
       </div>
 
       {/* Poster */}
-      <div className="h-[100px] w-20 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/10">
+      <div className="h-[100px] w-20 shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200 dark:ring-white/10">
         {event.imageUrl ? (
           <img
             src={event.imageUrl}
@@ -102,7 +102,7 @@ function AgendaEventCard({ event }: { event: MonthEvent }) {
             {eventCategoryLabels[event.category]}
           </span>
         )}
-        <h3 className="line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-neon-blue">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 group-hover:text-neon-blue dark:text-white">
           <PartyPopper className="mr-1.5 inline h-4 w-4 shrink-0 text-neon-gold" />
           {event.title}
         </h3>
@@ -175,7 +175,7 @@ export default function EventMonthView({
         {groupedByDate.map(({ date, events: dateEvents }) => (
           <section key={date.toISOString()}>
             <div className="mb-2 flex items-center gap-3">
-              <h2 className="text-lg font-bold">{formatFullDate(date)}</h2>
+              <h2 className="text-base font-semibold">{formatFullDate(date)}</h2>
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
             </div>
             <div className="space-y-3">
@@ -192,7 +192,7 @@ export default function EventMonthView({
         {groupedByMonth.map(({ monthDate, events: monthEvents }, sectionIndex) => (
           <section key={`${monthDate.getFullYear()}-${monthDate.getMonth()}`}>
             <div className="mb-6 flex items-center gap-4">
-              <h2 className="text-2xl font-bold md:text-3xl">{formatMonthYear(monthDate)}</h2>
+              <h2 className="text-xl font-bold md:text-2xl">{formatMonthYear(monthDate)}</h2>
               <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 {monthEvents.length} event{monthEvents.length !== 1 ? 's' : ''}

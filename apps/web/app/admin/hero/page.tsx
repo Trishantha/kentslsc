@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { cn, getVideoMimeType } from '@/lib/utils';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
@@ -192,6 +192,10 @@ export default function AdminHeroPage() {
             {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             <Save className="h-4 w-4" /> Save hero
           </button>
+
+          {mutation.isError && (
+            <p className="text-sm text-red-400">{getApiErrorMessage(mutation.error)}</p>
+          )}
         </div>
 
         <div className="glass-card p-6">
