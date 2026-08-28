@@ -23,6 +23,7 @@ interface ShareButtonsProps {
   shareText?: string;
   copyLabel?: string;
   copiedLabel?: string;
+  whatsappNumber?: string;
   className?: string;
   compact?: boolean;
 }
@@ -34,6 +35,7 @@ export function ShareButtons({
   shareText = `Check out "${title}"`,
   copyLabel = 'Copy link',
   copiedLabel = 'Copied!',
+  whatsappNumber,
   className,
   compact = false
 }: ShareButtonsProps) {
@@ -42,11 +44,13 @@ export function ShareButtons({
 
   const encoded = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(shareText);
+  const digitsOnly = whatsappNumber ? whatsappNumber.replace(/\D/g, '') : '';
+  const whatsappPath = digitsOnly ? `/${digitsOnly}` : '';
 
   const shares = [
     {
       label: 'WhatsApp',
-      href: `https://wa.me/?text=${encodedTitle}%20${encoded}`,
+      href: `https://wa.me${whatsappPath}?text=${encodedTitle}%20${encoded}`,
       icon: <MessageCircle className="h-4 w-4" />,
       color: 'bg-green-500 hover:bg-green-600',
       iconColor: 'text-green-500'

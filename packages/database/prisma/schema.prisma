@@ -476,6 +476,7 @@ model Payment {
   paymentMethod        String?          @map("payment_method")
   paymentStatus        PaymentStatus    @default(PENDING) @map("payment_status")
   providerPaymentId    String?          @map("provider_payment_id")
+  providerSubscriptionId String?        @map("provider_subscription_id")
   providerCheckoutId   String?          @map("provider_checkout_id")
   currency             String           @default("GBP")
   grossAmount          Decimal          @default(0) @map("gross_amount") @db.Decimal(12, 2)

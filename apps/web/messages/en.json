@@ -66,6 +66,8 @@
     "browseAll": "Browse all",
     "noResults": "No results found.",
     "free": "Free",
+    "event": "event",
+    "events": "events",
     "paid": "Paid",
     "processingFee": "Processing fee",
     "total": "Total",
@@ -396,6 +398,7 @@
     "title": "Events",
     "subtitle": "Upcoming gatherings, celebrations, and community activities.",
     "searchPlaceholder": "Search events...",
+    "filters": "Filters",
     "upcomingOnly": "Upcoming only",
     "allCategories": "All categories",
     "listView": "List",
@@ -525,7 +528,9 @@
   "blogDetail": {
     "byAuthor": "By {author}",
     "fallbackAuthor": "Kent SLSC",
-    "aiTldr": "AI TL;DR"
+    "aiTldr": "AI TL;DR",
+    "shareTitle": "Share this post",
+    "shareText": "Check out \"{title}\" on Kent SLSC"
   },
   "fundraiserDetail": {
     "loadError": "Failed to load fundraiser",

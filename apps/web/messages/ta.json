@@ -66,6 +66,8 @@
     "browseAll": "அனைத்தையும் உலாவவும்",
     "noResults": "முடிவுகள் எதுவும் கிடைக்கவில்லை.",
     "free": "இலவசம்",
+    "event": "நிகழ்வு",
+    "events": "நிகழ்வுகள்",
     "paid": "செலுத்தப்பட்டது",
     "processingFee": "Processing fee",
     "total": "Total",
@@ -396,6 +398,7 @@
     "title": "நிகழ்வுகள்",
     "subtitle": "வரவிருக்கும் கூட்டங்கள், கொண்டாட்டங்கள் மற்றும் சமூக நடவடிக்கைகள்.",
     "searchPlaceholder": "நிகழ்வுகளைத் தேடு...",
+    "filters": "வடிப்பான்கள்",
     "upcomingOnly": "வரவிருக்கும்",
     "allCategories": "All categories",
     "listView": "List",
@@ -525,7 +528,9 @@
   "blogDetail": {
     "byAuthor": "மூலம் {author}",
     "fallbackAuthor": "கென்ட் SLSC",
-    "aiTldr": "AI TL;DR"
+    "aiTldr": "AI TL;DR",
+    "shareTitle": "இந்த பதிவைப் பகிருங்கள்",
+    "shareText": "கென்ட் SLSC இல் \"{title}\" ஐப் பார்க்கவும்"
   },
   "fundraiserDetail": {
     "loadError": "நிதி திரட்டலை ஏற்ற முடியவில்லை",

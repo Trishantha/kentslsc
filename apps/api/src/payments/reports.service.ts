@@ -76,6 +76,7 @@ export class PaymentReportsService {
         { payerEmail: { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
         { providerPaymentId: { contains: term, mode: 'insensitive' } },
+        { providerSubscriptionId: { contains: term, mode: 'insensitive' } },
         { providerCheckoutId: { contains: term, mode: 'insensitive' } },
         { receiptNumber: { contains: term, mode: 'insensitive' } },
         { notes: { contains: term, mode: 'insensitive' } }
@@ -149,7 +150,7 @@ export class PaymentReportsService {
         paymentStatus: p.paymentStatus,
         sourceType: p.sourceType,
         sourceId: p.sourceId,
-        subscriptionId: p.membership?.stripeSubscriptionId ?? null,
+        subscriptionId: p.providerSubscriptionId ?? p.membership?.stripeSubscriptionId ?? null,
         description: p.description,
         createdAt: p.createdAt.toISOString()
       };
@@ -222,7 +223,7 @@ export class PaymentReportsService {
         paymentStatus: p.paymentStatus,
         sourceType: p.sourceType,
         sourceId: p.sourceId,
-        subscriptionId: p.membership?.stripeSubscriptionId ?? null,
+        subscriptionId: p.providerSubscriptionId ?? p.membership?.stripeSubscriptionId ?? null,
         description: p.description,
         createdAt: p.createdAt.toISOString()
       };

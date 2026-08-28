@@ -38,6 +38,7 @@ describe('PaymentReportsService', () => {
       refundedAmount: null,
       paymentChannel: 'stripe',
       providerPaymentId: 'pi_123',
+      providerSubscriptionId: 'sub_123',
       paymentMethod: 'card',
       paymentStatus: PaymentStatus.COMPLETED,
       receiptNumber: 'KS-2026-000001',
@@ -74,6 +75,7 @@ describe('PaymentReportsService', () => {
       netPayment: 24,
       paymentChannel: 'stripe',
       paymentId: 'pi_123',
+      subscriptionId: 'sub_123',
       paymentStatus: PaymentStatus.COMPLETED,
       sourceType: PaymentSourceType.TICKET
     });
@@ -119,7 +121,8 @@ describe('PaymentReportsService', () => {
     const call = prisma.payment.findMany.mock.calls[0][0];
     expect(call.where.OR).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ receiptNumber: { contains: 'KS-2026-000001', mode: 'insensitive' } })
+        expect.objectContaining({ receiptNumber: { contains: 'KS-2026-000001', mode: 'insensitive' } }),
+        expect.objectContaining({ providerSubscriptionId: { contains: 'KS-2026-000001', mode: 'insensitive' } })
       ])
     );
   });

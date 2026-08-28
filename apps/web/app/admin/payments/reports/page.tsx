@@ -301,6 +301,7 @@ export default function RevenueReportPage() {
       formatCurrency(row.fees),
       formatCurrency(row.netPayment),
       row.paymentChannel,
+      row.paymentId ?? '',
       row.subscriptionId ?? '',
       row.paymentStatus
     ]);
@@ -308,7 +309,7 @@ export default function RevenueReportPage() {
     autoTable(doc, {
       startY: 28,
       head: [
-        ['Date', 'Receipt #', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Subscription ID', 'Status']
+        ['Date', 'Receipt #', 'Name', 'Address 1', 'City', 'Postcode', 'Country', 'Contact', 'Email', 'Source', 'Amount', 'Fees', 'Net', 'Channel', 'Payment ID', 'Subscription ID', 'Status']
       ],
       body,
       styles: { fontSize: 8 },

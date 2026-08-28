@@ -361,16 +361,33 @@ export class PaymentsService {
     if (!payment) return;
 
     try {
-      const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
-      if (!feeDetails) return;
+      const updateData: Prisma.PaymentUpdateInput = {};
 
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          processingFee: feeDetails.fee,
-          netAmount: feeDetails.net
-        }
-      });
+      const existingProviderPaymentId = payment.providerPaymentId;
+      if (
+        !existingProviderPaymentId ||
+        existingProviderPaymentId.startsWith('sub_')
+      ) {
+        updateData.providerPaymentId = paymentIntentId;
+      }
+
+      const subscriptionId =
+        typeof session.subscription === 'string'
+          ? session.subscription
+          : session.subscription?.id;
+      if (subscriptionId && !payment.providerSubscriptionId) {
+        updateData.providerSubscriptionId = subscriptionId;
+      }
+
+      const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+      if (feeDetails) {
+        updateData.processingFee = feeDetails.fee;
+        updateData.netAmount = feeDetails.net;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.prisma.payment.update({ where: { id: payment.id }, data: updateData });
+      }
     } catch (err) {
       this.logger.warn(
         `Could not sync Stripe fees for session ${session.id}: ${(err as Error).message}`
@@ -494,6 +511,52 @@ export class PaymentsService {
       startingAfter = hasMore ? page.data[page.data.length - 1]!.id : undefined;
     }
 
+    // Subscription renewals are recorded with providerCheckoutId set to the
+    // Stripe Invoice id, so they are not matched by the session scan above.
+    // Backfill their actual fees using the stored PaymentIntent id.
+    try {
+      const invoicePayments = await this.prisma.payment.findMany({
+        where: {
+          deletedAt: null,
+          paymentChannel: 'stripe',
+          providerPaymentId: { startsWith: 'pi_' },
+          OR: [
+            { providerCheckoutId: { startsWith: 'in_' } },
+            { providerCheckoutId: null }
+          ],
+          purchasedAt: {
+            gte: from,
+            lte: to
+          }
+        },
+        select: {
+          id: true,
+          providerPaymentId: true,
+          paymentStatus: true,
+          refundedAmount: true,
+          grossAmount: true
+        }
+      });
+
+      for (const payment of invoicePayments) {
+        if (!payment.providerPaymentId) continue;
+        try {
+          await this.updatePaymentFromStripePaymentIntent(payment, payment.providerPaymentId);
+          result.updated++;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `Stripe sync failed for invoice payment ${payment.id}: ${message}`
+          );
+          result.errors.push(`invoice payment ${payment.id}: ${message}`);
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Stripe invoice payment sync failed: ${message}`);
+      result.errors.push(`invoice scan: ${message}`);
+    }
+
     return result;
   }
 
@@ -511,6 +574,72 @@ export class PaymentsService {
     if (!paymentIntentId) return;
 
     const updateData: Prisma.PaymentUpdateInput = {};
+
+    // Backfill the Payment Intent id if the row was created before this field
+    // was populated, or if it was mistakenly set to the subscription id.
+    const existingProviderPaymentId = payment.providerPaymentId;
+    if (
+      !existingProviderPaymentId ||
+      existingProviderPaymentId.startsWith('sub_')
+    ) {
+      updateData.providerPaymentId = paymentIntentId;
+    }
+
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
+    if (subscriptionId) {
+      updateData.providerSubscriptionId = subscriptionId;
+    }
+
+    const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
+    if (feeDetails) {
+      updateData.processingFee = feeDetails.fee;
+      updateData.netAmount = feeDetails.net;
+    }
+
+    const refundInfo = await this.getStripeRefundInfo(paymentIntentId);
+    if (refundInfo && refundInfo.refundedAmount > 0) {
+      const currentRefunded = Number(payment.refundedAmount ?? 0);
+      const newRefunded = refundInfo.refundedAmount / 100;
+      if (newRefunded > currentRefunded) {
+        updateData.refundedAmount = newRefunded;
+        const grossAmount = Number(payment.grossAmount);
+        if (grossAmount > 0 && newRefunded >= grossAmount - 0.001) {
+          updateData.paymentStatus = PaymentStatus.REFUNDED;
+        } else if (payment.paymentStatus !== PaymentStatus.REFUNDED) {
+          updateData.paymentStatus = PaymentStatus.PARTIALLY_REFUNDED;
+        }
+      }
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.prisma.payment.update({ where: { id: payment.id }, data: updateData });
+    }
+  }
+
+  private async updatePaymentFromStripePaymentIntent(
+    payment: {
+      id: string;
+      providerPaymentId: string | null;
+      paymentStatus: PaymentStatus;
+      refundedAmount: number | Prisma.Decimal | null;
+      grossAmount: number | Prisma.Decimal;
+    },
+    paymentIntentId: string
+  ): Promise<void> {
+    if (!paymentIntentId.startsWith('pi_')) return;
+
+    const updateData: Prisma.PaymentUpdateInput = {};
+
+    const existingProviderPaymentId = payment.providerPaymentId;
+    if (
+      !existingProviderPaymentId ||
+      existingProviderPaymentId.startsWith('sub_')
+    ) {
+      updateData.providerPaymentId = paymentIntentId;
+    }
 
     const feeDetails = await this.getStripeFeeDetails(paymentIntentId);
     if (feeDetails) {
@@ -561,6 +690,10 @@ export class PaymentsService {
 
     const description = this.inferDescription(sourceType, session);
     const sourceIds = await this.inferSourceIds(sourceType, metadata, session);
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
 
     await this.prisma.payment.create({
       data: {
@@ -569,6 +702,7 @@ export class PaymentsService {
         paymentStatus: PaymentStatus.COMPLETED,
         providerCheckoutId: session.id,
         providerPaymentId: paymentIntentId,
+        providerSubscriptionId: subscriptionId ?? null,
         currency,
         grossAmount,
         processingFee: fee,

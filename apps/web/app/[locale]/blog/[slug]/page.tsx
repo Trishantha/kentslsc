@@ -7,7 +7,7 @@ import { stripRichText, summarizeRichText } from '@/lib/rich-text';
 import { getFrontendUrl } from '@/lib/env';
 
 interface Props {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ locale: string; slug: string }>;
 }
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
@@ -47,11 +47,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BlogPostPage({ params }: Props) {
-  const { slug } = await params;
+  const { locale, slug } = await params;
   const post = await fetchPost(slug);
   if (!post) notFound();
 
   const baseUrl = getFrontendUrl();
+  const localePath = locale === 'en' ? '' : `/${locale}`;
+  const shareUrl = `${baseUrl}${localePath}/blog/${post.slug}`;
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -77,7 +79,7 @@ export default async function BlogPostPage({ params }: Props) {
   return (
     <>
       <JsonLd data={articleSchema} />
-      <BlogPostContent post={post} />
+      <BlogPostContent post={post} shareUrl={shareUrl} />
     </>
   );
 }

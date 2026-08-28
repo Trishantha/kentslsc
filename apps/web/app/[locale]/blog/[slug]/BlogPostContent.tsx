@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { formatDate } from '@/lib/utils';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { ShareButtons } from '@/components/ui/ShareButtons';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 
 interface Author {
   id: string;
@@ -46,11 +48,14 @@ export interface BlogPost {
 
 interface Props {
   post: BlogPost;
+  shareUrl: string;
 }
 
-export default function BlogPostContent({ post }: Props) {
+export default function BlogPostContent({ post, shareUrl }: Props) {
   const t = useTranslations('blogDetail');
+  const tCommon = useTranslations('common');
   const router = useRouter();
+  const { data: settings } = useSiteSettings();
   const photos = (post.gallery?.photos ?? [])
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -97,6 +102,18 @@ export default function BlogPostContent({ post }: Props) {
               ))}
             </div>
           )}
+
+          <div className="mt-8">
+            <ShareButtons
+              url={shareUrl}
+              title={post.title}
+              heading={t('shareTitle')}
+              shareText={t('shareText', { title: post.title })}
+              copyLabel={tCommon('copyLink')}
+              copiedLabel={tCommon('copied')}
+              whatsappNumber={settings?.whatsapp}
+            />
+          </div>
 
           <RichTextContent html={post.content} className="mt-8" />
 

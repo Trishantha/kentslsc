@@ -66,6 +66,8 @@
     "browseAll": "සියල්ල බ්‍රවුස් කරන්න",
     "noResults": "ප්‍රතිඵල හමු නොවිණි.",
     "free": "නොමිලේ",
+    "event": "සිදුවීම",
+    "events": "සිදුවීම්",
     "paid": "ගෙවා ඇත",
     "processingFee": "Processing fee",
     "total": "Total",
@@ -396,6 +398,7 @@
     "title": "වැඩසටහන්",
     "subtitle": "ඉදිරි රැස්වීම්, සැමරුම් සහ ප්‍රජා ක්‍රියාකාරකම්.",
     "searchPlaceholder": "වැඩසටහන් සොයන්න...",
+    "filters": "පෙරහන්",
     "upcomingOnly": "ඉදිරියට පමණක්",
     "allCategories": "All categories",
     "listView": "List",
@@ -525,7 +528,9 @@
   "blogDetail": {
     "byAuthor": "{author} විසින්",
     "fallbackAuthor": "කෙන්ට් SLSC",
-    "aiTldr": "AI TL;DR"
+    "aiTldr": "AI TL;DR",
+    "shareTitle": "මෙම පෝස්ටුව බෙදාගන්න",
+    "shareText": "කෙන්ට් SLSC හි \"{title}\" බලන්න"
   },
   "fundraiserDetail": {
     "loadError": "අරමුදල් රැස්කිරීම පූරණය කිරීමට අසමත් විය",

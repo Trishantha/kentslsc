@@ -1168,6 +1168,7 @@ export class MembershipsService {
       currency: string;
       amountPence: number;
       providerPaymentId?: string | null;
+      providerSubscriptionId?: string | null;
       providerCheckoutId?: string | null;
       stripePaymentIntentId?: string | null;
       payerEmail?: string | null;
@@ -1200,6 +1201,7 @@ export class MembershipsService {
         paymentMethod: input.method ?? null,
         paymentStatus: PaymentStatus.COMPLETED,
         providerPaymentId: input.providerPaymentId ?? null,
+        providerSubscriptionId: input.providerSubscriptionId ?? null,
         providerCheckoutId: input.providerCheckoutId ?? null,
         currency: input.currency.toUpperCase(),
         grossAmount: amount,
@@ -1270,6 +1272,10 @@ export class MembershipsService {
             typeof session.payment_intent === 'string'
               ? session.payment_intent
               : session.payment_intent?.id ?? null,
+          stripePaymentIntentId:
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id ?? null,
           amountPence,
           currency,
           payerName: session.customer_details?.name ?? null,
@@ -1334,7 +1340,8 @@ export class MembershipsService {
           currency,
           amountPence,
           providerCheckoutId: session.id,
-          providerPaymentId: subscriptionId,
+          providerPaymentId: invoicePaymentIntentId,
+          providerSubscriptionId: subscriptionId,
           stripePaymentIntentId: invoicePaymentIntentId,
           payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
           payerName: session.customer_details?.name ?? null,
@@ -1367,7 +1374,8 @@ export class MembershipsService {
       {
         channel: 'stripe',
         providerCheckoutId: session.id,
-        providerPaymentId: subscriptionId,
+        providerPaymentId: subscriptionPaymentIntentId,
+        providerSubscriptionId: subscriptionId,
         stripePaymentIntentId: subscriptionPaymentIntentId,
         amountPence,
         currency,
@@ -1418,6 +1426,7 @@ export class MembershipsService {
       channel: string;
       providerCheckoutId?: string | null;
       providerPaymentId?: string | null;
+      providerSubscriptionId?: string | null;
       stripePaymentIntentId?: string | null;
       amountPence?: number;
       currency?: string;
@@ -1488,6 +1497,7 @@ export class MembershipsService {
             (metadata.amountPence ? Number(metadata.amountPence) : Number(updated.membershipType.price) * 100),
           providerCheckoutId: gatewayContext?.providerCheckoutId,
           providerPaymentId: gatewayContext?.providerPaymentId,
+          providerSubscriptionId: gatewayContext?.providerSubscriptionId,
           stripePaymentIntentId: gatewayContext?.stripePaymentIntentId,
           payerEmail: customerEmail ?? updated.user?.email ?? null,
           payerName: gatewayContext?.payerName ?? updated.user?.name ?? null,
@@ -1568,6 +1578,7 @@ export class MembershipsService {
           (metadata.amountPence ? Number(metadata.amountPence) : Number(membershipWithType.membershipType.price) * 100),
         providerCheckoutId: gatewayContext?.providerCheckoutId,
         providerPaymentId: gatewayContext?.providerPaymentId,
+        providerSubscriptionId: gatewayContext?.providerSubscriptionId,
         stripePaymentIntentId: gatewayContext?.stripePaymentIntentId,
         payerEmail: customerEmail ?? membershipWithType.user?.email ?? null,
         payerName: gatewayContext?.payerName ?? membershipWithType.user?.name ?? null,
@@ -1757,6 +1768,7 @@ export class MembershipsService {
       amountPence: invoice.amount_paid ?? invoice.amount_due,
       providerCheckoutId: invoice.id,
       providerPaymentId: paymentIntentId,
+      providerSubscriptionId: subscriptionId,
       stripePaymentIntentId: paymentIntentId,
       payerEmail: invoice.customer_email ?? membership.user?.email ?? null,
       payerName: invoice.customer_name ?? membership.user?.name ?? null,

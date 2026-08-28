@@ -571,6 +571,7 @@ describe('PaymentsService', () => {
         ...mockPrisma,
         payment: {
           findFirst: jest.fn(() => Promise.resolve(null)) as any,
+          findMany: jest.fn(() => Promise.resolve([])) as any,
           create: jest.fn(() => Promise.resolve({ id: 'pay-new' })) as any
         }
       };
@@ -732,6 +733,7 @@ describe('PaymentsService', () => {
         ...mockPrisma,
         payment: {
           findFirst: jest.fn(() => Promise.resolve(null)) as any,
+          findMany: jest.fn(() => Promise.resolve([])) as any,
           create: jest.fn(() => Promise.resolve({ id: 'pay-new' })) as any
         }
       };
@@ -766,6 +768,67 @@ describe('PaymentsService', () => {
       expect(result.skipped).toBe(1);
       expect(result.created).toBe(0);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('updates invoice-based subscription renewals with actual Stripe fees', async () => {
+      const prismaWithInvoicePayment = {
+        ...mockPrisma,
+        payment: {
+          findFirst: jest.fn(() => Promise.resolve(null)) as any,
+          findMany: jest.fn(() =>
+            Promise.resolve([
+              {
+                id: 'pay-invoice',
+                providerPaymentId: 'pi_invoice_123',
+                paymentStatus: 'COMPLETED',
+                refundedAmount: null,
+                grossAmount: 10
+              }
+            ])
+          ) as any,
+          update: jest.fn(() => Promise.resolve({ id: 'pay-invoice' })) as any,
+          create: jest.fn(() => Promise.resolve({ id: 'pay-new' })) as any
+        }
+      };
+
+      const service = new PaymentsService(mockConfig as any, prismaWithInvoicePayment as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            list: jest.fn(async () => ({ data: [], has_more: false }))
+          }
+        },
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({
+            id: 'pi_invoice_123',
+            latest_charge: {
+              id: 'ch_invoice_123',
+              balance_transaction: {
+                id: 'bt_invoice_123',
+                fee: 30,
+                net: 1005
+              }
+            }
+          }))
+        },
+        refunds: {
+          list: jest.fn(async () => ({ data: [] }))
+        }
+      };
+
+      const result = await service.syncStripeRevenue();
+
+      expect(result.updated).toBe(1);
+      expect(result.created).toBe(0);
+      expect(prismaWithInvoicePayment.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'pay-invoice' },
+          data: expect.objectContaining({
+            processingFee: 0.3,
+            netAmount: 10.05
+          })
+        })
+      );
     });
 
     it('throws when Stripe is not configured', async () => {
