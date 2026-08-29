@@ -1,9 +1,17 @@
-import { IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID, Min, MinLength } from 'class-validator';
 
 export class GenerateTicketsDto {
   @IsNumber()
   @Min(1)
   declare quantity: number;
+
+  @IsOptional()
+  @IsUUID()
+  declare userId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  declare paymentId?: string;
 
   @IsOptional()
   @IsString()
