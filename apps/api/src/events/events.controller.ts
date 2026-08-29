@@ -231,7 +231,10 @@ export class TicketsController {
 
   @Post('confirm-payment')
   @ApiBearerAuth()
-  confirmPayment(@Body() dto: ConfirmCheckoutDto) {
-    return this.eventsService.confirmCheckoutSession(dto.sessionId, dto.provider);
+  confirmPayment(
+    @Body() dto: ConfirmCheckoutDto,
+    @CurrentUser() user: TokenPayload
+  ) {
+    return this.eventsService.confirmCheckoutSession(dto.sessionId, dto.provider, user.sub);
   }
 }

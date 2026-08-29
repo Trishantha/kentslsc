@@ -89,7 +89,8 @@ describe('EventsService', () => {
 
   const mockPaymentsService: any = {
     createCheckout: jest.fn(),
-    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1')
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
+    getCheckoutSession: jest.fn()
   };
 
   const mockEmailQueueService: any = {
@@ -235,6 +236,78 @@ describe('EventsService', () => {
       const session = { id: 'cs_test_123', metadata: {} } as unknown as Stripe.Checkout.Session;
       const result = await service.handleCheckoutCompleted(session);
       expect(result).toBeNull();
+    });
+  });
+
+  describe('confirmCheckoutSession', () => {
+    it('issues tickets when the authenticated user confirms a completed Stripe session', async () => {
+      const sessionId = 'cs_test_123';
+
+      mockPaymentsService.getCheckoutSession.mockResolvedValue({
+        id: sessionId,
+        status: 'complete',
+        amountTotal: 2000,
+        currency: 'gbp',
+        metadata: {
+          type: 'event_ticket',
+          eventId: mockEvent.id,
+          userId: mockUser.id,
+          quantity: '2'
+        },
+        customerEmail: mockUser.email,
+        paymentIntentId: 'pi_test_123'
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findMany.mockResolvedValue([]);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      mockPrisma.payment.update.mockResolvedValue({ id: 'payment-1' });
+      mockPrisma.ticket.create
+        .mockResolvedValueOnce(createMockTicket({ id: 'confirmed-1', stripeSessionId: sessionId }))
+        .mockResolvedValueOnce(createMockTicket({ id: 'confirmed-2', stripeSessionId: sessionId }));
+
+      const result = await service.confirmCheckoutSession(sessionId, 'stripe', mockUser.id);
+
+      expect(mockPaymentsService.getCheckoutSession).toHaveBeenCalledWith(sessionId, mockUser.id);
+      expect(result.created).toBe(true);
+      expect(result.tickets).toHaveLength(2);
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
+    });
+
+    it('returns existing tickets without creating duplicates', async () => {
+      const sessionId = 'cs_test_123';
+      const existing = [
+        createMockTicket({ id: 'paid-1', stripeSessionId: sessionId }),
+        createMockTicket({ id: 'paid-2', stripeSessionId: sessionId })
+      ];
+
+      mockPrisma.ticket.findMany.mockResolvedValueOnce(existing);
+
+      const result = await service.confirmCheckoutSession(sessionId, 'stripe', mockUser.id);
+
+      expect(mockPaymentsService.getCheckoutSession).not.toHaveBeenCalled();
+      expect(result.created).toBe(false);
+      expect(result.tickets).toEqual(existing);
+    });
+
+    it('throws when the Stripe session is not complete', async () => {
+      const sessionId = 'cs_test_open';
+      mockPaymentsService.getCheckoutSession.mockResolvedValue({
+        id: sessionId,
+        status: 'open',
+        amountTotal: 2000,
+        currency: 'gbp',
+        metadata: null,
+        customerEmail: null,
+        paymentIntentId: null
+      });
+
+      await expect(service.confirmCheckoutSession(sessionId, 'stripe', mockUser.id)).rejects.toThrow(
+        'Checkout session is not complete'
+      );
     });
   });
 

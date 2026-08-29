@@ -713,7 +713,11 @@ export class EventsService {
    * if the tickets do not already exist, we ask the gateway for the session
    * status and create them immediately.
    */
-  async confirmCheckoutSession(sessionId: string, provider: 'stripe' | 'paypal') {
+  async confirmCheckoutSession(
+    sessionId: string,
+    provider: 'stripe' | 'paypal',
+    currentUserId?: string
+  ) {
     const existingTickets = await this.prisma.ticket.findMany({
       where: { stripeSessionId: sessionId, deletedAt: null },
       include: { event: true, user: { select: { id: true, name: true, email: true } } }
@@ -723,7 +727,7 @@ export class EventsService {
     }
 
     if (provider === 'stripe') {
-      const session = await this.paymentsService.getCheckoutSession(sessionId);
+      const session = await this.paymentsService.getCheckoutSession(sessionId, currentUserId);
       if (session.status !== 'complete') {
         throw new BadRequestException(`Checkout session is not complete (status: ${session.status})`);
       }
