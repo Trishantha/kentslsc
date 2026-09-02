@@ -121,7 +121,11 @@ export class StripeWebhookController {
       status: 'received'
     });
 
-    if (recordResult.isDuplicate) {
+    // Only skip reprocessing when a previous confirmation actually succeeded.
+    // A ledger row left in `received` or `failed` means the payment was never
+    // applied, so the membership would stay "unpaid" forever if we bailed out
+    // here. All handlers are idempotent, so replaying is safe.
+    if (recordResult.isDuplicate && recordResult.event.status === 'processed') {
       return { received: true, duplicate: true };
     }
 

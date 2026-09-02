@@ -16,7 +16,11 @@ export default function MembershipDetailsPage() {
       const res = await api.get(`/admin/memberships/${id}`);
       return res.data;
     },
-    enabled: !!id
+    enabled: !!id,
+    // Payment status is updated out-of-band by the Stripe webhook, so always
+    // show admins the current state rather than a cached "Unpaid".
+    staleTime: 0,
+    refetchOnWindowFocus: true
   });
 
   if (isLoading || !membership) {

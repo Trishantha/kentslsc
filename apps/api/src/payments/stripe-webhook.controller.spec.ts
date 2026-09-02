@@ -195,12 +195,47 @@ describe('StripeWebhookController', () => {
     it('returns duplicate when the session has already been confirmed', async () => {
       const session = buildStripeSession();
       paymentsService.getFullCheckoutSession.mockResolvedValue(session);
-      webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: true });
+      webhookEvents.record.mockResolvedValue({
+        event: { id: 'ledger-1', status: 'processed' } as any,
+        isDuplicate: true
+      });
 
       const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
 
       expect(webhookProcessor.process).not.toHaveBeenCalled();
       expect(result).toEqual({ received: true, duplicate: true });
+    });
+
+    it('reprocesses a previously failed confirmation instead of skipping it', async () => {
+      const session = buildStripeSession();
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+      webhookEvents.record.mockResolvedValue({
+        event: { id: 'ledger-1', status: 'failed' } as any,
+        isDuplicate: true
+      });
+      webhookProcessor.process.mockResolvedValue(undefined);
+
+      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+
+      expect(webhookProcessor.process).toHaveBeenCalledWith(
+        expect.objectContaining({ ledgerId: 'ledger-1', eventType: 'checkout.session.completed' })
+      );
+      expect(result).toEqual({ received: true });
+    });
+
+    it('reprocesses a confirmation whose ledger entry never reached processed', async () => {
+      const session = buildStripeSession();
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+      webhookEvents.record.mockResolvedValue({
+        event: { id: 'ledger-1', status: 'received' } as any,
+        isDuplicate: true
+      });
+      webhookProcessor.process.mockResolvedValue(undefined);
+
+      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+
+      expect(webhookProcessor.process).toHaveBeenCalled();
+      expect(result).toEqual({ received: true });
     });
 
     it('throws when the checkout session is not complete', async () => {

@@ -317,7 +317,9 @@ export class PaymentsService {
     this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
 
-    return this.stripe!.checkout.sessions.retrieve(sessionId);
+    return this.stripe!.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription.latest_invoice.payment_intent', 'payment_intent']
+    });
   }
 
   /**
