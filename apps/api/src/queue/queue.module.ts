@@ -1,10 +1,12 @@
-import { Module, Global } from '@nestjs/common';
+import { Logger, Module, Global } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import type { EnvConfig } from '../core/config/env.validation.js';
 import { QueueLifecycleService } from './queue-lifecycle.service.js';
 import { REDIS_CONNECTION, SEND_EMAIL_QUEUE, WEBHOOK_PROCESSING_QUEUE } from './queue.constants.js';
+
+const logger = new Logger('QueueModule');
 
 function createQueue(name: string) {
   return {
@@ -30,19 +32,41 @@ function createQueue(name: string) {
  * Shared queue infrastructure. This module does not contain domain processors;
  * it only exposes the Redis connection and BullMQ Queue instances so that other
  * modules can create their own workers and enqueue jobs. When Redis is not
- * configured, queues are undefined and callers fall back to synchronous handlers.
+ * configured or unreachable, the Redis connection is undefined and callers fall
+ * back to synchronous handlers.
  */
 @Global()
 @Module({
   providers: [
     {
       provide: REDIS_CONNECTION,
-      useFactory: (config: ConfigService<EnvConfig, true>) => {
+      useFactory: async (config: ConfigService<EnvConfig, true>) => {
         const redisUrl = config.get('REDIS_URL', { infer: true });
         const enabled = config.get('QUEUE_ENABLED', { infer: true }) !== 'false';
-        return redisUrl && enabled
-          ? new Redis(redisUrl, { maxRetriesPerRequest: null, enableReadyCheck: false })
-          : undefined;
+        if (!redisUrl || !enabled) {
+          return undefined;
+        }
+
+        const redis = new Redis(redisUrl, {
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          lazyConnect: true
+        });
+
+        try {
+          await redis.connect();
+          logger.log('Redis connected; queues enabled.');
+          return redis;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.warn(`Redis connection failed; queues disabled. ${message}`, error);
+          try {
+            redis.disconnect();
+          } catch {
+            // ignore cleanup errors
+          }
+          return undefined;
+        }
       },
       inject: [ConfigService]
     },

@@ -32,10 +32,10 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
       { connection: this.redis, concurrency }
     );
     this.worker.on('failed', (job, error) => {
-      this.logger.error(`Email job ${job?.id ?? 'unknown'} failed: ${error.message}`);
+      this.logger.error(`Email job ${job?.id ?? 'unknown'} failed: ${error.message}`, error);
     });
     this.worker.on('error', (error) => {
-      this.logger.error(`Email worker error: ${error.message}`);
+      this.logger.error(`Email worker error: ${error.message}`, error);
     });
     this.logger.log(`Started email worker with concurrency ${concurrency}`);
   }

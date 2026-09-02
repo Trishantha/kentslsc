@@ -31,10 +31,10 @@ export class WebhookWorkerService implements OnModuleInit, OnModuleDestroy {
       { connection: this.redis, concurrency }
     );
     this.worker.on('failed', (job, error) => {
-      this.logger.error(`Webhook job ${job?.id ?? 'unknown'} failed: ${error.message}`);
+      this.logger.error(`Webhook job ${job?.id ?? 'unknown'} failed: ${error.message}`, error);
     });
     this.worker.on('error', (error) => {
-      this.logger.error(`Webhook worker error: ${error.message}`);
+      this.logger.error(`Webhook worker error: ${error.message}`, error);
     });
     this.logger.log(`Started webhook worker with concurrency ${concurrency}`);
   }

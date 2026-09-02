@@ -95,7 +95,7 @@ JWT_REFRESH_SECRET=...
 FRONTEND_URL=https://your-frontend-domain.com
 ```
 
-Note: `REDIS_URL` is documented in some older deployment notes but is not currently used by this codebase.
+Optional: `REDIS_URL` enables BullMQ-backed queues for emails and webhooks. If unset or `QUEUE_ENABLED=false`, these run synchronously.
 
 Optional backend environment variables:
 
