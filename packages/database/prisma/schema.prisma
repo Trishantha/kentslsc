@@ -457,7 +457,7 @@ model Ticket {
   ticketNumber    String?     @unique @map("ticket_number")
   status          TicketStatus @default(VALID)
   paymentId       String?     @map("payment_id")
-  stripeSessionId String?     @unique @map("stripe_session_id")
+  stripeSessionId String?     @map("stripe_session_id")
   notes           String?
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
@@ -471,6 +471,7 @@ model Ticket {
   @@index([userId])
   @@index([qrCodeValue])
   @@index([paymentId])
+  @@index([stripeSessionId])
   @@map("tickets")
 }
 

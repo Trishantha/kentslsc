@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { EventsService } from './events.service.js';
 import { TicketStatus, PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 import type Stripe from 'stripe';
@@ -78,6 +80,7 @@ describe('EventsService', () => {
         event: mockPrisma.event,
         ticket: {
           count: mockPrisma.ticket.count,
+          findFirst: mockPrisma.ticket.findFirst,
           create: mockPrisma.ticket.create
         },
         payment: {
@@ -239,6 +242,24 @@ describe('EventsService', () => {
       const session = { id: 'cs_test_123', metadata: {} } as unknown as Stripe.Checkout.Session;
       const result = await service.handleCheckoutCompleted(session);
       expect(result).toBeNull();
+    });
+
+    it('does not issue tickets until Stripe reports the payment as paid', async () => {
+      const session = {
+        id: 'cs_test_unpaid',
+        payment_status: 'unpaid',
+        metadata: {
+          type: 'event_ticket',
+          eventId: mockEvent.id,
+          userId: mockUser.id,
+          quantity: '1'
+        }
+      } as unknown as Stripe.Checkout.Session;
+
+      await expect(service.handleCheckoutCompleted(session)).rejects.toThrow(
+        'Checkout session payment is not complete'
+      );
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
     });
   });
 
@@ -409,6 +430,7 @@ describe('EventsService', () => {
       mockPaymentsService.getCheckoutSession.mockResolvedValue({
         id: sessionId,
         status: 'complete',
+        paymentStatus: 'paid',
         amountTotal: 2000,
         currency: 'gbp',
         metadata: {
@@ -461,6 +483,7 @@ describe('EventsService', () => {
       mockPaymentsService.getCheckoutSession.mockResolvedValue({
         id: sessionId,
         status: 'open',
+        paymentStatus: 'unpaid',
         amountTotal: 2000,
         currency: 'gbp',
         metadata: null,
@@ -472,9 +495,43 @@ describe('EventsService', () => {
         'Checkout session is not complete'
       );
     });
+
+    it('throws when the Stripe session is complete but payment is not paid', async () => {
+      const sessionId = 'cs_test_unpaid';
+      mockPaymentsService.getCheckoutSession.mockResolvedValue({
+        id: sessionId,
+        status: 'complete',
+        paymentStatus: 'unpaid',
+        amountTotal: 2000,
+        currency: 'gbp',
+        metadata: null,
+        customerEmail: null,
+        paymentIntentId: null
+      });
+
+      await expect(service.confirmCheckoutSession(sessionId, 'stripe', mockUser.id)).rejects.toThrow(
+        'Checkout session is not complete'
+      );
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('createTickets', () => {
+    it('allows multiple tickets to reference the same Stripe session in the Prisma schema', () => {
+      const schemaPath = [
+        resolve(process.cwd(), '../../packages/database/prisma/schema.prisma'),
+        resolve(process.cwd(), 'packages/database/prisma/schema.prisma')
+      ].find((path) => existsSync(path));
+      expect(schemaPath).toBeDefined();
+
+      const schema = readFileSync(schemaPath!, 'utf8');
+      const ticketModel = schema.match(/model Ticket \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+      expect(ticketModel).toContain('stripeSessionId String?     @map("stripe_session_id")');
+      expect(ticketModel).toContain('@@index([stripeSessionId])');
+      expect(ticketModel).not.toContain('stripeSessionId String?     @unique');
+    });
+
     it('throws if tickets already exist for the same Stripe session', async () => {
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);

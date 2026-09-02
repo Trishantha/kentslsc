@@ -274,6 +274,7 @@ describe('PaymentsService', () => {
             retrieve: jest.fn(async () => ({
               id: 'cs_test_123',
               status: 'open',
+              payment_status: 'unpaid',
               amount_total: 1035,
               currency: 'gbp',
               customer_details: { email: 'user@example.com' },
@@ -292,6 +293,7 @@ describe('PaymentsService', () => {
 
       const result = await service.getCheckoutSession('cs_test_123', 'user-1');
       expect(result.id).toBe('cs_test_123');
+      expect(result.paymentStatus).toBe('unpaid');
       expect(result.amountTotal).toBe(1035);
       expect(result.customerEmail).toBe('user@example.com');
       expect(result.paymentIntentId).toBe('pi_test_123');
@@ -308,6 +310,7 @@ describe('PaymentsService', () => {
             retrieve: jest.fn(async () => ({
               id: 'cs_test_456',
               status: 'open',
+              payment_status: 'unpaid',
               amount_total: 1035,
               currency: 'gbp',
               customer_details: { email: 'anon@example.com' },
@@ -326,6 +329,7 @@ describe('PaymentsService', () => {
 
       const result = await service.getCheckoutSession('cs_test_456');
       expect(result.id).toBe('cs_test_456');
+      expect(result.paymentStatus).toBe('unpaid');
       expect(result.amountTotal).toBe(1035);
       expect(result.customerEmail).toBeNull();
       expect(result.paymentIntentId).toBeNull();
@@ -341,6 +345,7 @@ describe('PaymentsService', () => {
             retrieve: jest.fn(async () => ({
               id: 'cs_test_789',
               status: 'open',
+              payment_status: 'unpaid',
               amount_total: 1035,
               currency: 'gbp',
               customer_details: { email: 'user@example.com' },
@@ -359,6 +364,7 @@ describe('PaymentsService', () => {
 
       const result = await service.getCheckoutSession('cs_test_789', 'user-2');
       expect(result.id).toBe('cs_test_789');
+      expect(result.paymentStatus).toBe('unpaid');
       expect(result.customerEmail).toBeNull();
       expect(result.paymentIntentId).toBeNull();
       expect(result.metadata).toBeNull();
