@@ -201,16 +201,6 @@ export const permissionLabels: Record<
     description: 'Create and edit CMS pages.',
     section: 'Settings'
   },
-  [Permission.MANAGE_GDPR_SETTINGS]: {
-    label: 'GDPR & Privacy',
-    description: 'Configure cookie consent, data retention and GDPR compliance settings.',
-    section: 'Settings'
-  },
-  [Permission.MANAGE_POLICY_DOCUMENTS]: {
-    label: 'Policy documents',
-    description: 'Manage privacy policy, terms, membership policy and other legal documents.',
-    section: 'Settings'
-  },
   [Permission.MANAGE_PAYMENTS]: {
     label: 'Payments',
     description: 'Configure payment providers, process refunds and run revenue reports.',
