@@ -264,15 +264,6 @@ export class EventsService {
     return { url: event.externalTicketingUrl, click };
   }
 
-  private async getNextTicketSerial(eventId: string) {
-    const lastTicket = await this.prisma.ticket.findFirst({
-      where: { eventId, deletedAt: null },
-      orderBy: { serialNumber: 'desc' },
-      select: { serialNumber: true }
-    });
-    return (lastTicket?.serialNumber ?? 0) + 1;
-  }
-
   async generateTickets(adminUserId: string, eventId: string, dto: GenerateTicketsDto) {
     const event = await this.findByIdWithTicketCount(eventId);
     if (event.externalTicketingUrl) {
@@ -483,6 +474,11 @@ export class EventsService {
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     if (session.metadata?.type !== 'event_ticket') return null;
+    if (session.payment_status && session.payment_status !== 'paid') {
+      throw new BadRequestException(
+        `Checkout session payment is not complete (payment_status: ${session.payment_status})`
+      );
+    }
     const eventId = session.metadata.eventId;
     const userId = session.metadata.userId;
     const quantity = Number(session.metadata.quantity || '1');
@@ -554,7 +550,6 @@ export class EventsService {
       throw new BadRequestException('Not enough tickets remaining');
     }
 
-    const startSerial = await this.getNextTicketSerial(eventId);
     const prefix = ticketPrefix?.trim() || event.title.replace(/\s+/g, '-').slice(0, 8).toUpperCase();
     const sessionRef = paymentDetails?.providerCheckoutId;
 
@@ -572,6 +567,13 @@ export class EventsService {
       if (txRemaining !== null && quantity > txRemaining) {
         throw new BadRequestException('Not enough tickets remaining');
       }
+
+      const lastTicket = await tx.ticket.findFirst({
+        where: { eventId, deletedAt: null },
+        orderBy: { serialNumber: 'desc' },
+        select: { serialNumber: true }
+      });
+      const startSerial = (lastTicket?.serialNumber ?? 0) + 1;
 
       // Defensive idempotency guard: do not issue tickets twice for the same Stripe session.
       if (sessionRef) {
@@ -849,12 +851,15 @@ export class EventsService {
 
     if (provider === 'stripe') {
       const session = await this.paymentsService.getCheckoutSession(sessionId, currentUserId);
-      if (session.status !== 'complete') {
-        throw new BadRequestException(`Checkout session is not complete (status: ${session.status})`);
+      if (session.status !== 'complete' || session.paymentStatus !== 'paid') {
+        throw new BadRequestException(
+          `Checkout session is not complete (status: ${session.status}, payment_status: ${session.paymentStatus})`
+        );
       }
       const tickets = await this.handleCheckoutCompleted({
         id: sessionId,
         status: 'complete',
+        payment_status: session.paymentStatus,
         currency: session.currency ?? 'gbp',
         amount_total: session.amountTotal,
         metadata: session.metadata as Record<string, string>,

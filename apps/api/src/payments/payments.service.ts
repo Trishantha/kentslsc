@@ -52,6 +52,7 @@ export interface CheckoutResult {
 export interface CheckoutSessionDetail {
   id: string;
   status: Stripe.Checkout.Session.Status | null;
+  paymentStatus: Stripe.Checkout.Session.PaymentStatus;
   amountTotal: number;
   currency: string | null;
   metadata: Record<string, string> | null;
@@ -279,6 +280,7 @@ export class PaymentsService {
     return {
       id: session.id,
       status: session.status,
+      paymentStatus: session.payment_status,
       amountTotal: session.amount_total ?? 0,
       currency: session.currency,
       metadata: isOwner ? session.metadata : null,
