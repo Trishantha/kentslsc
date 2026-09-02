@@ -6,9 +6,9 @@ import { REDIS_CONNECTION } from './queue.constants.js';
 export class QueueLifecycleService implements OnModuleDestroy {
   constructor(@Inject(REDIS_CONNECTION) @Optional() private readonly redis: Redis | undefined) {}
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     if (this.redis) {
-      void this.redis.quit();
+      await this.redis.quit();
     }
   }
 }

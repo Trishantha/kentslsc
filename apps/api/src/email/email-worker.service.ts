@@ -31,12 +31,18 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {
       async (job: Job<SendTicketEmailJobData>) => this.emailProcessor.process(job.data),
       { connection: this.redis, concurrency }
     );
+    this.worker.on('failed', (job, error) => {
+      this.logger.error(`Email job ${job?.id ?? 'unknown'} failed: ${error.message}`);
+    });
+    this.worker.on('error', (error) => {
+      this.logger.error(`Email worker error: ${error.message}`);
+    });
     this.logger.log(`Started email worker with concurrency ${concurrency}`);
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     if (this.worker) {
-      void this.worker.close();
+      await this.worker.close();
     }
   }
 }

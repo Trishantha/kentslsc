@@ -141,7 +141,13 @@ export default function RevenueReportPage() {
       params.set('limit', String(filters.limit));
       const { data } = await api.get(`/payments/reports/revenue?${params.toString()}`);
       return data;
-    }
+    },
+    // Payments are written by webhook workers, so keep an open report current
+    // without requiring an administrator to click Refresh.
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true
   });
 
   const exportQuery = useQuery<ReportRow[]>({
@@ -173,7 +179,7 @@ export default function RevenueReportPage() {
       });
       return data;
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       const parts = [
         result.created > 0 && `${result.created} created`,
         result.updated > 0 && `${result.updated} updated`,
@@ -183,8 +189,8 @@ export default function RevenueReportPage() {
       setSyncMessage(
         `Sync complete: ${summary}.${result.errors.length > 0 ? ` ${result.errors.length} error(s).` : ''}`
       );
-      void queryClient.invalidateQueries({ queryKey: ['payments', 'reports'] });
-      void refetch();
+      await queryClient.invalidateQueries({ queryKey: ['payments', 'reports'] });
+      await refetch();
     },
     onError: (err: any) => {
       setSyncMessage(
@@ -201,12 +207,12 @@ export default function RevenueReportPage() {
       });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setRefundPayment(null);
       setRefundAmount('');
       setRefundReason('');
-      void queryClient.invalidateQueries({ queryKey: ['payments', 'reports'] });
-      void refetch();
+      await queryClient.invalidateQueries({ queryKey: ['payments', 'reports'] });
+      await refetch();
     }
   });
 
