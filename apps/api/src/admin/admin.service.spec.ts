@@ -229,3 +229,49 @@ describe('AdminService - regenerateAllMembershipCards', () => {
     expect(mockMembershipsService.regenerateCard).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('AdminService - getDashboardStats', () => {
+  const mockPrisma: any = {
+    user: { count: jest.fn().mockResolvedValue(10) },
+    membership: {
+      count: jest
+        .fn()
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(2)
+    },
+    event: { count: jest.fn().mockResolvedValue(3) },
+    businessListing: { count: jest.fn().mockResolvedValue(4) },
+    fundraiser: { count: jest.fn().mockResolvedValue(1) },
+    blogPost: { count: jest.fn().mockResolvedValue(6) },
+    contactMessage: { count: jest.fn().mockResolvedValue(7) },
+    forumTopic: { count: jest.fn().mockResolvedValue(1) },
+    forumPost: { count: jest.fn().mockResolvedValue(1) }
+  };
+
+  const service = new AdminService(
+    mockPrisma,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    { get: () => mockFrontendUrl } as any
+  );
+
+  it('counts only active memberships, excluding cancelled/pending/expired', async () => {
+    const result = await service.getDashboardStats();
+
+    expect(result.memberships).toBe(5);
+    expect(result.pendingMemberships).toBe(2);
+    expect(mockPrisma.membership.count).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { deletedAt: null, status: MembershipStatus.ACTIVE }
+      })
+    );
+  });
+});

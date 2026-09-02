@@ -27,6 +27,7 @@ import { summarizeRichText } from '@/lib/rich-text';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { getVideoMimeType } from '@/lib/utils';
+import type { MixedBlogListItem } from '@kentslsc/shared';
 
 interface EventItem {
   id: string;
@@ -58,14 +59,6 @@ interface BusinessItem {
   isPromoted?: boolean;
 }
 
-interface BlogPostItem {
-  id: string;
-  title: string;
-  slug: string;
-  imageUrl?: string | null;
-  aiTldr?: string | null;
-  publishedAt?: string | null;
-}
 
 interface ForumCategory {
   id: string;
@@ -187,7 +180,7 @@ export default function HomePageContent() {
     }
   });
 
-  const { data: blogPosts = [], isLoading: blogLoading } = useQuery<BlogPostItem[]>({
+  const { data: blogPosts = [], isLoading: blogLoading } = useQuery<MixedBlogListItem[]>({
     queryKey: ['blog', 'latest'],
     queryFn: async () => {
       const { data } = await api.get('/blog');
@@ -698,37 +691,54 @@ export default function HomePageContent() {
                 animate={{ x: `-${blogIndex * (100 / blogsPerPage)}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               >
-                {visibleBlogPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="w-full flex-shrink-0 md:w-[calc(33.333%-1rem)]"
-                  >
-                    <Link href={`/blog/${post.slug}`}>
-                      <motion.div
-                        whileHover={{ y: -6 }}
-                        className="glass-card group h-full overflow-hidden p-0"
-                      >
-                        <div className="relative aspect-video overflow-hidden">
-                          <div
-                            className="h-full w-full bg-gradient-to-br from-neon-purple/40 to-neon-blue/40 transition-transform duration-700 group-hover:scale-110"
-                            style={post.imageUrl ? { backgroundImage: `url(${post.imageUrl})`, backgroundSize: 'cover' } : undefined}
-                          />
-                        </div>
-                        <div className="p-6">
-                          <h3 className="text-lg font-bold group-hover:text-neon-blue">{post.title}</h3>
-                          <p className="mt-2 line-clamp-3 text-sm text-slate-700 dark:text-slate-400">
-                            {post.aiTldr
-                              ? summarizeRichText(post.aiTldr, 160)
-                              : t('blogFallback')}
-                          </p>
-                          {post.publishedAt && (
-                            <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
-                          )}
-                        </div>
-                      </motion.div>
-                    </Link>
-                  </div>
-                ))}
+                {visibleBlogPosts.map((post) => {
+                  const isFacebook = post.type === 'facebook';
+                  const href = isFacebook ? post.url : `/blog/${post.slug}`;
+                  const linkProps = isFacebook
+                    ? { href, target: '_blank', rel: 'noopener noreferrer' }
+                    : { href };
+                  const LinkComponent = isFacebook ? 'a' : Link;
+                  const summary = isFacebook
+                    ? (post.content ? summarizeRichText(post.content, 160) : t('blogFallback'))
+                    : (post.aiTldr ? summarizeRichText(post.aiTldr, 160) : t('blogFallback'));
+
+                  return (
+                    <div
+                      key={post.id}
+                      className="w-full flex-shrink-0 md:w-[calc(33.333%-1rem)]"
+                    >
+                      <LinkComponent {...linkProps}>
+                        <motion.div
+                          whileHover={{ y: -6 }}
+                          className="glass-card group h-full overflow-hidden p-0"
+                        >
+                          <div className="relative aspect-video overflow-hidden">
+                            <div
+                              className={`h-full w-full bg-gradient-to-br transition-transform duration-700 group-hover:scale-110 ${isFacebook ? 'from-blue-600/40 to-blue-400/40' : 'from-neon-purple/40 to-neon-blue/40'}`}
+                              style={post.imageUrl ? { backgroundImage: `url(${post.imageUrl})`, backgroundSize: 'cover' } : undefined}
+                            />
+                          </div>
+                          <div className="p-6">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg font-bold group-hover:text-neon-blue">{post.title ?? 'Facebook post'}</h3>
+                              {isFacebook && (
+                                <span className="rounded-full bg-blue-600/10 px-2 py-0.5 text-xs font-medium text-blue-600">
+                                  Facebook
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 line-clamp-3 text-sm text-slate-700 dark:text-slate-400">
+                              {summary}
+                            </p>
+                            {post.publishedAt && (
+                              <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
+                            )}
+                          </div>
+                        </motion.div>
+                      </LinkComponent>
+                    </div>
+                  );
+                })}
               </motion.div>
             </div>
           )}

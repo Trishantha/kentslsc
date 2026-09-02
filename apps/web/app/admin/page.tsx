@@ -33,7 +33,7 @@ interface DashboardStats {
 
 const cards = [
   { key: 'users', label: 'Users', icon: Users, href: '/admin/users' },
-  { key: 'memberships', label: 'Memberships', icon: CreditCard, href: '/admin/memberships' },
+  { key: 'memberships', label: 'Active Memberships', icon: CreditCard, href: '/admin/memberships' },
   { key: 'pendingMemberships', label: 'Pending Memberships', icon: CreditCard, href: '/admin/memberships' },
   { key: 'events', label: 'Events', icon: Calendar, href: '/admin/events' },
   { key: 'listings', label: 'Business Listings', icon: Building2, href: '/admin/directory' },

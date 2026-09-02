@@ -13,3 +13,28 @@ export const blogPostSchema = z.object({
 });
 
 export type BlogPostInput = z.infer<typeof blogPostSchema>;
+
+export interface BlogListItem {
+  type: 'blog';
+  id: string;
+  title: string;
+  slug: string;
+  imageUrl?: string | null;
+  metaDescription?: string | null;
+  tags?: string[];
+  aiTldr?: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export interface FacebookListItem {
+  type: 'facebook';
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  imageUrl?: string | null;
+  url: string;
+  publishedAt: string | null;
+}
+
+export type MixedBlogListItem = BlogListItem | FacebookListItem;

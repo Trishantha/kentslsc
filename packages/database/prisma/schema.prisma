@@ -107,6 +107,8 @@ enum AuthEventType {
 }
 
 enum Permission {
+  MANAGE_GDPR_SETTINGS
+  MANAGE_POLICY_DOCUMENTS
   MANAGE_USERS
   MANAGE_MEMBERSHIPS
   SCAN_MEMBERSHIPS
@@ -806,6 +808,23 @@ model BlogPost {
   @@index([isPublished])
   @@index([publishedAt])
   @@map("blog_posts")
+}
+
+model ExternalSocialPost {
+  id          String   @id @default(uuid())
+  source      String
+  externalId  String   @unique @map("external_id")
+  title       String?
+  content     String?
+  imageUrl    String?  @map("image_url")
+  url         String
+  publishedAt DateTime? @map("published_at")
+  rawData     Json?    @map("raw_data") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([source, publishedAt])
+  @@map("external_social_posts")
 }
 
 model EventGallery {
