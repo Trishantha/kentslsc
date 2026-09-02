@@ -211,7 +211,10 @@ export class MembershipsService {
         where: { id: userId, role: UserRole.GUEST },
         data: { role: UserRole.MEMBER, updatedAt: new Date() }
       });
-      if (changed.count === 0) return;
+      if (changed.count === 0) {
+        this.logger.debug(`Skipped concurrent promotion for user ${userId}`);
+        return;
+      }
       await this.recordRoleChange(userId, UserRole.GUEST, UserRole.MEMBER);
       this.logger.log(`Promoted user ${userId} to MEMBER`);
     } else if (!shouldBeMember && user.role === UserRole.MEMBER) {
@@ -219,7 +222,10 @@ export class MembershipsService {
         where: { id: userId, role: UserRole.MEMBER },
         data: { role: UserRole.GUEST, updatedAt: new Date() }
       });
-      if (changed.count === 0) return;
+      if (changed.count === 0) {
+        this.logger.debug(`Skipped concurrent demotion for user ${userId}`);
+        return;
+      }
       await this.revokeAllSessions(userId);
       await this.recordRoleChange(userId, UserRole.MEMBER, UserRole.GUEST);
       this.logger.log(`Demoted user ${userId} to GUEST`);
