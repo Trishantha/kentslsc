@@ -192,7 +192,31 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
     statusMutation.mutate({ nextStatus: 'ACTIVE' });
   };
   const handleReject = () => rejectMutation.mutate();
-  const handleSaveStatus = () => statusMutation.mutate({ nextStatus: status });
+  const handleSaveStatus = () => {
+    const isPaidType =
+      membership.membershipType.isFree === false &&
+      typeof membership.membershipType.price === 'number' &&
+      membership.membershipType.price > 0;
+    const isAlreadyPaid = Boolean(membership.paymentMethod);
+
+    if (status === 'ACTIVE' && isPaidType && !isAlreadyPaid) {
+      // The system may have failed to auto-activate this membership after a real
+      // payment (e.g. a missed webhook), or the admin may need to record an
+      // offline/manual payment. Either way, confirm before marking it paid so we
+      // don't silently fabricate a payment record.
+      if (
+        !window.confirm(
+          'This membership is not marked as paid. Activate it anyway and record a manual payment confirmation?'
+        )
+      ) {
+        return;
+      }
+      statusMutation.mutate({ nextStatus: status, confirmManualPayment: true });
+      return;
+    }
+
+    statusMutation.mutate({ nextStatus: status });
+  };
 
   const isExpired = membership.endDate ? new Date(membership.endDate) < new Date() : false;
 
