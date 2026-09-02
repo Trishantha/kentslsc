@@ -671,18 +671,6 @@ describe('MembershipsService', () => {
       expect(mockSupabaseStorage.uploadBuffer).toHaveBeenCalled();
     });
 
-    it('throws when the membership type does not support dependants', async () => {
-      mockPrisma.membership.findFirst.mockResolvedValue({
-        ...mockCreatedMembership,
-        membershipType: { ...mockMembershipType, features: [] },
-        user: { id: 'user-1', name: 'Test User', firstName: 'Test', lastName: 'User', email: 'test@example.com' }
-      });
-
-      await expect(
-        service.updateDependants('membership-1', [{ name: 'Jane Doe', age: 30, relationship: 'spouse' as const }])
-      ).rejects.toThrow('This membership type does not include dependants');
-    });
-
     it('updates dependants for the current user membership', async () => {
       const dependantsType = { ...mockMembershipType, features: ['DEPENDANTS'] };
       mockPrisma.membership.findFirst

@@ -32,6 +32,7 @@ export interface NavGroup {
 interface AdminMobileMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  topItems?: NavItem[];
   groups: NavGroup[];
 }
 
@@ -39,7 +40,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname?.startsWith(`${href}/`);
 }
 
-export function AdminMobileMenu({ isOpen, onClose, groups }: AdminMobileMenuProps) {
+export function AdminMobileMenu({ isOpen, onClose, topItems = [], groups }: AdminMobileMenuProps) {
   const pathname = usePathname();
   const { data: user } = useAuth();
   const signOut = useSignOut();
@@ -139,6 +140,33 @@ export function AdminMobileMenu({ isOpen, onClose, groups }: AdminMobileMenuProp
                 <ArrowLeft className="h-4 w-4" />
                 Back to website
               </Link>
+
+              {/* Direct top-level links */}
+              {topItems.length > 0 && (
+                <div className="mb-3 space-y-1">
+                  {topItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(pathname || '', item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        onTouchStart={() => item.prefetch?.(queryClient)}
+                        className={cn(
+                          'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-neon-blue/10 text-neon-blue'
+                            : 'text-slate-600 hover:bg-white/50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white'
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Grouped admin links */}
               <div className="space-y-3">

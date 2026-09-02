@@ -421,6 +421,10 @@ export class AdminService {
     return this.membershipsService.updateDependants(membershipId, dto.dependants);
   }
 
+  updateUserDependants(userId: string, dto: { dependants: DependantInput[] }) {
+    return this.membershipsService.updateDependantsForUser(userId, dto.dependants);
+  }
+
   async regenerateAllMembershipCards(options: { onlyActive?: boolean } = {}) {
     // Unused options variable prefix removed for lint compliance
     void options;

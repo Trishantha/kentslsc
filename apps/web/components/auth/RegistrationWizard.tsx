@@ -194,11 +194,6 @@ export function RegistrationWizard() {
     const valid = await validateStep();
     if (!valid) return;
 
-    if (step === 4 && selectedType && !selectedType.features.includes(MembershipFeature.DEPENDANTS)) {
-      setStep(6);
-      return;
-    }
-
     if (step === 4 && preferredTypeId && selectedTypeId === preferredTypeId && preferredType) {
       setStep(5);
       return;
@@ -208,10 +203,6 @@ export function RegistrationWizard() {
   };
 
   const prevStep = () => {
-    if (step === 6 && selectedType && !selectedType.features.includes(MembershipFeature.DEPENDANTS)) {
-      setStep(4);
-      return;
-    }
     setStep((s) => Math.max(s - 1, 1));
   };
 
@@ -731,10 +722,6 @@ export function RegistrationWizard() {
           const Icon = s.icon;
           const active = s.id === step;
           const completed = s.id < step;
-          const isDependantsStep = s.id === 5;
-          if (isDependantsStep && selectedType && !selectedType.features.includes(MembershipFeature.DEPENDANTS)) {
-            return null;
-          }
           return (
             <div key={s.id} className="flex flex-1 items-center">
               <div className={`flex flex-col items-center gap-2 ${idx > 0 ? 'w-full' : ''}`}>

@@ -336,6 +336,15 @@ export class AdminController {
     return this.adminService.updateMembershipDependants(membershipId, dto);
   }
 
+  @Put('users/:id/dependants')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  updateUserDependants(
+    @Param('id') userId: string,
+    @Body() dto: UpdateDependantsDto
+  ) {
+    return this.adminService.updateUserDependants(userId, dto);
+  }
+
   @Post('memberships/regenerate-cards')
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
   regenerateAllMembershipCards(@Body() dto: { onlyActive?: boolean }) {

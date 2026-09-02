@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
-import { MembershipFeature } from '@kentslsc/shared';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useMyMembership } from './useMyMembership';
-import { UpgradePrompt } from './UpgradePrompt';
 import { BecomeMemberCTA } from './BecomeMemberCTA';
 
 export function DependantsEditor() {
@@ -50,22 +48,6 @@ export function DependantsEditor() {
 
   if (!membership) {
     return <BecomeMemberCTA />;
-  }
-
-  const supportsDependants = membership.membershipType.features?.includes(MembershipFeature.DEPENDANTS) ?? false;
-
-  if (!supportsDependants) {
-    return (
-      <div className="space-y-6">
-        <div className="glass-card p-6">
-          <h2 className="text-lg font-bold">Dependants</h2>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Your current membership does not include dependants.
-          </p>
-        </div>
-        <UpgradePrompt membership={membership} />
-      </div>
-    );
   }
 
   return (

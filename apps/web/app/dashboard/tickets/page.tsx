@@ -6,8 +6,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Loader2, Ticket, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { TicketCard } from '@/components/ui/TicketCard';
-import type { TicketCardProps } from '@/components/ui/TicketCard';
+import { TicketListItem } from '@/components/ui/TicketListItem';
+import type { TicketListItemProps } from '@/components/ui/TicketListItem';
 
 type ConfirmStatus =
   | { state: 'idle' }
@@ -25,10 +25,10 @@ export default function TicketsPage() {
     data: tickets,
     isLoading,
     refetch
-  } = useQuery<TicketCardProps['ticket'][]>({
+  } = useQuery<TicketListItemProps['ticket'][]>({
     queryKey: ['tickets', 'mine'],
     queryFn: async () => {
-      const { data } = await api.get<TicketCardProps['ticket'][]>('/tickets');
+      const { data } = await api.get<TicketListItemProps['ticket'][]>('/tickets');
       return data;
     }
   });
@@ -36,7 +36,7 @@ export default function TicketsPage() {
   const confirmMutation = useMutation({
     mutationFn: async (input: { sessionId: string; provider: 'stripe' | 'paypal' }) => {
       const { data } = await api.post('/tickets/confirm-payment', input);
-      return data as { tickets: TicketCardProps['ticket'][]; created: boolean };
+      return data as { tickets: TicketListItemProps['ticket'][]; created: boolean };
     },
     onSuccess: (result) => {
       setConfirmStatus({
@@ -99,9 +99,9 @@ export default function TicketsPage() {
           </div>
         )}
 
-        <div className="mt-10 space-y-6">
+        <div className="mt-10 space-y-4">
           {tickets?.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketListItem key={ticket.id} ticket={ticket} />
           ))}
         </div>
 

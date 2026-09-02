@@ -83,7 +83,6 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const supportsDependants = membership.membershipType.features?.includes('DEPENDANTS') ?? false;
   const [dependants, setDependants] = useState(membership.dependants ?? []);
   const [dependantsError, setDependantsError] = useState<string | null>(null);
   const [dependantsSuccess, setDependantsSuccess] = useState(false);
@@ -394,17 +393,12 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           <h2 className="text-lg font-semibold">Dependants</h2>
         </div>
 
-        {!supportsDependants ? (
-          <p className="text-sm text-slate-500">
-            This membership type does not include dependants. Upgrade the membership type to enable dependants.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {dependants.length === 0 && (
-              <p className="text-sm text-slate-500">No dependants on this membership.</p>
-            )}
+        <div className="space-y-4">
+          {dependants.length === 0 && (
+            <p className="text-sm text-slate-500">No dependants on this membership.</p>
+          )}
 
-            {dependants.map((dependant, idx) => (
+          {dependants.map((dependant, idx) => (
               <div
                 key={idx}
                 className="rounded-xl border border-white/10 bg-white/5 p-4"
@@ -509,14 +503,13 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
               Save dependants
             </button>
 
-            {dependantsSuccess && (
-              <p className="text-sm text-green-400">Dependants saved successfully.</p>
-            )}
-            {dependantsError && (
-              <p className="text-sm text-red-400">{dependantsError}</p>
-            )}
-          </div>
-        )}
+          {dependantsSuccess && (
+            <p className="text-sm text-green-400">Dependants saved successfully.</p>
+          )}
+          {dependantsError && (
+            <p className="text-sm text-red-400">{dependantsError}</p>
+          )}
+        </div>
       </section>
     </div>
   );

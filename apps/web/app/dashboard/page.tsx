@@ -3,19 +3,16 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
-import { BecomeMemberCTA } from '@/components/dashboard/BecomeMemberCTA';
-import { MembershipSummary } from '@/components/dashboard/MembershipSummary';
+import { DependantsSummary } from '@/components/dashboard/DependantsSummary';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { TicketsPreview } from '@/components/dashboard/TicketsPreview';
-import { UpgradePrompt } from '@/components/dashboard/UpgradePrompt';
 import { useMyMembership } from '@/components/dashboard/useMyMembership';
 import { api } from '@/lib/api';
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const { data: membership, isLoading, error } = useMyMembership();
+  const { error } = useMyMembership();
 
   const confirmMembershipPayment = useMutation({
     mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
@@ -58,28 +55,14 @@ export default function DashboardPage() {
         <QuickActions />
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          {isLoading ? (
-            <div className="glass-card flex items-center justify-center p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
-            </div>
-          ) : membership ? (
-            <MembershipSummary />
-          ) : (
-            <BecomeMemberCTA />
-          )}
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div>
+          <DependantsSummary />
         </div>
-        <div className="lg:col-span-1">
+        <div>
           <TicketsPreview />
         </div>
       </div>
-
-      {membership && (
-        <div className="mt-10">
-          <UpgradePrompt membership={membership} />
-        </div>
-      )}
     </div>
   );
 }

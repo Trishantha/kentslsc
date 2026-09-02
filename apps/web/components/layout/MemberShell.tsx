@@ -7,7 +7,7 @@ import { Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { MemberHeader } from './MemberHeader';
-import { MemberMobileMenu, type NavGroup } from './MemberMobileMenu';
+import { MemberMobileMenu, type NavGroup, type NavItem } from './MemberMobileMenu';
 import {
   LayoutDashboard,
   User,
@@ -21,12 +21,11 @@ import {
   HeartHandshake
 } from 'lucide-react';
 
+const topNavItems: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }
+];
+
 const navGroups: NavGroup[] = [
-  {
-    label: 'Overview',
-    icon: LayoutDashboard,
-    items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
-  },
   {
     label: 'Account',
     icon: User,
@@ -123,6 +122,25 @@ export function MemberShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="hidden flex-col gap-1 px-4 pb-4 md:flex md:flex-1 md:overflow-y-auto md:pb-0">
+          {topNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(pathname || '', item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors',
+                  active
+                    ? 'bg-neon-blue/10 text-neon-blue'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
           {navGroups.map((group) => {
             const GroupIcon = group.icon;
             const expanded = openGroups.includes(group.label);
@@ -179,6 +197,7 @@ export function MemberShell({ children }: { children: React.ReactNode }) {
       <MemberMobileMenu
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        topItems={topNavItems}
         groups={navGroups}
       />
     </div>

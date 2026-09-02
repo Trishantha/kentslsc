@@ -5,14 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2, Ticket, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
-import { TicketCard } from '@/components/ui/TicketCard';
-import type { TicketCardProps } from '@/components/ui/TicketCard';
+import { TicketListItem } from '@/components/ui/TicketListItem';
+import type { TicketListItemProps } from '@/components/ui/TicketListItem';
 
 export function TicketsPreview() {
-  const { data: tickets, isLoading } = useQuery<TicketCardProps['ticket'][]>({
+  const { data: tickets, isLoading } = useQuery<TicketListItemProps['ticket'][]>({
     queryKey: ['tickets', 'mine'],
     queryFn: async () => {
-      const { data } = await api.get<TicketCardProps['ticket'][]>('/tickets');
+      const { data } = await api.get<TicketListItemProps['ticket'][]>('/tickets');
       return data;
     }
   });
@@ -44,9 +44,9 @@ export function TicketsPreview() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 space-y-4">
         {upcomingTickets.slice(0, 3).map((ticket) => (
-          <TicketCard key={ticket.id} ticket={ticket} />
+          <TicketListItem key={ticket.id} ticket={ticket} />
         ))}
       </div>
 

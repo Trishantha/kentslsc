@@ -65,9 +65,7 @@ export default function UserMembershipsPage() {
       if (selectedType && !selectedType.isFree && selectedType.price > 0) {
         payload.paymentMode = paymentMode;
       }
-      if (selectedType?.features?.includes(MembershipFeature.DEPENDANTS)) {
-        payload.dependants = dependants;
-      }
+      payload.dependants = dependants;
       const res = await api.post(`/admin/users/${id}/memberships`, payload);
       return res.data as {
         membership: AdminMembership;
@@ -370,92 +368,90 @@ export default function UserMembershipsPage() {
                   </div>
                 )}
 
-                {selectedType?.features?.includes(MembershipFeature.DEPENDANTS) && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <label className="mb-3 block text-sm font-medium text-slate-300">Dependants</label>
-                    {dependants.length === 0 && (
-                      <p className="mb-3 text-xs text-slate-500">No dependants added yet.</p>
-                    )}
-                    <div className="space-y-3">
-                      {dependants.map((dep, idx) => (
-                        <div key={idx} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs font-semibold capitalize text-slate-400">{dep.relationship}</span>
-                            <button
-                              type="button"
-                              onClick={() => setDependants((prev) => prev.filter((_, i) => i !== idx))}
-                              className="text-red-400 hover:text-red-300"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <input
-                              type="text"
-                              placeholder="Name"
-                              value={dep.name}
-                              onChange={(e) =>
-                                setDependants((prev) =>
-                                  prev.map((d, i) => (i === idx ? { ...d, name: e.target.value } : d))
-                                )
-                              }
-                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              max={120}
-                              placeholder="Age"
-                              value={dep.age}
-                              onChange={(e) =>
-                                setDependants((prev) =>
-                                  prev.map((d, i) =>
-                                    i === idx ? { ...d, age: Number(e.target.value) || 0 } : d
-                                  )
-                                )
-                              }
-                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
-                            />
-                            <select
-                              value={dep.relationship}
-                              onChange={(e) =>
-                                setDependants((prev) =>
-                                  prev.map((d, i) =>
-                                    i === idx
-                                      ? { ...d, relationship: e.target.value as 'spouse' | 'child' }
-                                      : d
-                                  )
-                                )
-                              }
-                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
-                            >
-                              <option value="spouse">Spouse</option>
-                              <option value="child">Child</option>
-                            </select>
-                          </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <label className="mb-3 block text-sm font-medium text-slate-300">Dependants</label>
+                  {dependants.length === 0 && (
+                    <p className="mb-3 text-xs text-slate-500">No dependants added yet.</p>
+                  )}
+                  <div className="space-y-3">
+                    {dependants.map((dep, idx) => (
+                      <div key={idx} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs font-semibold capitalize text-slate-400">{dep.relationship}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDependants((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {!dependants.some((d) => d.relationship === 'spouse') && (
-                        <button
-                          type="button"
-                          onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'spouse' }])}
-                          className="inline-flex items-center gap-1 rounded-lg bg-neon-gold/10 px-3 py-1.5 text-xs font-semibold text-neon-gold hover:bg-neon-gold/20"
-                        >
-                          <Plus className="h-3 w-3" /> Add spouse
-                        </button>
-                      )}
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <input
+                            type="text"
+                            placeholder="Name"
+                            value={dep.name}
+                            onChange={(e) =>
+                              setDependants((prev) =>
+                                prev.map((d, i) => (i === idx ? { ...d, name: e.target.value } : d))
+                              )
+                            }
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            max={120}
+                            placeholder="Age"
+                            value={dep.age}
+                            onChange={(e) =>
+                              setDependants((prev) =>
+                                prev.map((d, i) =>
+                                  i === idx ? { ...d, age: Number(e.target.value) || 0 } : d
+                                )
+                              )
+                            }
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                          />
+                          <select
+                            value={dep.relationship}
+                            onChange={(e) =>
+                              setDependants((prev) =>
+                                prev.map((d, i) =>
+                                  i === idx
+                                    ? { ...d, relationship: e.target.value as 'spouse' | 'child' }
+                                    : d
+                                )
+                              )
+                            }
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                          >
+                            <option value="spouse">Spouse</option>
+                            <option value="child">Child</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {!dependants.some((d) => d.relationship === 'spouse') && (
                       <button
                         type="button"
-                        onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'child' }])}
-                        className="inline-flex items-center gap-1 rounded-lg bg-neon-blue/10 px-3 py-1.5 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20"
+                        onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'spouse' }])}
+                        className="inline-flex items-center gap-1 rounded-lg bg-neon-gold/10 px-3 py-1.5 text-xs font-semibold text-neon-gold hover:bg-neon-gold/20"
                       >
-                        <Plus className="h-3 w-3" /> Add child
+                        <Plus className="h-3 w-3" /> Add spouse
                       </button>
-                    </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDependants((prev) => [...prev, { name: '', age: 0, relationship: 'child' }])}
+                      className="inline-flex items-center gap-1 rounded-lg bg-neon-blue/10 px-3 py-1.5 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20"
+                    >
+                      <Plus className="h-3 w-3" /> Add child
+                    </button>
                   </div>
-                )}
+                </div>
 
                 {error && (
                   <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400">

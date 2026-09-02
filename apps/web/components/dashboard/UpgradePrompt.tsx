@@ -3,7 +3,7 @@
 import type { ElementType } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MessageSquare, Ticket, CreditCard, Vote, Store, Users, ArrowRight } from 'lucide-react';
+import { MessageSquare, Ticket, CreditCard, Vote, Store, ArrowRight } from 'lucide-react';
 import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
 import type { MembershipResponse } from './types';
 
@@ -17,8 +17,7 @@ const upsellOptions: UpsellOption[] = [
   { feature: MembershipFeature.TICKETS_PURCHASE, icon: Ticket },
   { feature: MembershipFeature.MEMBER_CARD, icon: CreditCard },
   { feature: MembershipFeature.VOTING_RIGHTS, icon: Vote },
-  { feature: MembershipFeature.DIRECTORY_LISTING, icon: Store },
-  { feature: MembershipFeature.DEPENDANTS, icon: Users }
+  { feature: MembershipFeature.DIRECTORY_LISTING, icon: Store }
 ];
 
 interface UpgradePromptProps {

@@ -180,14 +180,11 @@ function prefetchPayments(qc: ReturnType<typeof useQueryClient>) {
   });
 }
 
+const topNavItems: NavItem[] = [
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: Permission.VIEW_ADMIN_DASHBOARD, prefetch: prefetchDashboard }
+];
+
 const navGroups: NavGroup[] = [
-  {
-    label: 'Overview',
-    icon: LayoutDashboard,
-    items: [
-      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: Permission.VIEW_ADMIN_DASHBOARD, prefetch: prefetchDashboard }
-    ]
-  },
   {
     label: 'Content',
     icon: FileText,
@@ -335,6 +332,27 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="hidden flex-col gap-1 px-4 pb-4 md:flex md:flex-1 md:overflow-y-auto md:pb-0">
+          {topNavItems.filter((item) => canSeeItem(user ?? null, item)).map((item) => {
+            const Icon = item.icon;
+            const active = isActive(pathname || '', item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onMouseEnter={() => item.prefetch?.(queryClient)}
+                onFocus={() => item.prefetch?.(queryClient)}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors',
+                  active
+                    ? 'bg-neon-blue/10 text-neon-blue'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
           {visibleGroups.map((group) => {
             const GroupIcon = group.icon;
             const expanded = openGroups.includes(group.label);
@@ -395,6 +413,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <AdminMobileMenu
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        topItems={topNavItems.filter((item) => canSeeItem(user ?? null, item))}
         groups={visibleGroups}
       />
     </div>

@@ -15,7 +15,7 @@ import {
   PaymentSourceType,
   AuthEventType
 } from '@kentslsc/database';
-import { TokenPayload, DependantInput, MembershipFeature, UserRole } from '@kentslsc/shared';
+import { TokenPayload, DependantInput, UserRole } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
 import { generateCardBuffer } from './helpers/card-generator.js';
@@ -506,9 +506,6 @@ export class MembershipsService {
     const type = await this.findTypeById(dto.membershipTypeId);
 
     const dependants = dto.dependants ?? [];
-    if (dependants.length > 0 && !type.features.includes(MembershipFeature.DEPENDANTS)) {
-      throw new BadRequestException('This membership type does not include dependants');
-    }
     await this.assertTypeCapacity(type);
 
     await this.prisma.user.update({
@@ -965,10 +962,6 @@ export class MembershipsService {
       }
     });
     if (!membership) throw new NotFoundException('Membership not found');
-
-    if (!membership.membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
-      throw new BadRequestException('This membership type does not include dependants');
-    }
 
     const updated = await this.prisma.membership.update({
       where: { id: membershipId },
@@ -1705,9 +1698,6 @@ export class MembershipsService {
       dependants = [];
     }
 
-    if (dependants.length > 0 && !membershipType.features.includes(MembershipFeature.DEPENDANTS)) {
-      throw new BadRequestException('This membership type does not include dependants');
-    }
     await this.assertTypeCapacity(membershipType);
 
     let address: StructuredAddressDto | undefined;
