@@ -103,6 +103,8 @@ export enum Permission {
   MANAGE_HERO = 'MANAGE_HERO',
   MANAGE_PAGES = 'MANAGE_PAGES',
   MANAGE_PAYMENTS = 'MANAGE_PAYMENTS',
+  MANAGE_GDPR_SETTINGS = 'MANAGE_GDPR_SETTINGS',
+  MANAGE_POLICY_DOCUMENTS = 'MANAGE_POLICY_DOCUMENTS',
   MANAGE_COMMITTEE = 'MANAGE_COMMITTEE',
   VIEW_ADMIN_DASHBOARD = 'VIEW_ADMIN_DASHBOARD'
 }
@@ -184,6 +186,16 @@ export const permissionLabels: Record<
     description: 'Update the homepage hero media and overlay.',
     section: 'Settings'
   },
+  [Permission.MANAGE_GDPR_SETTINGS]: {
+    label: 'GDPR & Privacy',
+    description: 'Configure cookie consent, data retention and GDPR compliance settings.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_POLICY_DOCUMENTS]: {
+    label: 'Policy documents',
+    description: 'Manage privacy policy, terms, membership policy and other legal documents.',
+    section: 'Settings'
+  },
   [Permission.MANAGE_PAGES]: {
     label: 'Pages',
     description: 'Create and edit CMS pages.',
@@ -191,8 +203,8 @@ export const permissionLabels: Record<
   },
   [Permission.MANAGE_PAYMENTS]: {
     label: 'Payments',
-    description: 'Configure payment provider settings.',
-    section: 'Settings'
+    description: 'Configure payment providers, process refunds and run revenue reports.',
+    section: 'Finance'
   },
   [Permission.MANAGE_COMMITTEE]: {
     label: 'Committee',

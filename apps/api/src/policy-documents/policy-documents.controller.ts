@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PolicyDocumentsService } from './policy-documents.service.js';
 import { UpdatePolicyDocumentDto } from './dto/update-policy-document.dto.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { UserRole, PolicyDocumentType } from '@kentslsc/shared';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
+import { Permission, PolicyDocumentType } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('Policy Documents')
@@ -24,22 +24,22 @@ export class PolicyDocumentsController {
   }
 
   @Get('admin/all')
-  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_POLICY_DOCUMENTS)
   listAdmin() {
     return this.service.listAdmin();
   }
 
   @Get('admin/:type')
-  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_POLICY_DOCUMENTS)
   findAdminByType(@Param('type') type: PolicyDocumentType) {
     return this.service.findAdminByType(type);
   }
 
   @Put('admin/:type')
-  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_POLICY_DOCUMENTS)
   upsert(
     @Param('type') type: PolicyDocumentType,
     @Body() dto: UpdatePolicyDocumentDto,

@@ -2,8 +2,8 @@ import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GdprSettingsService } from './gdpr-settings.service.js';
 import { UpdateGdprSettingsDto } from './dto/update-gdpr-settings.dto.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { UserRole } from '@kentslsc/shared';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
+import { Permission } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('GDPR Settings')
@@ -18,8 +18,8 @@ export class GdprSettingsController {
   }
 
   @Put()
-  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @RequirePermission(Permission.MANAGE_GDPR_SETTINGS)
   update(@Body() dto: UpdateGdprSettingsDto) {
     return this.service.update(dto);
   }
