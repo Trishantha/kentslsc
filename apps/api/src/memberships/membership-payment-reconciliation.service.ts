@@ -73,6 +73,7 @@ export class MembershipPaymentReconciliationService {
           );
         }
       }
+      if (candidates.length < RECONCILE_BATCH_SIZE) break;
     }
 
     if (activated > 0) {
