@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Loader2, Newspaper, Eye, Trash2, EyeOff } from 'lucide-react';
+import { Plus, Loader2, Newspaper, Eye, Trash2, EyeOff, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
@@ -37,6 +37,17 @@ export default function AdminBlogPage() {
     }
   });
 
+  const facebookSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/facebook/sync');
+      return res.data as { created: number; updated: number; deleted: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] });
+      queryClient.invalidateQueries({ queryKey: ['blog'] });
+    }
+  });
+
   const handleDelete = (post: AdminBlogPost) => {
     if (confirm(`Are you sure you want to delete "${post.title}"?`)) {
       deleteMutation.mutate(post.id);
@@ -56,13 +67,29 @@ export default function AdminBlogPage() {
       title="Blog Posts"
       description="Create and manage blog posts, SEO settings and previews."
       action={
-        <Link
-          href="/admin/blog/new"
-          className="btn-primary inline-flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          New post
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => facebookSyncMutation.mutate()}
+            disabled={facebookSyncMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600/10 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-600/20 disabled:opacity-50"
+            title="Sync Facebook posts now"
+          >
+            {facebookSyncMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">Sync Facebook</span>
+          </button>
+          <Link
+            href="/admin/blog/new"
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            New post
+          </Link>
+        </div>
       }
     >
       <div className="glass-card p-6">

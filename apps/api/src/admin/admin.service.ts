@@ -57,7 +57,12 @@ export class AdminService {
       flaggedPosts
     ] = await Promise.all([
       this.prisma.user.count({ where: { deletedAt: null } }),
-      this.prisma.membership.count({ where: { deletedAt: null } }),
+      this.prisma.membership.count({
+        where: {
+          deletedAt: null,
+          status: DbMembershipStatus.ACTIVE
+        }
+      }),
       this.prisma.membership.count({
         where: {
           deletedAt: null,

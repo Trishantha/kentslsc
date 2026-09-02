@@ -10,6 +10,7 @@ interface SitePage {
 }
 
 interface BlogPost {
+  type?: string;
   slug: string;
   updatedAt: string;
 }
@@ -108,14 +109,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     );
 
   const blogRoutes: MetadataRoute.Sitemap =
-    blogItems.flatMap((p) =>
-      withLocales(baseUrl, `/blog/${(p as BlogPost).slug}`).map((url) => ({
-        url,
-        lastModified: new Date((p as BlogPost).updatedAt),
-        changeFrequency: 'weekly' as const,
-        priority: 0.7
-      }))
-    );
+    blogItems
+      .filter((p): p is BlogPost => (p as BlogPost).type === 'blog')
+      .flatMap((p) =>
+        withLocales(baseUrl, `/blog/${p.slug}`).map((url) => ({
+          url,
+          lastModified: new Date(p.updatedAt),
+          changeFrequency: 'weekly' as const,
+          priority: 0.7
+        }))
+      );
 
   const eventRoutes: MetadataRoute.Sitemap =
     eventItems.flatMap((e) =>

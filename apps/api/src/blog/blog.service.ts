@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
-import type { BlogPostInput } from '@kentslsc/shared';
+import type { BlogPostInput, MixedBlogListItem } from '@kentslsc/shared';
 
 const PUBLIC_POST_INCLUDE = {
   author: { select: { id: true, name: true } },
@@ -40,23 +40,65 @@ export class BlogService {
     private readonly ai: AiService
   ) {}
 
-  async listPublished() {
-    const items = await this.prisma.blogPost.findMany({
-      where: { isPublished: true, deletedAt: null },
-      orderBy: { publishedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        imageUrl: true,
-        metaDescription: true,
-        tags: true,
-        aiTldr: true,
-        publishedAt: true,
-        createdAt: true
-      }
+  async listPublished(): Promise<MixedBlogListItem[]> {
+    const [blogPosts, facebookPosts] = await Promise.all([
+      this.prisma.blogPost.findMany({
+        where: { isPublished: true, deletedAt: null },
+        orderBy: { publishedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          imageUrl: true,
+          metaDescription: true,
+          tags: true,
+          aiTldr: true,
+          publishedAt: true,
+          createdAt: true
+        }
+      }),
+      this.prisma.externalSocialPost.findMany({
+        where: { source: 'facebook' },
+        orderBy: { publishedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          imageUrl: true,
+          url: true,
+          publishedAt: true
+        }
+      })
+    ]);
+
+    const blogItems: MixedBlogListItem[] = blogPosts.map((post) => ({
+      type: 'blog',
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      imageUrl: post.imageUrl,
+      metaDescription: post.metaDescription,
+      tags: post.tags,
+      aiTldr: post.aiTldr,
+      publishedAt: post.publishedAt?.toISOString() ?? null,
+      createdAt: post.createdAt.toISOString()
+    }));
+
+    const facebookItems: MixedBlogListItem[] = facebookPosts.map((post) => ({
+      type: 'facebook',
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      imageUrl: post.imageUrl,
+      url: post.url,
+      publishedAt: post.publishedAt?.toISOString() ?? null
+    }));
+
+    return [...blogItems, ...facebookItems].sort((a, b) => {
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return dateB - dateA;
     });
-    return items;
   }
 
   async findBySlug(slug: string) {

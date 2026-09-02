@@ -50,6 +50,10 @@ export const envValidationSchema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_KEY: z.string().optional(),
   SUPABASE_BUCKET: z.string().default('KentSLSC'),
+  // Optional Facebook page feed integration. When both are set, the API syncs the
+  // page's posts and merges them into the public blog feed.
+  FACEBOOK_PAGE_ID: z.string().optional(),
+  FACEBOOK_PAGE_ACCESS_TOKEN: z.string().optional(),
   // Login lockout / dev helpers.
   LOGIN_MAX_FAILURES: z.coerce.number().default(5),
   AUTH_DEV_RETURN_VERIFICATION_TOKEN: z.enum(['true', 'false']).default('false')

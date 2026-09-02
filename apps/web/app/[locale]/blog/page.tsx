@@ -8,18 +8,7 @@ import { X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { summarizeRichText } from '@/lib/rich-text';
-
-interface BlogPost {
-  id: string;
-  title: string;
-  slug: string;
-  imageUrl?: string;
-  metaDescription?: string;
-  tags?: string[];
-  aiTldr?: string;
-  publishedAt: string;
-  createdAt: string;
-}
+import type { MixedBlogListItem } from '@kentslsc/shared';
 
 export default function BlogPage() {
   const t = useTranslations('blog');
@@ -27,7 +16,7 @@ export default function BlogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTag = searchParams.get('tag') ?? '';
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [posts, setPosts] = useState<MixedBlogListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,7 +31,7 @@ export default function BlogPage() {
   const filteredPosts = useMemo(() => {
     if (!activeTag) return posts;
     return posts.filter(
-      (post) => post.tags?.some((tag) => tag.toLowerCase() === activeTag.toLowerCase())
+      (post) => post.type === 'blog' && post.tags?.some((tag) => tag.toLowerCase() === activeTag.toLowerCase())
     );
   }, [posts, activeTag]);
 
@@ -89,58 +78,98 @@ export default function BlogPage() {
               {activeTag ? t('noPostsForTag') : t('noPosts')}
             </p>
           ) : (
-            filteredPosts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/blog/${post.slug}`}
-                className="group block"
-              >
-                <article className="glass-card flex flex-col gap-6 p-6 transition-shadow duration-300 hover:shadow-xl md:flex-row">
-                  {post.imageUrl ? (
-                    <img
-                      src={post.imageUrl}
-                      alt={post.title}
-                      className="h-48 w-full rounded-xl object-cover transition-transform duration-500 group-hover:scale-105 md:h-40 md:w-48"
-                    />
-                  ) : (
-                    <div className="h-48 w-full rounded-xl bg-gradient-to-br from-neon-purple/30 to-neon-blue/30 md:h-40 md:w-48" />
-                  )}
-                  <div className="flex flex-1 flex-col">
-                    <h3 className="text-xl font-bold transition-colors group-hover:text-neon-blue">
-                      {post.title}
-                    </h3>
-                    {post.metaDescription || post.aiTldr ? (
-                      <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
-                        {summarizeRichText(post.metaDescription || post.aiTldr, 180)}
-                      </p>
-                    ) : null}
-                    {post.tags && post.tags.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {post.tags.slice(0, 4).map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              navigateToTag(tag);
-                            }}
-                            className="rounded-full bg-neon-blue/10 px-2 py-0.5 text-xs font-medium text-neon-blue transition-colors hover:bg-neon-blue/20"
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
+            filteredPosts.map((post) =>
+              post.type === 'facebook' ? (
+                <a
+                  key={post.id}
+                  href={post.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block"
+                >
+                  <article className="glass-card flex flex-col gap-6 p-6 transition-shadow duration-300 hover:shadow-xl md:flex-row">
+                    {post.imageUrl ? (
+                      <img
+                        src={post.imageUrl}
+                        alt={post.title ?? 'Facebook post'}
+                        className="h-48 w-full rounded-xl object-cover transition-transform duration-500 group-hover:scale-105 md:h-40 md:w-48"
+                      />
+                    ) : (
+                      <div className="h-48 w-full rounded-xl bg-gradient-to-br from-blue-600/30 to-blue-400/30 md:h-40 md:w-48" />
                     )}
-                    <span className="mt-auto inline-block pt-4 text-xs font-medium text-slate-500">
-                      {post.publishedAt
-                        ? formatDate(post.publishedAt)
-                        : formatDate(post.createdAt)}
-                    </span>
-                  </div>
-                </article>
-              </Link>
-            ))
+                    <div className="flex flex-1 flex-col">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold transition-colors group-hover:text-neon-blue">
+                          {post.title ?? 'Facebook post'}
+                        </h3>
+                        <span className="rounded-full bg-blue-600/10 px-2 py-0.5 text-xs font-medium text-blue-600">
+                          Facebook
+                        </span>
+                      </div>
+                      {post.content ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                          {summarizeRichText(post.content, 180)}
+                        </p>
+                      ) : null}
+                      <span className="mt-auto inline-block pt-4 text-xs font-medium text-slate-500">
+                        {post.publishedAt ? formatDate(post.publishedAt) : ''}
+                      </span>
+                    </div>
+                  </article>
+                </a>
+              ) : (
+                <Link
+                  key={post.id}
+                  href={`/blog/${post.slug}`}
+                  className="group block"
+                >
+                  <article className="glass-card flex flex-col gap-6 p-6 transition-shadow duration-300 hover:shadow-xl md:flex-row">
+                    {post.imageUrl ? (
+                      <img
+                        src={post.imageUrl}
+                        alt={post.title}
+                        className="h-48 w-full rounded-xl object-cover transition-transform duration-500 group-hover:scale-105 md:h-40 md:w-48"
+                      />
+                    ) : (
+                      <div className="h-48 w-full rounded-xl bg-gradient-to-br from-neon-purple/30 to-neon-blue/30 md:h-40 md:w-48" />
+                    )}
+                    <div className="flex flex-1 flex-col">
+                      <h3 className="text-xl font-bold transition-colors group-hover:text-neon-blue">
+                        {post.title}
+                      </h3>
+                      {post.metaDescription || post.aiTldr ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                          {summarizeRichText(post.metaDescription || post.aiTldr, 180)}
+                        </p>
+                      ) : null}
+                      {post.tags && post.tags.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {post.tags.slice(0, 4).map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigateToTag(tag);
+                              }}
+                              className="rounded-full bg-neon-blue/10 px-2 py-0.5 text-xs font-medium text-neon-blue transition-colors hover:bg-neon-blue/20"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <span className="mt-auto inline-block pt-4 text-xs font-medium text-slate-500">
+                        {post.publishedAt
+                          ? formatDate(post.publishedAt)
+                          : formatDate(post.createdAt)}
+                      </span>
+                    </div>
+                  </article>
+                </Link>
+              )
+            )
           )}
         </div>
       </div>
