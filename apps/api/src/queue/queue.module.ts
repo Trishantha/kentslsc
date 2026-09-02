@@ -10,7 +10,17 @@ function createQueue(name: string) {
   return {
     provide: name,
     useFactory: (redis: Redis | undefined) => {
-      return redis ? new Queue(name, { connection: redis }) : undefined;
+      return redis
+        ? new Queue(name, {
+            connection: redis,
+            defaultJobOptions: {
+              attempts: 5,
+              backoff: { type: 'exponential', delay: 1_000 },
+              removeOnComplete: { age: 86_400, count: 1_000 },
+              removeOnFail: { age: 604_800, count: 5_000 }
+            }
+          })
+        : undefined;
     },
     inject: [REDIS_CONNECTION]
   };

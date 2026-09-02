@@ -30,12 +30,18 @@ export class WebhookWorkerService implements OnModuleInit, OnModuleDestroy {
       async (job: Job<WebhookJobData>) => this.webhookProcessor.process(job.data),
       { connection: this.redis, concurrency }
     );
+    this.worker.on('failed', (job, error) => {
+      this.logger.error(`Webhook job ${job?.id ?? 'unknown'} failed: ${error.message}`);
+    });
+    this.worker.on('error', (error) => {
+      this.logger.error(`Webhook worker error: ${error.message}`);
+    });
     this.logger.log(`Started webhook worker with concurrency ${concurrency}`);
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     if (this.worker) {
-      void this.worker.close();
+      await this.worker.close();
     }
   }
 }

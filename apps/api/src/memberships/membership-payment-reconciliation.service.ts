@@ -32,36 +32,46 @@ export class MembershipPaymentReconciliationService {
     const since = new Date();
     since.setDate(since.getDate() - RECONCILE_LOOKBACK_DAYS);
 
-    const candidates = await this.prisma.membership.findMany({
-      where: {
-        deletedAt: null,
-        status: MembershipStatus.AWAITING_PAYMENT,
-        paidAt: null,
-        stripeCustomerId: { not: null },
-        updatedAt: { gte: since }
-      },
-      select: { id: true, membershipId: true, stripeCustomerId: true, stripePriceId: true },
-      take: RECONCILE_BATCH_SIZE
-    });
-
+    const where = {
+      deletedAt: null,
+      status: MembershipStatus.AWAITING_PAYMENT,
+      paidAt: null,
+      stripeCustomerId: { not: null },
+      updatedAt: { gte: since }
+    } as const;
+    let cursor: string | undefined;
+    let checked = 0;
     let activated = 0;
 
-    for (const candidate of candidates) {
-      if (!candidate.stripeCustomerId) continue;
+    while (true) {
+      const candidates = await this.prisma.membership.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: { id: true, membershipId: true, stripeCustomerId: true, stripePriceId: true },
+        take: RECONCILE_BATCH_SIZE
+      });
+      if (candidates.length === 0) break;
+      cursor = candidates[candidates.length - 1]?.id;
+      checked += candidates.length;
 
-      try {
-        const subscriptions = await this.paymentsService.listCustomerSubscriptions(
-          candidate.stripeCustomerId
-        );
-        const paid = this.findPaidSubscription(subscriptions, candidate.stripePriceId);
-        if (!paid) continue;
+      for (const candidate of candidates) {
+        if (!candidate.stripeCustomerId) continue;
 
-        const result = await this.membershipsService.applyPaidSubscription(candidate.id, paid);
-        if (result.activated) activated++;
-      } catch (err) {
-        this.logger.warn(
-          `Could not reconcile membership ${candidate.membershipId}: ${(err as Error).message}`
-        );
+        try {
+          const subscriptions = await this.paymentsService.listCustomerSubscriptions(
+            candidate.stripeCustomerId
+          );
+          const paid = this.findPaidSubscription(subscriptions, candidate.stripePriceId);
+          if (!paid) continue;
+
+          const result = await this.membershipsService.applyPaidSubscription(candidate.id, paid);
+          if (result.activated) activated++;
+        } catch (err) {
+          this.logger.warn(
+            `Could not reconcile membership ${candidate.membershipId}: ${(err as Error).message}`
+          );
+        }
       }
     }
 
@@ -69,7 +79,7 @@ export class MembershipPaymentReconciliationService {
       this.logger.log(`Reconciled ${activated} paid membership(s) from Stripe`);
     }
 
-    return { checked: candidates.length, activated };
+    return { checked, activated };
   }
 
   private findPaidSubscription(
