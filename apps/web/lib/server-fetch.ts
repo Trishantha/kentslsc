@@ -40,9 +40,9 @@ export async function fetchWithRetryResult(
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url, fetchOptions);
-      if (!response.ok) {
+      if (response.status >= 500) {
         // Surface API-side failures in server logs instead of letting callers
-        // silently treat 500s as "not found" or empty data.
+        // silently treat server errors as "not found" or empty data.
         let body = '';
         try {
           body = (await response.clone().text()).slice(0, 500);
@@ -96,6 +96,13 @@ export async function fetchApiWithOriginFallback(
   for (const origin of origins) {
     const url = `${origin}${path}`;
     const result = await fetchWithRetryResult(url, options);
+
+    // A 404 from a reachable API is definitive. Trying another origin only
+    // repeats the same lookup and turns an expected missing record into noisy
+    // infrastructure errors during static generation.
+    if (result.ok && result.response.status === 404) {
+      return result;
+    }
 
     // Treat non-2xx responses (and unexpected HTML, e.g. hitting the frontend
     // itself) as a failed attempt so we try the next origin candidate. This is

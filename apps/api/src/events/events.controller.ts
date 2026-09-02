@@ -20,9 +20,10 @@ import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, RecordExternalTicketClickDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
-import { UserRole, type TokenPayload } from '@kentslsc/shared';
+import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 
 @ApiTags('Events')
 @Controller('events')
@@ -116,14 +117,24 @@ export class EventsController {
   }
 
   @Get(':id/tickets')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_TICKETS)
   @ApiBearerAuth()
   listEventTickets(@Param('id') eventId: string) {
     return this.eventsService.listEventTickets(eventId);
   }
 
+  @Get(':id/tickets/attachable-payments')
+  @RequirePermission(Permission.MANAGE_TICKETS)
+  @ApiBearerAuth()
+  findAttachablePayments(
+    @Param('id') eventId: string,
+    @Query('userId') userId: string
+  ) {
+    return this.eventsService.findAttachablePayments(eventId, userId);
+  }
+
   @Post(':id/tickets/generate')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_TICKETS)
   @ApiBearerAuth()
   generateTickets(
     @Param('id') eventId: string,
@@ -134,7 +145,7 @@ export class EventsController {
   }
 
   @Post(':id/tickets/issue')
-  @Roles(UserRole.ADMIN)
+  @RequirePermission(Permission.MANAGE_TICKETS)
   @ApiBearerAuth()
   issueTickets(
     @Param('id') eventId: string,

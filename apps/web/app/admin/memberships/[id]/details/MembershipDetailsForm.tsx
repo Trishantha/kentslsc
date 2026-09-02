@@ -23,17 +23,19 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { AdminMembership } from '../../types';
 
-const STATUSES = ['PENDING', 'AWAITING_APPROVAL', 'ACTIVE', 'EXPIRED', 'CANCELLED'] as const;
+const STATUSES = ['PENDING', 'AWAITING_APPROVAL', 'AWAITING_PAYMENT', 'ACTIVE', 'EXPIRED', 'CANCELLED'] as const;
 
 function statusLabel(status: string) {
   if (status === 'AWAITING_APPROVAL') return 'Awaiting approval';
+  if (status === 'AWAITING_PAYMENT') return 'Awaiting payment';
   return status;
 }
 
 const PROGRESS_STEPS = [
   { key: 'FORM_SUBMITTED', label: 'Form submitted' },
-  { key: 'PAYMENT_PROCESSED', label: 'Payment processed' },
   { key: 'AWAITING_APPROVAL', label: 'Awaiting approval' },
+  { key: 'AWAITING_PAYMENT', label: 'Payment link sent' },
+  { key: 'PAYMENT_PROCESSED', label: 'Payment processed' },
   { key: 'APPROVED', label: 'Approved' }
 ] as const;
 
@@ -151,6 +153,21 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
     onError: (err) => setError(getApiErrorMessage(err))
   });
 
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/memberships/${membership.id}/approve`);
+      return res.data as { url: string; provider: string };
+    },
+    onSuccess: (data) => {
+      setPaymentLink(data.url);
+      setCopied(false);
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'memberships'] });
+      router.refresh();
+    },
+    onError: (err) => setError(getApiErrorMessage(err))
+  });
+
   const handleCopy = async () => {
     if (!paymentLink) return;
     try {
@@ -168,13 +185,11 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
       typeof membership.membershipType.price === 'number' &&
       membership.membershipType.price > 0;
     if (isPaidType && !membership.paymentMethod) {
-      const confirmed = window.confirm(
-        'This membership has not been paid online yet. Approve and mark it as paid manually (e.g. paid offline)?'
-      );
-      if (!confirmed) return;
-      statusMutation.mutate({ nextStatus: 'ACTIVE', confirmManualPayment: true });
+      if (!window.confirm('Approve this application and send the member a payment link?')) return;
+      approveMutation.mutate();
       return;
     }
+    // Free or already-paid memberships can be activated directly.
     statusMutation.mutate({ nextStatus: 'ACTIVE' });
   };
   const handleReject = () => rejectMutation.mutate();
@@ -302,16 +317,20 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
             <button
               type="button"
               onClick={handleApprove}
-              disabled={statusMutation.isPending}
+              disabled={statusMutation.isPending || approveMutation.isPending}
               className="inline-flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-2 text-sm font-semibold text-green-400 transition-colors hover:bg-green-500/20 disabled:opacity-50"
             >
-              <CheckCircle className="h-4 w-4" />
+              {approveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
               Approve
             </button>
             <button
               type="button"
               onClick={handleReject}
-              disabled={statusMutation.isPending || rejectMutation.isPending}
+              disabled={statusMutation.isPending || rejectMutation.isPending || approveMutation.isPending}
               className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
             >
               {rejectMutation.isPending ? (
@@ -324,7 +343,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           </div>
         )}
 
-        {(membership.status === 'PENDING' || membership.status === 'AWAITING_APPROVAL') &&
+        {(membership.status === 'PENDING' || membership.status === 'AWAITING_PAYMENT') &&
           membership.membershipType.isFree === false &&
           typeof membership.membershipType.price === 'number' &&
           membership.membershipType.price > 0 &&
@@ -342,7 +361,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
                 ) : (
                   <Mail className="h-4 w-4" />
                 )}
-                Send payment link
+                Resend payment link
               </button>
             </div>
             {paymentLink && (

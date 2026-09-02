@@ -243,7 +243,7 @@ export class AdminController {
   }
 
   @Get('users')
-  @RequirePermission(Permission.MANAGE_USERS)
+  @RequirePermission(Permission.MANAGE_USERS, Permission.MANAGE_TICKETS)
   listUsers(
     @Query('page') page: string,
     @Query('limit') limit: string,
@@ -263,13 +263,13 @@ export class AdminController {
   }
 
   @Get('users/:id')
-  @RequirePermission(Permission.MANAGE_USERS)
+  @RequirePermission(Permission.MANAGE_USERS, Permission.MANAGE_TICKETS)
   findUser(@Param('id') id: string) {
     return this.adminService.findUserById(id);
   }
 
   @Get('users/:id/transactions')
-  @RequirePermission(Permission.MANAGE_USERS)
+  @RequirePermission(Permission.MANAGE_USERS, Permission.MANAGE_TICKETS)
   getUserTransactions(@Param('id') id: string) {
     return this.usersService.getUserTransactions(id);
   }
@@ -307,6 +307,12 @@ export class AdminController {
     @Body() dto: UpdateMembershipStatusDto
   ) {
     return this.adminService.updateMembershipStatus(id, dto.status, dto.confirmManualPayment);
+  }
+
+  @Post('memberships/:id/approve')
+  @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
+  approveMembership(@Param('id') id: string) {
+    return this.adminService.approveMembership(id);
   }
 
   @Post('memberships/:id/reject')

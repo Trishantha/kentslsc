@@ -111,13 +111,13 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     );
   });
 
-  it('queries pending and awaiting-approval paid memberships', async () => {
+  it('queries pending and awaiting-payment paid memberships', async () => {
     mockPrisma.membership.findMany.mockImplementation((args: any) => {
       const where = args?.where ?? {};
       const matchesPaidPending =
         Array.isArray(where.status?.in) &&
         where.status.in.includes(MembershipStatus.PENDING) &&
-        where.status.in.includes(MembershipStatus.AWAITING_APPROVAL) &&
+        where.status.in.includes(MembershipStatus.AWAITING_PAYMENT) &&
         where.paidAt === null &&
         where.paymentMethod === null &&
         where.membershipType?.isFree === false;

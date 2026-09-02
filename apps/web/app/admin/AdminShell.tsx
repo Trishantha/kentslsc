@@ -15,6 +15,7 @@ import {
   Users,
   CreditCard,
   Calendar,
+  Ticket,
   Building2,
   Briefcase,
   HeartHandshake,
@@ -213,7 +214,7 @@ const navGroups: NavGroup[] = [
     label: 'Membership',
     icon: Users,
     items: [
-      { href: '/admin/users', label: 'Users', icon: Users, permission: Permission.MANAGE_USERS, prefetch: prefetchUsers },
+      { href: '/admin/users', label: 'Users', icon: Users, permission: [Permission.MANAGE_USERS, Permission.MANAGE_TICKETS], prefetch: prefetchUsers },
       { href: '/admin/roles', label: 'Roles', icon: Shield, permission: Permission.MANAGE_USERS },
       { href: '/admin/membership-types', label: 'Membership Types', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMembershipTypes },
       { href: '/admin/memberships', label: 'Memberships', icon: CreditCard, permission: Permission.MANAGE_MEMBERSHIPS, prefetch: prefetchMemberships },

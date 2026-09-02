@@ -20,8 +20,8 @@ export interface AdminMembershipType {
 export interface AdminMembership {
   id: string;
   membershipId: string;
-  status: 'PENDING' | 'AWAITING_APPROVAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
-  progressStage?: 'FORM_SUBMITTED' | 'PAYMENT_PROCESSED' | 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'AWAITING_APPROVAL' | 'AWAITING_PAYMENT' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  progressStage?: 'FORM_SUBMITTED' | 'AWAITING_APPROVAL' | 'AWAITING_PAYMENT' | 'PAYMENT_PROCESSED' | 'APPROVED' | 'REJECTED';
   rejectionReason?: string | null;
   startDate: string | null;
   endDate: string | null;

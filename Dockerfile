@@ -2,7 +2,7 @@ FROM node:22-alpine AS base
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN apk add --no-cache openssl && corepack enable
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -11,7 +11,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY packages/config/package.json ./packages/config/package.json
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
-RUN pnpm install --frozen-lockfile
+RUN mkdir -p apps/web/public && pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
@@ -22,10 +22,10 @@ ENV FRONTEND_URL=http://localhost:3000
 ENV NEXT_PUBLIC_API_URL=http://localhost:3000
 ENV API_PROXY_TARGET=http://localhost:3000
 ENV NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
+ENV WEB_BUILD_NODE_OPTIONS=--max-old-space-size=1536
 RUN pnpm build
 
 FROM base AS runtime
-RUN apk add --no-cache openssl
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/web/.next ./apps/web/.next
 COPY --from=build /app/apps/web/public ./apps/web/public

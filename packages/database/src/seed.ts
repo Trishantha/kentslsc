@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { UserRole, MembershipStatus } from '../dist/client/index.js';
+import { UserRole, MembershipStatus, PolicyDocumentType } from '../dist/client/index.js';
 import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
@@ -145,6 +145,28 @@ async function main() {
     }
   });
 
+  const policyDocuments = [
+    [PolicyDocumentType.PRIVACY_POLICY, 'Privacy Policy'],
+    [PolicyDocumentType.TERMS_CONDITIONS, 'Terms & Conditions'],
+    [PolicyDocumentType.MEMBERSHIP_POLICY, 'Membership Policy'],
+    [PolicyDocumentType.DISCLAIMER, 'Disclaimer'],
+    [PolicyDocumentType.GDPR_POLICY, 'GDPR Compliance Statement'],
+    [PolicyDocumentType.COOKIE_POLICY, 'Cookie Policy']
+  ] as const;
+
+  for (const [type, title] of policyDocuments) {
+    await prisma.policyDocument.upsert({
+      where: { type },
+      update: {},
+      create: {
+        type,
+        title,
+        content: '',
+        isPublished: false
+      }
+    });
+  }
+
   const committeeRoles = [
     { roleKey: 'president', position: 'President' },
     { roleKey: 'vicePresident', position: 'Vice President' },
@@ -172,6 +194,7 @@ async function main() {
     membershipTypes: [freeType.name, paidType.name, familyType.name],
     heroConfig: heroConfig.id,
     homePage: homePage.slug,
+    policyDocuments: policyDocuments.map(([type]) => type),
     committeeRoles: committeeRoles.map((r) => r.roleKey)
   });
 }

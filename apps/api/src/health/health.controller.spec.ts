@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { TerminusModule } from '@nestjs/terminus';
 import { HealthController } from './health.controller.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator.js';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -50,6 +51,10 @@ describe('HealthController', () => {
     controller = module.get<HealthController>(HealthController);
     prisma = module.get<PrismaService>(PrismaService) as jest.Mocked<PrismaService>;
     config = module.get<ConfigService>(ConfigService) as jest.Mocked<ConfigService>;
+  });
+
+  it('exposes operational endpoints without authentication', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController)).toBe(true);
   });
 
   it('live endpoint returns up', async () => {

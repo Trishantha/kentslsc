@@ -5,7 +5,7 @@
 1. **Tickets not issued after Stripe Checkout**
    - Checkout success URL now passes the Stripe `session_id` back to the dashboard.
    - New public endpoint `POST /tickets/confirm-payment` confirms a completed checkout and issues tickets if the webhook was missed.
-   - New admin endpoint `POST /admin/events/:eventId/tickets/issue` lets admins issue tickets retroactively for a known Stripe/PayPal session.
+   - New admin endpoint `POST /events/:eventId/tickets/issue` lets admins issue tickets retroactively for a known Stripe/PayPal session.
    - `events.service.ts` now records a unified `Payment` row for every ticket purchase.
 
 2. **Unified revenue ledger**
@@ -63,16 +63,20 @@ Review the output and then remove `--dry-run` to write the records.
 
 ### 3. Issue a missing ticket manually
 
-If a single purchase is missing a ticket:
+If a single purchase is missing a ticket, staff with the **Tickets** permission can issue tickets from the member's profile:
 
-1. Go to **Admin → Events → [event] → Tickets**.
-2. Click **Issue tickets from existing payment**.
-3. Enter the Stripe Checkout session ID (`cs_...`) and quantity, then submit.
+1. Go to **Admin → Users → [member] → Tickets**.
+2. Expand **Manual issue ticket**.
+3. Select the event and quantity.
+4. Choose an existing completed payment from the revenue report, or leave the payment empty for a complimentary ticket.
+5. Add an internal note and submit.
 
-The endpoint is also available as:
+The panel calls `POST /events/:eventId/tickets/generate` with `userId` and `paymentId`; the backend reuses the existing `Payment` row and links the new `Ticket` rows to it.
+
+For a known Stripe Checkout session ID (`cs_...`), the direct endpoint is also available:
 
 ```bash
-curl -X POST "https://api.kentslsc.co.uk/admin/events/:eventId/tickets/issue" \
+curl -X POST "https://api.kentslsc.co.uk/events/:eventId/tickets/issue" \
   -H "Authorization: Bearer <admin-token>" \
   -H "Content-Type: application/json" \
   -d '{"sessionId":"cs_...","provider":"stripe","quantity":1}'

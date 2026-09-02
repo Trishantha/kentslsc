@@ -8,6 +8,7 @@ import {
 } from '@nestjs/terminus';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AuthEventType } from '@kentslsc/database';
+import { Public } from '../common/decorators/public.decorator.js';
 
 /**
  * Health and readiness endpoints for load balancers and monitoring.
@@ -15,6 +16,7 @@ import { AuthEventType } from '@kentslsc/database';
  * `/health/live` always returns 200 if the process is up.
  * `/health/ready` returns 200 only when critical dependencies are reachable.
  */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(

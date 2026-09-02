@@ -73,6 +73,9 @@ export async function fetchWithOriginFallback<T>(
       if (res && res.ok) {
         return await parser(res);
       }
+      if (res?.status === 404) {
+        return null;
+      }
       attempts.push({ origin, error: res ? `HTTP ${res.status}` : 'no response' });
     } catch (error) {
       attempts.push({ origin, error: (error as Error).message });

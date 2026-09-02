@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Loader2,
@@ -12,10 +12,15 @@ import {
   Calendar,
   MapPin,
   TicketCheck,
-  TicketX
+  TicketX,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
-import { api } from '@/lib/api';
-import { formatDate, cn } from '@/lib/utils';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import type { UserDetail } from '../../types';
 
 interface TicketDesign {
@@ -24,6 +29,25 @@ interface TicketDesign {
   logoUrl?: string;
   sponsorText?: string;
   footerText?: string;
+}
+
+interface EventOption {
+  id: string;
+  title: string;
+  startDatetime: string;
+  isFree: boolean;
+  ticketPrice: number;
+}
+
+interface AttachablePayment {
+  id: string;
+  receiptNumber: string | null;
+  date: string;
+  description: string | null;
+  currency: string;
+  grossAmount: number;
+  paymentStatus: string;
+  sourceType: string;
 }
 
 function parseTicketDesign(raw: unknown): TicketDesign {
@@ -64,7 +88,9 @@ export default function UserTicketsPage() {
   const closeModal = () => setSelectedTicket(null);
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl space-y-6">
+      <ManualIssuePanel userId={id} userName={detail.name} />
+
       <section className="glass-card p-5">
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
           <Ticket className="h-5 w-5 text-neon-blue" /> Tickets
@@ -127,6 +153,207 @@ export default function UserTicketsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ManualIssuePanel({ userId, userName }: { userId: string; userName: string }) {
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
+  const [eventId, setEventId] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [paymentId, setPaymentId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const { data: events, isLoading: eventsLoading } = useQuery<{ data: EventOption[] }>({
+    queryKey: ['events', 'list', 'all-for-issue'],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: EventOption[] }>(
+        '/events?upcoming=false&limit=100'
+      );
+      return data;
+    }
+  });
+
+  const { data: payments, isLoading: paymentsLoading } = useQuery<AttachablePayment[]>({
+    queryKey: ['events', eventId, 'attachable-payments', userId],
+    queryFn: async () => {
+      const { data } = await api.get<AttachablePayment[]>(
+        `/events/${eventId}/tickets/attachable-payments?userId=${userId}`
+      );
+      return data;
+    },
+    enabled: !!eventId
+  });
+
+  const issueMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/events/${eventId}/tickets/generate`, {
+        quantity,
+        userId,
+        ...(paymentId ? { paymentId } : {}),
+        notes
+      });
+      return data;
+    },
+    onSuccess: () => {
+      setStatus({
+        type: 'success',
+        message: `${quantity} ticket(s) issued for ${userName}.`
+      });
+      setEventId('');
+      setQuantity(1);
+      setPaymentId('');
+      setNotes('');
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users', userId] });
+    },
+    onError: (err) => {
+      setStatus({ type: 'error', message: getApiErrorMessage(err) });
+    }
+  });
+
+  const selectedEvent = events?.data.find((e) => e.id === eventId);
+  const canSubmit = !!eventId && quantity >= 1 && !issueMutation.isPending;
+
+  return (
+    <section className="glass-card p-5">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between"
+      >
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
+          <Plus className="h-5 w-5 text-neon-blue" /> Manual issue ticket
+        </h3>
+        {isOpen ? (
+          <ChevronDown className="h-5 w-5 text-slate-500" />
+        ) : (
+          <ChevronRight className="h-5 w-5 text-slate-500" />
+        )}
+      </button>
+      <p className="mt-1 text-left text-sm text-slate-500">
+        Issue tickets to this member when a system error prevented automatic issuance. Attach an
+        existing payment from the revenue report when available.
+      </p>
+
+      {isOpen && (
+        <div className="mt-5 space-y-4 border-t border-white/10 pt-5">
+          {status && (
+            <div
+              className={cn(
+                'flex items-start gap-2 rounded-xl border p-4 text-sm',
+                status.type === 'success'
+                  ? 'border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400'
+                  : 'border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400'
+              )}
+            >
+              {status.type === 'success' ? (
+                <CheckCircle className="h-4 w-4 shrink-0" />
+              ) : (
+                <AlertCircle className="h-4 w-4 shrink-0" />
+              )}
+              {status.message}
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Event</label>
+              <select
+                value={eventId}
+                onChange={(e) => {
+                  setEventId(e.target.value);
+                  setPaymentId('');
+                  setStatus(null);
+                }}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+              >
+                <option value="">Select an event</option>
+                {eventsLoading ? (
+                  <option value="" disabled>
+                    Loading events…
+                  </option>
+                ) : (
+                  events?.data.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} · {formatDate(event.startDatetime)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-500">
+                Attach payment (optional)
+              </label>
+              <select
+                value={paymentId}
+                onChange={(e) => setPaymentId(e.target.value)}
+                disabled={!eventId || paymentsLoading}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
+              >
+                <option value="">
+                  {paymentsLoading ? 'Loading payments…' : 'No payment / complimentary ticket'}
+                </option>
+                {payments?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.receiptNumber ?? 'No receipt'} ·{' '}
+                    {p.description ?? p.sourceType.replace(/_/g, ' ')} ·{' '}
+                    {formatCurrency(p.grossAmount)} · {p.paymentStatus}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Only completed, unattached payments for this member and event are shown.
+              </p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-slate-500">
+                Internal notes
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Reason for manual issue, e.g. Stripe webhook failure"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => issueMutation.mutate()}
+              disabled={!canSubmit}
+              className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {issueMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Ticket className="h-4 w-4" />
+              Issue {quantity} ticket{quantity === 1 ? '' : 's'}
+            </button>
+            {selectedEvent && !selectedEvent.isFree && (
+              <span className="text-xs text-slate-500">
+                Event price: {formatCurrency(selectedEvent.ticketPrice)}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

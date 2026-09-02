@@ -33,6 +33,7 @@ interface MyMembership {
 interface ApplyMembershipResponse {
   membership?: MyMembership;
   paid: boolean;
+  awaitingApproval?: boolean;
   sessionId?: string;
   clientSecret?: string;
   url?: string;
@@ -82,7 +83,7 @@ export default function MembershipPlansPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['my-membership'] });
       if (!data.paid || !data.sessionId || !data.clientSecret) {
-        router.push('/dashboard?membership=success');
+        router.push(data.awaitingApproval ? '/dashboard?membership=awaiting-approval' : '/dashboard?membership=success');
         return;
       }
       router.push(`/checkout?session_id=${encodeURIComponent(data.sessionId)}&client_secret=${encodeURIComponent(data.clientSecret)}`);

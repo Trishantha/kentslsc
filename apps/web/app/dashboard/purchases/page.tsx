@@ -66,15 +66,14 @@ export default function PurchasesPage() {
 
   const getHref = (payment: Payment) => {
     if (payment.event) return `/dashboard/tickets`;
-    if (payment.membership) return `/dashboard`;
+    if (payment.membership) return `/dashboard/membership`;
     if (payment.donation) return `/fundraisers`;
     if (payment.businessListing) return `/directory/${payment.businessListing.id}`;
     return '#';
   };
 
   return (
-    <div className="px-4 py-12 md:px-6">
-      <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl">
         <h1 className="section-title">My Purchases</h1>
         <p className="mt-2 text-slate-600 dark:text-slate-400">
           View your tickets, memberships, donations, and directory payments.
@@ -139,6 +138,5 @@ export default function PurchasesPage() {
           ))}
         </div>
       </div>
-    </div>
   );
 }

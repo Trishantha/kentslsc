@@ -130,7 +130,14 @@ export class MembershipsService {
     const where: Prisma.MembershipWhereInput = {
       userId,
       deletedAt: null,
-      status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+      status: {
+        in: [
+          MembershipStatus.ACTIVE,
+          MembershipStatus.PENDING,
+          MembershipStatus.AWAITING_APPROVAL,
+          MembershipStatus.AWAITING_PAYMENT
+        ]
+      }
     };
     if (excludeId) {
       where.id = { not: excludeId };
@@ -146,7 +153,13 @@ export class MembershipsService {
     const where: Prisma.MembershipWhereInput = {
       userId,
       deletedAt: null,
-      status: { in: [MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+      status: {
+        in: [
+          MembershipStatus.PENDING,
+          MembershipStatus.AWAITING_APPROVAL,
+          MembershipStatus.AWAITING_PAYMENT
+        ]
+      }
     };
     if (excludeId) {
       where.id = { not: excludeId };
@@ -337,12 +350,21 @@ export class MembershipsService {
     paidAt: Date | null;
     rejectionReason?: string | null;
     membershipType: { isFree: boolean; price: Prisma.Decimal | number };
-  }): 'FORM_SUBMITTED' | 'PAYMENT_PROCESSED' | 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED' {
+  }):
+    | 'FORM_SUBMITTED'
+    | 'AWAITING_PAYMENT'
+    | 'PAYMENT_PROCESSED'
+    | 'AWAITING_APPROVAL'
+    | 'APPROVED'
+    | 'REJECTED' {
     if (membership.status === MembershipStatus.CANCELLED) {
       return 'REJECTED';
     }
     if (membership.status === MembershipStatus.ACTIVE || membership.status === MembershipStatus.EXPIRED) {
       return 'APPROVED';
+    }
+    if (membership.status === MembershipStatus.AWAITING_PAYMENT) {
+      return 'AWAITING_PAYMENT';
     }
     const isFree = membership.membershipType.isFree || Number(membership.membershipType.price) === 0;
     if (isFree) return 'AWAITING_APPROVAL';
@@ -567,10 +589,9 @@ export class MembershipsService {
       };
     }
 
-    // New paid membership: create an awaiting-approval record and immediately
-    // collect payment via an embedded Stripe Checkout session. The admin will
-    // still review the application and activate it once payment has landed;
-    // only then is the digital card generated and the member role granted.
+    // New paid membership: create an awaiting-approval record and stop. The admin
+    // must review and approve the application before a payment link is sent;
+    // payment and activation then happen automatically via the webhook.
     await this.cancelPreviousPendingMemberships(userId);
     const awaitingMembership = await this.createMembership({
       userId,
@@ -586,31 +607,10 @@ export class MembershipsService {
       stripePriceId: synced.priceId
     });
 
-    const checkout = await this.paymentsService.createSubscriptionCheckout({
-      priceId: synced.priceId,
-      customer: stripeCustomerId,
-      uiMode: 'embedded',
-      successUrl: `${this.frontendUrl}/dashboard?membership=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
-      cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
-      metadata: {
-        source: 'membership',
-        membershipId: awaitingMembership.id,
-        userId,
-        membershipTypeId: type.id,
-        fullName: dto.fullName,
-        address: dto.address ? JSON.stringify(dto.address) : '',
-        phone: dto.phone ?? '',
-        dependants: JSON.stringify(dependants)
-      }
-    });
-
     return {
       membership: awaitingMembership,
       paid: true,
-      awaitingApproval: true,
-      sessionId: checkout.id,
-      clientSecret: checkout.clientSecret,
-      url: checkout.url
+      awaitingApproval: true
     };
   }
 
@@ -735,14 +735,21 @@ export class MembershipsService {
   }
 
   async findMyMembership(userId: string) {
-    // Prefer the current effective membership (active, pending, or awaiting
-    // approval). If none exists, fall back to the latest record so the UI can
-    // show a status.
+    // Prefer the current effective membership (active, pending, awaiting
+    // approval, or awaiting payment). If none exists, fall back to the latest
+    // record so the UI can show a status.
     let membership = await this.prisma.membership.findFirst({
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+        status: {
+          in: [
+            MembershipStatus.ACTIVE,
+            MembershipStatus.PENDING,
+            MembershipStatus.AWAITING_APPROVAL,
+            MembershipStatus.AWAITING_PAYMENT
+          ]
+        }
       },
       orderBy: { createdAt: 'desc' },
       include: { membershipType: true }
@@ -827,7 +834,14 @@ export class MembershipsService {
         where: {
           userId: user.sub,
           deletedAt: null,
-          status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+          status: {
+            in: [
+              MembershipStatus.ACTIVE,
+              MembershipStatus.PENDING,
+              MembershipStatus.AWAITING_APPROVAL,
+              MembershipStatus.AWAITING_PAYMENT
+            ]
+          }
         },
         orderBy: { createdAt: 'desc' },
         select: { membershipId: true, membershipCardUrl: true }
@@ -981,13 +995,92 @@ export class MembershipsService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL, MembershipStatus.AWAITING_PAYMENT] }
       },
       orderBy: { createdAt: 'desc' },
       select: { id: true }
     });
     if (!membership) throw new NotFoundException('No membership found');
     return this.updateDependants(membership.id, dependants);
+  }
+
+  /**
+   * Approve a paid membership application and send the member a payment link.
+   * The membership moves from AWAITING_APPROVAL to AWAITING_PAYMENT. Payment
+   * and final activation are handled automatically by the Stripe webhook.
+   */
+  async approveAndRequestPayment(id: string) {
+    const membership = await this.prisma.membership.findFirst({
+      where: { id, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } } }
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    if (membership.status !== MembershipStatus.AWAITING_APPROVAL) {
+      throw new BadRequestException('Only awaiting-approval memberships can be approved for payment');
+    }
+
+    const isPaidType = !membership.membershipType.isFree && Number(membership.membershipType.price) > 0;
+    if (!isPaidType) {
+      throw new BadRequestException('Free memberships do not require a payment link');
+    }
+
+    if (membership.paidAt || membership.stripeSubscriptionId) {
+      throw new BadRequestException('This membership has already been paid');
+    }
+
+    const fullName = membership.user.name;
+    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(
+      membership.userId,
+      membership.user.email
+    );
+    const synced = await this.paymentsService.syncMembershipTypePrice({
+      id: membership.membershipType.id,
+      name: membership.membershipType.name,
+      price: Number(membership.membershipType.price),
+      durationMonths: membership.membershipType.durationMonths
+    });
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: MembershipStatus.AWAITING_PAYMENT,
+        stripeCustomerId,
+        stripePriceId: synced.priceId,
+        startDate: new Date()
+      },
+      include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
+    });
+
+    const checkout = await this.paymentsService.createSubscriptionCheckout({
+      priceId: synced.priceId,
+      customer: stripeCustomerId,
+      successUrl: `${this.frontendUrl}/dashboard?membership=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
+      cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
+      metadata: {
+        source: 'membership',
+        membershipId: membership.id,
+        userId: membership.userId,
+        membershipTypeId: membership.membershipType.id,
+        fullName,
+        address: '',
+        phone: '',
+        dependants: JSON.stringify((membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [])
+      }
+    });
+
+    await this.emailService.sendMembershipPaymentLink(
+      membership.user.email,
+      fullName,
+      membership.membershipType.name,
+      checkout.url
+    );
+
+    return {
+      membership: await this.findMembershipById(updated.id),
+      url: checkout.url,
+      provider: checkout.provider
+    };
   }
 
   async updateStatus(id: string, status: MembershipStatus, confirmManualPayment = false) {
@@ -1074,9 +1167,24 @@ export class MembershipsService {
   }
 
   /**
+   * Find the default free membership type to fall back to when a paid
+   * application is rejected. Prefers an active (not paused, not deleted) free
+   * type with the lowest price.
+   */
+  private async findDefaultFreeMembershipType() {
+    return this.prisma.membershipType.findFirst({
+      where: { deletedAt: null, isPaused: false, isFree: true },
+      orderBy: { price: 'asc' }
+    });
+  }
+
+  /**
    * Decline a membership application. Any completed payments linked to it are
    * refunded in full, any Stripe subscription is cancelled, and the member is
    * notified by email that their application was not accepted.
+   *
+   * For paid memberships, the user is automatically given a free membership
+   * (if one exists) so they still have access to basic member benefits.
    */
   async rejectMembership(id: string, reason?: string) {
     const membership = await this.prisma.membership.findFirst({
@@ -1118,30 +1226,82 @@ export class MembershipsService {
       });
     }
 
-    const updated = await this.prisma.membership.update({
-      where: { id },
-      data: {
-        status: MembershipStatus.CANCELLED,
-        rejectionReason: reason ?? null
-      },
-      include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
-    });
+    const isPaidType = !membership.membershipType.isFree && Number(membership.membershipType.price) > 0;
+    const freeType = isPaidType ? await this.findDefaultFreeMembershipType() : null;
 
-    await this.syncMemberRole(updated.userId);
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.membership.update({
+        where: { id },
+        data: {
+          status: MembershipStatus.CANCELLED,
+          rejectionReason: reason ?? null
+        },
+        include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
+      }),
+      ...(freeType
+        ? [
+            this.prisma.membership.create({
+              data: {
+                userId: membership.userId,
+                membershipTypeId: freeType.id,
+                startDate: new Date(),
+                endDate: this.computeEndDate(freeType, new Date()),
+                status: MembershipStatus.ACTIVE,
+                dependantsJson:
+                  membership.dependantsJson === null
+                    ? Prisma.JsonNull
+                    : (membership.dependantsJson as Prisma.InputJsonValue),
+                membershipId: this.generateMembershipId(),
+                qrCodeValue: `${this.frontendUrl}/membership/verify/${this.generateMembershipId()}`,
+                issuedAt: new Date()
+              },
+              include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
+            })
+          ]
+        : [])
+    ]);
 
-    if (updated.user?.email) {
-      await this.emailService
-        .sendMembershipRejectedEmail(
-          updated.user.email,
-          updated.user.name ?? 'Member',
-          updated.membershipType.name,
-          refunded,
-          reason
-        )
-        .catch((err) => this.logger.warn(`Failed to send rejection email: ${(err as Error).message}`));
+    let freeMembership: typeof updated | undefined;
+    if (freeType) {
+      const createdFree = (await this.prisma.membership.findFirst({
+        where: { userId: membership.userId, deletedAt: null, status: MembershipStatus.ACTIVE, membershipTypeId: freeType.id },
+        orderBy: { createdAt: 'desc' },
+        include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
+      }))!;
+      freeMembership = createdFree;
+      const dependants = (createdFree.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(createdFree.userId, createdFree.user.name);
+      const withCard = await this.generateAndAttachCard(createdFree, memberName, dependants);
+      await this.sendWelcomeEmail(createdFree.userId, memberName, createdFree.user.email, withCard.membershipCardUrl);
     }
 
-    return updated;
+    await this.syncMemberRole(membership.userId);
+
+    if (updated.user?.email) {
+      if (freeMembership) {
+        await this.emailService
+          .sendMembershipRejectedToFreeEmail(
+            updated.user.email,
+            updated.user.name ?? 'Member',
+            updated.membershipType.name,
+            freeMembership.membershipType.name,
+            reason
+          )
+          .catch((err) => this.logger.warn(`Failed to send rejection email: ${(err as Error).message}`));
+      } else {
+        await this.emailService
+          .sendMembershipRejectedEmail(
+            updated.user.email,
+            updated.user.name ?? 'Member',
+            updated.membershipType.name,
+            refunded,
+            reason
+          )
+          .catch((err) => this.logger.warn(`Failed to send rejection email: ${(err as Error).message}`));
+      }
+    }
+
+    return { rejected: updated, freeMembership };
   }
 
   async handleWebhook(rawBody: Buffer | string, signature: string) {
@@ -1299,13 +1459,14 @@ export class MembershipsService {
       });
 
       if (existing && existing.status !== MembershipStatus.CANCELLED) {
-        // Only legacy PENDING records auto-activate. AWAITING_APPROVAL records
-        // require a deliberate admin decision — payment alone must never grant
-        // access, otherwise the whole approval workflow is bypassed.
-        const activate = existing.status === MembershipStatus.PENDING;
+        // Legacy PENDING records and approved AWAITING_PAYMENT records auto-
+        // activate on payment. AWAITING_APPROVAL records still require an admin
+        // decision before payment.
+        const activate =
+          existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_PAYMENT;
         const wasUnpaid = !existing.paidAt;
 
-        await this.prisma.membership.update({
+        const updated = await this.prisma.membership.update({
           where: { id: existing.id },
           data: {
             status: activate ? MembershipStatus.ACTIVE : existing.status,
@@ -1317,9 +1478,17 @@ export class MembershipsService {
             stripeCustomerId: customerId,
             stripePriceId: stripePriceId ?? existing.stripePriceId,
             subscriptionStatus: stripeSubscription.status
-          }
+          },
+          include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
         });
-        const updated = await this.findMembershipById(existing.id);
+
+        if (activate) {
+          const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+          const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+          const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+          await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+        }
+
         const sessionPaymentIntentId =
           typeof session.payment_intent === 'string'
             ? session.payment_intent
@@ -1462,10 +1631,11 @@ export class MembershipsService {
           return { received: true, membershipId: existing.membershipId };
         }
 
-        // Only legacy PENDING records auto-activate. AWAITING_APPROVAL records
-        // require a deliberate admin decision — payment alone must never grant
-        // access, otherwise the whole approval workflow is bypassed.
-        const activate = existing.status === MembershipStatus.PENDING;
+        // Legacy PENDING records and approved AWAITING_PAYMENT records auto-
+        // activate on payment. AWAITING_APPROVAL records still require an admin
+        // decision before payment.
+        const activate =
+          existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_PAYMENT;
         const wasUnpaid = !existing.paidAt;
         const startDate = activate ? new Date() : existing.startDate;
         const endDate =
@@ -1488,6 +1658,14 @@ export class MembershipsService {
           },
           include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
         });
+
+        if (activate) {
+          const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+          const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+          const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+          await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+        }
+
         await this.recordMembershipPayment(updated, {
           channel: gatewayContext?.channel ?? paymentMethod,
           method: paymentMethod,
@@ -1629,7 +1807,14 @@ export class MembershipsService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] },
+        status: {
+          in: [
+            MembershipStatus.ACTIVE,
+            MembershipStatus.PENDING,
+            MembershipStatus.AWAITING_APPROVAL,
+            MembershipStatus.AWAITING_PAYMENT
+          ]
+        },
         stripeCustomerId: { not: null }
       },
       orderBy: { createdAt: 'desc' },
@@ -1748,15 +1933,26 @@ export class MembershipsService {
       ? new Date(invoice.status_transitions.paid_at * 1000)
       : new Date();
 
+    const activate = membership.status === MembershipStatus.AWAITING_PAYMENT;
+
     await this.prisma.membership.update({
       where: { id: membership.id },
       data: {
+        status: activate ? MembershipStatus.ACTIVE : membership.status,
         paidAt,
         paymentMethod: 'stripe',
         endDate,
         subscriptionStatus: 'active'
       }
     });
+
+    if (activate) {
+      const dependants = (membership.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(membership.userId, membership.user.name);
+      const withCard = await this.generateAndAttachCard(membership, memberName, dependants);
+      await this.sendWelcomeEmail(membership.userId, memberName, membership.user.email, withCard.membershipCardUrl);
+      await this.syncMemberRole(membership.userId);
+    }
 
     const paymentIntent = invoiceAny.payment_intent;
     const paymentIntentId =

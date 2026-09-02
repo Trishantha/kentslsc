@@ -13,6 +13,7 @@ const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All statuses' },
   { value: 'PENDING', label: 'Pending' },
   { value: 'AWAITING_APPROVAL', label: 'Awaiting approval' },
+  { value: 'AWAITING_PAYMENT', label: 'Awaiting payment' },
   { value: 'ACTIVE', label: 'Active' },
   { value: 'EXPIRED', label: 'Expired' },
   { value: 'CANCELLED', label: 'Cancelled' }

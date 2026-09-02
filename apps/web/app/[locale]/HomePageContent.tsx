@@ -611,8 +611,6 @@ export default function HomePageContent() {
           </div>
         ) : (
           <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-950" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-slate-50 to-transparent dark:from-slate-950" />
             <div className="animate-marquee hover:[animation-play-state:paused] flex w-max gap-6">
               {duplicatedBusinesses.map((business, idx) => (
                 <Link

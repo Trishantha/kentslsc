@@ -318,6 +318,24 @@ ${refunded ? '<p>Your payment has been refunded in full and should appear back o
     });
   }
 
+  async sendMembershipRejectedToFreeEmail(
+    email: string,
+    name: string,
+    paidMembershipTypeName: string,
+    freeMembershipTypeName: string,
+    reason?: string | null
+  ) {
+    return this.send({
+      to: email,
+      subject: 'Update on your Kent SLSC membership application',
+      html: `<p>Hi ${escapeHtml(name)},</p>
+<p>We are unable to approve your application for the <strong>${escapeHtml(paidMembershipTypeName)}</strong> membership at this time.</p>
+${reason ? `<p>Reason: ${escapeHtml(reason)}</p>` : ''}
+<p>We have created a <strong>${escapeHtml(freeMembershipTypeName)}</strong> membership for you instead. You can access your digital membership card from your dashboard.</p>
+<p>If you believe this is a mistake or would like more information, please contact the club admin.</p>`
+    });
+  }
+
   async sendDirectoryPromotionPaymentLink(email: string, businessName: string, paymentUrl: string) {
     return this.send({
       to: email,

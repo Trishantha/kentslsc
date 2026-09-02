@@ -61,7 +61,13 @@ export class AdminService {
       this.prisma.membership.count({
         where: {
           deletedAt: null,
-          status: { in: [DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] }
+          status: {
+            in: [
+              DbMembershipStatus.PENDING,
+              DbMembershipStatus.AWAITING_APPROVAL,
+              DbMembershipStatus.AWAITING_PAYMENT
+            ]
+          }
         }
       }),
       this.prisma.event.count({ where: { deletedAt: null } }),
@@ -194,6 +200,10 @@ export class AdminService {
     return this.membershipsService.updateStatus(id, status as DbMembershipStatus, confirmManualPayment);
   }
 
+  approveMembership(id: string) {
+    return this.membershipsService.approveAndRequestPayment(id);
+  }
+
   rejectMembership(id: string, reason?: string) {
     return this.membershipsService.rejectMembership(id, reason);
   }
@@ -269,7 +279,14 @@ export class AdminService {
       where: {
         userId,
         deletedAt: null,
-        status: { in: [DbMembershipStatus.ACTIVE, DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] },
+        status: {
+          in: [
+            DbMembershipStatus.ACTIVE,
+            DbMembershipStatus.PENDING,
+            DbMembershipStatus.AWAITING_APPROVAL,
+            DbMembershipStatus.AWAITING_PAYMENT
+          ]
+        },
         id: { not: membership.id }
       },
       data: { status: DbMembershipStatus.CANCELLED, updatedAt: new Date() }
@@ -283,49 +300,13 @@ export class AdminService {
       return { membership, paid: true, paymentMethod: 'offline' };
     }
 
-    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
-    const synced = await this.paymentsService.syncMembershipTypePrice({
-      id: membershipType.id,
-      name: membershipType.name,
-      price: Number(membershipType.price),
-      durationMonths: membershipType.durationMonths
-    });
-
-    await this.prisma.membership.update({
-      where: { id: membership.id },
-      data: { stripeCustomerId, stripePriceId: synced.priceId }
-    });
-
-    const checkout = await this.paymentsService.createSubscriptionCheckout({
-      priceId: synced.priceId,
-      customer: stripeCustomerId,
-      successUrl: `${this.frontendUrl}/dashboard?membership=success&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
-      cancelUrl: `${this.frontendUrl}/dashboard?membership=canceled`,
-      metadata: {
-        source: 'membership',
-        membershipId: membership.id,
-        userId: user.id,
-        membershipTypeId: membershipType.id,
-        fullName,
-        address: address ? JSON.stringify(address) : '',
-        phone: user.phone ?? '',
-        dependants: JSON.stringify(dto.dependants ?? [])
-      }
-    });
-
-    await this.emailService.sendMembershipPaymentLink(
-      user.email,
-      fullName,
-      membershipType.name,
-      checkout.url
-    );
-
+    // Paid + online: the membership is awaiting admin approval. The admin must
+    // explicitly approve it before a payment link is sent.
     return {
       membership,
       paid: true,
-      paymentMethod: checkout.provider,
-      url: checkout.url,
-      provider: checkout.provider
+      paymentMethod: 'online',
+      awaitingApproval: true
     };
   }
 
@@ -337,9 +318,9 @@ export class AdminService {
     if (!membership) throw new NotFoundException('Membership not found');
     if (
       membership.status !== DbMembershipStatus.PENDING &&
-      membership.status !== DbMembershipStatus.AWAITING_APPROVAL
+      membership.status !== DbMembershipStatus.AWAITING_PAYMENT
     ) {
-      throw new BadRequestException('Only pending or awaiting-approval memberships can be sent a payment link');
+      throw new BadRequestException('Only pending or awaiting-payment memberships can be sent a payment link');
     }
     if (membership.membershipType.isFree || Number(membership.membershipType.price) === 0) {
       throw new BadRequestException('Free memberships do not require payment');
@@ -392,7 +373,7 @@ export class AdminService {
     const pending = await this.prisma.membership.findMany({
       where: {
         deletedAt: null,
-        status: { in: [DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_APPROVAL] },
+        status: { in: [DbMembershipStatus.PENDING, DbMembershipStatus.AWAITING_PAYMENT] },
         paidAt: null,
         paymentMethod: null,
         membershipType: { isFree: false, price: { gt: 0 } }

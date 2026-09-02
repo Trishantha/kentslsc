@@ -13,6 +13,7 @@ export enum UserStatus {
 export enum MembershipStatus {
   PENDING = 'PENDING',
   AWAITING_APPROVAL = 'AWAITING_APPROVAL',
+  AWAITING_PAYMENT = 'AWAITING_PAYMENT',
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   CANCELLED = 'CANCELLED'
@@ -140,7 +141,7 @@ export const permissionLabels: Record<
   },
   [Permission.MANAGE_TICKETS]: {
     label: 'Tickets',
-    description: 'Scan and validate event tickets.',
+    description: 'Scan and validate event tickets, and manually issue tickets against existing payments.',
     section: 'Community'
   },
   [Permission.MANAGE_DIRECTORY]: {

@@ -233,7 +233,14 @@ describe('MembershipsService', () => {
           where: expect.objectContaining({
             userId: 'user-1',
             deletedAt: null,
-            status: { in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+            status: {
+              in: [
+                MembershipStatus.ACTIVE,
+                MembershipStatus.PENDING,
+                MembershipStatus.AWAITING_APPROVAL,
+                MembershipStatus.AWAITING_PAYMENT
+              ]
+            }
           }),
           data: { status: MembershipStatus.CANCELLED, updatedAt: expect.any(Date) }
         })
@@ -249,7 +256,7 @@ describe('MembershipsService', () => {
       );
     });
 
-    it('creates an awaiting-approval membership for paid types and creates an embedded checkout session', async () => {
+    it('creates an awaiting-approval membership for paid types without starting checkout', async () => {
       const dto: ApplyMembershipDto = {
         membershipTypeId: 'type-paid',
         fullName: 'Test User',
@@ -274,10 +281,7 @@ describe('MembershipsService', () => {
       expect(result).toEqual({
         membership: mockAwaitingApprovalMembership,
         paid: true,
-        awaitingApproval: true,
-        sessionId: mockSubscriptionCheckoutResult.id,
-        clientSecret: mockSubscriptionCheckoutResult.clientSecret,
-        url: mockSubscriptionCheckoutResult.url
+        awaitingApproval: true
       });
       expect(mockPrisma.membership.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -290,17 +294,7 @@ describe('MembershipsService', () => {
           })
         })
       );
-      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalledWith(
-        expect.objectContaining({
-          priceId: mockSyncedPrice.priceId,
-          customer: 'cus_test_user_1',
-          uiMode: 'embedded',
-          metadata: expect.objectContaining({
-            source: 'membership',
-            membershipId: mockAwaitingApprovalMembership.id
-          })
-        })
-      );
+      expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
       expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith('user-1', 'test@example.com');
     });
 
@@ -331,7 +325,13 @@ describe('MembershipsService', () => {
           where: expect.objectContaining({
             userId: 'user-1',
             deletedAt: null,
-            status: { in: [MembershipStatus.PENDING, MembershipStatus.AWAITING_APPROVAL] }
+            status: {
+              in: [
+                MembershipStatus.PENDING,
+                MembershipStatus.AWAITING_APPROVAL,
+                MembershipStatus.AWAITING_PAYMENT
+              ]
+            }
           }),
           data: { status: MembershipStatus.CANCELLED, updatedAt: expect.any(Date) }
         })
