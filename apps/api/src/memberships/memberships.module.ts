@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MembershipsService } from './memberships.service.js';
 import { MembershipsController } from './memberships.controller.js';
 import { MembershipExpiryService } from './membership-expiry.service.js';
+import { MembershipPaymentReconciliationService } from './membership-payment-reconciliation.service.js';
 import { PrismaModule } from '../core/prisma/prisma.module.js';
 import { PaymentsModule } from '../payments/payments.module.js';
 import { EmailModule } from '../email/email.module.js';
@@ -10,7 +11,7 @@ import { AuthorizationModule } from '../authorization/authorization.module.js';
 
 @Module({
   imports: [PrismaModule, PaymentsModule, EmailModule, AiModule, AuthorizationModule],
-  providers: [MembershipsService, MembershipExpiryService],
+  providers: [MembershipsService, MembershipExpiryService, MembershipPaymentReconciliationService],
   controllers: [MembershipsController],
   exports: [MembershipsService]
 })

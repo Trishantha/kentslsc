@@ -24,6 +24,11 @@ import type { CreateMembershipTypeDto } from './dto/create-membership-type.dto.j
 import type { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 import type { StructuredAddressDto } from '../auth/dto/address.dto.js';
+import {
+  resolveInvoicePaymentIntentId,
+  resolveInvoiceSubscriptionId,
+  resolveSubscriptionPeriodEnd
+} from '../payments/utils/stripe-compat.js';
 
 export interface CreateMembershipData {
   userId: string;
@@ -1411,13 +1416,29 @@ export class MembershipsService {
     const amountPence =
       metadata.amountPence ? Number(metadata.amountPence) : Number(session.amount_total ?? 0);
 
-    if (!subscriptionId) {
+    let stripeSubscription: Stripe.Subscription | null = null;
+    if (subscriptionId) {
+      try {
+        stripeSubscription = await this.paymentsService.getSubscription(subscriptionId);
+      } catch (err) {
+        // A failure to read the subscription must never block the activation of
+        // a membership Stripe has already collected payment for. Fall back to
+        // the non-subscription path so the member is activated, the card is
+        // issued and the payment is recorded.
+        this.logger.warn(
+          `Could not retrieve Stripe subscription ${subscriptionId} for session ${session.id}: ` +
+            `${(err as Error).message}. Applying the payment without subscription details.`
+        );
+      }
+    }
+
+    if (!subscriptionId || !stripeSubscription) {
       // Fallback for any non-subscription membership checkout (legacy one-off).
       return this.handleMembershipCheckoutCompleted(
         metadata,
         'stripe',
         session.customer_email ?? undefined,
-        undefined,
+        subscriptionId ? { subscriptionId } : undefined,
         {
           channel: 'stripe',
           providerCheckoutId: session.id,
@@ -1429,6 +1450,7 @@ export class MembershipsService {
             typeof session.payment_intent === 'string'
               ? session.payment_intent
               : session.payment_intent?.id ?? null,
+          providerSubscriptionId: subscriptionId ?? null,
           amountPence,
           currency,
           payerName: session.customer_details?.name ?? null,
@@ -1438,12 +1460,16 @@ export class MembershipsService {
       );
     }
 
-    const stripeSubscription = await this.paymentsService.getSubscription(subscriptionId);
     const stripePriceId = stripeSubscription.items.data[0]?.price.id;
     const customerId = typeof stripeSubscription.customer === 'string'
       ? stripeSubscription.customer
       : stripeSubscription.customer.id;
-    const currentPeriodEnd = new Date((stripeSubscription as any).current_period_end * 1000);
+    // Stripe moved `current_period_end` onto subscription items in API version
+    // 2025-03-31.basil, so read it from there and fall back to the locally
+    // computed period when Stripe does not provide a usable value. Without this
+    // the update below received an Invalid Date and the whole activation failed,
+    // leaving paid members stuck on "Awaiting payment".
+    const currentPeriodEnd = resolveSubscriptionPeriodEnd(stripeSubscription);
 
     if (metadata.membershipId) {
       const existing = await this.prisma.membership.findUnique({
@@ -1458,6 +1484,10 @@ export class MembershipsService {
         const activate =
           existing.status === MembershipStatus.PENDING || existing.status === MembershipStatus.AWAITING_PAYMENT;
         const wasUnpaid = !existing.paidAt;
+        const startDate = activate ? new Date() : existing.startDate;
+        const endDate =
+          currentPeriodEnd ??
+          (activate ? this.computeEndDate(existing.membershipType, startDate ?? new Date()) : existing.endDate);
 
         const updated = await this.prisma.membership.update({
           where: { id: existing.id },
@@ -1465,8 +1495,8 @@ export class MembershipsService {
             status: activate ? MembershipStatus.ACTIVE : existing.status,
             paidAt: new Date(),
             paymentMethod: 'stripe',
-            startDate: activate ? new Date() : existing.startDate,
-            endDate: currentPeriodEnd,
+            startDate,
+            endDate,
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
             stripePriceId: stripePriceId ?? existing.stripePriceId,
@@ -1492,10 +1522,7 @@ export class MembershipsService {
             ? (stripeSubscription.latest_invoice as Stripe.Invoice)
             : null;
         const invoicePaymentIntentId =
-          sessionPaymentIntentId ??
-          (typeof (latestInvoice as any)?.payment_intent === 'string'
-            ? (latestInvoice as any).payment_intent
-            : (latestInvoice as any)?.payment_intent?.id);
+          sessionPaymentIntentId ?? resolveInvoicePaymentIntentId(latestInvoice) ?? undefined;
         await this.recordMembershipPayment(updated, {
           channel: 'stripe',
           method: 'subscription',
@@ -1525,14 +1552,18 @@ export class MembershipsService {
         ? (stripeSubscription.latest_invoice as Stripe.Invoice)
         : null;
     const subscriptionPaymentIntentId =
-      typeof (subscriptionLatestInvoice as any)?.payment_intent === 'string'
-        ? (subscriptionLatestInvoice as any).payment_intent
-        : (subscriptionLatestInvoice as any)?.payment_intent?.id;
+      resolveInvoicePaymentIntentId(subscriptionLatestInvoice) ?? undefined;
     return this.handleMembershipCheckoutCompleted(
       metadata,
       'stripe',
       session.customer_email ?? undefined,
-      { subscriptionId, currentPeriodEnd, stripePriceId, stripeCustomerId: customerId, subscriptionStatus: stripeSubscription.status },
+      {
+        subscriptionId,
+        currentPeriodEnd: currentPeriodEnd ?? undefined,
+        stripePriceId,
+        stripeCustomerId: customerId,
+        subscriptionStatus: stripeSubscription.status
+      },
       {
         channel: 'stripe',
         providerCheckoutId: session.id,
@@ -1579,7 +1610,7 @@ export class MembershipsService {
     customerEmail?: string,
     subscriptionContext?: {
       subscriptionId: string;
-      currentPeriodEnd: Date;
+      currentPeriodEnd?: Date;
       stripePriceId?: string | null;
       stripeCustomerId?: string;
       subscriptionStatus?: string;
@@ -1823,7 +1854,8 @@ export class MembershipsService {
 
   async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     const membership = await this.prisma.membership.findFirst({
-      where: { stripeSubscriptionId: subscription.id, deletedAt: null }
+      where: { stripeSubscriptionId: subscription.id, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
     });
 
     if (!membership) {
@@ -1856,20 +1888,124 @@ export class MembershipsService {
       }
     }
 
-    await this.prisma.membership.update({
+    // The subscription becoming active means Stripe collected the payment, so
+    // finish the activation the same way the checkout handler does: mark the
+    // membership paid and issue the card.
+    const activating =
+      membershipStatus === MembershipStatus.ACTIVE &&
+      membership.status !== MembershipStatus.ACTIVE;
+
+    const updated = await this.prisma.membership.update({
       where: { id: membership.id },
       data: {
         status: membershipStatus,
-        endDate: new Date((subscription as any).current_period_end * 1000),
+        endDate:
+          resolveSubscriptionPeriodEnd(subscription) ??
+          (activating
+            ? this.computeEndDate(membership.membershipType, membership.startDate ?? new Date())
+            : membership.endDate),
+        ...(activating && !membership.paidAt
+          ? { paidAt: new Date(), paymentMethod: membership.paymentMethod ?? 'stripe' }
+          : {}),
         stripePriceId: priceId ?? membership.stripePriceId,
         membershipTypeId,
         subscriptionStatus: status
-      }
+      },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
     });
+
+    if (activating && !updated.membershipCardUrl) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+    }
 
     await this.syncMemberRole(membership.userId);
 
     return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * Apply a paid Stripe subscription to a membership that is still waiting for
+   * payment: activate it, mark it paid, record the payment and issue the card.
+   *
+   * This is the recovery path used when neither the Stripe webhook nor the
+   * browser confirmation managed to apply a successful payment.
+   */
+  async applyPaidSubscription(membershipId: string, subscription: Stripe.Subscription) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { id: membershipId, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+
+    if (!membership) return { activated: false };
+    if (
+      membership.status !== MembershipStatus.AWAITING_PAYMENT &&
+      membership.status !== MembershipStatus.PENDING
+    ) {
+      return { activated: false };
+    }
+
+    const customerId =
+      typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+    const priceId = subscription.items.data[0]?.price.id;
+    const startDate = membership.startDate ?? new Date();
+    const endDate =
+      resolveSubscriptionPeriodEnd(subscription) ??
+      this.computeEndDate(membership.membershipType, startDate);
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: MembershipStatus.ACTIVE,
+        paidAt: membership.paidAt ?? new Date(),
+        paymentMethod: membership.paymentMethod ?? 'stripe',
+        startDate,
+        endDate,
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: customerId ?? membership.stripeCustomerId,
+        stripePriceId: priceId ?? membership.stripePriceId,
+        subscriptionStatus: subscription.status
+      },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+
+    if (!updated.membershipCardUrl) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+    }
+
+    const latestInvoice =
+      subscription.latest_invoice && typeof subscription.latest_invoice !== 'string'
+        ? (subscription.latest_invoice as Stripe.Invoice)
+        : null;
+    const paymentIntentId = resolveInvoicePaymentIntentId(latestInvoice) ?? undefined;
+
+    await this.recordMembershipPayment(updated, {
+      channel: 'stripe',
+      method: 'subscription',
+      currency: (latestInvoice?.currency ?? 'gbp').toUpperCase(),
+      amountPence:
+        latestInvoice?.amount_paid ?? Math.round(Number(updated.membershipType.price) * 100),
+      providerCheckoutId: latestInvoice?.id ?? null,
+      providerPaymentId: paymentIntentId,
+      providerSubscriptionId: subscription.id,
+      stripePaymentIntentId: paymentIntentId,
+      payerEmail: updated.user?.email ?? null,
+      payerName: updated.user?.name ?? null,
+      notes: 'Membership subscription payment reconciled from Stripe'
+    });
+
+    await this.syncMemberRole(updated.userId);
+
+    this.logger.log(
+      `Reconciled Stripe subscription ${subscription.id} onto membership ${updated.membershipId}`
+    );
+
+    return { activated: true, membershipId: updated.membershipId };
   }
 
   async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -1896,13 +2032,9 @@ export class MembershipsService {
   }
 
   async handleInvoicePaid(invoice: Stripe.Invoice) {
-    // Stripe SDK v22 typings omit some Invoice fields that are present at runtime,
-    // so we read them through a type-safe cast.
-    const invoiceAny = invoice as any;
-    const subscriptionId =
-      typeof invoiceAny.subscription === 'string'
-        ? invoiceAny.subscription
-        : invoiceAny.subscription?.id;
+    // Stripe moved the subscription reference to `parent.subscription_details`
+    // in API version 2025-03-31.basil; the helper also reads the legacy field.
+    const subscriptionId = resolveInvoiceSubscriptionId(invoice);
 
     if (!subscriptionId) {
       return { received: true, membershipId: null };
@@ -1944,9 +2076,7 @@ export class MembershipsService {
       await this.syncMemberRole(membership.userId);
     }
 
-    const paymentIntent = invoiceAny.payment_intent;
-    const paymentIntentId =
-      typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id ?? null;
+    const paymentIntentId = resolveInvoicePaymentIntentId(invoice);
     await this.recordMembershipPayment(membership, {
       channel: 'stripe',
       method: 'subscription',

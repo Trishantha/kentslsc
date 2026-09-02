@@ -12,6 +12,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import type { Prisma } from '@kentslsc/database';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
+import { resolveInvoicePaymentIntentId } from './utils/stripe-compat.js';
 
 const STRIPE_TIMEOUT_MS = 30_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
@@ -320,7 +321,7 @@ export class PaymentsService {
     this.ensureEnabled();
 
     return this.stripe!.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription.latest_invoice.payment_intent', 'payment_intent']
+      expand: ['subscription.latest_invoice', 'payment_intent']
     });
   }
 
@@ -328,6 +329,44 @@ export class PaymentsService {
    * Resolve the PaymentIntent id tied to a Checkout Session. For one-off payments
    * it is on the session directly; for subscription checkouts the session has no
    * payment_intent and the charge lives on the subscription's latest invoice.
+   *
+   * Since Stripe API version 2025-03-31.basil the invoice no longer carries a
+   * `payment_intent` property (and it cannot be expanded), so the invoice is
+   * re-retrieved with its payment records expanded when needed.
+   */
+  private async resolvePaymentIntentIdForSession(
+    session: Stripe.Checkout.Session
+  ): Promise<string | null> {
+    const direct = this.resolvePaymentIntentIdFromSession(session);
+    if (direct) return direct;
+
+    const subscription =
+      typeof session.subscription === 'string' ? null : session.subscription;
+    const latestInvoice = subscription?.latest_invoice;
+    const invoiceId =
+      typeof latestInvoice === 'string' ? latestInvoice : latestInvoice?.id ?? null;
+    if (!invoiceId || !this.stripe) return null;
+
+    try {
+      const invoice = await this.stripe.invoices.retrieve(invoiceId, {
+        expand: ['payments.data.payment']
+      });
+      return resolveInvoicePaymentIntentId(invoice);
+    } catch (err) {
+      this.logger.warn(
+        `Could not resolve PaymentIntent for invoice ${invoiceId}: ${(err as Error).message}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Resolve the PaymentIntent id tied to a Checkout Session. For one-off payments
+   * it is on the session directly; for subscription checkouts the session has no
+   * payment_intent and the charge lives on the subscription's latest invoice.
+   */
+  /**
+   * Synchronous best-effort resolution from an already-expanded session payload.
    */
   private resolvePaymentIntentIdFromSession(session: Stripe.Checkout.Session): string | null {
     const direct =
@@ -342,11 +381,7 @@ export class PaymentsService {
       subscription && typeof subscription.latest_invoice !== 'string'
         ? (subscription.latest_invoice as Stripe.Invoice)
         : null;
-    const invoicePaymentIntent =
-      typeof (latestInvoice as any)?.payment_intent === 'string'
-        ? (latestInvoice as any).payment_intent
-        : (latestInvoice as any)?.payment_intent?.id;
-    return invoicePaymentIntent ?? null;
+    return resolveInvoicePaymentIntentId(latestInvoice);
   }
 
   /**
@@ -355,7 +390,7 @@ export class PaymentsService {
    * reporting instead of the estimated processing fee added at checkout.
    */
   async syncStripeFeesFromSession(session: Stripe.Checkout.Session): Promise<void> {
-    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
+    const paymentIntentId = await this.resolvePaymentIntentIdForSession(session);
     if (!paymentIntentId) return;
 
     const payment = await this.prisma.payment.findFirst({
@@ -460,7 +495,7 @@ export class PaymentsService {
     const params: Stripe.Checkout.SessionListParams = {
       limit: 100,
       status: 'complete',
-      expand: ['data.subscription.latest_invoice.payment_intent'],
+      expand: ['data.subscription.latest_invoice'],
       created: {
         gte: Math.floor(from.getTime() / 1000),
         lte: Math.ceil(to.getTime() / 1000)
@@ -574,7 +609,7 @@ export class PaymentsService {
     },
     session: Stripe.Checkout.Session
   ): Promise<void> {
-    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
+    const paymentIntentId = await this.resolvePaymentIntentIdForSession(session);
     if (!paymentIntentId) return;
 
     const updateData: Prisma.PaymentUpdateInput = {};
@@ -677,7 +712,7 @@ export class PaymentsService {
     const currency = (session.currency ?? 'gbp').toUpperCase();
     const grossAmount = this.amountFromSession(session);
 
-    const paymentIntentId = this.resolvePaymentIntentIdFromSession(session);
+    const paymentIntentId = await this.resolvePaymentIntentIdForSession(session);
 
     const customer = session.customer_details;
     const purchasedAt = session.created ? new Date(session.created * 1000) : new Date();
@@ -1209,12 +1244,30 @@ export class PaymentsService {
     this.ensureEnabled();
 
     return this.stripe!.subscriptions.retrieve(stripeSubscriptionId, {
-      expand: ['latest_invoice.payment_intent']
+      expand: ['latest_invoice']
     });
   }
 
-  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+  /**
+   * List the subscriptions belonging to a Stripe customer. Used to reconcile
+   * memberships whose activation webhook never arrived.
+   */
+  async listCustomerSubscriptions(customerId: string): Promise<Stripe.Subscription[]> {
     const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const result = await this.stripe!.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 10,
+      expand: ['data.latest_invoice']
+    });
+
+    return result.data;
+  }
+
+  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {    const effective = await this.getEffectiveSettings();
     this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
 
