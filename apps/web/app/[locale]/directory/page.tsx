@@ -87,14 +87,6 @@ export default function DirectoryPage() {
     }
   });
 
-  const { data: promotedBusinesses = [], isLoading: promotedLoading } = useQuery<Business[]>({
-    queryKey: ['directory', 'businesses', 'promoted'],
-    queryFn: async () => {
-      const { data } = await api.get('/directory/businesses', { params: { promoted: true } });
-      return data;
-    }
-  });
-
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<Job[]>({
     queryKey: ['directory', 'jobs'],
     queryFn: async () => {
@@ -173,68 +165,6 @@ export default function DirectoryPage() {
             className="min-w-[16rem] flex-1 sm:flex-initial"
           />
         </div>
-
-        {(promotedLoading || promotedBusinesses.length > 0) && (
-          <div className="mt-10">
-            <h2 className="section-title flex items-center gap-2">
-              <Crown className="h-5 w-5 text-neon-gold" /> {t('featuredBusinessesTitle')}
-            </h2>
-            {promotedLoading ? (
-              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="glass-card h-48 animate-pulse p-6" />
-                ))}
-              </div>
-            ) : (
-              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {promotedBusinesses.map((business) => (
-                  <Link key={business.id} href={`/directory/${business.id}`}>
-                    <div className="glass-card h-full border-neon-gold/40 p-6 ring-1 ring-neon-gold/30 transition hover:-translate-y-1 hover:shadow-neon">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                          {business.logoUrl ? (
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
-                              <img
-                                src={business.logoUrl}
-                                alt={business.businessName}
-                                className="h-full w-full object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
-                              <span className="text-sm font-bold text-amber-950">
-                                {business.businessName.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          )}
-                          <div>
-                            <h3 className="text-lg font-bold">{business.businessName}</h3>
-                            {business.category && (
-                              <p className="text-sm text-slate-500">
-                                {getDirectoryCategoryLabel(business.category)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-medium text-neon-gold">
-                          <Crown className="h-3 w-3" /> {t('promoted')}
-                        </span>
-                      </div>
-                      <p className="mt-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
-                        {business.description || t('noDescription')}
-                      </p>
-                      {business.address && (
-                        <div className="mt-4 flex items-center gap-1 text-xs text-slate-500">
-                          <MapPin className="h-3 w-3" /> {business.address}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {businessesLoading ? (
           <div className="mt-10 flex justify-center">

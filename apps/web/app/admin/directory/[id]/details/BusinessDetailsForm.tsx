@@ -392,19 +392,19 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-neon-gold" />
-          <h3 className="text-sm font-semibold">Promotion</h3>
+          <h3 className="text-sm font-semibold">Featuring</h3>
         </div>
 
         <div className="space-y-3 text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500">Promoted</span>
+            <span className="text-slate-500">Featured</span>
             <span className={business.isPromoted ? 'text-green-400' : 'text-slate-400'}>
               {business.isPromoted ? 'Yes' : 'No'}
             </span>
           </div>
           {business.promotedUntil && (
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Promoted until</span>
+              <span className="text-slate-500">Featured until</span>
               <span className="text-slate-300">{formatDate(business.promotedUntil)}</span>
             </div>
           )}
@@ -422,7 +422,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
               ) : business.isPromoted ? (
                 'No payment recorded'
               ) : (
-                'Not promoted'
+                'Not featured'
               )}
             </span>
           </div>
@@ -469,7 +469,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
               ) : (
                 <Banknote className="h-3 w-3" />
               )}
-              Mark promoted offline
+              Mark featured offline
             </button>
             <button
               type="button"
@@ -482,13 +482,13 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
               ) : (
                 <Gift className="h-3 w-3" />
               )}
-              Promote free (goodwill)
+              Feature free (goodwill)
             </button>
             {business.isPromoted && (
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Remove the promotion from this listing?')) {
+                  if (confirm('Remove the feature from this listing?')) {
                     unpromoteMutation.mutate();
                   }
                 }}
@@ -500,7 +500,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
                 ) : (
                   <XCircle className="h-3 w-3" />
                 )}
-                Remove promotion
+                Remove feature
               </button>
             )}
             <button
@@ -514,7 +514,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
               ) : (
                 <Mail className="h-3 w-3" />
               )}
-              Send promotion payment link
+              Send feature payment link
             </button>
           </div>
         )}

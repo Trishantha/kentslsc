@@ -67,7 +67,7 @@ function createBlock(type: PageBlock['type']): PageBlock {
     case 'events':
       return { type, id, title: 'Upcoming Events', limit: 3 };
     case 'directory':
-      return { type, id, title: 'Promoted Businesses', limit: 3 };
+      return { type, id, title: 'Featured Businesses', limit: 3 };
     case 'fundraisers':
       return { type, id, title: 'Fundraisers', limit: 3 };
     case 'blog':

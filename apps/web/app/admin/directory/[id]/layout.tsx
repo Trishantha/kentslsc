@@ -81,7 +81,7 @@ export default function DirectoryDetailLayout({ children }: DirectoryDetailLayou
               )}
               {business.isPromoted && (
                 <span className="rounded-full bg-neon-blue/10 px-2 py-0.5 text-xs font-semibold text-neon-blue">
-                  Promoted
+                  Featured
                 </span>
               )}
             </div>

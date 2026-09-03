@@ -79,7 +79,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
                       )}
                       {business.isPromoted && (
                         <span className="rounded-full bg-neon-gold/20 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-neon-gold/10 dark:text-neon-gold">
-                          Promoted
+                          Featured
                         </span>
                       )}
                     </div>

@@ -19,7 +19,7 @@ const quickActions = [
   },
   {
     href: '/directory',
-    title: 'Promote business',
+    title: 'Feature business',
     description: 'Boost visibility for your business listing.',
     icon: Store
   },

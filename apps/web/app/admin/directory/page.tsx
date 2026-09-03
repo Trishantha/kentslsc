@@ -60,7 +60,7 @@ export default function AdminDirectoryPage() {
           {[
             { label: 'Total Listings', value: stats.total, icon: <Building2 className="h-5 w-5 text-neon-blue" /> },
             { label: 'Paid Listings', value: stats.paid, icon: <Building2 className="h-5 w-5 text-neon-gold" /> },
-            { label: 'Promoted', value: stats.promoted, icon: <Building2 className="h-5 w-5 text-green-400" /> }
+            { label: 'Featured', value: stats.promoted, icon: <Building2 className="h-5 w-5 text-green-400" /> }
           ].map((s) => (
             <div key={s.label} className="glass-card flex items-center gap-3 p-4">
               {s.icon}
@@ -103,7 +103,7 @@ export default function AdminDirectoryPage() {
                   <th className="px-4 py-3 font-medium">Business</th>
                   <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Paid</th>
-                  <th className="px-4 py-3 font-medium">Promoted</th>
+                  <th className="px-4 py-3 font-medium">Featured</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>

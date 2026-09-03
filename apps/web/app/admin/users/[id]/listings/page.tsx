@@ -44,7 +44,7 @@ export default function UserListingsPage() {
                   <span className="text-xs text-slate-500">{l.category || 'No category'}</span>
                 </div>
                 <p className="mt-1 text-slate-500">
-                  {l.isPaid ? 'Paid' : 'Free'} · {l.isPromoted ? 'Promoted' : 'Not promoted'} ·{' '}
+                  {l.isPaid ? 'Paid' : 'Free'} · {l.isPromoted ? 'Featured' : 'Not featured'} ·{' '}
                   {formatDate(l.createdAt)}
                 </p>
               </div>
