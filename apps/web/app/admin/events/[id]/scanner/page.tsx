@@ -49,7 +49,7 @@ export default function EventScannerPage() {
   const { data: event } = useQuery<AdminEvent>({
     queryKey: ['admin', 'event', eventId],
     queryFn: async () => {
-      const res = await api.get(`/events/${eventId}`);
+      const res = await api.get(`/events/admin/${eventId}`);
       return res.data;
     }
   });

@@ -56,6 +56,13 @@ export class EventsController {
     return this.eventsService.listAll(Number(page) || 1, Number(limit) || 20);
   }
 
+  @Get('admin/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  findOneAdmin(@Param('id') id: string) {
+    return this.eventsService.findByIdWithTicketCountAdmin(id);
+  }
+
   @Get(':id')
   @Public()
   findOne(@Param('id') id: string) {

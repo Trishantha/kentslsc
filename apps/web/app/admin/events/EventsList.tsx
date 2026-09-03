@@ -61,9 +61,11 @@ export function EventsList({ events }: EventsListProps) {
                     {new Date(event.startDatetime).toLocaleString('en-GB')}
                   </td>
                   <td className="px-4 py-3">
-                    {event.isFree || Number(event.ticketPrice) === 0
-                      ? 'Free'
-                      : `£${Number(event.ticketPrice).toFixed(2)}`}
+                    {event.externalTicketingUrl
+                      ? 'External'
+                      : event.isFree || Number(event.ticketPrice) === 0
+                        ? 'Free'
+                        : `£${Number(event.ticketPrice).toFixed(2)}`}
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-slate-600 dark:text-slate-400">

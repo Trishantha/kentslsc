@@ -24,6 +24,7 @@ interface EventItem {
   ticketPrice: number;
   isFree: boolean;
   category?: EventCategory;
+  externalTicketingUrl?: string | null;
 }
 
 export default function EventsBlockComponent({ block }: Props) {
@@ -109,7 +110,11 @@ export default function EventsBlockComponent({ block }: Props) {
                         )}
                       </div>
                       <div className="mt-2 font-medium">
-                        {event.isFree || Number(event.ticketPrice) === 0 ? 'Free' : formatCurrency(event.ticketPrice)}
+                        {event.externalTicketingUrl
+                          ? 'External tickets'
+                          : event.isFree || Number(event.ticketPrice) === 0
+                            ? 'Free'
+                            : formatCurrency(event.ticketPrice)}
                       </div>
                     </div>
                   </div>

@@ -409,7 +409,8 @@
     "noEvents": "No events found. Check back soon!",
     "soldOut": "Sold out",
     "remaining": "{count} left",
-    "startingFrom": "Tickets starting from {price}"
+    "startingFrom": "Tickets starting from {price}",
+    "externalTickets": "External tickets"
   },
   "directory": {
     "title": "Business Directory",

@@ -11,7 +11,7 @@ interface EventDetailLayoutProps {
 }
 
 async function getEvent(id: string): Promise<AdminEvent | null> {
-  return fetchWithOriginFallback(`/api/events/${id}`);
+  return fetchWithOriginFallback(`/api/events/admin/${id}`);
 }
 
 export default async function EventDetailLayout({ children, params }: EventDetailLayoutProps) {

@@ -18,6 +18,7 @@ interface EventCardEvent {
   isFree: boolean;
   imageUrl?: string;
   category?: EventCategory;
+  externalTicketingUrl?: string | null;
 }
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
   viewDetailsLabel: string;
   startingFromLabel: (price: string) => string;
   freeLabel: string;
+  externalLabel: string;
   shareText?: string;
 }
 
@@ -37,6 +39,7 @@ export default function EventCard({
   viewDetailsLabel,
   startingFromLabel,
   freeLabel,
+  externalLabel,
   shareText = `Join us for "${event.title}" on Kent SLSC`
 }: Props) {
   const router = useRouter();
@@ -120,9 +123,11 @@ export default function EventCard({
           )}
 
           <div className="mt-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
-            {event.isFree || Number(event.ticketPrice) === 0
-              ? freeLabel
-              : startingFromLabel(formatCurrency(event.ticketPrice))}
+            {event.externalTicketingUrl
+              ? externalLabel
+              : event.isFree || Number(event.ticketPrice) === 0
+                ? freeLabel
+                : startingFromLabel(formatCurrency(event.ticketPrice))}
           </div>
         </div>
 

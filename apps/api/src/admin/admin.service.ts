@@ -53,6 +53,7 @@ export class AdminService {
       fundraisers,
       blogPosts,
       contactMessages,
+      membershipTypeCounts,
       flaggedTopics,
       flaggedPosts
     ] = await Promise.all([
@@ -80,6 +81,22 @@ export class AdminService {
       this.prisma.fundraiser.count({ where: { deletedAt: null } }),
       this.prisma.blogPost.count({ where: { deletedAt: null } }),
       this.prisma.contactMessage.count({ where: { deletedAt: null } }),
+      this.prisma.membershipType.findMany({
+        where: { deletedAt: null },
+        include: {
+          _count: {
+            select: {
+              memberships: {
+                where: {
+                  deletedAt: null,
+                  status: DbMembershipStatus.ACTIVE
+                }
+              }
+            }
+          }
+        },
+        orderBy: { name: 'asc' }
+      }),
       this.prisma.forumTopic.count({ where: { deletedAt: null, isFlagged: true } }),
       this.prisma.forumPost.count({ where: { deletedAt: null, isFlagged: true } })
     ]);
@@ -93,6 +110,7 @@ export class AdminService {
       fundraisers,
       blogPosts,
       contactMessages,
+      membershipTypes: membershipTypeCounts.map((t) => ({ id: t.id, name: t.name, count: t._count.memberships })),
       flaggedForumItems: flaggedTopics + flaggedPosts
     };
   }

@@ -19,6 +19,12 @@ import {
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
+interface MembershipTypeCount {
+  id: string;
+  name: string;
+  count: number;
+}
+
 interface DashboardStats {
   users: number;
   memberships: number;
@@ -28,6 +34,7 @@ interface DashboardStats {
   fundraisers: number;
   blogPosts: number;
   contactMessages: number;
+  membershipTypes: MembershipTypeCount[];
   flaggedForumItems: number;
 }
 
@@ -100,7 +107,7 @@ export default function AdminDashboardPage() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {cards.map((card, idx) => {
           const Icon = card.icon;
-          const value = stats?.[card.key as keyof DashboardStats] ?? 0;
+          const value = stats?.[card.key as keyof Omit<DashboardStats, 'membershipTypes'>] ?? 0;
           return (
             <motion.a
               key={card.key}
@@ -123,6 +130,33 @@ export default function AdminDashboardPage() {
           );
         })}
       </div>
+
+      {stats?.membershipTypes && stats.membershipTypes.length > 0 && (
+        <>
+          <h2 className="mt-10 text-lg font-semibold">Memberships by Type</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {stats.membershipTypes.map((type, idx) => (
+              <motion.div
+                key={type.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className="glass-card p-6"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-neon-blue/10 p-2 text-neon-blue">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    {type.name}
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-bold">{type.count}</p>
+              </motion.div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

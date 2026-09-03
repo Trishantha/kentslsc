@@ -165,6 +165,13 @@ export class EventsService {
     return event;
   }
 
+  async findByIdWithTicketCountAdmin(id: string) {
+    const event = await this.findByIdWithTicketCount(id, false);
+    const soldCount = event._count.tickets;
+    const remainingCount = event.maxTickets != null ? event.maxTickets - soldCount : null;
+    return { ...event, soldCount, remainingCount };
+  }
+
   async create(dto: CreateEventDto) {
     return this.prisma.event.create({
       data: {

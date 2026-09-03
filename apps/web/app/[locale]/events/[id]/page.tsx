@@ -69,10 +69,12 @@ export default async function EventDetailPage({ params }: Props) {
     },
     offers: {
       '@type': 'Offer',
-      price: event.isFree || Number(event.ticketPrice) === 0 ? 0 : Number(event.ticketPrice),
+      ...(event.externalTicketingUrl
+        ? {}
+        : { price: event.isFree || Number(event.ticketPrice) === 0 ? 0 : Number(event.ticketPrice) }),
       priceCurrency: 'GBP',
       availability: 'https://schema.org/InStock',
-      url: `${baseUrl}/events/${event.id}`
+      url: event.externalTicketingUrl ?? `${baseUrl}/events/${event.id}`
     },
     url: `${baseUrl}/events/${event.id}`
   };

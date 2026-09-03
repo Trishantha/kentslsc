@@ -244,6 +244,7 @@ describe('AdminService - getDashboardStats', () => {
     fundraiser: { count: jest.fn().mockResolvedValue(1) },
     blogPost: { count: jest.fn().mockResolvedValue(6) },
     contactMessage: { count: jest.fn().mockResolvedValue(7) },
+    membershipType: { findMany: jest.fn().mockResolvedValue([]) },
     forumTopic: { count: jest.fn().mockResolvedValue(1) },
     forumPost: { count: jest.fn().mockResolvedValue(1) }
   };

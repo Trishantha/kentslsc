@@ -409,7 +409,8 @@
     "noEvents": "நிகழ்வுகள் எதுவும் இல்லை. விரைவில் மீண்டும் பார்க்கவும்!",
     "soldOut": "Sold out",
     "remaining": "{count} left",
-    "startingFrom": "Tickets starting from {price}"
+    "startingFrom": "Tickets starting from {price}",
+    "externalTickets": "External tickets"
   },
   "directory": {
     "title": "வணிக அடைவு",

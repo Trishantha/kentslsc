@@ -26,6 +26,7 @@ interface Event {
   category: EventCategory;
   soldCount?: number;
   remainingCount?: number | null;
+  externalTicketingUrl?: string | null;
 }
 
 interface EventsResponse {
@@ -279,6 +280,7 @@ export default function EventsPage() {
               viewDetailsLabel={t('viewDetails')}
               startingFromLabel={(price) => t('startingFrom', { price })}
               freeLabel={tCommon('free')}
+              externalLabel={t('externalTickets')}
             />
           )}
 
@@ -322,6 +324,7 @@ export default function EventsPage() {
               viewDetailsLabel={t('viewDetails')}
               startingFromLabel={(price) => t('startingFrom', { price })}
               freeLabel={tCommon('free')}
+              externalLabel={t('externalTickets')}
             />
           ) : (
             <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -347,6 +350,7 @@ export default function EventsPage() {
                   viewDetailsLabel={t('viewDetails')}
                   startingFromLabel={(price) => t('startingFrom', { price })}
                   freeLabel={tCommon('free')}
+                  externalLabel={t('externalTickets')}
                   shareText={tDetail('shareText', { title: event.title })}
                 />
               ))}

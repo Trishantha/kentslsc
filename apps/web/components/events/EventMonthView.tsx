@@ -17,6 +17,7 @@ interface MonthEvent {
   imageUrl?: string;
   category?: EventCategory;
   remainingCount?: number | null;
+  externalTicketingUrl?: string | null;
 }
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
   viewDetailsLabel: string;
   startingFromLabel: (price: string) => string;
   freeLabel: string;
+  externalLabel: string;
 }
 
 function getMonthKey(date: Date) {
@@ -116,7 +118,8 @@ export default function EventMonthView({
   shareBaseUrl = '',
   viewDetailsLabel,
   startingFromLabel,
-  freeLabel
+  freeLabel,
+  externalLabel
 }: Props) {
   const [origin, setOrigin] = useState(shareBaseUrl);
 
@@ -209,6 +212,7 @@ export default function EventMonthView({
                   viewDetailsLabel={viewDetailsLabel}
                   startingFromLabel={startingFromLabel}
                   freeLabel={freeLabel}
+                  externalLabel={externalLabel}
                   shareText={`Join us for "${event.title}" on Kent SLSC`}
                 />
               ))}
