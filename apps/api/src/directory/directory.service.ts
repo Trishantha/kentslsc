@@ -148,10 +148,6 @@ export class DirectoryService {
       }
     });
 
-    if (dto.description) {
-      this.summariseBusiness(user, id).catch(() => undefined);
-    }
-
     return updated;
   }
 
