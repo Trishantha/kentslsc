@@ -25,6 +25,8 @@ export interface AdminEvent {
   ticketDesign: unknown;
   externalTicketingUrl: string | null;
   isPublished: boolean;
+  isFeatured?: boolean;
+  featuredUntil?: string | null;
   _count?: { tickets: number };
   soldCount?: number;
   remainingCount?: number | null;

@@ -500,6 +500,14 @@ export class AdminService {
     return this.eventsService.remove(id);
   }
 
+  featureEventFree(id: string) {
+    return this.eventsService.featureEventFree(id);
+  }
+
+  unfeatureEvent(id: string) {
+    return this.eventsService.unfeatureEvent(id);
+  }
+
   listBusinesses() {
     return this.directoryService.findBusinesses();
   }
@@ -518,6 +526,14 @@ export class AdminService {
 
   promoteBusinessOffline(id: string) {
     return this.directoryService.promoteBusinessOffline(id);
+  }
+
+  promoteBusinessFree(id: string) {
+    return this.directoryService.promoteBusinessFree(id);
+  }
+
+  unpromoteBusiness(id: string) {
+    return this.directoryService.unpromoteBusiness(id);
   }
 
   sendPromotionLink(id: string) {

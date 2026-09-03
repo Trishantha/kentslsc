@@ -82,13 +82,6 @@ export class DirectoryController {
     return this.directoryService.createPromotionCheckout(user, id);
   }
 
-  @Post('businesses/:id/summarise')
-  @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
-  @ApiBearerAuth()
-  summariseBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.directoryService.summariseBusiness(user, id);
-  }
-
   @Get('jobs')
   @Public()
   listJobs(@Query('businessListingId') businessListingId?: string) {

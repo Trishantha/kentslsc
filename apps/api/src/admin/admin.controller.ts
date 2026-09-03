@@ -394,6 +394,18 @@ export class AdminController {
     return this.adminService.removeEvent(id);
   }
 
+  @Post('events/:id/feature-free')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  featureEventFree(@Param('id') id: string) {
+    return this.adminService.featureEventFree(id);
+  }
+
+  @Delete('events/:id/feature')
+  @RequirePermission(Permission.MANAGE_EVENTS)
+  unfeatureEvent(@Param('id') id: string) {
+    return this.adminService.unfeatureEvent(id);
+  }
+
   // ---------------------------------------------------------------------------
   // Directory
   // ---------------------------------------------------------------------------
@@ -430,6 +442,18 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_DIRECTORY)
   promoteBusinessOffline(@Param('id') id: string) {
     return this.adminService.promoteBusinessOffline(id);
+  }
+
+  @Post('directory/businesses/:id/promote-free')
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
+  promoteBusinessFree(@Param('id') id: string) {
+    return this.adminService.promoteBusinessFree(id);
+  }
+
+  @Delete('directory/businesses/:id/promotion')
+  @RequirePermission(Permission.MANAGE_DIRECTORY)
+  unpromoteBusiness(@Param('id') id: string) {
+    return this.adminService.unpromoteBusiness(id);
   }
 
   @Post('directory/businesses/:id/send-promotion-link')

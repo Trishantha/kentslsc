@@ -85,6 +85,18 @@ describe('PaymentReportsService', () => {
     );
   });
 
+  it('subtracts refunds from net revenue', async () => {
+    prisma.payment.findMany.mockResolvedValue([buildPayment()]);
+    prisma.payment.count.mockResolvedValue(1);
+    prisma.payment.aggregate.mockResolvedValue({
+      _sum: { grossAmount: 100, processingFee: 5, netAmount: 95, refundedAmount: 30 }
+    });
+
+    const report = await service.getRevenueReport({ page: 1, limit: 25 });
+
+    expect(report.aggregates).toEqual({ gross: 100, fees: 5, net: 65, refunded: 30 });
+  });
+
   it('applies date, source type and channel filters', async () => {
     prisma.payment.findMany.mockResolvedValue([]);
     prisma.payment.count.mockResolvedValue(0);

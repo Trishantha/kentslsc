@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import type { TokenPayload } from '@kentslsc/shared';
 import { UserRole } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
-import { AiService } from '../ai/ai.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { EmailService } from '../email/email.service.js';
 import { CreateBusinessListingDto } from './dto/create-business.dto.js';
@@ -19,7 +18,6 @@ const JOB_PUBLISH_PRICE_PENCE = 5000; // £50
 export class DirectoryService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly aiService: AiService,
     private readonly paymentsService: PaymentsService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService
@@ -159,24 +157,6 @@ export class DirectoryService {
     }
     await this.prisma.businessListing.update({ where: { id }, data: { deletedAt: new Date() } });
     return { success: true };
-  }
-
-  async summariseBusiness(user: TokenPayload, id: string) {
-    const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
-    if (!listing) throw new NotFoundException('Business listing not found');
-    if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
-      throw new ForbiddenException('You do not have permission to summarise this listing');
-    }
-
-    const content = [listing.businessName, listing.description, listing.servicesText]
-      .filter(Boolean)
-      .join('\n\n');
-
-    if (!content.trim()) return { aiSummary: null };
-
-    const summary = await this.aiService.summarise(content, 'business listing');
-    await this.prisma.businessListing.update({ where: { id }, data: { description: summary } });
-    return { aiSummary: summary };
   }
 
   async createPromotionCheckout(user: TokenPayload, id: string) {
@@ -373,6 +353,47 @@ export class DirectoryService {
     });
 
     return { received: true, promotedUntil };
+  }
+
+  async promoteBusinessFree(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id, deletedAt: null }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+
+    const promotedUntil = new Date();
+    promotedUntil.setDate(promotedUntil.getDate() + 30);
+
+    await this.prisma.businessListing.update({
+      where: { id },
+      data: {
+        isPromoted: true,
+        promotedUntil,
+        promotionPaidAt: null,
+        promotionPaymentMethod: 'free'
+      }
+    });
+
+    return { received: true, promotedUntil };
+  }
+
+  async unpromoteBusiness(id: string) {
+    const listing = await this.prisma.businessListing.findFirst({
+      where: { id, deletedAt: null }
+    });
+    if (!listing) throw new NotFoundException('Business listing not found');
+
+    await this.prisma.businessListing.update({
+      where: { id },
+      data: {
+        isPromoted: false,
+        promotedUntil: null,
+        promotionPaidAt: null,
+        promotionPaymentMethod: null
+      }
+    });
+
+    return { success: true };
   }
 
   async sendPromotionLink(id: string) {

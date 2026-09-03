@@ -156,6 +156,10 @@ export class PaymentReportsService {
       };
     });
 
+    const gross = Number(aggregates._sum.grossAmount ?? 0);
+    const fees = Number(aggregates._sum.processingFee ?? 0);
+    const refunded = Number(aggregates._sum.refundedAmount ?? 0);
+
     return {
       rows,
       total,
@@ -163,10 +167,10 @@ export class PaymentReportsService {
       limit,
       totalPages: Math.ceil(total / limit),
       aggregates: {
-        gross: Number(aggregates._sum.grossAmount ?? 0),
-        fees: Number(aggregates._sum.processingFee ?? 0),
-        net: Number(aggregates._sum.netAmount ?? 0),
-        refunded: Number(aggregates._sum.refundedAmount ?? 0)
+        gross,
+        fees,
+        net: gross - fees - refunded,
+        refunded
       }
     };
   }

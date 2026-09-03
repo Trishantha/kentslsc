@@ -5,9 +5,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Save, Trash2 } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles, Gift, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { EventCategory, eventCategoryLabels } from '@kentslsc/shared';
@@ -92,6 +93,29 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
       router.push('/admin/events');
+    }
+  });
+
+  const featureFreeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/events/${eventId}/feature-free`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'event', eventId] });
+      router.refresh();
+    }
+  });
+
+  const unfeatureMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/admin/events/${eventId}/feature`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'events'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'event', eventId] });
+      router.refresh();
     }
   });
 
@@ -194,6 +218,75 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
         <input type="checkbox" {...register('isPublished')} className="rounded border-white/10 bg-white/5" />
         Published
       </label>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-neon-gold" />
+          <h3 className="text-sm font-semibold">Featuring</h3>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Featured</span>
+            <span className={event.isFeatured ? 'text-green-400' : 'text-slate-400'}>
+              {event.isFeatured ? 'Yes' : 'No'}
+            </span>
+          </div>
+          {event.isFeatured && event.featuredUntil && (
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Featured until</span>
+              <span className="text-slate-300">{formatDate(event.featuredUntil)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Payment</span>
+            <span className="text-slate-300">
+              {event.isFeatured ? (
+                <span className="inline-flex items-center gap-1 text-neon-blue">
+                  <Gift className="h-3 w-3" /> Free / goodwill
+                </span>
+              ) : (
+                'Not featured'
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => featureFreeMutation.mutate()}
+            disabled={featureFreeMutation.isPending}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-2 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20 disabled:opacity-60"
+          >
+            {featureFreeMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Gift className="h-3 w-3" />
+            )}
+            Feature free (goodwill)
+          </button>
+          {event.isFeatured && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Remove the feature from this event?')) {
+                  unfeatureMutation.mutate();
+                }
+              }}
+              disabled={unfeatureMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-60"
+            >
+              {unfeatureMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <XCircle className="h-3 w-3" />
+              )}
+              Remove feature
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex gap-3 pt-2">
         <button type="submit" disabled={updateMutation.isPending} className="btn-primary flex-1">
           {updateMutation.isPending ? (

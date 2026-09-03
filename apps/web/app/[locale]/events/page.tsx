@@ -20,6 +20,7 @@ interface Event {
   endDatetime: string;
   ticketPrice: number;
   isFree: boolean;
+  isFeatured?: boolean;
   maxTickets?: number;
   imageUrl?: string;
   isPublished: boolean;

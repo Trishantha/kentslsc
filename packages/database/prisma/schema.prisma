@@ -411,6 +411,8 @@ model Event {
   posterImages  Json?         @map("poster_images") @db.JsonB
   ticketDesign  Json?         @map("ticket_design") @db.JsonB
   externalTicketingUrl String?       @map("external_ticketing_url")
+  isFeatured    Boolean       @default(false) @map("is_featured")
+  featuredUntil DateTime?     @map("featured_until")
   isPublished   Boolean       @default(false) @map("is_published")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from '@/i18n/routing';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ interface EventCardEvent {
   startDatetime: string;
   ticketPrice: number;
   isFree: boolean;
+  isFeatured?: boolean;
   imageUrl?: string;
   category?: EventCategory;
   externalTicketingUrl?: string | null;
@@ -103,6 +104,11 @@ export default function EventCard({
       {/* Right column: event info */}
       <div className="flex min-w-0 flex-1 flex-col justify-between p-4 sm:h-full sm:p-5">
         <div className="min-h-0">
+          {event.isFeatured && (
+            <span className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2 py-0.5 text-xs font-semibold text-neon-gold">
+              <Sparkles className="h-3 w-3" /> Featured
+            </span>
+          )}
           <h3 className="line-clamp-2 text-sm font-bold leading-tight group-hover:text-neon-blue sm:text-base">
             {event.title}
           </h3>

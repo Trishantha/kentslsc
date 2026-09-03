@@ -10,7 +10,7 @@ import {
   directoryCategoryGroups,
   directoryCategoryValues
 } from '@kentslsc/shared';
-import { Loader2, Save, Trash2, Sparkles, Mail, Banknote, Check, Copy } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles, Mail, Banknote, Check, Copy, Gift, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ImageUpload } from '@/components/ui/ImageUpload';
@@ -109,7 +109,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'business', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'directory', businessId] });
     }
   });
 
@@ -133,7 +133,28 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'business', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'directory', businessId] });
+    }
+  });
+
+  const promoteFreeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/admin/directory/businesses/${businessId}/promote-free`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'directory', businessId] });
+    }
+  });
+
+  const unpromoteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/admin/directory/businesses/${businessId}/promotion`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'directory', businessId] });
     }
   });
 
@@ -146,7 +167,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
       setPromotionLink(data.url);
       setCopied(false);
       queryClient.invalidateQueries({ queryKey: ['admin', 'businesses'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'business', businessId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'directory', businessId] });
     }
   });
 
@@ -390,7 +411,11 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
           <div className="flex items-center justify-between">
             <span className="text-slate-500">Payment</span>
             <span className="text-slate-300">
-              {business.promotionPaymentMethod ? (
+              {business.promotionPaymentMethod === 'free' ? (
+                <span className="inline-flex items-center gap-1 text-neon-blue">
+                  <Gift className="h-3 w-3" /> Free / goodwill
+                </span>
+              ) : business.promotionPaymentMethod ? (
                 <span className="inline-flex items-center gap-1 text-green-400">
                   <Banknote className="h-3 w-3" /> Paid {business.promotionPaymentMethod}
                 </span>
@@ -448,9 +473,41 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
             </button>
             <button
               type="button"
+              onClick={() => promoteFreeMutation.mutate()}
+              disabled={promoteFreeMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-2 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20 disabled:opacity-60"
+            >
+              {promoteFreeMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Gift className="h-3 w-3" />
+              )}
+              Promote free (goodwill)
+            </button>
+            {business.isPromoted && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Remove the promotion from this listing?')) {
+                    unpromoteMutation.mutate();
+                  }
+                }}
+                disabled={unpromoteMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-60"
+              >
+                {unpromoteMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <XCircle className="h-3 w-3" />
+                )}
+                Remove promotion
+              </button>
+            )}
+            <button
+              type="button"
               onClick={() => sendPromotionLinkMutation.mutate()}
               disabled={sendPromotionLinkMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-neon-blue/10 px-3 py-2 text-xs font-semibold text-neon-blue hover:bg-neon-blue/20 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/20 disabled:opacity-60"
             >
               {sendPromotionLinkMutation.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

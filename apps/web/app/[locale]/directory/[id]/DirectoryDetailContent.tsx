@@ -234,13 +234,6 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
     }
   });
 
-  const summarise = useMutation({
-    mutationFn: () => api.post(`/directory/businesses/${resolvedId}/summarise`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['directory', 'businesses', resolvedId] });
-    }
-  });
-
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -322,9 +315,14 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
                   )}
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-400">
                     {business.address && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 dark:border-white/10 dark:bg-white/5">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/50 px-2.5 py-1 transition-colors hover:border-neon-blue/30 hover:text-neon-blue dark:border-white/10 dark:bg-white/5"
+                      >
                         <MapPin className="h-3.5 w-3.5 text-neon-blue" /> {business.address}
-                      </span>
+                      </a>
                     )}
                     {business.phone && (
                       <a
@@ -373,14 +371,6 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => summarise.mutate()}
-                      disabled={summarise.isPending}
-                      className="btn-secondary inline-flex items-center gap-2"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      {summarise.isPending ? t('aiSummarising') : t('aiSummarise')}
-                    </button>
                     <button
                       onClick={() => promote.mutate()}
                       disabled={promote.isPending}

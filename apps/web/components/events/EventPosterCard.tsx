@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Calendar } from 'lucide-react';
+import { Calendar, Sparkles } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
@@ -10,6 +10,7 @@ interface PosterEvent {
   id: string;
   title: string;
   startDatetime: string;
+  isFeatured?: boolean;
   imageUrl?: string;
   category?: EventCategory;
 }
@@ -56,6 +57,12 @@ export default function EventPosterCard({ event, index = 0 }: Props) {
             )}
           >
             {eventCategoryLabels[event.category]}
+          </span>
+        )}
+
+        {event.isFeatured && (
+          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-neon-gold/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-950 shadow-lg">
+            <Sparkles className="h-3 w-3" /> Featured
           </span>
         )}
 

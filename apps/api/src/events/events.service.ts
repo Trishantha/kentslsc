@@ -99,7 +99,7 @@ export class EventsService {
     const [rows, total] = await Promise.all([
       this.prisma.event.findMany({
         where,
-        orderBy: { startDatetime: 'asc' },
+        orderBy: [{ isFeatured: 'desc' }, { startDatetime: 'asc' }],
         take: limit,
         skip: (page - 1) * limit,
         include: {
@@ -170,6 +170,29 @@ export class EventsService {
     const soldCount = event._count.tickets;
     const remainingCount = event.maxTickets != null ? event.maxTickets - soldCount : null;
     return { ...event, soldCount, remainingCount };
+  }
+
+  async featureEventFree(id: string) {
+    const event = await this.prisma.event.findFirst({ where: { id, deletedAt: null } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const featuredUntil = new Date();
+    featuredUntil.setDate(featuredUntil.getDate() + 30);
+
+    return this.prisma.event.update({
+      where: { id },
+      data: { isFeatured: true, featuredUntil }
+    });
+  }
+
+  async unfeatureEvent(id: string) {
+    const event = await this.prisma.event.findFirst({ where: { id, deletedAt: null } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    return this.prisma.event.update({
+      where: { id },
+      data: { isFeatured: false, featuredUntil: null }
+    });
   }
 
   async create(dto: CreateEventDto) {
