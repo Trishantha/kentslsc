@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, CreditCard } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 
 interface PaymentSettings {
   provider: 'stripe' | 'paypal' | 'gocardless';
@@ -74,6 +74,15 @@ export default function AdminPaymentsPage() {
       queryClient.invalidateQueries({ queryKey: ['payments-settings'] });
     }
   });
+
+  // Secret fields are one-way: they are never sent back to the browser, so
+  // after a save they stay blank and only the "Configured" hint confirms the
+  // value stuck. Surface an explicit result so saving never feels like a no-op.
+  const saveFeedback = mutation.isError
+    ? { className: 'text-red-400', text: `Save failed: ${getApiErrorMessage(mutation.error)}` }
+    : mutation.isSuccess
+      ? { className: 'text-emerald-400', text: 'Settings saved.' }
+      : null;
 
   const handleSave = () => {
     const payload: Partial<PaymentSettings> & {
@@ -247,10 +256,13 @@ export default function AdminPaymentsPage() {
             </div>
           </div>
 
-          <button type="button" onClick={handleSave} disabled={mutation.isPending} className="btn-primary inline-flex items-center gap-2">
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            <Save className="h-4 w-4" /> Save payment settings
-          </button>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={handleSave} disabled={mutation.isPending} className="btn-primary inline-flex items-center gap-2">
+              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Save className="h-4 w-4" /> Save payment settings
+            </button>
+            {saveFeedback && <p className={`text-sm ${saveFeedback.className}`}>{saveFeedback.text}</p>}
+          </div>
         </div>
 
         <div className="glass-card p-6">
