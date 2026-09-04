@@ -6,6 +6,7 @@ import { GoCardlessService } from '../payments/gocardless.service.js';
 import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailQueueService } from '../email/email-queue.service.js';
 import type Stripe from 'stripe';
+import type { PaymentMethodOption } from '@kentslsc/shared';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
@@ -484,9 +485,9 @@ export class EventsService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const settings = await this.paymentsService.getPublicPaymentSettings();
+    const settings = await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod);
     if (settings.provider === 'gocardless') {
-      return this.createGoCardlessCheckoutSession(user, event, dto, totalAmount, origin);
+      return this.createGoCardlessCheckoutSession(user, event, dto, totalAmount, origin, settings.method);
     }
 
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
@@ -529,10 +530,13 @@ export class EventsService {
     event: { id: string; title: string; ticketPrice: number | unknown },
     dto: PurchaseTicketsDto,
     totalAmount: number,
-    origin: string
+    origin: string,
+    method: PaymentMethodOption = 'direct_debit'
   ): Promise<Extract<Awaited<ReturnType<EventsService['createCheckoutSession']>>, { free: false }>> {
     const feeResult = this.paymentsService.calculateProcessingFee(totalAmount);
-    const scheme = dto.paymentScheme ?? 'bacs';
+    // An explicit Instant Bank Pay choice maps to faster_payments; otherwise
+    // the legacy paymentScheme (default bacs) applies.
+    const scheme = method === 'instant_bank_pay' ? 'faster_payments' : (dto.paymentScheme ?? 'bacs');
     const customerId = await this.goCardlessService.getOrCreateCustomer(user.id);
 
     const checkout = await this.goCardlessService.createBillingRequestFlow({

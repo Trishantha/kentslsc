@@ -176,8 +176,8 @@ export class DirectoryService {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    const settings = await this.paymentsService.getPublicPaymentSettings();
-    if (settings.provider === 'gocardless') {
+    const { provider, method } = await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod);
+    if (provider === 'gocardless') {
       const { checkout } = await this.createGoCardlessCheckout({
         amountPence: PROMOTION_PRICE_PENCE,
         description: `Promote ${listing.businessName} for 30 days`,
@@ -185,7 +185,7 @@ export class DirectoryService {
         successUrl: `${frontendUrl}/directory/${id}?promoted=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
         cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
         customerId: await this.goCardlessService.getOrCreateCustomer(user.sub),
-        scheme: dto.paymentScheme
+        scheme: method === 'instant_bank_pay' ? 'faster_payments' : dto.paymentScheme
       });
 
       await this.prisma.payment.create({
@@ -340,8 +340,8 @@ export class DirectoryService {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    const settings = await this.paymentsService.getPublicPaymentSettings();
-    if (settings.provider === 'gocardless') {
+    const { provider, method } = await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod);
+    if (provider === 'gocardless') {
       const { checkout } = await this.createGoCardlessCheckout({
         amountPence: JOB_PUBLISH_PRICE_PENCE,
         description: `Publish job ad: ${job.title}`,
@@ -349,7 +349,7 @@ export class DirectoryService {
         successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
         cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
         customerId: await this.goCardlessService.getOrCreateCustomer(user.sub),
-        scheme: dto.paymentScheme
+        scheme: method === 'instant_bank_pay' ? 'faster_payments' : dto.paymentScheme
       });
 
       await this.prisma.payment.create({

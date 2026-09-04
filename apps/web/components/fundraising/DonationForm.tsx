@@ -4,10 +4,11 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Loader2, Heart, EyeOff } from 'lucide-react';
-import { calculateProcessingFee } from '@kentslsc/shared';
+import { calculateProcessingFee, type PaymentMethodOption } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
 
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100];
 
@@ -27,10 +28,17 @@ export function DonationForm({ fundraiserId }: Props) {
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [addProcessingFee, setAddProcessingFee] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const selectedAmount = amount || customAmount;
+
+  const availableMethods = paymentSettings?.availableMethods;
+  const showMethodChoice =
+    !!availableMethods && Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const effectiveMethod: PaymentMethodOption =
+    paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
 
   const potentialFee = useMemo(() => {
     const value = Number(selectedAmount);
@@ -72,7 +80,8 @@ export function DonationForm({ fundraiserId }: Props) {
         displayName: isAnonymous ? undefined : (displayName.trim() || undefined),
         message: message.trim() || undefined,
         isAnonymous,
-        addProcessingFee
+        addProcessingFee,
+        ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
       });
       if (res.data.provider === 'gocardless' && res.data.url) {
         window.location.assign(res.data.url);
@@ -192,6 +201,15 @@ export function DonationForm({ fundraiserId }: Props) {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
+      {showMethodChoice && availableMethods && (
+        <PaymentMethodSelector
+          value={effectiveMethod}
+          onChange={setPaymentMethod}
+          availableMethods={availableMethods}
+          disabled={loading}
+        />
+      )}
+
       {feeBreakdown && feeBreakdown.fee > 0 && (
         <div className="space-y-1 rounded-xl border border-slate-200 bg-white/50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
@@ -220,7 +238,7 @@ export function DonationForm({ fundraiserId }: Props) {
           : `Donate${selectedAmount ? ` ${formatCurrency(chargeAmount)}` : ''}`}
       </button>
       <p className="text-center text-xs text-slate-400">
-        Secure payment via Stripe. You&apos;ll be redirected to complete your donation.
+        Secure payment. You&apos;ll be redirected to complete your donation.
       </p>
     </div>
   );

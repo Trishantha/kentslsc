@@ -72,7 +72,8 @@ export class AuthService {
         fullName: app.fullName,
         address: app.address,
         phone: app.phone,
-        dependants: app.dependants ?? []
+        dependants: app.dependants ?? [],
+        paymentMethod: app.paymentMethod
       })) as
         | { paid: true; sessionId: string; url: string; clientSecret?: string }
         | { paid: false; membership: unknown };

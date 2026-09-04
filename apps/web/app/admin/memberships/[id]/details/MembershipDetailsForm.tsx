@@ -83,11 +83,25 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: paymentSettings } = useQuery<{ provider: 'stripe' | 'paypal' | 'gocardless' }>({
+  const { data: paymentSettings } = useQuery<{
+    provider: 'stripe' | 'paypal' | 'gocardless';
+    hasStripeSecretKey?: boolean;
+    hasGocardlessAccessToken?: boolean;
+  }>({
     queryKey: ['payments-settings'],
     queryFn: async () => (await api.get('/payments/settings')).data
   });
   const isGoCardless = paymentSettings?.provider === 'gocardless';
+  const availableMethods = paymentSettings
+    ? {
+        card: !!paymentSettings.hasStripeSecretKey,
+        directDebit: !!paymentSettings.hasGocardlessAccessToken
+      }
+    : undefined;
+  const showMethodChoice =
+    !!availableMethods && Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const [linkPaymentMethod, setLinkPaymentMethod] = useState<'card' | 'direct_debit'>('card');
+  const cardSelected = showMethodChoice && linkPaymentMethod === 'card';
   const [paymentPlan, setPaymentPlan] = useState<'single' | 'subscription' | 'instalments'>('single');
   const [instalmentCount, setInstalmentCount] = useState(10);
 
@@ -149,8 +163,13 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
 
   const sendLinkMutation = useMutation({
     mutationFn: async () => {
-      const payload: { paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number } = {};
-      if (isGoCardless && paymentPlan !== 'single') {
+      const payload: {
+        paymentPlan?: 'subscription' | 'instalments';
+        instalmentCount?: number;
+        paymentMethod?: 'card' | 'direct_debit';
+      } = {};
+      if (showMethodChoice) payload.paymentMethod = linkPaymentMethod;
+      if ((isGoCardless || showMethodChoice) && !cardSelected && paymentPlan !== 'single') {
         payload.paymentPlan = paymentPlan;
         if (paymentPlan === 'instalments') {
           payload.instalmentCount = Math.min(12, Math.max(2, instalmentCount));
@@ -387,19 +406,40 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           membership.membershipType.price > 0 &&
           !membership.paymentMethod && (
           <div className="mt-4 space-y-3">
-            {isGoCardless && (
+            {showMethodChoice && (
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Payment method</label>
+                <select
+                  value={linkPaymentMethod}
+                  onChange={(e) => {
+                    const next = e.target.value as 'card' | 'direct_debit';
+                    setLinkPaymentMethod(next);
+                    // Card links always use the Stripe subscription checkout.
+                    if (next === 'card') setPaymentPlan('subscription');
+                  }}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                >
+                  <option value="card">Card (Stripe subscription)</option>
+                  <option value="direct_debit">Direct Debit (GoCardless)</option>
+                </select>
+              </div>
+            )}
+            {(isGoCardless || showMethodChoice) && (
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Payment plan</label>
                 <select
-                  value={paymentPlan}
+                  value={cardSelected ? 'subscription' : paymentPlan}
                   onChange={(e) => setPaymentPlan(e.target.value as 'single' | 'subscription' | 'instalments')}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                  disabled={cardSelected}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue disabled:opacity-50"
                 >
                   <option value="single">Single payment</option>
                   <option value="subscription">Monthly subscription (direct debit)</option>
-                  <option value="instalments">Instalments (N months)</option>
+                  <option value="instalments" disabled={cardSelected}>Instalments (N months)</option>
                 </select>
-                {paymentPlan === 'instalments' && (
+                {cardSelected ? (
+                  <p className="mt-1 text-xs text-slate-500">Instalments are only available with Direct Debit.</p>
+                ) : paymentPlan === 'instalments' ? (
                   <div className="mt-2 flex items-center gap-2">
                     <input
                       type="number"
@@ -411,7 +451,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
                     />
                     <span className="text-xs text-slate-500">monthly instalments (2–12)</span>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
             <div className="flex flex-wrap gap-3">

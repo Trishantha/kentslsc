@@ -39,6 +39,7 @@ describe('FundraisingService checkout provider branching', () => {
       url: 'https://checkout.stripe.test/pay'
     }),
     getPublicPaymentSettings: jest.fn(),
+    resolveCheckoutMethod: jest.fn(),
     calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 20, gross: netPence + 20 }))
   };
 
@@ -67,26 +68,24 @@ describe('FundraisingService checkout provider branching', () => {
     amount: 25
   };
 
-  const useGoCardless = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'gocardless',
-      processingFeeEnabled: true,
-      processingFeePercent: 1.5,
-      processingFeeFixed: 20
-    });
+  // Mirrors the real PaymentsService.resolveCheckoutMethod semantics: an
+  // explicit method always wins; omitted falls back to the default provider.
+  const mockResolvedMethod = (defaultMethod: string, defaultProvider: string) =>
+    mockPaymentsService.resolveCheckoutMethod.mockImplementation(async (requested?: string) =>
+      requested
+        ? { method: requested, provider: requested === 'card' ? 'stripe' : 'gocardless' }
+        : { method: defaultMethod, provider: defaultProvider }
+    );
 
-  const useStripe = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'stripe',
-      processingFeeEnabled: false,
-      processingFeePercent: 0,
-      processingFeeFixed: 0
-    });
+  const useGoCardless = () => mockResolvedMethod('direct_debit', 'gocardless');
+
+  const useStripe = () => mockResolvedMethod('card', 'stripe');
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.fundraiser.findUnique.mockResolvedValue(mockFundraiser);
     mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+    useStripe();
     service = new FundraisingService(
       mockPrisma,
       mockAiService,
@@ -183,6 +182,60 @@ describe('FundraisingService checkout provider branching', () => {
     expect(mockPaymentsService.createCheckout).toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({ sessionId: 'cs_test_123', provider: 'stripe' })
+    );
+  });
+
+  it('routes to Stripe when the donor explicitly picks card, even under a GoCardless default', async () => {
+    useGoCardless();
+
+    const result = await service.createDonationSession(
+      mockFundraiser.id,
+      { ...baseDonation, paymentMethod: 'card' },
+      'user-1'
+    );
+
+    expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('card');
+    expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
+    expect(mockPaymentsService.createCheckout).toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({ sessionId: 'cs_test_123', provider: 'stripe' })
+    );
+  });
+
+  it('routes to GoCardless with scheme bacs when the donor picks direct debit', async () => {
+    useStripe();
+
+    const result = await service.createDonationSession(
+      mockFundraiser.id,
+      { ...baseDonation, paymentMethod: 'direct_debit' },
+      'user-1'
+    );
+
+    expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('direct_debit');
+    expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'one_off', scheme: 'bacs' })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({ sessionId: 'BR123', provider: 'gocardless' })
+    );
+  });
+
+  it('routes to GoCardless with scheme faster_payments when the donor picks instant bank pay', async () => {
+    useStripe();
+
+    const result = await service.createDonationSession(
+      mockFundraiser.id,
+      { ...baseDonation, paymentMethod: 'instant_bank_pay' },
+      'user-1'
+    );
+
+    expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('instant_bank_pay');
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'one_off', scheme: 'faster_payments' })
+    );
+    expect(result).toEqual(
+      expect.objectContaining({ sessionId: 'BR123', provider: 'gocardless' })
     );
   });
 });

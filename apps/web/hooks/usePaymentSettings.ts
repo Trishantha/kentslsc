@@ -6,6 +6,11 @@ export interface PublicPaymentSettings {
   processingFeeEnabled: boolean;
   processingFeePercent: number;
   processingFeeFixed: number;
+  /** Which payment methods are configured and may be offered to payers. */
+  availableMethods: {
+    card: boolean;
+    directDebit: boolean;
+  };
 }
 
 export function usePaymentSettings() {

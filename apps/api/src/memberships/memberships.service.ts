@@ -16,6 +16,7 @@ import {
   AuthEventType
 } from '@kentslsc/database';
 import { TokenPayload, DependantInput, UserRole } from '@kentslsc/shared';
+import type { PaymentMethodOption } from '@kentslsc/shared';
 import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
 import { generateCardBuffer } from './helpers/card-generator.js';
@@ -565,6 +566,38 @@ export class MembershipsService {
       return { membership, paid: false };
     }
 
+    // A Direct Debit / Instant Bank Pay preference means the membership will
+    // be paid via GoCardless once an admin sends a payment link, so no Stripe
+    // customer or price is set up here; the application simply waits for
+    // approval, exactly as it does when the global default provider is
+    // GoCardless. resolveCheckoutMethod also validates the choice, throwing a
+    // clear 400 when the chosen platform is not configured.
+    const requested = dto.paymentMethod
+      ? await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod)
+      : null;
+
+    if (requested?.provider === 'gocardless') {
+      await this.cancelPreviousPendingMemberships(userId);
+      const awaitingMembership = await this.createMembership({
+        userId,
+        membershipTypeId: type.id,
+        fullName: dto.fullName,
+        address: dto.address,
+        phone: dto.phone,
+        dependants,
+        membershipType: type,
+        overrideEmail: email,
+        status: MembershipStatus.AWAITING_APPROVAL
+      });
+
+      return {
+        membership: awaitingMembership,
+        paid: true,
+        awaitingApproval: true,
+        paymentMethod: dto.paymentMethod
+      };
+    }
+
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(userId, email);
     const synced = await this.paymentsService.syncMembershipTypePrice({
       id: type.id,
@@ -1021,9 +1054,14 @@ export class MembershipsService {
   /**
    * Approve a paid membership application and send the member a payment link.
    * The membership moves from AWAITING_APPROVAL to AWAITING_PAYMENT. Payment
-   * and final activation are handled automatically by the Stripe webhook.
+   * and final activation are handled automatically by the provider webhook.
+   *
+   * `paymentMethod` lets the admin override the platform: 'card' always uses
+   * the Stripe subscription checkout; 'direct_debit'/'instant_bank_pay' use
+   * GoCardless. Omitted preserves today's behaviour (the global default
+   * provider decides).
    */
-  async approveAndRequestPayment(id: string) {
+  async approveAndRequestPayment(id: string, paymentMethod?: PaymentMethodOption) {
     const membership = await this.prisma.membership.findFirst({
       where: { id, deletedAt: null },
       include: { membershipType: true, user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } } }
@@ -1045,8 +1083,8 @@ export class MembershipsService {
 
     const fullName = membership.user.name;
 
-    const settings = await this.paymentsService.getPublicPaymentSettings();
-    if (settings.provider === 'gocardless') {
+    const { provider } = await this.paymentsService.resolveCheckoutMethod(paymentMethod);
+    if (provider === 'gocardless') {
       return this.approveAndRequestPaymentViaGoCardless(membership, fullName);
     }
 

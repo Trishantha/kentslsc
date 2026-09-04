@@ -1,4 +1,5 @@
 import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import type { PaymentMethodOption } from '@kentslsc/shared';
 
 export class CreateDonationDto {
   @IsUUID()
@@ -29,4 +30,9 @@ export class CreateDonationDto {
   @IsOptional()
   @IsIn(['bacs', 'faster_payments'])
   declare paymentScheme?: 'bacs' | 'faster_payments';
+
+  /** Donor's choice of payment method. Omitted = global default provider decides. */
+  @IsOptional()
+  @IsIn(['card', 'direct_debit', 'instant_bank_pay'])
+  declare paymentMethod?: PaymentMethodOption;
 }

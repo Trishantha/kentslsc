@@ -59,6 +59,10 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
       processingFeeEnabled: false,
       processingFeePercent: 0,
       processingFeeFixed: 0
+    }),
+    resolveCheckoutMethod: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
+      method: 'card',
+      provider: 'stripe'
     })
   };
 
@@ -271,7 +275,8 @@ describe('AdminService - sendMembershipPaymentLink provider branching', () => {
     }),
     getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
     calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 20, gross: netPence + 20 })),
-    getPublicPaymentSettings: jest.fn()
+    getPublicPaymentSettings: jest.fn(),
+    resolveCheckoutMethod: jest.fn()
   };
 
   const mockGoCardlessService: any = {
@@ -296,27 +301,25 @@ describe('AdminService - sendMembershipPaymentLink provider branching', () => {
 
   let service: AdminService;
 
-  const useGoCardless = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'gocardless',
-      processingFeeEnabled: true,
-      processingFeePercent: 1.5,
-      processingFeeFixed: 20
-    });
+  // Mirrors the real PaymentsService.resolveCheckoutMethod semantics: an
+  // explicit method always wins; omitted falls back to the default provider.
+  const mockResolvedMethod = (defaultMethod: string, defaultProvider: string) =>
+    mockPaymentsService.resolveCheckoutMethod.mockImplementation(async (requested?: string) =>
+      requested
+        ? { method: requested, provider: requested === 'card' ? 'stripe' : 'gocardless' }
+        : { method: defaultMethod, provider: defaultProvider }
+    );
 
-  const useStripe = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'stripe',
-      processingFeeEnabled: false,
-      processingFeePercent: 0,
-      processingFeeFixed: 0
-    });
+  const useGoCardless = () => mockResolvedMethod('direct_debit', 'gocardless');
+
+  const useStripe = () => mockResolvedMethod('card', 'stripe');
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.membership.findUnique.mockResolvedValue(createMockMembership());
     mockPrisma.membership.update.mockResolvedValue({});
     mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+    useStripe();
     service = new AdminService(
       mockPrisma,
       {} as any,
@@ -413,6 +416,43 @@ describe('AdminService - sendMembershipPaymentLink provider branching', () => {
     expect(mockGoCardlessService.getOrCreateCustomer).not.toHaveBeenCalled();
     expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalled();
     expect(result).toEqual({ url: 'https://checkout.stripe.test/pay', provider: 'stripe' });
+  });
+
+  it('sends the Stripe subscription checkout when the admin picks card, even under a GoCardless default', async () => {
+    useGoCardless();
+
+    const result = await service.sendMembershipPaymentLink('membership-1', { paymentMethod: 'card' });
+
+    expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('card');
+    expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
+    expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalled();
+    expect(result).toEqual({ url: 'https://checkout.stripe.test/pay', provider: 'stripe' });
+  });
+
+  it('sends the GoCardless billing request when the admin picks direct debit, even under a Stripe default', async () => {
+    useStripe();
+
+    const result = await service.sendMembershipPaymentLink('membership-1', { paymentMethod: 'direct_debit' });
+
+    expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('direct_debit');
+    expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'one_off' })
+    );
+    expect(result).toEqual({ url: 'https://pay.gocardless.test/flow/BR123', provider: 'gocardless' });
+  });
+
+  it('rejects instalments combined with card payments', async () => {
+    useGoCardless();
+
+    await expect(
+      service.sendMembershipPaymentLink('membership-1', {
+        paymentMethod: 'card',
+        paymentPlan: 'instalments'
+      })
+    ).rejects.toThrow(/Instalments are only available with Direct Debit/);
+    expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+    expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
   });
 });
 

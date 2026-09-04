@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 import {
   calculateProcessingFee,
   DEFAULT_PROCESSING_FEE,
+  methodToProvider,
+  type PaymentMethodOption,
   type ProcessingFeeConfig,
   type ProcessingFeeResult
 } from '@kentslsc/shared';
@@ -247,8 +249,46 @@ export class PaymentsService {
       provider: effective.provider,
       processingFeeEnabled: effective.processingFeeConfig.enabled,
       processingFeePercent: effective.processingFeeConfig.percent,
-      processingFeeFixed: effective.processingFeeConfig.fixed
+      processingFeeFixed: effective.processingFeeConfig.fixed,
+      availableMethods: {
+        card: !!effective.stripeSecretKey,
+        directDebit: !!effective.gocardlessAccessToken
+      }
     };
+  }
+
+  /**
+   * Resolve which platform a member-facing checkout should use, honouring an
+   * explicit payer choice of payment method when one is supplied.
+   *
+   * - When `requested` is omitted the global default provider decides, exactly
+   *   as before payer choice existed.
+   * - 'card' routes to Stripe and 'direct_debit'/'instant_bank_pay' route to
+   *   GoCardless (bacs / faster_payments respectively). If the chosen
+   *   platform is not configured a clear 400 is thrown so the payer can pick
+   *   another method instead of hitting a provider error.
+   */
+  async resolveCheckoutMethod(
+    requested?: PaymentMethodOption
+  ): Promise<{ method: PaymentMethodOption; provider: PaymentProvider }> {
+    const effective = await this.getEffectiveSettings();
+
+    if (!requested) {
+      return {
+        method: effective.provider === 'gocardless' ? 'direct_debit' : 'card',
+        provider: effective.provider
+      };
+    }
+
+    const provider = methodToProvider(requested);
+    if (provider === 'stripe' && !effective.stripeSecretKey) {
+      throw new BadRequestException('Card payments are not currently available');
+    }
+    if (provider === 'gocardless' && !effective.gocardlessAccessToken) {
+      throw new BadRequestException('Direct Debit and Instant Bank Pay are not currently available');
+    }
+
+    return { method: requested, provider };
   }
 
   async getStripePublishableKey() {

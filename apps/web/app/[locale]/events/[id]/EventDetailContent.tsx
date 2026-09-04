@@ -15,7 +15,8 @@ import { ShareButtons } from '@/components/ui/ShareButtons';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import EventLocationLink from '@/components/events/EventLocationLink';
 import AddToCalendar from '@/components/events/AddToCalendar';
-import { calculateProcessingFee, EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
+import { calculateProcessingFee, EventCategory, eventCategoryLabels, eventCategoryColors, type PaymentMethodOption } from '@kentslsc/shared';
+import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
 
 export interface Event {
   id: string;
@@ -52,7 +53,14 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   const t = useTranslations('eventDetail');
   const tCommon = useTranslations('common');
   const [quantity, setQuantity] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const availableMethods = paymentSettings?.availableMethods;
+  const showMethodChoice =
+    !!availableMethods && Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const effectiveMethod: PaymentMethodOption =
+    paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
 
   const { data: event, isLoading } = useQuery<Event>({
     queryKey: ['events', id],
@@ -69,7 +77,11 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
       if (!event) throw new Error('Event not loaded');
       const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string; sessionId?: string; clientSecret?: string; provider?: 'stripe' | 'gocardless' }>(
         `/events/${event.id}/tickets/purchase`,
-        { eventId: event.id, quantity }
+        {
+          eventId: event.id,
+          quantity,
+          ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
+        }
       );
       return data;
     },
@@ -388,6 +400,15 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   >
                     {message.text}
                   </div>
+                )}
+
+                {!isExternal && !isFree && showMethodChoice && availableMethods && (
+                  <PaymentMethodSelector
+                    value={effectiveMethod}
+                    onChange={setPaymentMethod}
+                    availableMethods={availableMethods}
+                    disabled={purchase.isPending}
+                  />
                 )}
 
                 {isExternal ? (

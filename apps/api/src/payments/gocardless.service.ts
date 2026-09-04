@@ -108,8 +108,9 @@ export class GoCardlessService {
     return this.client!;
   }
 
-  isConfigured(): boolean {
-    return !!this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN');
+  async isConfigured(): Promise<boolean> {
+    const settings = await this.getEffectiveSettings();
+    return !!settings.accessToken;
   }
 
   getWebhookSecret(): Promise<string | undefined> {

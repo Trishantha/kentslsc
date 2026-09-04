@@ -104,13 +104,24 @@ describe('GoCardlessService', () => {
   });
 
   describe('settings resolution', () => {
-    it('reports configured when an access token is present', () => {
-      expect(service.isConfigured()).toBe(true);
+    it('reports configured when an access token is present', async () => {
+      expect(await service.isConfigured()).toBe(true);
     });
 
-    it('reports not configured when no access token is set', () => {
+    it('reports not configured when no access token is set', async () => {
       configService.get.mockReturnValue(undefined);
-      expect(service.isConfigured()).toBe(false);
+      expect(await service.isConfigured()).toBe(false);
+    });
+
+    it('reports configured when only a persisted token exists (no env token)', async () => {
+      configService.get.mockReturnValue(undefined);
+      prisma.paymentSettings.findFirst.mockResolvedValue({
+        gocardlessAccessToken: 'persisted-token',
+        gocardlessWebhookSecret: null,
+        gocardlessEnvironment: null
+      });
+
+      expect(await service.isConfigured()).toBe(true);
     });
 
     it('throws a helpful error when creating a flow without credentials', async () => {

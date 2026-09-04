@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Stripe from 'stripe';
+import type { PaymentMethodOption } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
@@ -337,9 +338,9 @@ export class FundraisingService {
 
     const baseUrl = this.configService.get('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    const settings = await this.payments.getPublicPaymentSettings();
-    if (settings.provider === 'gocardless') {
-      return this.createGoCardlessDonationSession(fundraiser, dto, userId, baseUrl);
+    const { provider, method } = await this.payments.resolveCheckoutMethod(dto.paymentMethod);
+    if (provider === 'gocardless') {
+      return this.createGoCardlessDonationSession(fundraiser, dto, userId, baseUrl, method);
     }
 
     // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
@@ -381,7 +382,8 @@ export class FundraisingService {
     fundraiser: { id: string; title: string },
     dto: CreateDonationDto,
     userId: string | undefined,
-    baseUrl: string
+    baseUrl: string,
+    method: PaymentMethodOption = 'direct_debit'
   ) {
     const netPence = Math.round(dto.amount * 100);
     const feeResult = dto.addProcessingFee
@@ -390,12 +392,15 @@ export class FundraisingService {
     // Truncate message to keep billing request metadata values compact.
     const metaMessage = dto.message?.slice(0, 490);
     const customerId = userId ? await this.goCardlessService.getOrCreateCustomer(userId) : undefined;
+    // An explicit Instant Bank Pay choice maps to faster_payments; otherwise
+    // the legacy paymentScheme (default bacs) applies.
+    const scheme = method === 'instant_bank_pay' ? 'faster_payments' : (dto.paymentScheme ?? 'bacs');
 
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan: 'one_off',
       amountPence: feeResult.gross,
       description: `Donation to ${fundraiser.title}`,
-      scheme: dto.paymentScheme ?? 'bacs',
+      scheme,
       metadata: {
         type: 'donation',
         fundraiserId: fundraiser.id,

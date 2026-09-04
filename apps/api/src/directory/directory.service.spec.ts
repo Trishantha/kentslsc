@@ -54,6 +54,7 @@ describe('DirectoryService checkout provider branching', () => {
       url: 'https://checkout.stripe.test/pay'
     }),
     getPublicPaymentSettings: jest.fn(),
+    resolveCheckoutMethod: jest.fn(),
     calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 0, gross: netPence }))
   };
 
@@ -75,25 +76,23 @@ describe('DirectoryService checkout provider branching', () => {
     })
   };
 
-  const useGoCardless = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'gocardless',
-      processingFeeEnabled: false,
-      processingFeePercent: 0,
-      processingFeeFixed: 0
-    });
+  // Mirrors the real PaymentsService.resolveCheckoutMethod semantics: an
+  // explicit method always wins; omitted falls back to the default provider.
+  const mockResolvedMethod = (defaultMethod: string, defaultProvider: string) =>
+    mockPaymentsService.resolveCheckoutMethod.mockImplementation(async (requested?: string) =>
+      requested
+        ? { method: requested, provider: requested === 'card' ? 'stripe' : 'gocardless' }
+        : { method: defaultMethod, provider: defaultProvider }
+    );
 
-  const useStripe = () =>
-    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
-      provider: 'stripe',
-      processingFeeEnabled: false,
-      processingFeePercent: 0,
-      processingFeeFixed: 0
-    });
+  const useGoCardless = () => mockResolvedMethod('direct_debit', 'gocardless');
+
+  const useStripe = () => mockResolvedMethod('card', 'stripe');
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+    useStripe();
     service = new DirectoryService(
       mockPrisma,
       mockPaymentsService,
@@ -215,6 +214,21 @@ describe('DirectoryService checkout provider branching', () => {
 
       expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
       expect(mockPaymentsService.createCheckout).toHaveBeenCalled();
+    });
+
+    it('routes to GoCardless with scheme faster_payments when instant bank pay is picked for a promotion', async () => {
+      useStripe();
+      mockPrisma.businessListing.findFirst.mockResolvedValue(mockListing);
+
+      await service.createPromotionCheckout(ownerUser, mockListing.id, {
+        paymentMethod: 'instant_bank_pay'
+      });
+
+      expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('instant_bank_pay');
+      expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
+      expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+        expect.objectContaining({ scheme: 'faster_payments' })
+      );
     });
   });
 });

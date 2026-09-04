@@ -13,11 +13,13 @@ import {
   registrationWizardSchema,
   RegistrationWizardInput,
   MembershipFeature,
-  calculateProcessingFee
+  calculateProcessingFee,
+  type PaymentMethodOption
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
 import { formatCurrency } from '@/lib/utils';
 import { isAxiosError } from 'axios';
 import {
@@ -96,6 +98,7 @@ export function RegistrationWizard() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
 
   const {
     data: types = [],
@@ -167,6 +170,15 @@ export function RegistrationWizard() {
     });
   }, [selectedType, paymentSettings]);
 
+  const availableMethods = paymentSettings?.availableMethods;
+  const showMethodChoice =
+    !!selectedType &&
+    !selectedType.isFree &&
+    !!availableMethods &&
+    Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const effectiveMethod: PaymentMethodOption =
+    paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
+
   const watchInterests = watch('interests') ?? [];
   const preferredTypeId = searchParams?.get('type') ?? '';
   const preferredType = types.find((type) => type.id === preferredTypeId);
@@ -229,7 +241,8 @@ export function RegistrationWizard() {
           emergencyContactPhone: data.emergencyContactPhone,
           interests: data.interests,
           dependants: data.dependants,
-          acceptedTerms: data.acceptedTerms
+          acceptedTerms: data.acceptedTerms,
+          ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
         }
       });
 
@@ -706,6 +719,14 @@ export function RegistrationWizard() {
               </span>
             </label>
             {errors.acceptedTerms && <p className="text-sm text-red-500">{errors.acceptedTerms.message}</p>}
+            {showMethodChoice && availableMethods && (
+              <PaymentMethodSelector
+                value={effectiveMethod}
+                onChange={setPaymentMethod}
+                availableMethods={availableMethods}
+                disabled={isSubmitting}
+              />
+            )}
             {selectedType && !selectedType.isFree && (
               <p className="text-center text-sm text-slate-700 dark:text-slate-400">
                 {t('review.paymentRedirect', { price: membershipFee ? formatCurrency(membershipFee.gross / 100) : formatPrice(selectedType) })}

@@ -12,12 +12,14 @@ import {
   jobAdSchema,
   directoryCategoryGroups,
   getDirectoryCategoryLabel,
-  calculateProcessingFee
+  calculateProcessingFee,
+  type PaymentMethodOption
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 import { inferPaymentProvider } from '@/lib/payments';
 import { useAuth } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import {
   MapPin,
@@ -116,6 +118,13 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
   const [showPromotedBanner, setShowPromotedBanner] = useState(searchParams?.get('promoted') === 'success');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
+
+  const availableMethods = paymentSettings?.availableMethods;
+  const showMethodChoice =
+    !!availableMethods && Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const effectiveMethod: PaymentMethodOption =
+    paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
 
   const confirmDirectoryPayment = useMutation({
     mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
@@ -223,7 +232,11 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   });
 
   const promote = useMutation({
-    mutationFn: () => api.post<{ clientSecret?: string; sessionId?: string; url?: string; provider?: 'stripe' | 'gocardless' }>(`/directory/businesses/${resolvedId}/promote`),
+    mutationFn: () =>
+      api.post<{ clientSecret?: string; sessionId?: string; url?: string; provider?: 'stripe' | 'gocardless' }>(
+        `/directory/businesses/${resolvedId}/promote`,
+        showMethodChoice ? { paymentMethod: effectiveMethod } : {}
+      ),
     onSuccess: (res) => {
       if (res.data.provider === 'gocardless' && res.data.url) {
         window.location.assign(res.data.url);
@@ -373,6 +386,16 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
                     <div className="text-xs text-slate-500 lg:text-right">
                       <span>{formatCurrency(promotionFee.net / 100)} + {formatCurrency(promotionFee.fee / 100)} fee = </span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(promotionFee.gross / 100)}</span>
+                    </div>
+                  )}
+                  {showMethodChoice && availableMethods && (
+                    <div className="w-full lg:max-w-xs">
+                      <PaymentMethodSelector
+                        value={effectiveMethod}
+                        onChange={setPaymentMethod}
+                        availableMethods={availableMethods}
+                        disabled={promote.isPending}
+                      />
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">

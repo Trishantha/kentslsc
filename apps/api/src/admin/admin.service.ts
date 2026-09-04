@@ -357,9 +357,15 @@ export class AdminService {
       throw new BadRequestException('Free memberships do not require payment');
     }
 
-    const settings = await this.paymentsService.getPublicPaymentSettings();
-    if (settings.provider === 'gocardless') {
+    const { provider } = await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod);
+    if (provider === 'gocardless') {
       return this.sendMembershipPaymentLinkViaGoCardless(membership, dto);
+    }
+
+    if (dto.paymentPlan === 'instalments') {
+      // Instalments are a Direct Debit concept (GoCardless instalment
+      // schedule); the Stripe checkout only supports the subscription plan.
+      throw new BadRequestException('Instalments are only available with Direct Debit');
     }
 
     const user = membership.user;

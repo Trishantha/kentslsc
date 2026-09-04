@@ -6,9 +6,11 @@ import {
   IsUUID,
   IsArray,
   IsBoolean,
+  IsIn,
   ValidateNested
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import type { PaymentMethodOption } from '@kentslsc/shared';
 import { DependantDto } from '../../memberships/dto/dependant.dto.js';
 import { StructuredAddressDto } from './address.dto.js';
 import { StrongPassword } from '../../common/validators/strong-password.decorator.js';
@@ -55,6 +57,11 @@ export class RegisterApplicationDto {
 
   @IsBoolean()
   declare acceptedTerms: boolean;
+
+  /** Applicant's preferred payment method. Omitted = today's behaviour. */
+  @IsOptional()
+  @IsIn(['card', 'direct_debit', 'instant_bank_pay'])
+  declare paymentMethod?: PaymentMethodOption;
 }
 
 export class RegisterDto {

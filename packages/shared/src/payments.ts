@@ -45,3 +45,22 @@ export const DEFAULT_PROCESSING_FEE: Required<ProcessingFeeConfig> = {
   percent: 1.5,
   fixed: 20
 };
+
+/**
+ * Payer-selectable payment methods shown at member-facing checkouts.
+ * 'card' is processed by Stripe; the bank payment methods by GoCardless.
+ */
+export type PaymentMethodOption = 'card' | 'direct_debit' | 'instant_bank_pay';
+
+export type PaymentMethodProvider = 'stripe' | 'gocardless';
+
+/** Which platform processes the given payment method. */
+export function methodToProvider(method: PaymentMethodOption): PaymentMethodProvider {
+  return method === 'card' ? 'stripe' : 'gocardless';
+}
+
+/** Which payment methods are configured and may be offered to payers. */
+export interface AvailablePaymentMethods {
+  card: boolean;
+  directDebit: boolean;
+}

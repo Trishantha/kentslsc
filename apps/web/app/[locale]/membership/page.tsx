@@ -7,7 +7,9 @@ import { Loader2, Check, ArrowRight } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { MembershipFeature, membershipFeatureLabels } from '@kentslsc/shared';
+import { usePaymentSettings } from '@/hooks/usePaymentSettings';
+import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
+import { MembershipFeature, membershipFeatureLabels, type PaymentMethodOption } from '@kentslsc/shared';
 
 interface MembershipType {
   id: string;
@@ -51,7 +53,17 @@ export default function MembershipPlansPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: user } = useAuth();
+  const { data: paymentSettings } = usePaymentSettings();
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
+
+  const availableMethods = paymentSettings?.availableMethods;
+  const showMethodChoice =
+    !!user &&
+    !!availableMethods &&
+    Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const effectiveMethod: PaymentMethodOption =
+    paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
 
   const { data: types = [], isLoading: typesLoading } = useQuery<MembershipType[]>({
     queryKey: ['membership-types'],
@@ -76,7 +88,8 @@ export default function MembershipPlansPage() {
         membershipTypeId,
         fullName: user?.name ?? '',
         phone: user?.phone,
-        address: user?.address
+        address: user?.address,
+        ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
       };
       const res = await api.post<ApplyMembershipResponse>('/membership/apply', payload);
       return res.data;
@@ -122,6 +135,17 @@ export default function MembershipPlansPage() {
         {error && (
           <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
             {error}
+          </div>
+        )}
+
+        {showMethodChoice && availableMethods && (
+          <div className="mt-6 max-w-md">
+            <PaymentMethodSelector
+              value={effectiveMethod}
+              onChange={setPaymentMethod}
+              availableMethods={availableMethods}
+              disabled={applyMembership.isPending}
+            />
           </div>
         )}
 

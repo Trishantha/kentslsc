@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { PaymentsService } from './payments.service.js';
 
 const mockConfig = {
-  get: jest.fn((key: string) => {
+  get: jest.fn((key: string): string | undefined => {
     if (key === 'STRIPE_SECRET_KEY') return 'sk_test_123';
     if (key === 'PAYPAL_CLIENT_ID') return 'paypal-client-id';
     if (key === 'PAYPAL_CLIENT_SECRET') return 'paypal-client-secret';
@@ -97,6 +97,151 @@ describe('PaymentsService', () => {
       } as any);
       expect(result.fee).toBe(0);
       expect(result.gross).toBe(1000);
+    });
+  });
+
+  describe('resolveCheckoutMethod', () => {
+    const defaultConfig = (key: string) => {
+      if (key === 'STRIPE_SECRET_KEY') return 'sk_test_123';
+      if (key === 'PAYPAL_CLIENT_ID') return 'paypal-client-id';
+      if (key === 'PAYPAL_CLIENT_SECRET') return 'paypal-client-secret';
+      if (key === 'PAYPAL_API_BASE_URL') return 'https://api-m.sandbox.paypal.com';
+      return undefined;
+    };
+
+    beforeEach(() => {
+      mockConfig.get.mockImplementation(defaultConfig);
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue(null);
+    });
+
+    it('falls back to the global default provider when no method is requested', async () => {
+      let service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod()).resolves.toEqual({
+        method: 'card',
+        provider: 'stripe'
+      });
+
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'DEFAULT_PAYMENT_PROVIDER' ? 'gocardless' : defaultConfig(key)
+      );
+      service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      await expect(service.resolveCheckoutMethod()).resolves.toEqual({
+        method: 'direct_debit',
+        provider: 'gocardless'
+      });
+    });
+
+    it('routes card to stripe when a secret key is configured', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('card')).resolves.toEqual({
+        method: 'card',
+        provider: 'stripe'
+      });
+    });
+
+    it('throws a clear 400 when card is requested but Stripe is not configured', async () => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'STRIPE_SECRET_KEY' ? undefined : defaultConfig(key)
+      );
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('card')).rejects.toThrow(
+        'Card payments are not currently available'
+      );
+    });
+
+    it('routes bank methods to gocardless when an access token is configured', async () => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'GOCARDLESS_ACCESS_TOKEN' ? 'gc-token' : defaultConfig(key)
+      );
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('direct_debit')).resolves.toEqual({
+        method: 'direct_debit',
+        provider: 'gocardless'
+      });
+      await expect(service.resolveCheckoutMethod('instant_bank_pay')).resolves.toEqual({
+        method: 'instant_bank_pay',
+        provider: 'gocardless'
+      });
+    });
+
+    it('throws a clear 400 when a bank method is requested but GoCardless is not configured', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('direct_debit')).rejects.toThrow(
+        'Direct Debit and Instant Bank Pay are not currently available'
+      );
+      await expect(service.resolveCheckoutMethod('instant_bank_pay')).rejects.toThrow(
+        'Direct Debit and Instant Bank Pay are not currently available'
+      );
+    });
+
+    it('honours a persisted GoCardless token over the absence of an env token', async () => {
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({
+        gocardlessAccessToken: 'persisted-gc-token',
+        gocardlessWebhookSecret: null,
+        gocardlessEnvironment: null
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('direct_debit')).resolves.toEqual({
+        method: 'direct_debit',
+        provider: 'gocardless'
+      });
+    });
+  });
+
+  describe('getPublicPaymentSettings availableMethods', () => {
+    afterEach(() => {
+      mockConfig.get.mockImplementation((key: string) => {
+        if (key === 'STRIPE_SECRET_KEY') return 'sk_test_123';
+        if (key === 'PAYPAL_CLIENT_ID') return 'paypal-client-id';
+        if (key === 'PAYPAL_CLIENT_SECRET') return 'paypal-client-secret';
+        if (key === 'PAYPAL_API_BASE_URL') return 'https://api-m.sandbox.paypal.com';
+        return undefined;
+      });
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue(null);
+    });
+
+    it('exposes card and directDebit availability as booleans from effective settings', async () => {
+      mockConfig.get.mockImplementation((key: string) => {
+        if (key === 'STRIPE_SECRET_KEY') return 'sk_test_123';
+        if (key === 'GOCARDLESS_ACCESS_TOKEN') return 'gc-token';
+        return undefined;
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const settings = await service.getPublicPaymentSettings();
+
+      expect(settings.availableMethods).toEqual({ card: true, directDebit: true });
+    });
+
+    it('reports each method unavailable when its platform is not configured', async () => {
+      mockConfig.get.mockReturnValue(undefined);
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const settings = await service.getPublicPaymentSettings();
+
+      expect(settings.availableMethods).toEqual({ card: false, directDebit: false });
+    });
+
+    it('reflects persisted payment settings over environment variables', async () => {
+      mockConfig.get.mockReturnValue(undefined);
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({
+        stripeSecretKey: 'sk_persisted',
+        gocardlessAccessToken: null,
+        processingFeeEnabled: null,
+        processingFeePercent: null,
+        processingFeeFixed: null
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const settings = await service.getPublicPaymentSettings();
+
+      expect(settings.availableMethods).toEqual({ card: true, directDebit: false });
     });
   });
 

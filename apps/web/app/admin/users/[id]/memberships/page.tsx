@@ -33,13 +33,28 @@ export default function UserMembershipsPage() {
   const [error, setError] = useState<string | null>(null);
   const [paymentPlan, setPaymentPlan] = useState<'single' | 'subscription' | 'instalments'>('single');
   const [instalmentCount, setInstalmentCount] = useState(10);
+  const [linkPaymentMethod, setLinkPaymentMethod] = useState<'card' | 'direct_debit'>('card');
   const [dependants, setDependants] = useState<{ name: string; age: number; relationship: 'spouse' | 'child' }[]>([]);
 
-  const { data: paymentSettings } = useQuery<{ provider: 'stripe' | 'paypal' | 'gocardless' }>({
+  const { data: paymentSettings } = useQuery<{
+    provider: 'stripe' | 'paypal' | 'gocardless';
+    hasStripeSecretKey?: boolean;
+    hasGocardlessAccessToken?: boolean;
+  }>({
     queryKey: ['payments-settings'],
     queryFn: async () => (await api.get('/payments/settings')).data
   });
   const isGoCardless = paymentSettings?.provider === 'gocardless';
+  const availableMethods = paymentSettings
+    ? {
+        card: !!paymentSettings.hasStripeSecretKey,
+        directDebit: !!paymentSettings.hasGocardlessAccessToken
+      }
+    : undefined;
+  const showMethodChoice =
+    !!availableMethods && Number(availableMethods.card) + Number(availableMethods.directDebit) >= 2;
+  const cardSelected = showMethodChoice && linkPaymentMethod === 'card';
+  const planPickerVisible = isGoCardless || showMethodChoice;
 
   const { data: detail, isLoading } = useQuery<UserDetail>({
     queryKey: ['admin', 'users', id],
@@ -110,8 +125,14 @@ export default function UserMembershipsPage() {
   });
 
   const sendLinkMutation = useMutation({
-    mutationFn: async (input: { membershipId: string; paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number }) => {
-      const payload: { paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number } = {};
+    mutationFn: async (input: {
+      membershipId: string;
+      paymentPlan?: 'subscription' | 'instalments';
+      instalmentCount?: number;
+      paymentMethod?: 'card' | 'direct_debit';
+    }) => {
+      const payload: { paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number; paymentMethod?: 'card' | 'direct_debit' } = {};
+      if (input.paymentMethod) payload.paymentMethod = input.paymentMethod;
       if (input.paymentPlan) payload.paymentPlan = input.paymentPlan;
       if (typeof input.instalmentCount === 'number') payload.instalmentCount = input.instalmentCount;
       const res = await api.post(`/admin/memberships/${input.membershipId}/send-payment-link`, payload);
@@ -172,19 +193,41 @@ export default function UserMembershipsPage() {
           </button>
         </div>
 
-        {isGoCardless && (
+        {planPickerVisible && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
+            {showMethodChoice && (
+              <>
+                <label className="text-xs text-slate-500">Payment method:</label>
+                <select
+                  value={linkPaymentMethod}
+                  onChange={(e) => {
+                    const next = e.target.value as 'card' | 'direct_debit';
+                    setLinkPaymentMethod(next);
+                    // Card links always use the Stripe subscription checkout.
+                    if (next === 'card') setPaymentPlan('subscription');
+                  }}
+                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-100 outline-none focus:border-neon-blue"
+                >
+                  <option value="card">Card (Stripe)</option>
+                  <option value="direct_debit">Direct Debit</option>
+                </select>
+              </>
+            )}
             <label className="text-xs text-slate-500">Payment plan for links:</label>
             <select
-              value={paymentPlan}
+              value={cardSelected ? 'subscription' : paymentPlan}
               onChange={(e) => setPaymentPlan(e.target.value as 'single' | 'subscription' | 'instalments')}
-              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-100 outline-none focus:border-neon-blue"
+              disabled={cardSelected}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-100 outline-none focus:border-neon-blue disabled:opacity-50"
             >
               <option value="single">Single payment</option>
               <option value="subscription">Monthly subscription (direct debit)</option>
-              <option value="instalments">Instalments (N months)</option>
+              <option value="instalments" disabled={cardSelected}>Instalments (N months)</option>
             </select>
-            {paymentPlan === 'instalments' && (
+            {cardSelected && (
+              <span className="text-xs text-slate-500">Instalments are only available with Direct Debit.</span>
+            )}
+            {!cardSelected && paymentPlan === 'instalments' && (
               <>
                 <input
                   type="number"
@@ -267,7 +310,8 @@ export default function UserMembershipsPage() {
                         onClick={() =>
                           sendLinkMutation.mutate({
                             membershipId: m.id,
-                            ...(isGoCardless && paymentPlan !== 'single'
+                            ...(showMethodChoice ? { paymentMethod: linkPaymentMethod } : {}),
+                            ...(!cardSelected && planPickerVisible && paymentPlan !== 'single'
                               ? {
                                   paymentPlan,
                                   ...(paymentPlan === 'instalments'

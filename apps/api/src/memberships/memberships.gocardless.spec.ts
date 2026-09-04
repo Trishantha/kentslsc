@@ -107,6 +107,10 @@ describe('MembershipsService GoCardless handlers', () => {
       processingFeePercent: 1.5,
       processingFeeFixed: 20
     }),
+    resolveCheckoutMethod: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
+      method: 'direct_debit',
+      provider: 'gocardless'
+    }),
     getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test'),
     syncMembershipTypePrice: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
       productId: 'prod_test',
@@ -525,11 +529,9 @@ describe('MembershipsService GoCardless handlers', () => {
     });
 
     it('keeps the Stripe path untouched when the effective provider is stripe', async () => {
-      mockPaymentsService.getPublicPaymentSettings.mockResolvedValueOnce({
-        provider: 'stripe',
-        processingFeeEnabled: false,
-        processingFeePercent: 0,
-        processingFeeFixed: 0
+      mockPaymentsService.resolveCheckoutMethod.mockResolvedValueOnce({
+        method: 'card',
+        provider: 'stripe'
       });
       const membership = awaitingApproval();
 
@@ -541,6 +543,29 @@ describe('MembershipsService GoCardless handlers', () => {
 
       expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
       expect(mockGoCardlessService.getOrCreateCustomer).not.toHaveBeenCalled();
+      expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalled();
+      expect(result).toEqual({
+        membership: expect.anything(),
+        url: 'https://checkout.stripe.test/pay',
+        provider: 'stripe'
+      });
+    });
+
+    it('uses the Stripe checkout when the admin picks card, even under a GoCardless default', async () => {
+      const membership = awaitingApproval();
+
+      mockPrisma.membership.findFirst.mockResolvedValue(membership);
+      mockPrisma.membership.update.mockResolvedValue(membership);
+      mockPrisma.membership.findUnique.mockResolvedValue(membership);
+      mockPaymentsService.resolveCheckoutMethod.mockResolvedValueOnce({
+        method: 'card',
+        provider: 'stripe'
+      });
+
+      const result = await service.approveAndRequestPayment(membership.id, 'card');
+
+      expect(mockPaymentsService.resolveCheckoutMethod).toHaveBeenCalledWith('card');
+      expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
       expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalled();
       expect(result).toEqual({
         membership: expect.anything(),
