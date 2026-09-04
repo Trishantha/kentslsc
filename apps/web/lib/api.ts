@@ -43,7 +43,9 @@ api.interceptors.request.use((config) => {
 });
 
 // These endpoints are allowed to return 401 for anonymous users on public pages.
-// They should not trigger a forced redirect to the login page.
+// They should not trigger a forced redirect to the login page. `/auth/me` is
+// special-cased below: its 401 usually means the short-lived access token
+// expired while the session is still alive, so it gets a silent refresh-retry.
 const optionalAuthEndpoints = [
   '/auth/me',
   '/auth/features',
@@ -72,11 +74,26 @@ export function getApiErrorMessage(error: unknown): string {
   return 'An unexpected error occurred.';
 }
 
+// Single in-flight refresh shared by all callers: the refresh token rotates on
+// every use, so concurrent 401 retries must not each fire their own refresh —
+// a replayed (already-rotated) token is treated as theft and kills the session.
+let refreshSessionPromise: Promise<unknown> | null = null;
+
+function refreshSession(): Promise<unknown> {
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = axios
+      .post(`${baseURL}/auth/refresh`, {}, { withCredentials: true })
+      .finally(() => {
+        refreshSessionPromise = null;
+      });
+  }
+  return refreshSessionPromise;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
     // The API gates the portal behind email confirmation. Send the user to the
     // screen that can actually resolve it rather than showing a bare 403.
     if (
@@ -93,19 +110,24 @@ api.interceptors.response.use(
       const isOptionalAuth = optionalAuthEndpoints.some((url) =>
         originalRequest.url?.includes(url)
       );
-      if (isOptionalAuth) {
+      // Only `/auth/me` may absorb a 401 into a refresh-retry; the other
+      // optional endpoints use 401 as a normal application outcome (e.g. a
+      // failed login POST), which must be passed straight through.
+      if (isOptionalAuth && !originalRequest.url?.includes('/auth/me')) {
         return Promise.reject(error);
       }
 
       originalRequest._retry = true;
       try {
-        await axios.post(
-          `${baseURL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
+        await refreshSession();
         return api(originalRequest);
       } catch {
+        if (isOptionalAuth) {
+          // The session itself is dead, but these endpoints also serve public
+          // pages, so don't force a redirect from here; the SessionWatcher
+          // probe handles bouncing and cache cleanup.
+          return Promise.reject(error);
+        }
         // Preserve where the user was so they land back there after logging in,
         // rather than being dumped on the dashboard.
         const here = `${window.location.pathname}${window.location.search}`;
