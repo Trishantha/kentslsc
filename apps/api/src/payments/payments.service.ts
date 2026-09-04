@@ -4,10 +4,10 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import {
   calculateProcessingFee,
-  DEFAULT_PROCESSING_FEE,
+  DEFAULT_PLATFORM_FEES,
   methodToProvider,
   type PaymentMethodOption,
-  type ProcessingFeeConfig,
+  type PlatformFeeConfigs,
   type ProcessingFeeResult
 } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
@@ -101,7 +101,7 @@ interface EffectivePaymentSettings {
   stripeEnabled: boolean;
   paypalEnabled: boolean;
   gocardlessEnabled: boolean;
-  processingFeeConfig: ProcessingFeeConfig;
+  feeConfigs: PlatformFeeConfigs;
 }
 
 @Injectable()
@@ -173,10 +173,24 @@ export class PaymentsService {
       stripeEnabled: persisted?.stripeEnabled ?? true,
       paypalEnabled: persisted?.paypalEnabled ?? true,
       gocardlessEnabled: persisted?.gocardlessEnabled ?? true,
-      processingFeeConfig: {
-        enabled: persisted?.processingFeeEnabled ?? DEFAULT_PROCESSING_FEE.enabled,
-        percent: persisted?.processingFeePercent ? Number(persisted.processingFeePercent) : DEFAULT_PROCESSING_FEE.percent,
-        fixed: persisted?.processingFeeFixed ?? DEFAULT_PROCESSING_FEE.fixed
+      feeConfigs: {
+        stripe: {
+          enabled: persisted?.stripeFeeEnabled ?? DEFAULT_PLATFORM_FEES.stripe.enabled,
+          percent: persisted?.stripeFeePercent ? Number(persisted.stripeFeePercent) : DEFAULT_PLATFORM_FEES.stripe.percent,
+          fixed: persisted?.stripeFeeFixed ?? DEFAULT_PLATFORM_FEES.stripe.fixed
+        },
+        paypal: {
+          enabled: persisted?.paypalFeeEnabled ?? DEFAULT_PLATFORM_FEES.paypal.enabled,
+          percent: persisted?.paypalFeePercent ? Number(persisted.paypalFeePercent) : DEFAULT_PLATFORM_FEES.paypal.percent,
+          fixed: persisted?.paypalFeeFixed ?? DEFAULT_PLATFORM_FEES.paypal.fixed
+        },
+        gocardless: {
+          enabled: persisted?.gocardlessFeeEnabled ?? DEFAULT_PLATFORM_FEES.gocardless.enabled,
+          percent: persisted?.gocardlessFeePercent
+            ? Number(persisted.gocardlessFeePercent)
+            : DEFAULT_PLATFORM_FEES.gocardless.percent,
+          fixed: persisted?.gocardlessFeeFixed ?? DEFAULT_PLATFORM_FEES.gocardless.fixed
+        }
       }
     };
   }
@@ -250,9 +264,9 @@ export class PaymentsService {
       stripeEnabled: effective.stripeEnabled,
       paypalEnabled: effective.paypalEnabled,
       gocardlessEnabled: effective.gocardlessEnabled,
-      processingFeeEnabled: effective.processingFeeConfig.enabled,
-      processingFeePercent: effective.processingFeeConfig.percent,
-      processingFeeFixed: effective.processingFeeConfig.fixed
+      stripeFee: effective.feeConfigs.stripe,
+      paypalFee: effective.feeConfigs.paypal,
+      gocardlessFee: effective.feeConfigs.gocardless
     };
   }
 
@@ -260,9 +274,10 @@ export class PaymentsService {
     const effective = await this.getEffectiveSettings();
     return {
       provider: effective.provider,
-      processingFeeEnabled: effective.processingFeeConfig.enabled,
-      processingFeePercent: effective.processingFeeConfig.percent,
-      processingFeeFixed: effective.processingFeeConfig.fixed,
+      fees: {
+        card: effective.feeConfigs.stripe,
+        directDebit: effective.feeConfigs.gocardless
+      },
       availableMethods: {
         card: effective.stripeEnabled && !!effective.stripeSecretKey,
         directDebit: effective.gocardlessEnabled && !!effective.gocardlessAccessToken
@@ -1111,9 +1126,15 @@ export class PaymentsService {
       ...(dto.stripeEnabled !== undefined && { stripeEnabled: dto.stripeEnabled }),
       ...(dto.paypalEnabled !== undefined && { paypalEnabled: dto.paypalEnabled }),
       ...(dto.gocardlessEnabled !== undefined && { gocardlessEnabled: dto.gocardlessEnabled }),
-      ...(dto.processingFeeEnabled !== undefined && { processingFeeEnabled: dto.processingFeeEnabled }),
-      ...(dto.processingFeePercent !== undefined && { processingFeePercent: dto.processingFeePercent }),
-      ...(dto.processingFeeFixed !== undefined && { processingFeeFixed: dto.processingFeeFixed })
+      ...(dto.stripeFeeEnabled !== undefined && { stripeFeeEnabled: dto.stripeFeeEnabled }),
+      ...(dto.stripeFeePercent !== undefined && { stripeFeePercent: dto.stripeFeePercent }),
+      ...(dto.stripeFeeFixed !== undefined && { stripeFeeFixed: dto.stripeFeeFixed }),
+      ...(dto.paypalFeeEnabled !== undefined && { paypalFeeEnabled: dto.paypalFeeEnabled }),
+      ...(dto.paypalFeePercent !== undefined && { paypalFeePercent: dto.paypalFeePercent }),
+      ...(dto.paypalFeeFixed !== undefined && { paypalFeeFixed: dto.paypalFeeFixed }),
+      ...(dto.gocardlessFeeEnabled !== undefined && { gocardlessFeeEnabled: dto.gocardlessFeeEnabled }),
+      ...(dto.gocardlessFeePercent !== undefined && { gocardlessFeePercent: dto.gocardlessFeePercent }),
+      ...(dto.gocardlessFeeFixed !== undefined && { gocardlessFeeFixed: dto.gocardlessFeeFixed })
     };
 
     if (existing) {
@@ -1136,8 +1157,12 @@ export class PaymentsService {
     return this.getSettings();
   }
 
-  calculateProcessingFee(netPence: number, effective?: EffectivePaymentSettings): ProcessingFeeResult {
-    const config = effective?.processingFeeConfig ?? DEFAULT_PROCESSING_FEE;
+  calculateProcessingFee(
+    netPence: number,
+    provider: PaymentProvider = 'stripe',
+    effective?: EffectivePaymentSettings
+  ): ProcessingFeeResult {
+    const config = effective?.feeConfigs?.[provider] ?? DEFAULT_PLATFORM_FEES[provider];
     return calculateProcessingFee(netPence, config);
   }
 
@@ -1166,7 +1191,7 @@ export class PaymentsService {
     const netAmount = input.amount ?? 0;
     const includeProcessingFee = input.includeProcessingFee !== false;
     const feeResult = includeProcessingFee
-      ? this.calculateProcessingFee(netAmount, effective)
+      ? this.calculateProcessingFee(netAmount, 'stripe', effective)
       : { net: netAmount, fee: 0, gross: netAmount };
 
     let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
@@ -1477,7 +1502,11 @@ export class PaymentsService {
     }
 
     const currency = (input.currency ?? 'GBP').toUpperCase();
-    const amountValue = ((input.amount ?? 0) / 100).toFixed(2);
+    const netAmount = input.amount ?? 0;
+    const includeProcessingFee = input.includeProcessingFee !== false;
+    const feeResult = includeProcessingFee
+      ? this.calculateProcessingFee(netAmount, 'paypal', effective)
+      : { net: netAmount, fee: 0, gross: netAmount };
     const token = await this.getPayPalAccessToken(effective);
 
     const response = await fetch(`${effective.paypalApiBaseUrl}/v2/checkout/orders`, {
@@ -1493,10 +1522,23 @@ export class PaymentsService {
           {
             amount: {
               currency_code: currency,
-              value: amountValue
+              value: (feeResult.gross / 100).toFixed(2),
+              ...(feeResult.fee > 0
+                ? {
+                    breakdown: {
+                      item_total: { currency_code: currency, value: (feeResult.net / 100).toFixed(2) },
+                      handling: { currency_code: currency, value: (feeResult.fee / 100).toFixed(2) }
+                    }
+                  }
+                : {})
             },
             description: input.description ?? 'Payment',
-            custom_id: JSON.stringify(input.metadata ?? {})
+            custom_id: JSON.stringify({
+              ...(input.metadata ?? {}),
+              netAmount: String(feeResult.net),
+              processingFee: String(feeResult.fee),
+              grossAmount: String(feeResult.gross)
+            })
           }
         ],
         application_context: {
@@ -1516,14 +1558,13 @@ export class PaymentsService {
     const data = await response.json() as { id?: string; links?: Array<{ rel?: string; href?: string }> };
     const approveLink = data.links?.find((link) => link.rel === 'approve')?.href;
 
-    const netAmount = input.amount ?? 0;
     return {
       provider: 'paypal',
       id: data.id ?? '',
       url: approveLink ?? input.successUrl,
-      netAmount,
-      processingFee: 0,
-      grossAmount: netAmount
+      netAmount: feeResult.net,
+      processingFee: feeResult.fee,
+      grossAmount: feeResult.gross
     };
   }
 

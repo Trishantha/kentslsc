@@ -103,9 +103,10 @@ describe('MembershipsService GoCardless handlers', () => {
     calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 20, gross: netPence + 20 })),
     getPublicPaymentSettings: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
       provider: 'gocardless',
-      processingFeeEnabled: true,
-      processingFeePercent: 1.5,
-      processingFeeFixed: 20
+      fees: {
+        card: { enabled: true, percent: 1.5, fixed: 20 },
+        directDebit: { enabled: true, percent: 1.5, fixed: 20 }
+      }
     }),
     resolveCheckoutMethod: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
       method: 'direct_debit',
@@ -493,7 +494,7 @@ describe('MembershipsService GoCardless handlers', () => {
       expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
         expect.objectContaining({
           plan: 'subscription',
-          amountPence: 5000,
+          amountPence: 5020,
           subscriptionIntervalUnit: 'yearly',
           subscriptionInterval: 1,
           metadata: expect.objectContaining({
@@ -514,8 +515,9 @@ describe('MembershipsService GoCardless handlers', () => {
             paymentStatus: PaymentStatus.PENDING,
             providerCheckoutId: 'BR123',
             sourceType: PaymentSourceType.MEMBERSHIP,
-            grossAmount: 50,
-            processingFee: 0.2
+            grossAmount: 50.2,
+            processingFee: 0.2,
+            netAmount: 50
           })
         })
       );

@@ -495,7 +495,7 @@ export class DirectoryService {
 
     const settings = await this.paymentsService.getPublicPaymentSettings();
     if (settings.provider === 'gocardless') {
-      const { checkout } = await this.createGoCardlessCheckout({
+      const { checkout, feeResult } = await this.createGoCardlessCheckout({
         amountPence: PROMOTION_PRICE_PENCE,
         description: `Promote ${listing.businessName} for 30 days`,
         metadata: { type: 'directory_promotion', businessListingId: id },
@@ -513,9 +513,9 @@ export class DirectoryService {
           paymentStatus: PaymentStatus.PENDING,
           providerCheckoutId: checkout.id,
           currency: 'GBP',
-          grossAmount: PROMOTION_PRICE_PENCE / 100,
-          processingFee: 0,
-          netAmount: PROMOTION_PRICE_PENCE / 100,
+          grossAmount: feeResult.gross / 100,
+          processingFee: feeResult.fee / 100,
+          netAmount: feeResult.net / 100,
           description: `Directory promotion: ${listing.businessName}`,
           payerName: listing.owner.name,
           payerEmail: listing.owner.email,
@@ -585,7 +585,7 @@ export class DirectoryService {
     customerId?: string;
     scheme?: 'bacs' | 'faster_payments';
   }) {
-    const feeResult = this.paymentsService.calculateProcessingFee(input.amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(input.amountPence, 'gocardless');
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan: 'one_off',
       amountPence: feeResult.gross,
@@ -639,7 +639,14 @@ export class DirectoryService {
       include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
     });
 
-    const amount = (paymentContext?.amountPence ?? PROMOTION_PRICE_PENCE) / 100;
+    // Checkout flows pack the fee breakdown into the payment metadata (Stripe
+    // session metadata, PayPal custom_id, GoCardless billing request data);
+    // fall back to the collected amount with no fee when it is absent.
+    const grossPence = metadata.grossAmount
+      ? Number(metadata.grossAmount)
+      : (paymentContext?.amountPence ?? PROMOTION_PRICE_PENCE);
+    const feePence = metadata.processingFee ? Number(metadata.processingFee) : 0;
+    const netPence = metadata.netAmount ? Number(metadata.netAmount) : grossPence - feePence;
     const currency = (paymentContext?.currency ?? 'GBP').toUpperCase();
 
     await this.prisma.$transaction(async (tx) => {
@@ -662,9 +669,9 @@ export class DirectoryService {
           providerCheckoutId: paymentContext?.providerCheckoutId ?? null,
           providerPaymentId: paymentContext?.providerPaymentId ?? null,
           currency,
-          grossAmount: amount,
-          processingFee: 0,
-          netAmount: amount,
+          grossAmount: grossPence / 100,
+          processingFee: feePence / 100,
+          netAmount: netPence / 100,
           description: `Directory promotion: ${listing?.businessName ?? businessListingId}`,
           payerName: paymentContext?.payerName ?? listing?.owner.name ?? null,
           payerEmail: paymentContext?.payerEmail ?? listing?.owner.email ?? null,
@@ -783,7 +790,13 @@ export class DirectoryService {
 
       const promotedUntil = new Date();
       promotedUntil.setDate(promotedUntil.getDate() + 30);
-      const amount = Number(payment.amount ?? PROMOTION_PRICE_PENCE) / 100;
+      // The checkout flow charged the gross amount and packed the fee breakdown
+      // into the billing request metadata; fall back to the collected amount
+      // with no fee for older billing requests.
+      const grossPence = metadata.grossAmount ? Number(metadata.grossAmount) : Number(payment.amount ?? PROMOTION_PRICE_PENCE);
+      const feePence = metadata.processingFee ? Number(metadata.processingFee) : 0;
+      const netPence = metadata.netAmount ? Number(metadata.netAmount) : grossPence - feePence;
+      const amount = grossPence / 100;
 
       await this.prisma.$transaction([
         this.prisma.businessListing.updateMany({
@@ -802,8 +815,8 @@ export class DirectoryService {
             providerPaymentId: payment.id ?? null,
             currency: (payment.currency ?? 'GBP').toUpperCase(),
             grossAmount: amount,
-            processingFee: 0,
-            netAmount: amount,
+            processingFee: feePence / 100,
+            netAmount: netPence / 100,
             purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date(),
             paymentMethod: 'direct_debit'
           }

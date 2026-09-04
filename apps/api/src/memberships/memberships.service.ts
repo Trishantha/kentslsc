@@ -1160,7 +1160,7 @@ export class MembershipsService {
     fullName: string
   ) {
     const amountPence = Math.round(Number(membership.membershipType.price) * 100);
-    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence, 'gocardless');
     const customerId = await this.goCardlessService.getOrCreateCustomer(membership.userId);
 
     const months = membership.membershipType.durationMonths;
@@ -1177,7 +1177,7 @@ export class MembershipsService {
 
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan: 'subscription',
-      amountPence,
+      amountPence: feeResult.gross,
       description: `Membership: ${membership.membershipType.name}`,
       metadata: {
         source: 'membership',
@@ -1205,9 +1205,9 @@ export class MembershipsService {
         paymentStatus: PaymentStatus.PENDING,
         providerCheckoutId: checkout.id,
         currency: 'GBP',
-        grossAmount: amountPence / 100,
+        grossAmount: feeResult.gross / 100,
         processingFee: feeResult.fee / 100,
-        netAmount: (amountPence - feeResult.fee) / 100,
+        netAmount: feeResult.net / 100,
         description: `Membership: ${membership.membershipType.name}`,
         payerName: fullName,
         payerEmail: membership.user.email,
@@ -2378,7 +2378,7 @@ export class MembershipsService {
     const currency = (payment.currency ?? 'GBP').toUpperCase();
     // GoCardless does not report fees on the payment resource, so record the
     // same estimated fee the checkout flow would have quoted.
-    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence, 'gocardless');
 
     const priorPayment = await this.prisma.payment.findFirst({
       where: {
@@ -2656,7 +2656,7 @@ export class MembershipsService {
       await this.syncMemberRole(updated.userId);
     }
 
-    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence, 'gocardless');
     await this.recordMembershipPayment(updated, {
       channel: 'gocardless',
       method: 'direct_debit',
@@ -2795,7 +2795,7 @@ export class MembershipsService {
     }
 
     const amountPence = Number(payment.amount ?? 0);
-    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence, 'gocardless');
     const instalmentRef = payment.links?.instalment;
     await this.recordMembershipPayment(updated, {
       channel: 'gocardless',

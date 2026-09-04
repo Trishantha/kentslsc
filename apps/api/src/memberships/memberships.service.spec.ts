@@ -136,7 +136,8 @@ describe('MembershipsService', () => {
     },
     user: {
       findUnique: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
+      updateMany: jest.fn()
     },
     payment: {
       findFirst: jest.fn(),
@@ -1020,14 +1021,14 @@ describe('MembershipsService', () => {
     it('promotes GUEST to MEMBER when an active qualifying membership exists', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'GUEST' });
       mockPrisma.membership.findFirst.mockResolvedValue(mockCreatedMembership);
-      mockPrisma.user.update.mockResolvedValue({ id: 'user-1', role: 'MEMBER' });
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.authEvent.create.mockResolvedValue({});
 
       await service.syncMemberRole('user-1');
 
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'user-1' },
+          where: { id: 'user-1', role: 'GUEST' },
           data: expect.objectContaining({ role: 'MEMBER' })
         })
       );
@@ -1043,20 +1044,20 @@ describe('MembershipsService', () => {
 
       await service.syncMemberRole('user-1');
 
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('demotes MEMBER to GUEST when no qualifying membership exists and revokes sessions', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ role: 'MEMBER' });
       mockPrisma.membership.findFirst.mockResolvedValue(null);
-      mockPrisma.user.update.mockResolvedValue({ id: 'user-1', role: 'GUEST' });
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.authEvent.create.mockResolvedValue({});
 
       await service.syncMemberRole('user-1');
 
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'user-1' },
+          where: { id: 'user-1', role: 'MEMBER' },
           data: expect.objectContaining({ role: 'GUEST' })
         })
       );
@@ -1074,7 +1075,7 @@ describe('MembershipsService', () => {
 
       await service.syncMemberRole('user-1');
 
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
       expect(mockPrisma.membership.findFirst).not.toHaveBeenCalled();
     });
 
@@ -1083,7 +1084,7 @@ describe('MembershipsService', () => {
 
       await service.syncMemberRole('user-1');
 
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
       expect(mockPrisma.membership.findFirst).not.toHaveBeenCalled();
     });
   });

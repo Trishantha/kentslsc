@@ -5,6 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, CreditCard } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 
+interface ProcessingFeeConfig {
+  enabled: boolean;
+  percent: number;
+  fixed: number;
+}
+
 interface PaymentSettings {
   provider: 'stripe' | 'paypal' | 'gocardless';
   hasStripeSecretKey: boolean;
@@ -16,12 +22,12 @@ interface PaymentSettings {
   hasGocardlessAccessToken?: boolean;
   hasGocardlessWebhookSecret?: boolean;
   gocardlessEnvironment?: 'sandbox' | 'live';
-  processingFeeEnabled: boolean;
-  processingFeePercent: number;
-  processingFeeFixed: number;
   stripeEnabled: boolean;
   paypalEnabled: boolean;
   gocardlessEnabled: boolean;
+  stripeFee: ProcessingFeeConfig;
+  paypalFee: ProcessingFeeConfig;
+  gocardlessFee: ProcessingFeeConfig;
 }
 
 type PaymentProvider = PaymentSettings['provider'];
@@ -46,9 +52,9 @@ export default function AdminPaymentsPage() {
   const [gocardlessAccessToken, setGocardlessAccessToken] = useState('');
   const [gocardlessWebhookSecret, setGocardlessWebhookSecret] = useState('');
   const [gocardlessEnvironment, setGocardlessEnvironment] = useState<'sandbox' | 'live'>('sandbox');
-  const [processingFeeEnabled, setProcessingFeeEnabled] = useState(true);
-  const [processingFeePercent, setProcessingFeePercent] = useState(1.5);
-  const [processingFeeFixed, setProcessingFeeFixed] = useState(20);
+  const [stripeFee, setStripeFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
+  const [paypalFee, setPaypalFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
+  const [gocardlessFee, setGocardlessFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
   const [stripeEnabled, setStripeEnabled] = useState(true);
   const [paypalEnabled, setPaypalEnabled] = useState(true);
   const [gocardlessEnabled, setGocardlessEnabled] = useState(true);
@@ -65,9 +71,9 @@ export default function AdminPaymentsPage() {
       setGocardlessAccessToken('');
       setGocardlessWebhookSecret('');
       setGocardlessEnvironment(data.gocardlessEnvironment ?? 'sandbox');
-      setProcessingFeeEnabled(data.processingFeeEnabled ?? true);
-      setProcessingFeePercent(data.processingFeePercent ?? 1.5);
-      setProcessingFeeFixed(data.processingFeeFixed ?? 20);
+      setStripeFee(data.stripeFee ?? { enabled: true, percent: 1.5, fixed: 20 });
+      setPaypalFee(data.paypalFee ?? { enabled: true, percent: 1.5, fixed: 20 });
+      setGocardlessFee(data.gocardlessFee ?? { enabled: true, percent: 1.5, fixed: 20 });
       setStripeEnabled(data.stripeEnabled ?? true);
       setPaypalEnabled(data.paypalEnabled ?? true);
       setGocardlessEnabled(data.gocardlessEnabled ?? true);
@@ -105,21 +111,33 @@ export default function AdminPaymentsPage() {
       gocardlessAccessToken?: string;
       gocardlessWebhookSecret?: string;
       gocardlessEnvironment?: 'sandbox' | 'live';
-      processingFeeEnabled: boolean;
-      processingFeePercent: number;
-      processingFeeFixed: number;
       stripeEnabled: boolean;
       paypalEnabled: boolean;
       gocardlessEnabled: boolean;
+      stripeFeeEnabled: boolean;
+      stripeFeePercent: number;
+      stripeFeeFixed: number;
+      paypalFeeEnabled: boolean;
+      paypalFeePercent: number;
+      paypalFeeFixed: number;
+      gocardlessFeeEnabled: boolean;
+      gocardlessFeePercent: number;
+      gocardlessFeeFixed: number;
     } = {
       provider,
       paypalApiBaseUrl,
-      processingFeeEnabled,
-      processingFeePercent,
-      processingFeeFixed,
       stripeEnabled,
       paypalEnabled,
-      gocardlessEnabled
+      gocardlessEnabled,
+      stripeFeeEnabled: stripeFee.enabled,
+      stripeFeePercent: stripeFee.percent,
+      stripeFeeFixed: stripeFee.fixed,
+      paypalFeeEnabled: paypalFee.enabled,
+      paypalFeePercent: paypalFee.percent,
+      paypalFeeFixed: paypalFee.fixed,
+      gocardlessFeeEnabled: gocardlessFee.enabled,
+      gocardlessFeePercent: gocardlessFee.percent,
+      gocardlessFeeFixed: gocardlessFee.fixed
     };
 
     if (stripeSecretKey.trim()) payload.stripeSecretKey = stripeSecretKey.trim();
@@ -264,46 +282,26 @@ export default function AdminPaymentsPage() {
           )}
 
           <div className="border-t border-white/10 pt-5">
-            <h3 className="mb-3 text-sm font-semibold">Processing fee</h3>
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={processingFeeEnabled}
-                onChange={(e) => setProcessingFeeEnabled(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
-              />
-              <span className="text-sm text-slate-700 dark:text-slate-300">
-                Pass card processing fees to the payer
-              </span>
-            </label>
-            <p className="mt-1 text-xs text-slate-500">
-              When enabled, the fee is added on top of the advertised price so the club receives the full amount.
+            <h3 className="mb-1 text-sm font-semibold">Processing fees</h3>
+            <p className="mb-4 text-xs text-slate-500">
+              Each platform has its own fee, added on top of the advertised price when enabled so the club receives the full amount.
             </p>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>Percentage fee (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  value={processingFeePercent}
-                  onChange={(e) => setProcessingFeePercent(Number(e.target.value))}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Fixed fee (pence)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={processingFeeFixed}
-                  onChange={(e) => setProcessingFeeFixed(Number(e.target.value))}
-                  className={inputClass}
-                />
-              </div>
+            <div className="space-y-5">
+              <FeeFields
+                title="Card (Stripe)"
+                fee={stripeFee}
+                onChange={setStripeFee}
+              />
+              <FeeFields
+                title="PayPal"
+                fee={paypalFee}
+                onChange={setPaypalFee}
+              />
+              <FeeFields
+                title="Direct Debit & Instant Bank Pay (GoCardless)"
+                fee={gocardlessFee}
+                onChange={setGocardlessFee}
+              />
             </div>
           </div>
 
@@ -323,6 +321,56 @@ export default function AdminPaymentsPage() {
             <li>• Use the same callback URLs as your site frontend for success and cancel states.</li>
             <li>• Keep the provider set to the gateway you want as the default for new checkout sessions.</li>
           </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeeFields({
+  title,
+  fee,
+  onChange
+}: {
+  title: string;
+  fee: ProcessingFeeConfig;
+  onChange: (fee: ProcessingFeeConfig) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 p-4">
+      <label className="flex cursor-pointer items-start gap-3">
+        <input
+          type="checkbox"
+          checked={fee.enabled}
+          onChange={(e) => onChange({ ...fee, enabled: e.target.checked })}
+          className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
+        />
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{title}</span>
+      </label>
+
+      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Percentage fee (%)</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.01}
+            value={fee.percent}
+            onChange={(e) => onChange({ ...fee, percent: Number(e.target.value) })}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Fixed fee (pence)</label>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={fee.fixed}
+            onChange={(e) => onChange({ ...fee, fixed: Number(e.target.value) })}
+            className={inputClass}
+          />
         </div>
       </div>
     </div>

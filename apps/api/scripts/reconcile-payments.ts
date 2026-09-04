@@ -30,7 +30,7 @@ import {
   TicketStatus,
   Prisma
 } from '@kentslsc/database';
-import { calculateProcessingFee, DEFAULT_PROCESSING_FEE } from '@kentslsc/shared';
+import { calculateProcessingFee, DEFAULT_PLATFORM_FEES } from '@kentslsc/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,11 +122,11 @@ async function getStripeClient(prisma: PrismaClient): Promise<Stripe | null> {
 async function getFeeConfig(prisma: PrismaClient): Promise<FeeConfig> {
   const settings = await prisma.paymentSettings.findFirst();
   return {
-    enabled: settings?.processingFeeEnabled ?? DEFAULT_PROCESSING_FEE.enabled,
-    percent: settings?.processingFeePercent
-      ? Number(settings.processingFeePercent)
-      : DEFAULT_PROCESSING_FEE.percent,
-    fixed: settings?.processingFeeFixed ?? DEFAULT_PROCESSING_FEE.fixed
+    enabled: settings?.stripeFeeEnabled ?? DEFAULT_PLATFORM_FEES.stripe.enabled,
+    percent: settings?.stripeFeePercent
+      ? Number(settings.stripeFeePercent)
+      : DEFAULT_PLATFORM_FEES.stripe.percent,
+    fixed: settings?.stripeFeeFixed ?? DEFAULT_PLATFORM_FEES.stripe.fixed
   };
 }
 

@@ -46,6 +46,19 @@ export const DEFAULT_PROCESSING_FEE: Required<ProcessingFeeConfig> = {
   fixed: 20
 };
 
+/** The payment platforms that can take online payments. */
+export type PaymentPlatform = 'stripe' | 'paypal' | 'gocardless';
+
+/** Independent processing fee configuration for each payment platform. */
+export type PlatformFeeConfigs = Record<PaymentPlatform, ProcessingFeeConfig>;
+
+/** Per-platform fees default to the historic global rate until configured. */
+export const DEFAULT_PLATFORM_FEES: PlatformFeeConfigs = {
+  stripe: DEFAULT_PROCESSING_FEE,
+  paypal: DEFAULT_PROCESSING_FEE,
+  gocardless: DEFAULT_PROCESSING_FEE
+};
+
 /**
  * Payer-selectable payment methods shown at member-facing checkouts.
  * 'card' is processed by Stripe; the bank payment methods by GoCardless.

@@ -387,7 +387,7 @@ export class FundraisingService {
   ) {
     const netPence = Math.round(dto.amount * 100);
     const feeResult = dto.addProcessingFee
-      ? this.payments.calculateProcessingFee(netPence)
+      ? this.payments.calculateProcessingFee(netPence, 'gocardless')
       : { net: netPence, fee: 0, gross: netPence };
     // Truncate message to keep billing request metadata values compact.
     const metaMessage = dto.message?.slice(0, 490);

@@ -56,9 +56,10 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
     getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
     getPublicPaymentSettings: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
       provider: 'stripe',
-      processingFeeEnabled: false,
-      processingFeePercent: 0,
-      processingFeeFixed: 0
+      fees: {
+        card: { enabled: false, percent: 0, fixed: 0 },
+        directDebit: { enabled: false, percent: 0, fixed: 0 }
+      }
     }),
     resolveCheckoutMethod: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
       method: 'card',
@@ -344,7 +345,7 @@ describe('AdminService - sendMembershipPaymentLink provider branching', () => {
     expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
       expect.objectContaining({
         plan: 'one_off',
-        amountPence: 1000,
+        amountPence: 1020,
         metadata: expect.objectContaining({
           source: 'membership',
           membershipId: 'membership-1',

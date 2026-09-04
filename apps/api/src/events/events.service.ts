@@ -533,7 +533,7 @@ export class EventsService {
     origin: string,
     method: PaymentMethodOption = 'direct_debit'
   ): Promise<Extract<Awaited<ReturnType<EventsService['createCheckoutSession']>>, { free: false }>> {
-    const feeResult = this.paymentsService.calculateProcessingFee(totalAmount);
+    const feeResult = this.paymentsService.calculateProcessingFee(totalAmount, 'gocardless');
     // An explicit Instant Bank Pay choice maps to faster_payments; otherwise
     // the legacy paymentScheme (default bacs) applies.
     const scheme = method === 'instant_bank_pay' ? 'faster_payments' : (dto.paymentScheme ?? 'bacs');

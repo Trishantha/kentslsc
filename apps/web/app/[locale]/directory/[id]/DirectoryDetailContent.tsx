@@ -148,12 +148,10 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
 
   const promotionFee = useMemo(() => {
     if (!paymentSettings) return null;
-    return calculateProcessingFee(PROMOTION_PRICE_PENCE, {
-      enabled: paymentSettings.processingFeeEnabled,
-      percent: paymentSettings.processingFeePercent,
-      fixed: paymentSettings.processingFeeFixed
-    });
-  }, [paymentSettings]);
+    // Quote the fee for the method the payer will actually use.
+    const feeConfig = effectiveMethod === 'card' ? paymentSettings.fees.card : paymentSettings.fees.directDebit;
+    return calculateProcessingFee(PROMOTION_PRICE_PENCE, feeConfig);
+  }, [paymentSettings, effectiveMethod]);
 
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: ['directory', 'businesses', resolvedId],

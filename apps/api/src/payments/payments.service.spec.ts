@@ -32,8 +32,9 @@ describe('PaymentsService', () => {
     global.fetch = originalFetch;
   });
 
-  it('creates a PayPal checkout order when requested', async () => {
-    global.fetch = jest.fn(async (url: string | URL | Request) => {
+  it('creates a PayPal checkout order that charges the PayPal processing fee', async () => {
+    let orderBody: any;
+    global.fetch = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const target = String(url);
       if (target.includes('/v1/oauth2/token')) {
         return {
@@ -43,6 +44,7 @@ describe('PaymentsService', () => {
       }
 
       if (target.includes('/v2/checkout/orders')) {
+        orderBody = JSON.parse(String(init?.body));
         return {
           ok: true,
           json: async () => ({
@@ -69,9 +71,64 @@ describe('PaymentsService', () => {
     expect(result.provider).toBe('paypal');
     expect(result.id).toBe('paypal-order-123');
     expect(result.url).toBe('https://paypal.com/approve');
+    // Default fee config 1.5% + 20p: £25.00 → 38p + 20p = 58p fee.
     expect(result.netAmount).toBe(2500);
+    expect(result.processingFee).toBe(58);
+    expect(result.grossAmount).toBe(2558);
+
+    const unit = orderBody.purchase_units[0];
+    expect(unit.amount.value).toBe('25.58');
+    expect(unit.amount.breakdown.item_total.value).toBe('25.00');
+    expect(unit.amount.breakdown.handling.value).toBe('0.58');
+    const customId = JSON.parse(unit.custom_id);
+    expect(customId.netAmount).toBe('2500');
+    expect(customId.processingFee).toBe('58');
+    expect(customId.grossAmount).toBe('2558');
+    expect(customId.source).toBe('membership');
+  });
+
+  it('omits the PayPal fee when includeProcessingFee is false', async () => {
+    let orderBody: any;
+    global.fetch = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes('/v1/oauth2/token')) {
+        return {
+          ok: true,
+          json: async () => ({ access_token: 'pay-token' })
+        } as Response;
+      }
+
+      if (target.includes('/v2/checkout/orders')) {
+        orderBody = JSON.parse(String(init?.body));
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'paypal-order-124',
+            links: [{ rel: 'approve', href: 'https://paypal.com/approve' }]
+          })
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch target: ${target}`);
+    }) as typeof fetch;
+
+    const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+    const result = await service.createCheckout({
+      provider: 'paypal',
+      amount: 2500,
+      includeProcessingFee: false,
+      currency: 'GBP',
+      description: 'Membership upgrade',
+      successUrl: 'https://example.com/success',
+      cancelUrl: 'https://example.com/cancel'
+    });
+
     expect(result.processingFee).toBe(0);
     expect(result.grossAmount).toBe(2500);
+    const unit = orderBody.purchase_units[0];
+    expect(unit.amount.value).toBe('25.00');
+    expect(unit.amount.breakdown).toBeUndefined();
+    expect(JSON.parse(unit.custom_id).processingFee).toBe('0');
   });
 
   describe('processing fee calculation', () => {
@@ -92,11 +149,31 @@ describe('PaymentsService', () => {
 
     it('returns zero fee when disabled', () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
-      const result = service.calculateProcessingFee(1000, {
-        processingFeeConfig: { enabled: false, percent: 1.5, fixed: 20 }
+      const result = service.calculateProcessingFee(1000, 'stripe', {
+        feeConfigs: {
+          stripe: { enabled: false, percent: 1.5, fixed: 20 },
+          paypal: { enabled: true, percent: 1.5, fixed: 20 },
+          gocardless: { enabled: true, percent: 1.5, fixed: 20 }
+        }
       } as any);
       expect(result.fee).toBe(0);
       expect(result.gross).toBe(1000);
+    });
+
+    it('applies each platform\'s own fee configuration', () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const effective = {
+        feeConfigs: {
+          stripe: { enabled: true, percent: 1.5, fixed: 20 },
+          paypal: { enabled: true, percent: 2.9, fixed: 30 },
+          gocardless: { enabled: true, percent: 1.0, fixed: 0 }
+        }
+      } as any;
+
+      expect(service.calculateProcessingFee(1000, 'stripe', effective).fee).toBe(35);
+      expect(service.calculateProcessingFee(1000, 'paypal', effective).fee).toBe(59); // 29p + 30p
+      expect(service.calculateProcessingFee(1000, 'gocardless', effective).fee).toBe(10);
+      expect(service.calculateProcessingFee(1000, 'gocardless', effective).gross).toBe(1010);
     });
   });
 
@@ -296,10 +373,7 @@ describe('PaymentsService', () => {
       mockConfig.get.mockReturnValue(undefined);
       mockPrisma.paymentSettings.findFirst.mockResolvedValue({
         stripeSecretKey: 'sk_persisted',
-        gocardlessAccessToken: null,
-        processingFeeEnabled: null,
-        processingFeePercent: null,
-        processingFeeFixed: null
+        gocardlessAccessToken: null
       });
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
 
@@ -371,9 +445,9 @@ describe('PaymentsService', () => {
         paymentSettings: {
           findFirst: jest.fn(async () => ({
             provider: 'stripe',
-            processingFeeEnabled: false,
-            processingFeePercent: 1.5,
-            processingFeeFixed: 20
+            stripeFeeEnabled: false,
+            stripeFeePercent: 1.5,
+            stripeFeeFixed: 20
           }))
         }
       } as any);
@@ -599,23 +673,29 @@ describe('PaymentsService', () => {
   });
 
   describe('getSettings', () => {
-    it('returns persisted processing fee settings', async () => {
+    it('returns persisted per-platform fee settings', async () => {
       const customPrisma = {
         paymentSettings: {
           findFirst: jest.fn(async () => ({
             provider: 'stripe',
-            processingFeeEnabled: true,
-            processingFeePercent: 2.0,
-            processingFeeFixed: 30
+            stripeFeeEnabled: true,
+            stripeFeePercent: 2.0,
+            stripeFeeFixed: 30,
+            paypalFeeEnabled: false,
+            paypalFeePercent: 2.9,
+            paypalFeeFixed: 30,
+            gocardlessFeeEnabled: true,
+            gocardlessFeePercent: 1.0,
+            gocardlessFeeFixed: 0
           }))
         }
       };
       const service = new PaymentsService(mockConfig as any, customPrisma as any);
       const settings = await service.getSettings();
 
-      expect(settings.processingFeeEnabled).toBe(true);
-      expect(settings.processingFeePercent).toBe(2.0);
-      expect(settings.processingFeeFixed).toBe(30);
+      expect(settings.stripeFee).toEqual({ enabled: true, percent: 2.0, fixed: 30 });
+      expect(settings.paypalFee).toEqual({ enabled: false, percent: 2.9, fixed: 30 });
+      expect(settings.gocardlessFee).toEqual({ enabled: true, percent: 1.0, fixed: 0 });
     });
   });
 
@@ -646,15 +726,30 @@ describe('PaymentsService', () => {
   });
 
   describe('getPublicPaymentSettings', () => {
-    it('returns provider and fee config without secrets', async () => {
+    it('returns provider and per-method fee configs without secrets', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
       const settings = await service.getPublicPaymentSettings();
 
       expect(settings.provider).toBe('stripe');
-      expect(settings.processingFeeEnabled).toBe(true);
-      expect(settings.processingFeePercent).toBe(1.5);
-      expect(settings.processingFeeFixed).toBe(20);
+      expect(settings.fees.card).toEqual({ enabled: true, percent: 1.5, fixed: 20 });
+      expect(settings.fees.directDebit).toEqual({ enabled: true, percent: 1.5, fixed: 20 });
       expect(settings).not.toHaveProperty('hasStripeSecretKey');
+    });
+
+    it('exposes each platform\'s own fee configuration', async () => {
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({
+        stripeFeeEnabled: true,
+        stripeFeePercent: 1.5,
+        stripeFeeFixed: 20,
+        gocardlessFeeEnabled: true,
+        gocardlessFeePercent: 1.0,
+        gocardlessFeeFixed: 0
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const settings = await service.getPublicPaymentSettings();
+
+      expect(settings.fees.card).toEqual({ enabled: true, percent: 1.5, fixed: 20 });
+      expect(settings.fees.directDebit).toEqual({ enabled: true, percent: 1.0, fixed: 0 });
     });
   });
 

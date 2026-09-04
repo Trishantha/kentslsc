@@ -143,12 +143,10 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
 
   const feeBreakdown = useMemo(() => {
     if (isFree || subtotal <= 0 || !paymentSettings) return null;
-    return calculateProcessingFee(Math.round(subtotal * 100), {
-      enabled: paymentSettings.processingFeeEnabled,
-      percent: paymentSettings.processingFeePercent,
-      fixed: paymentSettings.processingFeeFixed
-    });
-  }, [subtotal, isFree, paymentSettings]);
+    // Quote the fee for the method the payer will actually use.
+    const feeConfig = effectiveMethod === 'card' ? paymentSettings.fees.card : paymentSettings.fees.directDebit;
+    return calculateProcessingFee(Math.round(subtotal * 100), feeConfig);
+  }, [subtotal, isFree, paymentSettings, effectiveMethod]);
 
   const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
   const isExternal = !!event?.externalTicketingUrl;

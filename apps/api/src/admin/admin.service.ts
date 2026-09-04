@@ -437,7 +437,7 @@ export class AdminService {
     const user = membership.user;
     const fullName = user.name;
     const amountPence = Math.round(Number(membership.membershipType.price) * 100);
-    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence, 'gocardless');
 
     const customerId = await this.goCardlessService.getOrCreateCustomer(user.id);
 
@@ -476,7 +476,7 @@ export class AdminService {
 
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan,
-      amountPence,
+      amountPence: feeResult.gross,
       description: `Membership: ${membership.membershipType.name}`,
       metadata,
       redirectUri: `${this.frontendUrl}/dashboard?membership=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
@@ -497,9 +497,9 @@ export class AdminService {
         paymentStatus: PaymentStatus.PENDING,
         providerCheckoutId: checkout.id,
         currency: 'GBP',
-        grossAmount: amountPence / 100,
+        grossAmount: feeResult.gross / 100,
         processingFee: feeResult.fee / 100,
-        netAmount: (amountPence - feeResult.fee) / 100,
+        netAmount: feeResult.net / 100,
         description: `Membership: ${membership.membershipType.name}`,
         payerName: fullName,
         payerEmail: user.email,

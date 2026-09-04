@@ -50,10 +50,6 @@ export class UpdatePaymentSettingsDto {
 
   @IsOptional()
   @IsBoolean()
-  declare processingFeeEnabled?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   declare stripeEnabled?: boolean;
 
   @IsOptional()
@@ -65,13 +61,47 @@ export class UpdatePaymentSettingsDto {
   declare gocardlessEnabled?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  declare stripeFeeEnabled?: boolean;
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)
-  declare processingFeePercent?: number;
+  declare stripeFeePercent?: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(0)
-  declare processingFeeFixed?: number;
+  declare stripeFeeFixed?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  declare paypalFeeEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  declare paypalFeePercent?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(0)
+  declare paypalFeeFixed?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  declare gocardlessFeeEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  declare gocardlessFeePercent?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(0)
+  declare gocardlessFeeFixed?: number;
 }

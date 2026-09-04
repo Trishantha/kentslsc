@@ -163,12 +163,11 @@ export function RegistrationWizard() {
 
   const membershipFee = useMemo(() => {
     if (!selectedType || selectedType.isFree || selectedType.price <= 0 || !paymentSettings) return null;
-    return calculateProcessingFee(Math.round(selectedType.price * 100), {
-      enabled: paymentSettings.processingFeeEnabled,
-      percent: paymentSettings.processingFeePercent,
-      fixed: paymentSettings.processingFeeFixed
-    });
-  }, [selectedType, paymentSettings]);
+    // Quote the fee for the method the payer will actually use.
+    const method = paymentMethod ?? defaultPaymentMethod(paymentSettings.availableMethods);
+    const feeConfig = method === 'card' ? paymentSettings.fees.card : paymentSettings.fees.directDebit;
+    return calculateProcessingFee(Math.round(selectedType.price * 100), feeConfig);
+  }, [selectedType, paymentSettings, paymentMethod]);
 
   const availableMethods = paymentSettings?.availableMethods;
   const showMethodChoice =

@@ -16,6 +16,16 @@ Each platform (Stripe/card, PayPal, GoCardless) has an on/off toggle in **Admin 
 - If the configured default provider is disabled, checkouts automatically fall back to the first enabled platform; if every platform is disabled, checkout attempts fail with a clear "No payment methods are currently available" error.
 - Payments already in progress are unaffected: provider webhooks keep being verified and fulfilled while a platform is disabled, so pending payments still complete.
 
+## Per-platform processing fees
+
+Each platform has its own processing fee (enabled flag + percentage + fixed pence), edited in **Admin → Finance → Payment Settings** under "Processing fees". The values live in the `payment_settings` table (`stripe_fee_*`, `paypal_fee_*`, `gocardless_fee_*`) and were back-filled from the former single global fee when the migration ran, so existing behaviour carried over.
+
+- The fee is added on top of the advertised price when enabled, so the club receives the full amount. Member-facing pages quote the fee for the method the payer selects (card vs Direct Debit/Instant Bank Pay).
+- Direct Debit and Instant Bank Pay membership payments **charge** the GoCardless fee when it is enabled (the collected amount is gross; the ledger records gross/fee/net consistently). Set the GoCardless fee to disabled/0 if members should not pay it.
+- Stripe subscription checkouts (recurring membership prices) do not add a fee; the fee applies to one-off card payments.
+- Donations only add the fee when the donor opts in to covering it; if the selected method's fee is disabled the opt-in is not offered.
+
+
 
 ## 1. Create a GoCardless account
 

@@ -42,14 +42,13 @@ export function DonationForm({ fundraiserId }: Props) {
 
   const potentialFee = useMemo(() => {
     const value = Number(selectedAmount);
-    if (!value || value < 1 || !paymentSettings || !paymentSettings.processingFeeEnabled) return null;
-    const result = calculateProcessingFee(Math.round(value * 100), {
-      enabled: true,
-      percent: paymentSettings.processingFeePercent,
-      fixed: paymentSettings.processingFeeFixed
-    });
+    if (!value || value < 1 || !paymentSettings) return null;
+    // Quote the fee for the method the payer will actually use.
+    const feeConfig = effectiveMethod === 'card' ? paymentSettings.fees.card : paymentSettings.fees.directDebit;
+    if (!feeConfig.enabled) return null;
+    const result = calculateProcessingFee(Math.round(value * 100), feeConfig);
     return result.fee > 0 ? result : null;
-  }, [selectedAmount, paymentSettings]);
+  }, [selectedAmount, paymentSettings, effectiveMethod]);
 
   const feeBreakdown = addProcessingFee ? potentialFee : null;
 
