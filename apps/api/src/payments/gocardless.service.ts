@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadGatewayException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import crypto from 'crypto';
 import { GoCardlessClient, Environments } from 'gocardless-nodejs';
@@ -15,6 +15,57 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 
 export type GoCardlessPlanType = 'one_off' | 'subscription' | 'instalments';
 export type GoCardlessPaymentScheme = 'bacs' | 'faster_payments';
+
+/**
+ * GoCardless limits resource metadata to 3 keys with values up to 500
+ * characters, but our checkout metadata (donor message, fee breakdown,
+ * quantity, ids...) needs more. Pack everything except the routing key
+ * (`source`/`type`) into a single JSON `data` value; unpack at consumption.
+ */
+export function packBillingRequestMetadata(metadata: Record<string, string>): Record<string, string> {
+  const routing: Record<string, string> = {};
+  if (metadata.source) routing.source = metadata.source;
+  if (metadata.type) routing.type = metadata.type;
+  const rest = Object.fromEntries(Object.entries(metadata).filter(([k]) => k !== 'source' && k !== 'type'));
+
+  let data = JSON.stringify(rest);
+  if (data.length > 500 && rest.message) {
+    const { message, ...withoutMessage } = rest;
+    data = JSON.stringify(withoutMessage);
+  }
+  if (data.length > 500 && rest.displayName) {
+    const { displayName, ...withoutName } = JSON.parse(data);
+    data = JSON.stringify(withoutName);
+  }
+  if (data.length > 500) {
+    throw new Error('GoCardless metadata too large: reduce checkout metadata and try again');
+  }
+  return { ...routing, data };
+}
+
+export function unpackBillingRequestMetadata(metadata: unknown): Record<string, string> {
+  if (!metadata || typeof metadata !== 'object') return {};
+  const raw = metadata as Record<string, unknown>;
+  const result: Record<string, string> = {};
+  // Pass through any plain string keys (older/unpacked resources), then expand
+  // the packed `data` blob over them.
+  for (const [k, v] of Object.entries(raw)) {
+    if (k !== 'data' && typeof v === 'string') result[k] = v;
+  }
+  if (typeof raw.data === 'string') {
+    try {
+      const parsed = JSON.parse(raw.data);
+      if (parsed && typeof parsed === 'object') {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === 'string') result[k] = v;
+        }
+      }
+    } catch {
+      // Unparseable packed metadata: routing keys still allow dispatch.
+    }
+  }
+  return result;
+}
 
 export interface CreateGoCardlessBillingRequestFlowInput {
   plan: GoCardlessPlanType;
@@ -182,7 +233,7 @@ export class GoCardlessService {
     const amount = String(input.amountPence);
 
     const request: Parameters<GoCardlessClient['billingRequests']['create']>[0] = {
-      metadata: input.metadata,
+      metadata: packBillingRequestMetadata(input.metadata),
       ...(input.customerId ? { links: { customer: input.customerId } } : {})
     };
 
@@ -216,7 +267,7 @@ export class GoCardlessService {
           interval: String(input.subscriptionInterval ?? 1),
           interval_unit: input.subscriptionIntervalUnit ?? 'monthly',
           name: input.description,
-          metadata: input.metadata
+          metadata: packBillingRequestMetadata(input.metadata)
         };
         break;
       case 'instalments': {
@@ -232,7 +283,7 @@ export class GoCardlessService {
           total_amount: amount,
           currency: 'GBP',
           name: input.description,
-          metadata: input.metadata,
+          metadata: packBillingRequestMetadata(input.metadata),
           instalments_with_schedule: {
             amounts,
             interval: 1,
@@ -243,22 +294,33 @@ export class GoCardlessService {
       }
     }
 
-    const billingRequest = await client.billingRequests.create(request);
+    let billingRequest: GCBillingRequest;
+    let flow: { authorisation_url?: string };
+    try {
+      billingRequest = await client.billingRequests.create(request);
 
-    const prefilledCustomer = input.customerId
-      ? await this.buildPrefilledCustomer(input.customerId)
-      : undefined;
+      const prefilledCustomer = input.customerId
+        ? await this.buildPrefilledCustomer(input.customerId)
+        : undefined;
 
-    const flow = await client.billingRequestFlows.create({
-      links: { billing_request: billingRequest.id },
-      // The billing request id only exists once GoCardless has created it, so
-      // callers embed the `{BILLING_REQUEST_ID}` placeholder and it is
-      // substituted here — the GoCardless equivalent of Stripe's
-      // `{CHECKOUT_SESSION_ID}` in success URLs.
-      redirect_uri: input.redirectUri.replace('{BILLING_REQUEST_ID}', billingRequest.id),
-      exit_uri: input.exitUri,
-      ...(prefilledCustomer ? { prefilled_customer: prefilledCustomer } : {})
-    });
+      flow = await client.billingRequestFlows.create({
+        links: { billing_request: billingRequest.id },
+        // The billing request id only exists once GoCardless has created it, so
+        // callers embed the `{BILLING_REQUEST_ID}` placeholder and it is
+        // substituted here — the GoCardless equivalent of Stripe's
+        // `{CHECKOUT_SESSION_ID}` in success URLs.
+        redirect_uri: input.redirectUri.replace('{BILLING_REQUEST_ID}', billingRequest.id),
+        exit_uri: input.exitUri,
+        ...(prefilledCustomer ? { prefilled_customer: prefilledCustomer } : {})
+      });
+    } catch (err) {
+      // Surface GoCardless validation/auth failures instead of an opaque 500:
+      // their error body explains exactly what was rejected.
+      const gcError = err as { response?: { body?: { error?: { message?: string } } }; message?: string };
+      const detail = gcError?.response?.body?.error?.message ?? gcError?.message ?? 'unknown error';
+      this.logger.error(`GoCardless billing request creation failed: ${detail}`);
+      throw new BadGatewayException(`Payment provider error: ${detail}`);
+    }
 
     return {
       provider: 'gocardless',

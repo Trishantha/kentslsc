@@ -5,6 +5,7 @@ import type Stripe from 'stripe';
 import { Public } from '../common/decorators/public.decorator.js';
 import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { PaymentsService } from './payments.service.js';
+import { unpackBillingRequestMetadata } from './gocardless.service.js';
 import { GoCardlessService } from './gocardless.service.js';
 import { WebhookEventService } from './webhook-event.service.js';
 import { WebhookQueueService } from './webhook-queue.service.js';
@@ -176,7 +177,7 @@ export class StripeWebhookController {
       throw new BadRequestException(`Billing request is not fulfilled (status: ${billingRequest.status})`);
     }
 
-    const metadata = billingRequest.metadata ?? {};
+    const metadata = unpackBillingRequestMetadata(billingRequest.metadata);
     const pendingPayment = await this.paymentsService.getPaymentByProviderCheckoutId(sessionId);
 
     const payment: GoCardlessPaymentResource = {

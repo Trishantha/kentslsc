@@ -198,7 +198,7 @@ describe('GoCardlessService', () => {
 
       expect(mockGoCardlessClient.billingRequests.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: { source: 'membership', membershipId: 'm-1' },
+          metadata: { source: 'membership', data: '{"membershipId":"m-1"}' },
           payment_request: {
             amount: '12000',
             currency: 'GBP',

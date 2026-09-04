@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type Stripe from 'stripe';
 import { PaymentsService } from './payments.service.js';
-import { GoCardlessService } from './gocardless.service.js';
+import { GoCardlessService, unpackBillingRequestMetadata } from './gocardless.service.js';
 import { EventsService } from '../events/events.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
 import { FundraisingService } from '../fundraising/fundraising.service.js';
@@ -260,12 +260,12 @@ export class WebhookProcessor {
 
     try {
       const billingRequest = await this.goCardlessService.getBillingRequest(billingRequestId);
-      return { ...fromPayment, ...(billingRequest.metadata ?? {}) };
+      return { ...unpackBillingRequestMetadata(fromPayment), ...unpackBillingRequestMetadata(billingRequest.metadata) };
     } catch (err) {
       this.logger.warn(
         `Could not fetch GoCardless billing request ${billingRequestId}: ${(err as Error).message}`
       );
-      return fromPayment;
+      return unpackBillingRequestMetadata(fromPayment);
     }
   }
 
@@ -275,11 +275,11 @@ export class WebhookProcessor {
     const fromSchedule = schedule.metadata ?? {};
     const billingRequestId = schedule.links?.billing_request;
     if (!billingRequestId) {
-      return fromSchedule;
+      return unpackBillingRequestMetadata(fromSchedule);
     }
     try {
       const billingRequest = await this.goCardlessService.getBillingRequest(billingRequestId);
-      return { ...fromSchedule, ...(billingRequest.metadata ?? {}) };
+      return { ...unpackBillingRequestMetadata(fromSchedule), ...unpackBillingRequestMetadata(billingRequest.metadata) };
     } catch (err) {
       this.logger.warn(
         `Could not fetch GoCardless billing request ${billingRequestId}: ${(err as Error).message}`
