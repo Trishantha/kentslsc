@@ -196,11 +196,13 @@ export class GoCardlessService {
         };
         // BACS one-off payments are collected against a mandate, but the payer
         // should not be charged a penny verification payment on top of the
-        // payment itself. Faster Payments (Instant Bank Pay) needs no mandate.
+        // payment itself. For Bacs, 'minimum' takes no verification payment
+        // ('never' is not an accepted value and the API rejects it with a 422).
+        // Faster Payments (Instant Bank Pay) needs no mandate at all.
         if (scheme === 'bacs') {
           request.mandate_request = {
             scheme: 'bacs',
-            verify: 'never' as `${BillingRequestMandateRequestVerify}`
+            verify: 'minimum' as `${BillingRequestMandateRequestVerify}`
           };
         }
         break;

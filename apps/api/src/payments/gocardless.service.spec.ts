@@ -194,7 +194,7 @@ describe('GoCardlessService', () => {
             description: 'Membership payment',
             scheme: 'bacs'
           },
-          mandate_request: { scheme: 'bacs', verify: 'never' }
+          mandate_request: { scheme: 'bacs', verify: 'minimum' }
         })
       );
       expect(result).toEqual({
