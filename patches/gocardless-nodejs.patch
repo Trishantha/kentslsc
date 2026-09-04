@@ -1,0 +1,14 @@
+diff --git a/esm/api/api.js b/esm/api/api.js
+index ba958128f7f282df1989a25ba34a2149cc9cf49b..a28a8fa36203ed08eca95460617ece71fa185877 100644
+--- a/esm/api/api.js
++++ b/esm/api/api.js
+@@ -1,5 +1,8 @@
+ import * as os from 'os';
+-import * as process from 'process';
++// Patched: importing the 'process' builtin by name builds Node's ESM facade,
++// which eagerly reads the process.stdin getter and crashes with "open EEXIST"
++// in environments without a usable stdin (e.g. Hostinger's process supervisor).
++// `process` is a global, so the bare reference below still works.
+ import { v4 as uuidv4 } from 'uuid';
+ import * as url from 'url';
+ import got from 'got';

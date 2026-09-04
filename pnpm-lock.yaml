@@ -18,6 +18,9 @@ overrides:
   sharp: ^0.35.0
   xlsx: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
+patchedDependencies:
+  gocardless-nodejs: e14516aea8494ffd748f79e76a6c7f9c693ca9f89c7299c4e60ad251be5c7ab8
+
 importers:
 
   .:
@@ -109,7 +112,7 @@ importers:
         version: 2.0.4
       gocardless-nodejs:
         specifier: ^8.7.1
-        version: 8.7.1
+        version: 8.7.1(patch_hash=e14516aea8494ffd748f79e76a6c7f9c693ca9f89c7299c4e60ad251be5c7ab8)
       helmet:
         specifier: ^8.3.0
         version: 8.3.0
@@ -10435,7 +10438,7 @@ snapshots:
       define-properties: 1.2.1
       gopd: 1.2.0
 
-  gocardless-nodejs@8.7.1:
+  gocardless-nodejs@8.7.1(patch_hash=e14516aea8494ffd748f79e76a6c7f9c693ca9f89c7299c4e60ad251be5c7ab8):
     dependencies:
       got: 11.8.6
       qs: 6.15.3

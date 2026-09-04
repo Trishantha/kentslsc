@@ -41,3 +41,6 @@ onlyBuiltDependencies:
   - 'prisma'
   - 'sharp'
   - 'unrs-resolver'
+
+patchedDependencies:
+  gocardless-nodejs: patches/gocardless-nodejs.patch
