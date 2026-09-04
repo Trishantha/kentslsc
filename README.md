@@ -7,7 +7,7 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
 - **Frontend:** Next.js 14 (App Router), React 18, TypeScript, TailwindCSS, Framer Motion, next-themes, TanStack Query
 - **Backend:** NestJS 10, TypeScript, Passport JWT, Prisma, PostgreSQL, Redis, Socket.io
 - **AI:** OpenAI API (summaries, recommendations, moderation, search, welcome messages)
-- **Payments:** Stripe (tickets, memberships, directory promotions, donations)
+- **Payments:** Stripe (tickets, memberships, directory promotions, donations); GoCardless (Direct Debit / open banking, GBP — see `docs/gocardless-setup.md`)
 - **QR & Cards:** qrcode, sharp (PNG generation from SVG templates)
 - **Email:** Nodemailer
 - **Monorepo:** pnpm workspaces + Turbo
@@ -85,6 +85,7 @@ See `.env.example` for the full list. Key variables:
 - `JWT_SECRET` / `JWT_REFRESH_SECRET` – strong random secrets
 - `OPENAI_API_KEY` – OpenAI API key for AI features
 - `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET` – Stripe credentials
+- `GOCARDLESS_ACCESS_TOKEN` / `GOCARDLESS_WEBHOOK_SECRET` / `GOCARDLESS_ENVIRONMENT` – GoCardless credentials (optional; see `docs/gocardless-setup.md`)
 - `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` – SMTP settings
 - `FRONTEND_URL` – URL of the Next.js app
 - `NEXT_PUBLIC_API_URL` – URL of the NestJS API
@@ -106,7 +107,7 @@ See `.env.example` for the full list. Key variables:
 - **Business directory:** free/paid listings, promoted placement, job ads
 - **Admin dashboard:** full CRUD for users, memberships, events, directory, fundraisers, blog, forum moderation
 - **AI:** summaries, recommendations, semantic search, forum moderation, welcome messages
-- **Payments:** Stripe checkout for tickets, memberships, promotions, donations
+- **Payments:** Stripe checkout for tickets, memberships, promotions, donations; GoCardless for Direct Debit / open banking (GBP)
 
 ## Production Notes
 

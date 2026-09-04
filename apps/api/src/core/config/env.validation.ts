@@ -23,10 +23,13 @@ export const envValidationSchema = z.object({
   // degrade gracefully (e.g. skip AI summaries, queue emails, skip payments).
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_TIMEOUT_MS: z.coerce.number().default(15_000),
-  DEFAULT_PAYMENT_PROVIDER: z.enum(['stripe', 'paypal']).optional(),
+  DEFAULT_PAYMENT_PROVIDER: z.enum(['stripe', 'paypal', 'gocardless']).optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  GOCARDLESS_ACCESS_TOKEN: z.string().optional(),
+  GOCARDLESS_WEBHOOK_SECRET: z.string().optional(),
+  GOCARDLESS_ENVIRONMENT: z.enum(['sandbox', 'live']).optional().default('sandbox'),
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_WEBHOOK_ID: z.string().optional(),
@@ -98,6 +101,9 @@ export function validateProductionConfig(config: EnvConfig | ConfigService): voi
     if (!getValue('PAYPAL_CLIENT_ID')) missing.push('PAYPAL_CLIENT_ID');
     if (!getValue('PAYPAL_CLIENT_SECRET')) missing.push('PAYPAL_CLIENT_SECRET');
     if (!getValue('PAYPAL_WEBHOOK_ID')) missing.push('PAYPAL_WEBHOOK_ID');
+  } else if (provider === 'gocardless') {
+    if (!getValue('GOCARDLESS_ACCESS_TOKEN')) missing.push('GOCARDLESS_ACCESS_TOKEN');
+    if (!getValue('GOCARDLESS_WEBHOOK_SECRET')) missing.push('GOCARDLESS_WEBHOOK_SECRET');
   }
 
   if (missing.length > 0) {

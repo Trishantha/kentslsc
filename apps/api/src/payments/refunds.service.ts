@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from './payments.service.js';
+import { GoCardlessService } from './gocardless.service.js';
 import { EmailService } from '../email/email.service.js';
 import { PaymentStatus, TicketStatus } from '@kentslsc/database';
 
@@ -14,7 +15,8 @@ export class RefundsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly goCardlessService?: GoCardlessService
   ) {}
 
   async refundPayment(paymentId: string, input: RefundPaymentInput) {
@@ -84,6 +86,12 @@ export class RefundsService {
         payment.currency
       );
       providerRefundId = result.providerRefundId;
+    } else if (payment.paymentChannel === 'gocardless' && payment.providerPaymentId) {
+      if (!this.goCardlessService) {
+        throw new BadRequestException('GoCardless refunds are not available in this environment');
+      }
+      const refund = await this.goCardlessService.refundPayment(payment.providerPaymentId, amountPence);
+      providerRefundId = refund.id ?? null;
     } else if (['free', 'offline', 'manual'].includes(payment.paymentChannel)) {
       // No gateway to call; just record the refund locally.
       providerRefundId = 'manual';

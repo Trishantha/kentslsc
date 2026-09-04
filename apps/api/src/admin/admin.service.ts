@@ -9,6 +9,7 @@ import { FundraisingService } from '../fundraising/fundraising.service.js';
 import { BlogService } from '../blog/blog.service.js';
 import { CommitteeService } from '../committee/committee.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
+import { GoCardlessService } from '../payments/gocardless.service.js';
 import { EmailService } from '../email/email.service.js';
 import type { TokenPayload, DependantInput } from '@kentslsc/shared';
 import {
@@ -17,9 +18,12 @@ import {
 } from '@kentslsc/shared';
 import {
   MembershipStatus as DbMembershipStatus,
-  ContactStatus as DbContactStatus
+  ContactStatus as DbContactStatus,
+  PaymentStatus,
+  PaymentSourceType
 } from '@kentslsc/database';
 import type { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
+import type { SendMembershipPaymentLinkDto } from './dto/send-payment-link.dto.js';
 
 @Injectable()
 export class AdminService {
@@ -36,7 +40,8 @@ export class AdminService {
     private readonly committeeService: CommitteeService,
     private readonly paymentsService: PaymentsService,
     private readonly emailService: EmailService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly goCardlessService: GoCardlessService
   ) {}
 
   private get frontendUrl(): string {
@@ -333,7 +338,10 @@ export class AdminService {
     };
   }
 
-  async sendMembershipPaymentLink(membershipId: string) {
+  async sendMembershipPaymentLink(
+    membershipId: string,
+    dto: SendMembershipPaymentLinkDto = {}
+  ) {
     const membership = await this.prisma.membership.findUnique({
       where: { id: membershipId, deletedAt: null },
       include: { membershipType: true, user: { select: { id: true, email: true, name: true, firstName: true, lastName: true } } }
@@ -347,6 +355,11 @@ export class AdminService {
     }
     if (membership.membershipType.isFree || Number(membership.membershipType.price) === 0) {
       throw new BadRequestException('Free memberships do not require payment');
+    }
+
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      return this.sendMembershipPaymentLinkViaGoCardless(membership, dto);
     }
 
     const user = membership.user;
@@ -379,6 +392,114 @@ export class AdminService {
         address: '',
         phone: '',
         dependants: JSON.stringify((membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [])
+      }
+    });
+
+    await this.emailService.sendMembershipPaymentLink(
+      user.email,
+      fullName,
+      membership.membershipType.name,
+      checkout.url
+    );
+
+    return { url: checkout.url, provider: checkout.provider };
+  }
+
+  /**
+   * GoCardless variant of sendMembershipPaymentLink. Creates a billing
+   * request + flow for the membership amount and records a pending Payment
+   * row keyed by the billing request id, which the GoCardless fulfilment
+   * handlers rely on to locate the membership when the payment confirms.
+   *
+   * Plan selection mirrors the Stripe subscription checkout:
+   * - `subscription` (default behaviour of the Stripe path): recurring
+   *   collection matched to the membership-type duration (yearly when the
+   *   duration is a multiple of 12 months, otherwise every `durationMonths`).
+   * - `instalments`: a fixed number of monthly instalments covering the total.
+   * - none: a single one-off BACS direct-debit payment.
+   */
+  private async sendMembershipPaymentLinkViaGoCardless(
+    membership: {
+      id: string;
+      userId: string;
+      dependantsJson: unknown;
+      membershipType: { id: string; name: string; price: unknown; durationMonths: number };
+      user: { id: string; email: string; name: string };
+    },
+    dto: SendMembershipPaymentLinkDto
+  ) {
+    const user = membership.user;
+    const fullName = user.name;
+    const amountPence = Math.round(Number(membership.membershipType.price) * 100);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+
+    const customerId = await this.goCardlessService.getOrCreateCustomer(user.id);
+
+    const metadata: Record<string, string> = {
+      source: 'membership',
+      membershipId: membership.id,
+      userId: user.id,
+      membershipTypeId: membership.membershipType.id,
+      fullName,
+      address: '',
+      phone: '',
+      dependants: JSON.stringify(
+        (membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? []
+      )
+    };
+
+    let plan: 'one_off' | 'subscription' | 'instalments' = 'one_off';
+    let subscriptionIntervalUnit: 'monthly' | 'yearly' | undefined;
+    let subscriptionInterval: number | undefined;
+    let instalmentCount: number | undefined;
+
+    if (dto.paymentPlan === 'subscription') {
+      plan = 'subscription';
+      const months = membership.membershipType.durationMonths;
+      if (months > 0 && months % 12 === 0) {
+        subscriptionIntervalUnit = 'yearly';
+        subscriptionInterval = Math.max(1, months / 12);
+      } else {
+        subscriptionIntervalUnit = 'monthly';
+        subscriptionInterval = Math.max(1, months);
+      }
+    } else if (dto.paymentPlan === 'instalments') {
+      plan = 'instalments';
+      instalmentCount = Math.min(12, Math.max(2, dto.instalmentCount ?? 10));
+    }
+
+    const checkout = await this.goCardlessService.createBillingRequestFlow({
+      plan,
+      amountPence,
+      description: `Membership: ${membership.membershipType.name}`,
+      metadata,
+      redirectUri: `${this.frontendUrl}/dashboard?membership=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+      exitUri: `${this.frontendUrl}/dashboard?membership=canceled`,
+      customerId,
+      ...(subscriptionIntervalUnit
+        ? { subscriptionIntervalUnit, subscriptionInterval }
+        : {}),
+      ...(instalmentCount ? { instalmentCount } : {})
+    });
+
+    await this.prisma.payment.create({
+      data: {
+        userId: user.id,
+        membershipId: membership.id,
+        paymentChannel: 'gocardless',
+        paymentMethod: 'direct_debit',
+        paymentStatus: PaymentStatus.PENDING,
+        providerCheckoutId: checkout.id,
+        currency: 'GBP',
+        grossAmount: amountPence / 100,
+        processingFee: feeResult.fee / 100,
+        netAmount: (amountPence - feeResult.fee) / 100,
+        description: `Membership: ${membership.membershipType.name}`,
+        payerName: fullName,
+        payerEmail: user.email,
+        purchasedAt: new Date(),
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        sourceId: membership.id
       }
     });
 

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { AdminService } from './admin.service.js';
-import { MembershipStatus } from '@kentslsc/database';
+import { MembershipStatus, PaymentStatus, PaymentSourceType } from '@kentslsc/database';
+
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
 
 const mockFrontendUrl = 'http://localhost:3000';
 
@@ -48,7 +53,18 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
       productId: 'prod_test',
       priceId: 'price_test'
     }),
-    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1')
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
+    getPublicPaymentSettings: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
+      provider: 'stripe',
+      processingFeeEnabled: false,
+      processingFeePercent: 0,
+      processingFeeFixed: 0
+    })
+  };
+
+  const mockGoCardlessService: any = {
+    getOrCreateCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('CU123'),
+    createBillingRequestFlow: jest.fn()
   };
 
   const mockEmailService: any = {
@@ -91,7 +107,8 @@ describe('AdminService - sendPaymentRemindersToPending', () => {
       {} as any,
       mockPaymentsService,
       mockEmailService,
-      mockConfigService
+      mockConfigService,
+      mockGoCardlessService
     );
   });
 
@@ -181,7 +198,8 @@ describe('AdminService - regenerateAllMembershipCards', () => {
       {} as any,
       {} as any,
       {} as any,
-      mockConfigService
+      mockConfigService,
+      {} as any
     );
   });
 
@@ -230,6 +248,174 @@ describe('AdminService - regenerateAllMembershipCards', () => {
   });
 });
 
+describe('AdminService - sendMembershipPaymentLink provider branching', () => {
+  const mockPrisma: any = {
+    membership: {
+      findUnique: jest.fn(),
+      update: jest.fn()
+    },
+    payment: {
+      create: jest.fn()
+    }
+  };
+
+  const mockPaymentsService: any = {
+    createSubscriptionCheckout: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      id: 'cs_test_123',
+      url: 'https://checkout.stripe.test/pay',
+      provider: 'stripe'
+    }),
+    syncMembershipTypePrice: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      productId: 'prod_test',
+      priceId: 'price_test'
+    }),
+    getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
+    calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 20, gross: netPence + 20 })),
+    getPublicPaymentSettings: jest.fn()
+  };
+
+  const mockGoCardlessService: any = {
+    getOrCreateCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('CU123'),
+    createBillingRequestFlow: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue({
+      provider: 'gocardless',
+      id: 'BR123',
+      url: 'https://pay.gocardless.test/flow/BR123'
+    })
+  };
+
+  const mockEmailService: any = {
+    sendMembershipPaymentLink: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
+  };
+
+  const mockConfigService: any = {
+    get: jest.fn((key: string) => {
+      if (key === 'FRONTEND_URL') return mockFrontendUrl;
+      return undefined;
+    })
+  };
+
+  let service: AdminService;
+
+  const useGoCardless = () =>
+    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
+      provider: 'gocardless',
+      processingFeeEnabled: true,
+      processingFeePercent: 1.5,
+      processingFeeFixed: 20
+    });
+
+  const useStripe = () =>
+    mockPaymentsService.getPublicPaymentSettings.mockResolvedValue({
+      provider: 'stripe',
+      processingFeeEnabled: false,
+      processingFeePercent: 0,
+      processingFeeFixed: 0
+    });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.membership.findUnique.mockResolvedValue(createMockMembership());
+    mockPrisma.membership.update.mockResolvedValue({});
+    mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+    service = new AdminService(
+      mockPrisma,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      mockPaymentsService,
+      mockEmailService,
+      mockConfigService,
+      mockGoCardlessService
+    );
+  });
+
+  it('creates a one-off bacs billing request with membership metadata and a pending payment row', async () => {
+    useGoCardless();
+
+    const result = await service.sendMembershipPaymentLink('membership-1');
+
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: 'one_off',
+        amountPence: 1000,
+        metadata: expect.objectContaining({
+          source: 'membership',
+          membershipId: 'membership-1',
+          userId: 'user-1'
+        }),
+        redirectUri: expect.stringContaining('membership=success&session_id={BILLING_REQUEST_ID}')
+      })
+    );
+    expect(mockPrisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentChannel: 'gocardless',
+          paymentStatus: PaymentStatus.PENDING,
+          providerCheckoutId: 'BR123',
+          sourceType: PaymentSourceType.MEMBERSHIP,
+          sourceId: 'membership-1'
+        })
+      })
+    );
+    expect(mockEmailService.sendMembershipPaymentLink).toHaveBeenCalledWith(
+      'test@example.com',
+      'Test User',
+      'Paid Membership',
+      'https://pay.gocardless.test/flow/BR123'
+    );
+    expect(result).toEqual({ url: 'https://pay.gocardless.test/flow/BR123', provider: 'gocardless' });
+    expect(mockPaymentsService.createSubscriptionCheckout).not.toHaveBeenCalled();
+  });
+
+  it('creates a subscription billing request when paymentPlan is subscription', async () => {
+    useGoCardless();
+
+    await service.sendMembershipPaymentLink('membership-1', { paymentPlan: 'subscription' });
+
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan: 'subscription',
+        subscriptionIntervalUnit: 'yearly',
+        subscriptionInterval: 1
+      })
+    );
+  });
+
+  it('defaults instalment plans to 10 instalments and clamps the count to 2-12', async () => {
+    useGoCardless();
+
+    await service.sendMembershipPaymentLink('membership-1', { paymentPlan: 'instalments' });
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenLastCalledWith(
+      expect.objectContaining({ plan: 'instalments', instalmentCount: 10 })
+    );
+
+    await service.sendMembershipPaymentLink('membership-1', { paymentPlan: 'instalments', instalmentCount: 1 });
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenLastCalledWith(
+      expect.objectContaining({ plan: 'instalments', instalmentCount: 2 })
+    );
+
+    await service.sendMembershipPaymentLink('membership-1', { paymentPlan: 'instalments', instalmentCount: 15 });
+    expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenLastCalledWith(
+      expect.objectContaining({ plan: 'instalments', instalmentCount: 12 })
+    );
+  });
+
+  it('never touches GoCardless when the effective provider is stripe', async () => {
+    useStripe();
+
+    const result = await service.sendMembershipPaymentLink('membership-1');
+
+    expect(mockGoCardlessService.createBillingRequestFlow).not.toHaveBeenCalled();
+    expect(mockGoCardlessService.getOrCreateCustomer).not.toHaveBeenCalled();
+    expect(mockPaymentsService.createSubscriptionCheckout).toHaveBeenCalled();
+    expect(result).toEqual({ url: 'https://checkout.stripe.test/pay', provider: 'stripe' });
+  });
+});
+
 describe('AdminService - getDashboardStats', () => {
   const mockPrisma: any = {
     user: { count: jest.fn().mockResolvedValue(10) },
@@ -260,7 +446,8 @@ describe('AdminService - getDashboardStats', () => {
     {} as any,
     {} as any,
     {} as any,
-    { get: () => mockFrontendUrl } as any
+    { get: () => mockFrontendUrl } as any,
+    {} as any
   );
 
   it('counts only active memberships, excluding cancelled/pending/expired', async () => {

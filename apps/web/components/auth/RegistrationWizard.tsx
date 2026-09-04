@@ -233,6 +233,10 @@ export function RegistrationWizard() {
         }
       });
 
+      if (res.data.application?.provider === 'gocardless' && res.data.application.url) {
+        window.location.assign(res.data.application.url);
+        return;
+      }
       if (res.data.application?.paid && res.data.application.clientSecret && res.data.application.id) {
         router.push(`/checkout?session_id=${res.data.application.id}&client_secret=${encodeURIComponent(res.data.application.clientSecret)}`);
         return;

@@ -4,11 +4,14 @@ import type { TokenPayload } from '@kentslsc/shared';
 import { UserRole } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
+import { GoCardlessService } from '../payments/gocardless.service.js';
+import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailService } from '../email/email.service.js';
 import { CreateBusinessListingDto } from './dto/create-business.dto.js';
 import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
 import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
+import type { CheckoutPaymentSchemeDto } from './dto/checkout-payment-scheme.dto.js';
 import { PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 
 const PROMOTION_PRICE_PENCE = 2500; // £25
@@ -20,7 +23,8 @@ export class DirectoryService {
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
     private readonly emailService: EmailService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly goCardlessService: GoCardlessService
   ) {}
 
   private get frontendUrl(): string {
@@ -159,7 +163,11 @@ export class DirectoryService {
     return { success: true };
   }
 
-  async createPromotionCheckout(user: TokenPayload, id: string) {
+  async createPromotionCheckout(
+    user: TokenPayload,
+    id: string,
+    dto: CheckoutPaymentSchemeDto = {}
+  ) {
     const listing = await this.prisma.businessListing.findFirst({ where: { id, deletedAt: null } });
     if (!listing) throw new NotFoundException('Business listing not found');
     if (!this.isOwnerOrAdmin(listing.ownerUserId, user)) {
@@ -167,6 +175,45 @@ export class DirectoryService {
     }
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      const { checkout } = await this.createGoCardlessCheckout({
+        amountPence: PROMOTION_PRICE_PENCE,
+        description: `Promote ${listing.businessName} for 30 days`,
+        metadata: { type: 'directory_promotion', businessListingId: id },
+        successUrl: `${frontendUrl}/directory/${id}?promoted=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+        cancelUrl: `${frontendUrl}/directory/${id}?promoted=cancel`,
+        customerId: await this.goCardlessService.getOrCreateCustomer(user.sub),
+        scheme: dto.paymentScheme
+      });
+
+      await this.prisma.payment.create({
+        data: {
+          userId: listing.ownerUserId,
+          businessListingId: id,
+          paymentChannel: 'gocardless',
+          paymentMethod: 'direct_debit',
+          paymentStatus: PaymentStatus.PENDING,
+          providerCheckoutId: checkout.id,
+          currency: 'GBP',
+          grossAmount: PROMOTION_PRICE_PENCE / 100,
+          processingFee: 0,
+          netAmount: PROMOTION_PRICE_PENCE / 100,
+          description: `Directory promotion: ${listing.businessName}`,
+          purchasedAt: new Date(),
+          sourceType: PaymentSourceType.DIRECTORY_PROMOTION,
+          sourceId: id
+        }
+      });
+
+      return {
+        sessionId: checkout.id,
+        url: checkout.url,
+        provider: checkout.provider
+      };
+    }
+
     const checkout = await this.paymentsService.createCheckout({
       amount: PROMOTION_PRICE_PENCE,
       currency: 'gbp',
@@ -277,7 +324,11 @@ export class DirectoryService {
     return { success: true };
   }
 
-  async createJobPublishCheckout(user: TokenPayload, id: string) {
+  async createJobPublishCheckout(
+    user: TokenPayload,
+    id: string,
+    dto: CheckoutPaymentSchemeDto = {}
+  ) {
     const job = await this.prisma.jobAd.findFirst({
       where: { id, deletedAt: null },
       include: { businessListing: true }
@@ -288,6 +339,45 @@ export class DirectoryService {
     }
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      const { checkout } = await this.createGoCardlessCheckout({
+        amountPence: JOB_PUBLISH_PRICE_PENCE,
+        description: `Publish job ad: ${job.title}`,
+        metadata: { type: 'job_publish', jobAdId: id },
+        successUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+        cancelUrl: `${frontendUrl}/directory/${job.businessListingId}?jobPublished=cancel`,
+        customerId: await this.goCardlessService.getOrCreateCustomer(user.sub),
+        scheme: dto.paymentScheme
+      });
+
+      await this.prisma.payment.create({
+        data: {
+          userId: job.businessListing.ownerUserId,
+          jobAdId: id,
+          paymentChannel: 'gocardless',
+          paymentMethod: 'direct_debit',
+          paymentStatus: PaymentStatus.PENDING,
+          providerCheckoutId: checkout.id,
+          currency: 'GBP',
+          grossAmount: JOB_PUBLISH_PRICE_PENCE / 100,
+          processingFee: 0,
+          netAmount: JOB_PUBLISH_PRICE_PENCE / 100,
+          description: `Job publish: ${job.title}`,
+          purchasedAt: new Date(),
+          sourceType: PaymentSourceType.JOB_PUBLISH,
+          sourceId: id
+        }
+      });
+
+      return {
+        sessionId: checkout.id,
+        url: checkout.url,
+        provider: checkout.provider
+      };
+    }
+
     const checkout = await this.paymentsService.createCheckout({
       amount: 5000,
       currency: 'gbp',
@@ -403,6 +493,51 @@ export class DirectoryService {
     });
     if (!listing) throw new NotFoundException('Business listing not found');
 
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      const { checkout } = await this.createGoCardlessCheckout({
+        amountPence: PROMOTION_PRICE_PENCE,
+        description: `Promote ${listing.businessName} for 30 days`,
+        metadata: { type: 'directory_promotion', businessListingId: id },
+        successUrl: `${this.frontendUrl}/directory/${id}?promoted=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+        cancelUrl: `${this.frontendUrl}/directory/${id}?promoted=cancel`,
+        customerId: await this.goCardlessService.getOrCreateCustomer(listing.owner.id)
+      });
+
+      await this.prisma.payment.create({
+        data: {
+          userId: listing.owner.id,
+          businessListingId: id,
+          paymentChannel: 'gocardless',
+          paymentMethod: 'direct_debit',
+          paymentStatus: PaymentStatus.PENDING,
+          providerCheckoutId: checkout.id,
+          currency: 'GBP',
+          grossAmount: PROMOTION_PRICE_PENCE / 100,
+          processingFee: 0,
+          netAmount: PROMOTION_PRICE_PENCE / 100,
+          description: `Directory promotion: ${listing.businessName}`,
+          payerName: listing.owner.name,
+          payerEmail: listing.owner.email,
+          purchasedAt: new Date(),
+          sourceType: PaymentSourceType.DIRECTORY_PROMOTION,
+          sourceId: id
+        }
+      });
+
+      await this.emailService.sendDirectoryPromotionPaymentLink(
+        listing.owner.email,
+        listing.businessName,
+        checkout.url
+      );
+
+      return {
+        sessionId: checkout.id,
+        url: checkout.url,
+        provider: checkout.provider
+      };
+    }
+
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(
       listing.owner.id,
       listing.owner.email
@@ -433,6 +568,40 @@ export class DirectoryService {
       provider: checkout.provider,
       clientSecret: checkout.clientSecret
     };
+  }
+
+  /**
+   * Shared GoCardless checkout creation for directory payments: a one-off
+   * billing request + flow. The billing request metadata carries the Stripe
+   * convention pence keys (netAmount/processingFee/grossAmount) so fulfilment
+   * handlers read the same values as from a Stripe session.
+   */
+  private async createGoCardlessCheckout(input: {
+    amountPence: number;
+    description: string;
+    metadata: Record<string, string>;
+    successUrl: string;
+    cancelUrl: string;
+    customerId?: string;
+    scheme?: 'bacs' | 'faster_payments';
+  }) {
+    const feeResult = this.paymentsService.calculateProcessingFee(input.amountPence);
+    const checkout = await this.goCardlessService.createBillingRequestFlow({
+      plan: 'one_off',
+      amountPence: feeResult.gross,
+      description: input.description,
+      scheme: input.scheme ?? 'bacs',
+      metadata: {
+        ...input.metadata,
+        netAmount: String(feeResult.net),
+        processingFee: String(feeResult.fee),
+        grossAmount: String(feeResult.gross)
+      },
+      redirectUri: input.successUrl,
+      exitUri: input.cancelUrl,
+      ...(input.customerId ? { customerId: input.customerId } : {})
+    });
+    return { checkout, feeResult };
   }
 
   async handlePromotionCompleted(
@@ -571,6 +740,178 @@ export class DirectoryService {
           payerEmail: paymentContext?.payerEmail ?? job?.businessListing?.owner.email ?? null,
           payerPhone: paymentContext?.payerPhone ?? job?.businessListing?.owner.phone ?? null,
           purchasedAt: paymentContext?.purchasedAt ?? new Date(),
+          sourceType: PaymentSourceType.JOB_PUBLISH,
+          sourceId: jobAdId
+        }
+      });
+    });
+
+    return { received: true };
+  }
+
+  /**
+   * Fulfil a confirmed GoCardless payment for a directory promotion or job
+   * publishing. The pending Payment row created when the billing request flow
+   * started is updated in place (no duplicate row); when there is none, a
+   * completed row keyed by the billing request id is created instead. Both
+   * paths are idempotent by providerPaymentId.
+   */
+  async handleGoCardlessPaymentCompleted(
+    payment: GoCardlessPaymentResource,
+    metadata: Record<string, string>,
+    kind: 'directory_promotion' | 'job_publish' = 'directory_promotion'
+  ) {
+    if (kind === 'job_publish') {
+      return this.handleGoCardlessJobPublishCompleted(payment, metadata);
+    }
+    if (metadata.type !== 'directory_promotion') return null;
+
+    const businessListingId = metadata.businessListingId;
+    if (!businessListingId) return null;
+
+    const billingRequestId = payment.links?.billing_request ?? null;
+    const pendingPayment = billingRequestId
+      ? await this.prisma.payment.findFirst({
+          where: { providerCheckoutId: billingRequestId, businessListingId }
+        })
+      : null;
+
+    if (pendingPayment) {
+      if (pendingPayment.providerPaymentId === payment.id && pendingPayment.paymentStatus === PaymentStatus.COMPLETED) {
+        return { received: true, paymentId: pendingPayment.id };
+      }
+
+      const promotedUntil = new Date();
+      promotedUntil.setDate(promotedUntil.getDate() + 30);
+      const amount = Number(payment.amount ?? PROMOTION_PRICE_PENCE) / 100;
+
+      await this.prisma.$transaction([
+        this.prisma.businessListing.updateMany({
+          where: { id: businessListingId, deletedAt: null },
+          data: {
+            isPromoted: true,
+            promotedUntil,
+            promotionPaidAt: new Date(),
+            promotionPaymentMethod: 'gocardless'
+          }
+        }),
+        this.prisma.payment.update({
+          where: { id: pendingPayment.id },
+          data: {
+            paymentStatus: PaymentStatus.COMPLETED,
+            providerPaymentId: payment.id ?? null,
+            currency: (payment.currency ?? 'GBP').toUpperCase(),
+            grossAmount: amount,
+            processingFee: 0,
+            netAmount: amount,
+            purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date(),
+            paymentMethod: 'direct_debit'
+          }
+        })
+      ]);
+      return { received: true, paymentId: pendingPayment.id };
+    }
+
+    return this.handlePromotionCompleted(metadata, 'gocardless', {
+      providerCheckoutId: billingRequestId,
+      providerPaymentId: payment.id ?? null,
+      amountPence: payment.amount ? Number(payment.amount) : undefined,
+      currency: payment.currency ?? 'GBP',
+      purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date()
+    });
+  }
+
+  private async handleGoCardlessJobPublishCompleted(
+    payment: GoCardlessPaymentResource,
+    metadata: Record<string, string>
+  ) {
+    if (metadata.type !== 'job_publish') return null;
+
+    const jobAdId = metadata.jobAdId;
+    if (!jobAdId) return null;
+
+    const billingRequestId = payment.links?.billing_request ?? null;
+    const pendingPayment = billingRequestId
+      ? await this.prisma.payment.findFirst({
+          where: { providerCheckoutId: billingRequestId, jobAdId }
+        })
+      : null;
+
+    if (pendingPayment) {
+      if (pendingPayment.providerPaymentId === payment.id && pendingPayment.paymentStatus === PaymentStatus.COMPLETED) {
+        return { received: true, paymentId: pendingPayment.id };
+      }
+
+      const amount = Number(payment.amount ?? JOB_PUBLISH_PRICE_PENCE) / 100;
+
+      await this.prisma.$transaction([
+        this.prisma.jobAd.updateMany({
+          where: { id: jobAdId, deletedAt: null },
+          data: { isPublished: true, publishPaidAt: new Date() }
+        }),
+        this.prisma.payment.update({
+          where: { id: pendingPayment.id },
+          data: {
+            paymentStatus: PaymentStatus.COMPLETED,
+            providerPaymentId: payment.id ?? null,
+            currency: (payment.currency ?? 'GBP').toUpperCase(),
+            grossAmount: amount,
+            processingFee: 0,
+            netAmount: amount,
+            purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date(),
+            paymentChannel: 'gocardless',
+            paymentMethod: 'direct_debit'
+          }
+        })
+      ]);
+      return { received: true, paymentId: pendingPayment.id };
+    }
+
+    // No pending row (e.g. checkout predates pending rows): fulfil directly,
+    // creating a completed payment row keyed by the billing request id. The
+    // stripe-specific handleJobPublishCompleted hardcodes its channel, so the
+    // GoCardless path is kept separate.
+    const job = await this.prisma.jobAd.findFirst({
+      where: { id: jobAdId, deletedAt: null },
+      include: {
+        businessListing: {
+          include: { owner: { select: { id: true, name: true, email: true, phone: true } } }
+        }
+      }
+    });
+    const amount = Number(payment.amount ?? JOB_PUBLISH_PRICE_PENCE) / 100;
+    const existingPayment = billingRequestId
+      ? await this.prisma.payment.findFirst({
+          where: { jobAdId, providerCheckoutId: billingRequestId }
+        })
+      : null;
+    if (existingPayment) {
+      return { received: true, paymentId: existingPayment.id };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.jobAd.updateMany({
+        where: { id: jobAdId, deletedAt: null },
+        data: { isPublished: true, publishPaidAt: new Date() }
+      });
+      await tx.payment.create({
+        data: {
+          userId: job?.businessListing?.owner.id,
+          jobAdId,
+          paymentChannel: 'gocardless',
+          paymentMethod: 'direct_debit',
+          paymentStatus: PaymentStatus.COMPLETED,
+          providerCheckoutId: billingRequestId,
+          providerPaymentId: payment.id ?? null,
+          currency: (payment.currency ?? 'GBP').toUpperCase(),
+          grossAmount: amount,
+          processingFee: 0,
+          netAmount: amount,
+          description: `Job publish: ${job?.title ?? jobAdId}`,
+          payerName: job?.businessListing?.owner.name ?? null,
+          payerEmail: job?.businessListing?.owner.email ?? null,
+          payerPhone: job?.businessListing?.owner.phone ?? null,
+          purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date(),
           sourceType: PaymentSourceType.JOB_PUBLISH,
           sourceId: jobAdId
         }

@@ -74,6 +74,10 @@ export function DonationForm({ fundraiserId }: Props) {
         isAnonymous,
         addProcessingFee
       });
+      if (res.data.provider === 'gocardless' && res.data.url) {
+        window.location.assign(res.data.url);
+        return;
+      }
       if (res.data.clientSecret && res.data.sessionId) {
         router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
         return;

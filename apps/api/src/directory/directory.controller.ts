@@ -24,6 +24,7 @@ import { CreateBusinessListingDto } from './dto/create-business.dto.js';
 import { UpdateBusinessListingDto } from './dto/update-business.dto.js';
 import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
+import { CheckoutPaymentSchemeDto } from './dto/checkout-payment-scheme.dto.js';
 import { Public } from '../common/decorators/public.decorator.js';
 
 @ApiTags('Directory')
@@ -78,8 +79,12 @@ export class DirectoryController {
   @Post('businesses/:id/promote')
   @RequiresFeature(MembershipFeature.DIRECTORY_PROMOTE)
   @ApiBearerAuth()
-  promoteBusiness(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.directoryService.createPromotionCheckout(user, id);
+  promoteBusiness(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: CheckoutPaymentSchemeDto
+  ) {
+    return this.directoryService.createPromotionCheckout(user, id, dto);
   }
 
   @Get('jobs')
@@ -98,8 +103,12 @@ export class DirectoryController {
   @Post('jobs/:id/publish')
   @RequiresFeature(MembershipFeature.DIRECTORY_LISTING)
   @ApiBearerAuth()
-  publishJob(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.directoryService.createJobPublishCheckout(user, id);
+  publishJob(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: CheckoutPaymentSchemeDto
+  ) {
+    return this.directoryService.createJobPublishCheckout(user, id, dto);
   }
 
   @Put('jobs/:id')

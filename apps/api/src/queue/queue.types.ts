@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import type { GoCardlessWebhookEvent } from '../payments/gocardless-webhook.types.js';
 
 export interface SendTicketEmailJobData {
   email: string;
@@ -9,7 +10,7 @@ export interface SendTicketEmailJobData {
 
 export interface WebhookJobData {
   ledgerId: string;
-  provider: 'stripe' | 'paypal';
+  provider: 'stripe' | 'paypal' | 'gocardless';
   eventType: string;
-  payload: Stripe.Event | Record<string, unknown>;
+  payload: Stripe.Event | GoCardlessWebhookEvent | Record<string, unknown>;
 }

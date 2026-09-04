@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { PaymentsService } from '../payments/payments.service.js';
+import { GoCardlessService } from '../payments/gocardless.service.js';
+import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailQueueService } from '../email/email-queue.service.js';
 import type Stripe from 'stripe';
 import QRCode from 'qrcode';
@@ -64,7 +66,8 @@ export class EventsService {
     @Inject('PAYMENTS_SERVICE')
     private readonly paymentsService: PaymentsService,
     private readonly emailQueueService: EmailQueueService,
-    private readonly configService: ConfigService<EnvConfig, true>
+    private readonly configService: ConfigService<EnvConfig, true>,
+    private readonly goCardlessService: GoCardlessService
   ) {}
 
   async listPublished(page = 1, limit = 20, filters?: { search?: string; upcoming?: boolean; category?: string }) {
@@ -431,7 +434,13 @@ export class EventsService {
     return event.maxTickets - event._count.tickets;
   }
 
-  async createCheckoutSession(userId: string, dto: PurchaseTicketsDto) {
+  async createCheckoutSession(
+    userId: string,
+    dto: PurchaseTicketsDto
+  ): Promise<
+    | { free: true; tickets: Awaited<ReturnType<EventsService['createTickets']>> }
+    | { free: false; sessionId: string; url: string; provider: string; clientSecret?: string }
+  > {
     const event = await this.findById(dto.eventId);
     if (!event.isPublished) throw new ForbiddenException('Event is not published');
     if (event.startDatetime < new Date()) throw new BadRequestException('Event has already started');
@@ -471,9 +480,14 @@ export class EventsService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId, deletedAt: null },
-      select: { id: true, email: true }
+      select: { id: true, email: true, name: true }
     });
     if (!user) throw new NotFoundException('User not found');
+
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      return this.createGoCardlessCheckoutSession(user, event, dto, totalAmount, origin);
+    }
 
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
 
@@ -499,6 +513,77 @@ export class EventsService {
       url: checkout.url,
       provider: checkout.provider,
       clientSecret: checkout.clientSecret
+    };
+  }
+
+  /**
+   * GoCardless variant of createCheckoutSession. Creates a one-off billing
+   * request (BACS direct debit by default, Instant Bank Pay when
+   * `paymentScheme` is `faster_payments`) for the ticket total including the
+   * processing fee, and records a pending Payment row keyed by the billing
+   * request id. The fulfilment handler completes that row in place and issues
+   * the tickets.
+   */
+  private async createGoCardlessCheckoutSession(
+    user: { id: string; email: string; name: string | null },
+    event: { id: string; title: string; ticketPrice: number | unknown },
+    dto: PurchaseTicketsDto,
+    totalAmount: number,
+    origin: string
+  ): Promise<Extract<Awaited<ReturnType<EventsService['createCheckoutSession']>>, { free: false }>> {
+    const feeResult = this.paymentsService.calculateProcessingFee(totalAmount);
+    const scheme = dto.paymentScheme ?? 'bacs';
+    const customerId = await this.goCardlessService.getOrCreateCustomer(user.id);
+
+    const checkout = await this.goCardlessService.createBillingRequestFlow({
+      plan: 'one_off',
+      amountPence: feeResult.gross,
+      description: event.title,
+      scheme,
+      customerId,
+      metadata: {
+        type: 'event_ticket',
+        eventId: dto.eventId,
+        userId: user.id,
+        quantity: String(dto.quantity),
+        netAmount: String(feeResult.net),
+        processingFee: String(feeResult.fee),
+        grossAmount: String(feeResult.gross)
+      },
+      redirectUri: `${origin}/dashboard/tickets?success=1&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+      exitUri: `${origin}/events/${dto.eventId}?canceled=1`
+    });
+
+    await this.prisma.payment.create({
+      data: {
+        userId: user.id,
+        eventId: dto.eventId,
+        paymentChannel: 'gocardless',
+        paymentMethod: 'direct_debit',
+        paymentStatus: PaymentStatus.PENDING,
+        providerCheckoutId: checkout.id,
+        currency: 'GBP',
+        grossAmount: feeResult.gross / 100,
+        processingFee: feeResult.fee / 100,
+        netAmount: (feeResult.gross - feeResult.fee) / 100,
+        description: `Ticket(s) for ${event.title}`,
+        payerName: user.name,
+        payerEmail: user.email,
+        purchasedAt: new Date(),
+        sourceType: PaymentSourceType.TICKET,
+        metadata: {
+          quantity: dto.quantity,
+          ticketPrice: Number(event.ticketPrice),
+          sessionRef: checkout.id
+        } as unknown as Prisma.InputJsonValue
+      }
+    });
+
+    return {
+      free: false,
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider
     };
   }
 
@@ -561,6 +646,103 @@ export class EventsService {
       }
     );
     return tickets;
+  }
+
+  /**
+   * Fulfil a confirmed GoCardless payment for event tickets.
+   *
+   * The pending Payment row created when the billing request flow started is
+   * updated in place (no duplicate row); otherwise a completed row is created
+   * keyed by the billing request id, which also makes ticket issuance
+   * idempotent. Metadata keys mirror the Stripe session metadata conventions:
+   * `type: 'event_ticket'`, `eventId`, `userId`, `quantity`, and the optional
+   * `grossAmount`/`processingFee`/`netAmount` pence estimates.
+   */
+  async handleGoCardlessPaymentCompleted(
+    payment: GoCardlessPaymentResource,
+    metadata: Record<string, string>
+  ) {
+    if (metadata.type !== 'event_ticket') return null;
+    const eventId = metadata.eventId;
+    if (!eventId) return null;
+
+    const billingRequestId = payment.links?.billing_request ?? null;
+
+    // Stripe may retry the webhook; return existing tickets instead of creating duplicates.
+    if (billingRequestId) {
+      const existingTickets = await this.prisma.ticket.findMany({
+        where: { stripeSessionId: billingRequestId, deletedAt: null },
+        include: { event: true, user: { select: { id: true, name: true, email: true } } }
+      });
+      if (existingTickets.length > 0) {
+        return existingTickets;
+      }
+    }
+
+    const pendingPayment = billingRequestId
+      ? await this.prisma.payment.findFirst({
+          where: { providerCheckoutId: billingRequestId, paymentChannel: 'gocardless' }
+        })
+      : null;
+
+    const userId = metadata.userId ?? pendingPayment?.userId;
+    if (!userId) return null;
+    const quantity = Number(
+      metadata.quantity ?? (pendingPayment?.metadata as { quantity?: number } | null)?.quantity ?? 1
+    );
+
+    const origin = this.configService.get('FRONTEND_URL', { infer: true });
+    const grossAmount = Number(metadata.grossAmount ?? payment.amount ?? 0);
+    const processingFee = Number(metadata.processingFee ?? 0);
+    const netAmount = Number(metadata.netAmount ?? grossAmount - processingFee);
+    const purchasedAt = payment.created_at ? new Date(payment.created_at) : new Date();
+
+    if (pendingPayment) {
+      await this.prisma.payment.update({
+        where: { id: pendingPayment.id },
+        data: {
+          userId,
+          eventId,
+          paymentStatus: PaymentStatus.COMPLETED,
+          providerPaymentId: payment.id ?? null,
+          currency: (payment.currency ?? 'GBP').toUpperCase(),
+          grossAmount: grossAmount / 100,
+          processingFee: processingFee / 100,
+          netAmount: netAmount / 100,
+          purchasedAt,
+          sourceType: PaymentSourceType.TICKET,
+          payerEmail: pendingPayment.payerEmail,
+          payerName: pendingPayment.payerName
+        }
+      });
+    }
+
+    return this.createTickets(
+      userId,
+      eventId,
+      quantity,
+      origin,
+      {
+        ...(pendingPayment ? { existingPaymentId: pendingPayment.id } : {}),
+        channel: 'gocardless',
+        method: 'direct_debit',
+        currency: (payment.currency ?? 'GBP').toUpperCase(),
+        grossAmount,
+        processingFee,
+        netAmount,
+        providerCheckoutId: billingRequestId,
+        providerPaymentId: payment.id ?? null,
+        purchasedAt,
+        payerEmail: pendingPayment?.payerEmail ?? null,
+        payerName: pendingPayment?.payerName ?? null,
+        payerPhone: null,
+        payerAddress: null,
+        paymentStatus: PaymentStatus.COMPLETED,
+        sourceType: PaymentSourceType.TICKET,
+        notes: 'Ticket purchase via GoCardless Direct Debit'
+      },
+      undefined
+    );
   }
 
   async createTickets(
@@ -627,8 +809,8 @@ export class EventsService {
         if (payment.paymentStatus !== PaymentStatus.COMPLETED) {
           throw new BadRequestException('Only completed payments can be attached to tickets');
         }
-        if (payment.paymentChannel !== 'stripe' || payment.paymentMethod !== 'card') {
-          throw new BadRequestException('Payment must be a Stripe card payment');
+        if (payment.paymentChannel !== 'stripe' && payment.paymentChannel !== 'gocardless') {
+          throw new BadRequestException('Payment must be a Stripe card or GoCardless payment');
         }
         if (
           payment.sourceType !== PaymentSourceType.TICKET &&

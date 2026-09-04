@@ -67,7 +67,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   const purchase = useMutation({
     mutationFn: async () => {
       if (!event) throw new Error('Event not loaded');
-      const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string; sessionId?: string; clientSecret?: string }>(
+      const { data } = await api.post<{ free: boolean; tickets?: { id: string }[]; url?: string; sessionId?: string; clientSecret?: string; provider?: 'stripe' | 'gocardless' }>(
         `/events/${event.id}/tickets/purchase`,
         { eventId: event.id, quantity }
       );
@@ -77,6 +77,8 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
       if (data.free) {
         setMessage({ type: 'success', text: t('reserveSuccess') });
         setTimeout(() => router.push('/dashboard/tickets'), 1500);
+      } else if (data.provider === 'gocardless' && data.url) {
+        window.location.assign(data.url);
       } else if (data.clientSecret && data.sessionId) {
         router.push(`/checkout?session_id=${data.sessionId}&client_secret=${encodeURIComponent(data.clientSecret)}`);
       } else if (data.url) {

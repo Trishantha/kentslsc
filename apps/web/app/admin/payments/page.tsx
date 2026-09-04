@@ -6,17 +6,22 @@ import { Loader2, Save, CreditCard } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface PaymentSettings {
-  provider: 'stripe' | 'paypal';
+  provider: 'stripe' | 'paypal' | 'gocardless';
   hasStripeSecretKey: boolean;
   hasStripeWebhookSecret: boolean;
   hasStripePublishableKey: boolean;
   hasPaypalClientId: boolean;
   hasPaypalClientSecret: boolean;
   paypalApiBaseUrl: string;
+  hasGocardlessAccessToken?: boolean;
+  hasGocardlessWebhookSecret?: boolean;
+  gocardlessEnvironment?: 'sandbox' | 'live';
   processingFeeEnabled: boolean;
   processingFeePercent: number;
   processingFeeFixed: number;
 }
+
+type PaymentProvider = PaymentSettings['provider'];
 
 const inputClass = 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';
 const labelClass = 'mb-1 block text-xs text-slate-500';
@@ -28,13 +33,16 @@ export default function AdminPaymentsPage() {
     queryFn: async () => (await api.get('/payments/settings')).data
   });
 
-  const [provider, setProvider] = useState<'stripe' | 'paypal'>('stripe');
+  const [provider, setProvider] = useState<PaymentProvider>('stripe');
   const [stripeSecretKey, setStripeSecretKey] = useState('');
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [paypalClientId, setPaypalClientId] = useState('');
   const [paypalClientSecret, setPaypalClientSecret] = useState('');
   const [paypalApiBaseUrl, setPaypalApiBaseUrl] = useState('https://api-m.sandbox.paypal.com');
+  const [gocardlessAccessToken, setGocardlessAccessToken] = useState('');
+  const [gocardlessWebhookSecret, setGocardlessWebhookSecret] = useState('');
+  const [gocardlessEnvironment, setGocardlessEnvironment] = useState<'sandbox' | 'live'>('sandbox');
   const [processingFeeEnabled, setProcessingFeeEnabled] = useState(true);
   const [processingFeePercent, setProcessingFeePercent] = useState(1.5);
   const [processingFeeFixed, setProcessingFeeFixed] = useState(20);
@@ -48,6 +56,9 @@ export default function AdminPaymentsPage() {
       setPaypalClientId('');
       setPaypalClientSecret('');
       setPaypalApiBaseUrl(data.paypalApiBaseUrl ?? 'https://api-m.sandbox.paypal.com');
+      setGocardlessAccessToken('');
+      setGocardlessWebhookSecret('');
+      setGocardlessEnvironment(data.gocardlessEnvironment ?? 'sandbox');
       setProcessingFeeEnabled(data.processingFeeEnabled ?? true);
       setProcessingFeePercent(data.processingFeePercent ?? 1.5);
       setProcessingFeeFixed(data.processingFeeFixed ?? 20);
@@ -71,8 +82,11 @@ export default function AdminPaymentsPage() {
       stripePublishableKey?: string;
       paypalClientId?: string;
       paypalClientSecret?: string;
-      provider: 'stripe' | 'paypal';
+      provider: PaymentProvider;
       paypalApiBaseUrl: string;
+      gocardlessAccessToken?: string;
+      gocardlessWebhookSecret?: string;
+      gocardlessEnvironment?: 'sandbox' | 'live';
       processingFeeEnabled: boolean;
       processingFeePercent: number;
       processingFeeFixed: number;
@@ -89,6 +103,9 @@ export default function AdminPaymentsPage() {
     if (stripePublishableKey.trim()) payload.stripePublishableKey = stripePublishableKey.trim();
     if (paypalClientId.trim()) payload.paypalClientId = paypalClientId.trim();
     if (paypalClientSecret.trim()) payload.paypalClientSecret = paypalClientSecret.trim();
+    if (gocardlessAccessToken.trim()) payload.gocardlessAccessToken = gocardlessAccessToken.trim();
+    if (gocardlessWebhookSecret.trim()) payload.gocardlessWebhookSecret = gocardlessWebhookSecret.trim();
+    if (provider === 'gocardless') payload.gocardlessEnvironment = gocardlessEnvironment;
 
     mutation.mutate({
       ...payload
@@ -113,13 +130,14 @@ export default function AdminPaymentsPage() {
         <div className="glass-card space-y-5 p-6">
           <div>
             <label className={labelClass}>Default provider</label>
-            <select value={provider} onChange={(e) => setProvider(e.target.value as 'stripe' | 'paypal')} className={inputClass}>
+            <select value={provider} onChange={(e) => setProvider(e.target.value as PaymentProvider)} className={inputClass}>
               <option value="stripe">Stripe</option>
               <option value="paypal">PayPal</option>
+              <option value="gocardless">GoCardless</option>
             </select>
           </div>
 
-          {provider === 'stripe' ? (
+          {provider === 'stripe' && (
             <>
               <div>
                 <label className={labelClass}>Stripe secret key</label>
@@ -137,7 +155,9 @@ export default function AdminPaymentsPage() {
                 <p className="mt-1 text-xs text-slate-500">{data?.hasStripePublishableKey ? 'Configured. Enter a new value to rotate it.' : 'Not configured yet.'}</p>
               </div>
             </>
-          ) : (
+          )}
+
+          {provider === 'paypal' && (
             <>
               <div>
                 <label className={labelClass}>PayPal client ID</label>
@@ -152,6 +172,33 @@ export default function AdminPaymentsPage() {
               <div>
                 <label className={labelClass}>PayPal API base URL</label>
                 <input value={paypalApiBaseUrl} onChange={(e) => setPaypalApiBaseUrl(e.target.value)} className={inputClass} placeholder="https://api-m.sandbox.paypal.com" />
+              </div>
+            </>
+          )}
+
+          {provider === 'gocardless' && (
+            <>
+              <div>
+                <label className={labelClass}>GoCardless access token</label>
+                <input type="password" value={gocardlessAccessToken} onChange={(e) => setGocardlessAccessToken(e.target.value)} className={inputClass} placeholder="live_..." autoComplete="off" />
+                <p className="mt-1 text-xs text-slate-500">{data?.hasGocardlessAccessToken ? 'Configured. Enter a new value to rotate it.' : 'Not configured yet.'}</p>
+              </div>
+              <div>
+                <label className={labelClass}>GoCardless webhook secret</label>
+                <input type="password" value={gocardlessWebhookSecret} onChange={(e) => setGocardlessWebhookSecret(e.target.value)} className={inputClass} placeholder="Webhook secret" autoComplete="off" />
+                <p className="mt-1 text-xs text-slate-500">{data?.hasGocardlessWebhookSecret ? 'Configured. Enter a new value to rotate it.' : 'Not configured yet.'}</p>
+              </div>
+              <div>
+                <label className={labelClass}>GoCardless environment</label>
+                <select value={gocardlessEnvironment} onChange={(e) => setGocardlessEnvironment(e.target.value as 'sandbox' | 'live')} className={inputClass}>
+                  <option value="sandbox">Sandbox</option>
+                  <option value="live">Live</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>GoCardless webhook URL</label>
+                <input readOnly value={typeof window !== 'undefined' ? `${window.location.origin}/api/payments/gocardless/webhook` : ''} className={inputClass} onFocus={(e) => e.target.select()} />
+                <p className="mt-1 text-xs text-slate-500">Add this endpoint in your GoCardless dashboard so payment events can be received.</p>
               </div>
             </>
           )}

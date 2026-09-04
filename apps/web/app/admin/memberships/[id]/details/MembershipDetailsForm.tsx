@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -83,6 +83,14 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const { data: paymentSettings } = useQuery<{ provider: 'stripe' | 'paypal' | 'gocardless' }>({
+    queryKey: ['payments-settings'],
+    queryFn: async () => (await api.get('/payments/settings')).data
+  });
+  const isGoCardless = paymentSettings?.provider === 'gocardless';
+  const [paymentPlan, setPaymentPlan] = useState<'single' | 'subscription' | 'instalments'>('single');
+  const [instalmentCount, setInstalmentCount] = useState(10);
+
   const [dependants, setDependants] = useState(membership.dependants ?? []);
   const [dependantsError, setDependantsError] = useState<string | null>(null);
   const [dependantsSuccess, setDependantsSuccess] = useState(false);
@@ -141,7 +149,14 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
 
   const sendLinkMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post(`/admin/memberships/${membership.id}/send-payment-link`);
+      const payload: { paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number } = {};
+      if (isGoCardless && paymentPlan !== 'single') {
+        payload.paymentPlan = paymentPlan;
+        if (paymentPlan === 'instalments') {
+          payload.instalmentCount = Math.min(12, Math.max(2, instalmentCount));
+        }
+      }
+      const res = await api.post(`/admin/memberships/${membership.id}/send-payment-link`, payload);
       return res.data as { url: string; provider: string };
     },
     onSuccess: (data) => {
@@ -372,6 +387,33 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
           membership.membershipType.price > 0 &&
           !membership.paymentMethod && (
           <div className="mt-4 space-y-3">
+            {isGoCardless && (
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Payment plan</label>
+                <select
+                  value={paymentPlan}
+                  onChange={(e) => setPaymentPlan(e.target.value as 'single' | 'subscription' | 'instalments')}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                >
+                  <option value="single">Single payment</option>
+                  <option value="subscription">Monthly subscription (direct debit)</option>
+                  <option value="instalments">Instalments (N months)</option>
+                </select>
+                {paymentPlan === 'instalments' && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={2}
+                      max={12}
+                      value={instalmentCount}
+                      onChange={(e) => setInstalmentCount(Number(e.target.value) || 10)}
+                      className="w-24 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-neon-blue"
+                    />
+                    <span className="text-xs text-slate-500">monthly instalments (2–12)</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"

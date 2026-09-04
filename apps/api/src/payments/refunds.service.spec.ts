@@ -3,6 +3,11 @@ import { RefundsService } from './refunds.service.js';
 import { PaymentStatus, TicketStatus } from '@kentslsc/database';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 function buildPayment(overrides: any = {}) {
   return {
     id: 'pay-1',

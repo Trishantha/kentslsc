@@ -150,6 +150,8 @@ model User {
   refreshToken  String?   @map("refresh_token")
   // Stable Stripe Customer id for the user; using it in Checkout locks the email field.
   stripeCustomerId String?   @unique @map("stripe_customer_id")
+  // Stable GoCardless Customer id for the user, created lazily on first use.
+  gocardlessCustomerId String? @map("gocardless_customer_id")
   // Optional back-office role that provides a default permission set.
   backOfficeRoleId String?   @map("back_office_role_id")
   // Timestamp only, deliberately no parallel boolean: two sources of truth for
@@ -360,6 +362,10 @@ model Membership {
   stripeSubscriptionId String?        @map("stripe_subscription_id")
   stripePriceId       String?         @map("stripe_price_id")
   subscriptionStatus  String?         @map("subscription_status")
+  // GoCardless links for memberships paid by Direct Debit.
+  gocardlessMandateId            String? @map("gocardless_mandate_id")
+  gocardlessSubscriptionId       String? @map("gocardless_subscription_id")
+  gocardlessInstalmentScheduleId String? @map("gocardless_instalment_schedule_id")
   issuedAt           DateTime         @default(now()) @map("issued_at")
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
@@ -973,6 +979,10 @@ model PaymentSettings {
   paypalClientId       String?  @map("paypal_client_id")
   paypalClientSecret   String?  @map("paypal_client_secret")
   paypalApiBaseUrl     String?  @map("paypal_api_base_url")
+  // GoCardless credentials persisted per-club; null means fall back to env vars.
+  gocardlessAccessToken  String? @map("gocardless_access_token")
+  gocardlessWebhookSecret String? @map("gocardless_webhook_secret")
+  gocardlessEnvironment  String? @map("gocardless_environment")
   processingFeeEnabled Boolean  @default(true) @map("processing_fee_enabled")
   processingFeePercent Decimal  @default(1.50) @db.Decimal(5, 2) @map("processing_fee_percent")
   processingFeeFixed   Int      @default(20) @map("processing_fee_fixed")

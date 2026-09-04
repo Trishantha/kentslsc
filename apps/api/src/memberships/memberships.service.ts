@@ -20,6 +20,13 @@ import { nanoid } from 'nanoid';
 import Stripe from 'stripe';
 import { generateCardBuffer } from './helpers/card-generator.js';
 import { SupabaseStorageService } from '../core/supabase/supabase.service.js';
+import { GoCardlessService } from '../payments/gocardless.service.js';
+import type {
+  GoCardlessInstalmentScheduleResource,
+  GoCardlessMandateResource,
+  GoCardlessPaymentResource,
+  GoCardlessSubscriptionResource
+} from '../payments/gocardless-webhook.types.js';
 import type { CreateMembershipTypeDto } from './dto/create-membership-type.dto.js';
 import type { UpdateMembershipTypeDto } from './dto/update-membership-type.dto.js';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
@@ -63,7 +70,8 @@ export class MembershipsService {
     private readonly emailService: EmailService,
     private readonly aiService: AiService,
     private readonly configService: ConfigService,
-    private readonly supabaseStorage: SupabaseStorageService
+    private readonly supabaseStorage: SupabaseStorageService,
+    private readonly goCardlessService: GoCardlessService
   ) {}
 
   private get frontendUrl(): string {
@@ -1036,6 +1044,12 @@ export class MembershipsService {
     }
 
     const fullName = membership.user.name;
+
+    const settings = await this.paymentsService.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      return this.approveAndRequestPaymentViaGoCardless(membership, fullName);
+    }
+
     const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(
       membership.userId,
       membership.user.email
@@ -1072,6 +1086,96 @@ export class MembershipsService {
         address: '',
         phone: '',
         dependants: JSON.stringify((membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [])
+      }
+    });
+
+    await this.emailService.sendMembershipPaymentLink(
+      membership.user.email,
+      fullName,
+      membership.membershipType.name,
+      checkout.url
+    );
+
+    return {
+      membership: await this.findMembershipById(updated.id),
+      url: checkout.url,
+      provider: checkout.provider
+    };
+  }
+
+  /**
+   * GoCardless variant of approveAndRequestPayment. The membership moves to
+   * AWAITING_PAYMENT and the member receives a billing request flow authorisation
+   * link. The recurring plan mirrors the Stripe subscription checkout: yearly
+   * when the membership-type duration is a multiple of 12 months, otherwise a
+   * monthly interval of `durationMonths`. A pending Payment row keyed by the
+   * billing request id is recorded for the fulfilment handlers.
+   */
+  private async approveAndRequestPaymentViaGoCardless(
+    membership: {
+      id: string;
+      userId: string;
+      dependantsJson: unknown;
+      membershipType: { id: string; name: string; price: unknown; durationMonths: number };
+      user: { id: string; email: string; name: string };
+    },
+    fullName: string
+  ) {
+    const amountPence = Math.round(Number(membership.membershipType.price) * 100);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const customerId = await this.goCardlessService.getOrCreateCustomer(membership.userId);
+
+    const months = membership.membershipType.durationMonths;
+    const yearly = months > 0 && months % 12 === 0;
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: MembershipStatus.AWAITING_PAYMENT,
+        startDate: new Date()
+      },
+      include: { membershipType: true, user: { select: { id: true, email: true, name: true } } }
+    });
+
+    const checkout = await this.goCardlessService.createBillingRequestFlow({
+      plan: 'subscription',
+      amountPence,
+      description: `Membership: ${membership.membershipType.name}`,
+      metadata: {
+        source: 'membership',
+        membershipId: membership.id,
+        userId: membership.userId,
+        membershipTypeId: membership.membershipType.id,
+        fullName,
+        address: '',
+        phone: '',
+        dependants: JSON.stringify((membership.dependantsJson as Array<{ name: string; relationship: string }> | null) ?? [])
+      },
+      redirectUri: `${this.frontendUrl}/dashboard?membership=success&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+      exitUri: `${this.frontendUrl}/dashboard?membership=canceled`,
+      customerId,
+      subscriptionIntervalUnit: yearly ? 'yearly' : 'monthly',
+      subscriptionInterval: yearly ? Math.max(1, months / 12) : Math.max(1, months)
+    });
+
+    await this.prisma.payment.create({
+      data: {
+        userId: membership.userId,
+        membershipId: membership.id,
+        paymentChannel: 'gocardless',
+        paymentMethod: 'direct_debit',
+        paymentStatus: PaymentStatus.PENDING,
+        providerCheckoutId: checkout.id,
+        currency: 'GBP',
+        grossAmount: amountPence / 100,
+        processingFee: feeResult.fee / 100,
+        netAmount: (amountPence - feeResult.fee) / 100,
+        description: `Membership: ${membership.membershipType.name}`,
+        payerName: fullName,
+        payerEmail: membership.user.email,
+        purchasedAt: new Date(),
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        sourceId: membership.id
       }
     });
 
@@ -1341,6 +1445,10 @@ export class MembershipsService {
       payerName?: string | null;
       payerPhone?: string | null;
       notes?: string;
+      /** Estimated processing fee in pence (GoCardless path; Stripe syncs actuals later). */
+      processingFeePence?: number;
+      /** Net settlement in pence. Defaults to amountPence minus the fee. */
+      netAmountPence?: number;
     }
   ) {
     const existing = await this.prisma.payment.findFirst({
@@ -1352,10 +1460,41 @@ export class MembershipsService {
       }
     });
     if (existing) {
+      // A PENDING row is the checkout-time placeholder recorded when a
+      // GoCardless billing request flow started; complete it in place rather
+      // than leaving a dangling pending payment. Anything already completed
+      // (Stripe retries, later instalments sharing the billing request id) is
+      // a genuine duplicate and returned as-is.
+      if (existing.paymentStatus === PaymentStatus.PENDING) {
+        const amount = input.amountPence / 100;
+        const fee = input.processingFeePence !== undefined ? input.processingFeePence / 100 : 0;
+        const net = input.netAmountPence !== undefined ? input.netAmountPence / 100 : amount - fee;
+        return this.prisma.payment.update({
+          where: { id: existing.id },
+          data: {
+            paymentMethod: input.method ?? existing.paymentMethod,
+            paymentStatus: PaymentStatus.COMPLETED,
+            ...(input.providerPaymentId ? { providerPaymentId: input.providerPaymentId } : {}),
+            ...(input.providerSubscriptionId ? { providerSubscriptionId: input.providerSubscriptionId } : {}),
+            ...(input.providerCheckoutId ? { providerCheckoutId: input.providerCheckoutId } : {}),
+            currency: input.currency.toUpperCase(),
+            grossAmount: amount,
+            processingFee: fee,
+            netAmount: net,
+            notes: input.notes ?? existing.notes,
+            payerEmail: input.payerEmail ?? existing.payerEmail,
+            payerName: input.payerName ?? existing.payerName,
+            payerPhone: input.payerPhone ?? existing.payerPhone,
+            purchasedAt: new Date()
+          }
+        });
+      }
       return existing;
     }
 
     const amount = input.amountPence / 100;
+    const fee = input.processingFeePence !== undefined ? input.processingFeePence / 100 : 0;
+    const net = input.netAmountPence !== undefined ? input.netAmountPence / 100 : amount - fee;
 
     let payment;
     try {
@@ -1371,8 +1510,8 @@ export class MembershipsService {
         providerCheckoutId: input.providerCheckoutId ?? null,
         currency: input.currency.toUpperCase(),
         grossAmount: amount,
-        processingFee: 0,
-        netAmount: amount,
+        processingFee: fee,
+        netAmount: net,
         description: `Membership: ${membership.membershipType.name}`,
         notes: input.notes ?? null,
         payerName: input.payerName ?? membership.user?.name ?? null,
@@ -1843,14 +1982,20 @@ export class MembershipsService {
             MembershipStatus.AWAITING_APPROVAL,
             MembershipStatus.AWAITING_PAYMENT
           ]
-        },
-        stripeCustomerId: { not: null }
+        }
       },
       orderBy: { createdAt: 'desc' },
-      select: { stripeCustomerId: true }
+      select: { stripeCustomerId: true, gocardlessMandateId: true }
     });
 
     if (!membership?.stripeCustomerId) {
+      if (membership?.gocardlessMandateId) {
+        // Direct-debit memberships have no Stripe customer, so there is no
+        // self-service portal to send the member to.
+        throw new BadRequestException(
+          'Self-service billing is not available for direct-debit memberships; contact the club to amend'
+        );
+      }
       throw new BadRequestException('No active subscription found');
     }
 
@@ -2098,6 +2243,557 @@ export class MembershipsService {
       payerName: invoice.customer_name ?? membership.user?.name ?? null,
       notes: 'Membership subscription renewal via Stripe invoice'
     });
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * Locate the membership a GoCardless resource belongs to: prefer the id in
+   * the checkout metadata, then fall back to the pending Payment row recorded
+   * when the billing request flow was created.
+   */
+  private async resolveGoCardlessMembership(
+    resource: { id?: string; links?: { billing_request?: string } },
+    metadata: Record<string, string>
+  ) {
+    const include = {
+      membershipType: true,
+      user: { select: { id: true, name: true, email: true } }
+    } as const;
+
+    if (metadata.membershipId) {
+      const byId = await this.prisma.membership.findUnique({
+        where: { id: metadata.membershipId, deletedAt: null },
+        include
+      });
+      if (byId) return byId;
+    }
+
+    const billingRequestId = resource.links?.billing_request;
+    if (!billingRequestId) return null;
+
+    const pendingPayment = await this.prisma.payment.findFirst({
+      where: { providerCheckoutId: billingRequestId },
+      include: { membership: { include } }
+    });
+    return pendingPayment?.membership ?? null;
+  }
+
+  /**
+   * Fulfil a confirmed GoCardless membership payment.
+   *
+   * Mirrors handleCheckoutSessionCompleted: the first payment activates the
+   * membership, issues the card and sends the welcome email; later payments
+   * (subscription renewals) extend endDate by one membership-type duration,
+   * the same renewal arithmetic handleInvoicePaid applies to a paid Stripe
+   * invoice. Idempotent by providerPaymentId.
+   */
+  async handleGoCardlessPaymentCompleted(
+    payment: GoCardlessPaymentResource,
+    metadata: Record<string, string>
+  ) {
+    if (!payment.id) return { received: true, membershipId: null };
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { providerPaymentId: payment.id, paymentChannel: 'gocardless' }
+    });
+    if (existing) {
+      return { received: true, membershipId: existing.membershipId };
+    }
+
+    const membership = await this.resolveGoCardlessMembership(payment, metadata);
+    if (!membership) {
+      this.logger.warn(
+        `GoCardless payment ${payment.id} could not be matched to a membership; nothing recorded.`
+      );
+      return { received: true, membershipId: null };
+    }
+    if (membership.status === MembershipStatus.CANCELLED) {
+      return { received: true, membershipId: membership.membershipId };
+    }
+
+    const amountPence = Number(payment.amount ?? 0);
+    const currency = (payment.currency ?? 'GBP').toUpperCase();
+    // GoCardless does not report fees on the payment resource, so record the
+    // same estimated fee the checkout flow would have quoted.
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+
+    const priorPayment = await this.prisma.payment.findFirst({
+      where: {
+        membershipId: membership.id,
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        paymentStatus: { in: [PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED] }
+      }
+    });
+
+    const isRenewal = Boolean(priorPayment);
+    const activate =
+      !isRenewal &&
+      (membership.status === MembershipStatus.PENDING ||
+        membership.status === MembershipStatus.AWAITING_PAYMENT);
+
+    const data: Prisma.MembershipUpdateInput = {
+      paidAt: new Date(),
+      paymentMethod: 'direct_debit',
+      gocardlessMandateId: payment.links?.mandate ?? membership.gocardlessMandateId,
+      gocardlessSubscriptionId: payment.links?.subscription ?? membership.gocardlessSubscriptionId,
+      gocardlessInstalmentScheduleId:
+        payment.links?.instalment_schedule ?? membership.gocardlessInstalmentScheduleId
+    };
+
+    if (activate) {
+      const startDate = new Date();
+      data.status = MembershipStatus.ACTIVE;
+      data.startDate = startDate;
+      data.endDate = this.computeEndDate(membership.membershipType, startDate);
+      if (payment.links?.subscription) data.subscriptionStatus = 'active';
+    } else if (isRenewal && payment.links?.subscription) {
+      // Subscription renewal: roll the billing period forward by one duration.
+      // Instalment-schedule payments do not extend the period; the schedule
+      // defines the total term and is settled by instalment_schedules.finished.
+      const base = membership.endDate && membership.endDate > new Date() ? membership.endDate : new Date();
+      data.endDate = this.computeEndDate(membership.membershipType, base);
+      data.subscriptionStatus = 'active';
+    }
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data,
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+
+    if (activate) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+    }
+
+    await this.recordMembershipPayment(updated, {
+      channel: 'gocardless',
+      method: 'direct_debit',
+      currency,
+      amountPence,
+      processingFeePence: feeResult.fee,
+      netAmountPence: amountPence - feeResult.fee,
+      providerCheckoutId: payment.links?.billing_request ?? null,
+      providerPaymentId: payment.id,
+      providerSubscriptionId: payment.links?.subscription ?? null,
+      payerEmail: updated.user?.email ?? null,
+      payerName: updated.user?.name ?? null,
+      notes: isRenewal
+        ? 'Membership renewal via GoCardless Direct Debit'
+        : 'Membership payment via GoCardless'
+    });
+
+    await this.syncMemberRole(updated.userId);
+    if (!activate && membership.status === MembershipStatus.AWAITING_APPROVAL && !membership.paidAt) {
+      await this.notifyPaymentAwaitingApproval(updated);
+    }
+
+    return { received: true, membershipId: updated.membershipId };
+  }
+
+  /**
+   * A GoCardless collection failed or was cancelled. Mark the matching
+   * Payment ledger row failed; if the membership has no other successful
+   * payment, return it to awaiting payment so the member can retry.
+   */
+  async handleGoCardlessPaymentFailed(payment: GoCardlessPaymentResource) {
+    if (!payment.id) return { received: true, membershipId: null };
+
+    const row = await this.prisma.payment.findFirst({
+      where: {
+        paymentChannel: 'gocardless',
+        OR: [
+          { providerPaymentId: payment.id },
+          ...(payment.links?.billing_request
+            ? [{ providerCheckoutId: payment.links.billing_request }]
+            : [])
+        ]
+      }
+    });
+    if (!row) {
+      return { received: true, membershipId: null };
+    }
+
+    await this.prisma.payment.update({
+      where: { id: row.id },
+      data: {
+        paymentStatus: PaymentStatus.FAILED,
+        notes: row.notes ? `${row.notes}\nGoCardless payment ${payment.status ?? 'failed'}` : `GoCardless payment ${payment.status ?? 'failed'}`
+      }
+    });
+
+    if (!row.membershipId) {
+      return { received: true, membershipId: null };
+    }
+
+    const successful = await this.prisma.payment.findFirst({
+      where: {
+        membershipId: row.membershipId,
+        paymentStatus: { in: [PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED] }
+      }
+    });
+    if (successful) {
+      return { received: true, membershipId: null };
+    }
+
+    const membership = await this.prisma.membership.findUnique({ where: { id: row.membershipId } });
+    if (
+      membership &&
+      (membership.status === MembershipStatus.ACTIVE ||
+        membership.status === MembershipStatus.AWAITING_PAYMENT)
+    ) {
+      await this.prisma.membership.update({
+        where: { id: membership.id },
+        data: { status: MembershipStatus.AWAITING_PAYMENT }
+      });
+      this.logger.warn(
+        `GoCardless payment ${payment.id} failed; membership ${membership.membershipId} returned to awaiting payment.`
+      );
+    }
+
+    return { received: true, membershipId: membership?.membershipId ?? null };
+  }
+
+  /**
+   * A mandate created through a billing request flow became active. Persist
+   * the mandate id on the membership so later subscription/instalment events
+   * can be matched to it. No-op when the membership is unknown.
+   */
+  async handleGoCardlessMandateActive(mandate: GoCardlessMandateResource) {
+    const membership = await this.resolveGoCardlessMembership(
+      { links: { billing_request: mandate.links?.billing_request } },
+      mandate.metadata ?? {}
+    );
+    if (!membership || !mandate.id) {
+      this.logger.debug(`GoCardless mandate ${mandate.id} not matched to a membership; skipping.`);
+      return { received: true, membershipId: null };
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: { gocardlessMandateId: mandate.id }
+    });
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * The payer's mandate went away. When the membership still has an active
+   * GoCardless subscription or instalment schedule, leave it alone — GoCardless
+   * cascades the cancellation to those resources and their events will update
+   * the membership. Otherwise cancel the membership, mirroring
+   * handleSubscriptionDeleted.
+   */
+  async handleGoCardlessMandateCancelled(mandate: GoCardlessMandateResource) {
+    let membership = mandate.id
+      ? await this.prisma.membership.findFirst({
+          where: { gocardlessMandateId: mandate.id, deletedAt: null }
+        })
+      : null;
+    membership ??= await this.resolveGoCardlessMembership(
+      { links: { billing_request: mandate.links?.billing_request } },
+      mandate.metadata ?? {}
+    );
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    if (membership.gocardlessSubscriptionId || membership.gocardlessInstalmentScheduleId) {
+      this.logger.log(
+        `GoCardless mandate ${mandate.id} cancelled but membership ${membership.membershipId} still ` +
+          'has a GoCardless subscription/instalment schedule; leaving the membership active.'
+      );
+      return { received: true, membershipId: membership.membershipId };
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: MembershipStatus.CANCELLED,
+        endDate: new Date(),
+        subscriptionStatus: mandate.status ?? 'cancelled',
+        rejectionReason: `GoCardless mandate ${mandate.id ?? ''} ${mandate.status ?? 'cancelled'}`.trim()
+      }
+    });
+    await this.syncMemberRole(membership.userId);
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * A subscription charge succeeded. Record the payment (idempotent by
+   * providerPaymentId) and extend endDate by one membership-type duration,
+   * reusing the renewal arithmetic of handleInvoicePaid. When no earlier
+   * payment exists (the first charge arrived without a payments.confirmed
+   * event), activate the membership like the checkout handler does.
+   */
+  async handleGoCardlessSubscriptionPaymentCreated(payment: GoCardlessPaymentResource) {
+    if (!payment.id) return { received: true, membershipId: null };
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { providerPaymentId: payment.id, paymentChannel: 'gocardless' }
+    });
+    if (existing) {
+      return { received: true, membershipId: existing.membershipId };
+    }
+
+    const include = {
+      membershipType: true,
+      user: { select: { id: true, name: true, email: true } }
+    } as const;
+    const subscriptionId = payment.links?.subscription;
+    let membership = subscriptionId
+      ? await this.prisma.membership.findFirst({
+          where: { gocardlessSubscriptionId: subscriptionId, deletedAt: null },
+          include
+        })
+      : null;
+    membership ??= await this.resolveGoCardlessMembership(payment, {});
+    if (!membership || membership.status === MembershipStatus.CANCELLED) {
+      return { received: true, membershipId: membership?.membershipId ?? null };
+    }
+
+    const amountPence = Number(payment.amount ?? 0);
+    const priorPayment = await this.prisma.payment.findFirst({
+      where: {
+        membershipId: membership.id,
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        paymentStatus: { in: [PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED] }
+      }
+    });
+    const activate =
+      !priorPayment &&
+      (membership.status === MembershipStatus.PENDING ||
+        membership.status === MembershipStatus.AWAITING_PAYMENT);
+
+    const base =
+      membership.endDate && membership.endDate > new Date() ? membership.endDate : new Date();
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: activate ? MembershipStatus.ACTIVE : membership.status,
+        paidAt: new Date(),
+        paymentMethod: 'direct_debit',
+        startDate: activate ? new Date() : membership.startDate,
+        endDate: this.computeEndDate(membership.membershipType, activate ? new Date() : base),
+        gocardlessMandateId: payment.links?.mandate ?? membership.gocardlessMandateId,
+        gocardlessSubscriptionId: subscriptionId ?? membership.gocardlessSubscriptionId,
+        subscriptionStatus: 'active'
+      },
+      include
+    });
+
+    if (activate) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+      await this.syncMemberRole(updated.userId);
+    }
+
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    await this.recordMembershipPayment(updated, {
+      channel: 'gocardless',
+      method: 'direct_debit',
+      currency: (payment.currency ?? 'GBP').toUpperCase(),
+      amountPence,
+      processingFeePence: feeResult.fee,
+      netAmountPence: amountPence - feeResult.fee,
+      providerCheckoutId: payment.links?.billing_request ?? null,
+      providerPaymentId: payment.id,
+      providerSubscriptionId: subscriptionId ?? null,
+      payerEmail: updated.user?.email ?? null,
+      payerName: updated.user?.name ?? null,
+      notes: activate
+        ? 'Membership payment via GoCardless subscription'
+        : 'Membership subscription payment via GoCardless'
+    });
+
+    return { received: true, membershipId: updated.membershipId };
+  }
+
+  /**
+   * Track a GoCardless subscription lifecycle event on the membership.
+   * cancelled/finished end the membership; paused only pauses billing.
+   */
+  async handleGoCardlessSubscriptionStatus(
+    subscription: GoCardlessSubscriptionResource,
+    action: string
+  ) {
+    if (!subscription.id) return { received: true, membershipId: null };
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { gocardlessSubscriptionId: subscription.id, deletedAt: null }
+    });
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    const cancelling = action === 'cancelled' || action === 'finished';
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        subscriptionStatus: subscription.status ?? action,
+        ...(cancelling && membership.status === MembershipStatus.ACTIVE
+          ? { status: MembershipStatus.CANCELLED, endDate: new Date() }
+          : {})
+      }
+    });
+    if (cancelling) {
+      await this.syncMemberRole(membership.userId);
+    }
+
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * The instalment schedule was created: persist its id on the membership so
+   * per-instalment payments and the finished event can be matched to it.
+   */
+  async handleGoCardlessInstalmentScheduleCreated(
+    schedule: GoCardlessInstalmentScheduleResource,
+    metadata: Record<string, string>
+  ) {
+    const membership = await this.resolveGoCardlessMembership(
+      { links: { billing_request: schedule.links?.billing_request } },
+      metadata
+    );
+    if (!membership || !schedule.id) {
+      this.logger.debug(`GoCardless instalment schedule ${schedule.id} not matched to a membership; skipping.`);
+      return { received: true, membershipId: null };
+    }
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: { gocardlessInstalmentScheduleId: schedule.id, subscriptionStatus: 'active' }
+    });
+    return { received: true, membershipId: membership.membershipId };
+  }
+
+  /**
+   * One instalment of an instalment schedule was collected. Record the
+   * payment (idempotent by providerPaymentId) and make sure the membership is
+   * active and paid. Individual instalments do not extend endDate — the full
+   * period is applied when the schedule finishes.
+   */
+  async handleGoCardlessInstalmentPayment(payment: GoCardlessPaymentResource) {
+    if (!payment.id) return { received: true, membershipId: null };
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { providerPaymentId: payment.id, paymentChannel: 'gocardless' }
+    });
+    if (existing) {
+      return { received: true, membershipId: existing.membershipId };
+    }
+
+    const include = {
+      membershipType: true,
+      user: { select: { id: true, name: true, email: true } }
+    } as const;
+    const scheduleId = payment.links?.instalment_schedule;
+    let membership = scheduleId
+      ? await this.prisma.membership.findFirst({
+          where: { gocardlessInstalmentScheduleId: scheduleId, deletedAt: null },
+          include
+        })
+      : null;
+    membership ??= await this.resolveGoCardlessMembership(payment, {});
+    if (!membership || membership.status === MembershipStatus.CANCELLED) {
+      return { received: true, membershipId: membership?.membershipId ?? null };
+    }
+
+    const activate =
+      membership.status === MembershipStatus.PENDING ||
+      membership.status === MembershipStatus.AWAITING_PAYMENT;
+    const startDate = membership.startDate ?? new Date();
+
+    const updated = await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status: activate ? MembershipStatus.ACTIVE : membership.status,
+        paidAt: new Date(),
+        paymentMethod: 'direct_debit',
+        startDate,
+        endDate: activate ? this.computeEndDate(membership.membershipType, startDate) : membership.endDate,
+        gocardlessMandateId: payment.links?.mandate ?? membership.gocardlessMandateId,
+        gocardlessInstalmentScheduleId: scheduleId ?? membership.gocardlessInstalmentScheduleId
+      },
+      include
+    });
+
+    if (activate) {
+      const dependants = (updated.dependantsJson as DependantInput[]) ?? [];
+      const memberName = await this.resolveMemberName(updated.userId, updated.user.name);
+      const withCard = await this.generateAndAttachCard(updated, memberName, dependants);
+      await this.sendWelcomeEmail(updated.userId, memberName, updated.user.email, withCard.membershipCardUrl);
+      await this.syncMemberRole(updated.userId);
+    }
+
+    const amountPence = Number(payment.amount ?? 0);
+    const feeResult = this.paymentsService.calculateProcessingFee(amountPence);
+    const instalmentRef = payment.links?.instalment;
+    await this.recordMembershipPayment(updated, {
+      channel: 'gocardless',
+      method: 'direct_debit',
+      currency: (payment.currency ?? 'GBP').toUpperCase(),
+      amountPence,
+      processingFeePence: feeResult.fee,
+      netAmountPence: amountPence - feeResult.fee,
+      providerCheckoutId: payment.links?.billing_request ?? null,
+      providerPaymentId: payment.id,
+      payerEmail: updated.user?.email ?? null,
+      payerName: updated.user?.name ?? null,
+      notes: `Membership instalment payment via GoCardless${instalmentRef ? ` (instalment ${instalmentRef})` : ''}`
+    });
+
+    return { received: true, membershipId: updated.membershipId };
+  }
+
+  /**
+   * All instalments are collected: mark the membership fully paid and set the
+   * full billing period from the start date.
+   */
+  async handleGoCardlessInstalmentScheduleFinished(schedule: GoCardlessInstalmentScheduleResource) {
+    if (!schedule.id) return { received: true, membershipId: null };
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { gocardlessInstalmentScheduleId: schedule.id, deletedAt: null },
+      include: { membershipType: true, user: { select: { id: true, name: true, email: true } } }
+    });
+    if (!membership) {
+      return { received: true, membershipId: null };
+    }
+
+    const hasPayment = await this.prisma.payment.findFirst({
+      where: {
+        membershipId: membership.id,
+        sourceType: PaymentSourceType.MEMBERSHIP,
+        paymentStatus: { in: [PaymentStatus.COMPLETED, PaymentStatus.PARTIALLY_REFUNDED] }
+      }
+    });
+
+    const startDate = membership.startDate ?? new Date();
+    const activate = !hasPayment && membership.status === MembershipStatus.AWAITING_PAYMENT;
+
+    await this.prisma.membership.update({
+      where: { id: membership.id },
+      data: {
+        status:
+          membership.status === MembershipStatus.CANCELLED
+            ? membership.status
+            : MembershipStatus.ACTIVE,
+        paidAt: membership.paidAt ?? new Date(),
+        endDate: hasPayment ? this.computeEndDate(membership.membershipType, startDate) : membership.endDate,
+        subscriptionStatus: schedule.status ?? 'completed'
+      }
+    });
+
+    if (activate) {
+      await this.syncMemberRole(membership.userId);
+    }
 
     return { received: true, membershipId: membership.membershipId };
   }

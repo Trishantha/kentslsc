@@ -31,7 +31,15 @@ export default function UserMembershipsPage() {
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentPlan, setPaymentPlan] = useState<'single' | 'subscription' | 'instalments'>('single');
+  const [instalmentCount, setInstalmentCount] = useState(10);
   const [dependants, setDependants] = useState<{ name: string; age: number; relationship: 'spouse' | 'child' }[]>([]);
+
+  const { data: paymentSettings } = useQuery<{ provider: 'stripe' | 'paypal' | 'gocardless' }>({
+    queryKey: ['payments-settings'],
+    queryFn: async () => (await api.get('/payments/settings')).data
+  });
+  const isGoCardless = paymentSettings?.provider === 'gocardless';
 
   const { data: detail, isLoading } = useQuery<UserDetail>({
     queryKey: ['admin', 'users', id],
@@ -102,8 +110,11 @@ export default function UserMembershipsPage() {
   });
 
   const sendLinkMutation = useMutation({
-    mutationFn: async (membershipId: string) => {
-      const res = await api.post(`/admin/memberships/${membershipId}/send-payment-link`);
+    mutationFn: async (input: { membershipId: string; paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number }) => {
+      const payload: { paymentPlan?: 'subscription' | 'instalments'; instalmentCount?: number } = {};
+      if (input.paymentPlan) payload.paymentPlan = input.paymentPlan;
+      if (typeof input.instalmentCount === 'number') payload.instalmentCount = input.instalmentCount;
+      const res = await api.post(`/admin/memberships/${input.membershipId}/send-payment-link`, payload);
       return res.data as { url: string; provider: string };
     },
     onSuccess: (data) => {
@@ -160,6 +171,34 @@ export default function UserMembershipsPage() {
             <Plus className="h-4 w-4" /> Add / Upgrade
           </button>
         </div>
+
+        {isGoCardless && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <label className="text-xs text-slate-500">Payment plan for links:</label>
+            <select
+              value={paymentPlan}
+              onChange={(e) => setPaymentPlan(e.target.value as 'single' | 'subscription' | 'instalments')}
+              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-100 outline-none focus:border-neon-blue"
+            >
+              <option value="single">Single payment</option>
+              <option value="subscription">Monthly subscription (direct debit)</option>
+              <option value="instalments">Instalments (N months)</option>
+            </select>
+            {paymentPlan === 'instalments' && (
+              <>
+                <input
+                  type="number"
+                  min={2}
+                  max={12}
+                  value={instalmentCount}
+                  onChange={(e) => setInstalmentCount(Number(e.target.value) || 10)}
+                  className="w-16 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-100 outline-none focus:border-neon-blue"
+                />
+                <span className="text-xs text-slate-500">months (2–12)</span>
+              </>
+            )}
+          </div>
+        )}
 
         {(detail.memberships ?? []).length === 0 ? (
           <p className="text-sm text-slate-500">No memberships found.</p>
@@ -225,7 +264,19 @@ export default function UserMembershipsPage() {
                     {m.status === 'PENDING' && !m.paymentMethod && (
                       <button
                         type="button"
-                        onClick={() => sendLinkMutation.mutate(m.id)}
+                        onClick={() =>
+                          sendLinkMutation.mutate({
+                            membershipId: m.id,
+                            ...(isGoCardless && paymentPlan !== 'single'
+                              ? {
+                                  paymentPlan,
+                                  ...(paymentPlan === 'instalments'
+                                    ? { instalmentCount: Math.min(12, Math.max(2, instalmentCount)) }
+                                    : {})
+                                }
+                              : {})
+                          })
+                        }
                         disabled={sendLinkMutation.isPending}
                         className="inline-flex items-center gap-1 text-neon-blue hover:underline disabled:opacity-60"
                       >

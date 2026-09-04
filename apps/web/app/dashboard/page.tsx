@@ -8,6 +8,7 @@ import { QuickActions } from '@/components/dashboard/QuickActions';
 import { TicketsPreview } from '@/components/dashboard/TicketsPreview';
 import { useMyMembership } from '@/components/dashboard/useMyMembership';
 import { api } from '@/lib/api';
+import { inferPaymentProvider } from '@/lib/payments';
 
 const MEMBERSHIP_CONFIRMATION_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -17,7 +18,7 @@ export default function DashboardPage() {
 
   const membershipParam = searchParams.get('membership');
   const sessionIdParam = searchParams.get('session_id');
-  const providerParam = searchParams.get('provider') ?? 'stripe';
+  const providerParam = searchParams.get('provider') ?? (sessionIdParam ? inferPaymentProvider(sessionIdParam) : 'stripe');
   const isReturningFromCheckout = membershipParam === 'success';
 
   // Stripe confirms asynchronously, so give it a bounded window to land before

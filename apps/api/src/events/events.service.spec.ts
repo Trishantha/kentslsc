@@ -5,6 +5,11 @@ import { EventsService } from './events.service.js';
 import { TicketStatus, PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 import type Stripe from 'stripe';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 const originalRandomUUID = crypto.randomUUID;
 
 describe('EventsService', () => {
@@ -96,7 +101,14 @@ describe('EventsService', () => {
   const mockPaymentsService: any = {
     createCheckout: jest.fn(),
     getOrCreateStripeCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('cus_test_user_1'),
-    getCheckoutSession: jest.fn()
+    getCheckoutSession: jest.fn(),
+    getPublicPaymentSettings: (jest.fn() as jest.Mock<() => Promise<any>>).mockResolvedValue({
+      provider: 'stripe',
+      processingFeeEnabled: false,
+      processingFeePercent: 0,
+      processingFeeFixed: 0
+    }),
+    calculateProcessingFee: jest.fn((netPence: number) => ({ net: netPence, fee: 20, gross: netPence + 20 }))
   };
 
   const mockEmailQueueService: any = {
@@ -110,6 +122,11 @@ describe('EventsService', () => {
     })
   };
 
+  const mockGoCardlessService: any = {
+    getOrCreateCustomer: (jest.fn() as jest.Mock<() => Promise<string>>).mockResolvedValue('CU123'),
+    createBillingRequestFlow: jest.fn()
+  };
+
   beforeEach(() => {
     createdTickets.length = 0;
     jest.clearAllMocks();
@@ -119,7 +136,8 @@ describe('EventsService', () => {
       mockPrisma as any,
       mockPaymentsService as any,
       mockEmailQueueService as any,
-      mockConfigService as any
+      mockConfigService as any,
+      mockGoCardlessService as any
     );
   });
 
@@ -143,7 +161,7 @@ describe('EventsService', () => {
         quantity: 2
       });
 
-      expect(result.free).toBe(true);
+      if (!result.free) throw new Error('expected free checkout');
       expect(result.tickets).toHaveLength(2);
       expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
       expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
@@ -164,7 +182,7 @@ describe('EventsService', () => {
         quantity: 2
       });
 
-      expect(result.free).toBe(false);
+      if (result.free) throw new Error('expected paid checkout');
       expect(result.sessionId).toBe('cs_test_123');
       expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -175,6 +193,92 @@ describe('EventsService', () => {
         })
       );
       expect(mockPaymentsService.getOrCreateStripeCustomer).toHaveBeenCalledWith(mockUser.id, mockUser.email);
+    });
+
+    it('creates a GoCardless billing request and pending payment row when the provider is gocardless', async () => {
+      mockPaymentsService.getPublicPaymentSettings.mockResolvedValueOnce({
+        provider: 'gocardless',
+        processingFeeEnabled: true,
+        processingFeePercent: 1.5,
+        processingFeeFixed: 20
+      });
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+      mockGoCardlessService.createBillingRequestFlow.mockResolvedValue({
+        provider: 'gocardless',
+        id: 'BR123',
+        url: 'https://pay.gocardless.test/flow/BR123'
+      });
+
+      const result = await service.createCheckoutSession(mockUser.id, {
+        eventId: mockEvent.id,
+        quantity: 2
+      });
+
+      if (result.free) throw new Error('expected paid checkout');
+      expect(result).toEqual({
+        free: false,
+        sessionId: 'BR123',
+        url: 'https://pay.gocardless.test/flow/BR123',
+        provider: 'gocardless'
+      });
+      expect(mockGoCardlessService.getOrCreateCustomer).toHaveBeenCalledWith(mockUser.id);
+      expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          plan: 'one_off',
+          scheme: 'bacs',
+          metadata: expect.objectContaining({
+            type: 'event_ticket',
+            eventId: mockEvent.id,
+            userId: mockUser.id,
+            quantity: '2'
+          })
+        })
+      );
+      expect(mockPrisma.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: mockUser.id,
+            eventId: mockEvent.id,
+            paymentChannel: 'gocardless',
+            paymentStatus: PaymentStatus.PENDING,
+            providerCheckoutId: 'BR123',
+            sourceType: PaymentSourceType.TICKET
+          })
+        })
+      );
+      expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
+      expect(mockPaymentsService.getOrCreateStripeCustomer).not.toHaveBeenCalled();
+    });
+
+    it('passes the requested payment scheme through to the billing request', async () => {
+      mockPaymentsService.getPublicPaymentSettings.mockResolvedValueOnce({
+        provider: 'gocardless',
+        processingFeeEnabled: true,
+        processingFeePercent: 1.5,
+        processingFeeFixed: 20
+      });
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'pay-pending' });
+      mockGoCardlessService.createBillingRequestFlow.mockResolvedValue({
+        provider: 'gocardless',
+        id: 'BR124',
+        url: 'https://pay.gocardless.test/flow/BR124'
+      });
+
+      await service.createCheckoutSession(mockUser.id, {
+        eventId: mockEvent.id,
+        quantity: 1,
+        paymentScheme: 'faster_payments'
+      });
+
+      expect(mockGoCardlessService.createBillingRequestFlow).toHaveBeenCalledWith(
+        expect.objectContaining({ scheme: 'faster_payments' })
+      );
     });
   });
 

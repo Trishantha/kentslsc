@@ -34,6 +34,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'memberships/memberships.controller.ts::webhook',
   'payments/stripe-webhook.controller.ts::handleWebhook',
   'payments/stripe-webhook.controller.ts::confirmSession',
+  'payments/gocardless-webhook.controller.ts::handleWebhook',
 
   // Anonymous auth surface
   'auth/auth.controller.ts::features',

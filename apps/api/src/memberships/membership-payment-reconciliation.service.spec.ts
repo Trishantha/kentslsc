@@ -5,6 +5,11 @@ import { MembershipsService } from './memberships.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 describe('MembershipPaymentReconciliationService', () => {
   let service: MembershipPaymentReconciliationService;
 

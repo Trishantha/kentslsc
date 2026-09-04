@@ -15,6 +15,7 @@ import {
   calculateProcessingFee
 } from '@kentslsc/shared';
 import { api } from '@/lib/api';
+import { inferPaymentProvider } from '@/lib/payments';
 import { useAuth } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -128,7 +129,7 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
 
   useEffect(() => {
     const sessionId = searchParams?.get('session_id');
-    const provider = searchParams?.get('provider') ?? 'stripe';
+    const provider = searchParams?.get('provider') ?? (sessionId ? inferPaymentProvider(sessionId) : 'stripe');
     const promoted = searchParams?.get('promoted');
     const jobPublished = searchParams?.get('jobPublished');
     if (sessionId && !confirmDirectoryPayment.isPending && (promoted === 'success' || jobPublished === 'success')) {
@@ -222,8 +223,12 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   });
 
   const promote = useMutation({
-    mutationFn: () => api.post(`/directory/businesses/${resolvedId}/promote`),
+    mutationFn: () => api.post<{ clientSecret?: string; sessionId?: string; url?: string; provider?: 'stripe' | 'gocardless' }>(`/directory/businesses/${resolvedId}/promote`),
     onSuccess: (res) => {
+      if (res.data.provider === 'gocardless' && res.data.url) {
+        window.location.assign(res.data.url);
+        return;
+      }
       if (res.data.clientSecret && res.data.sessionId) {
         router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
         return;

@@ -8,8 +8,8 @@ const ALLOWED_PAYPAL_URLS = [
 export class UpdatePaymentSettingsDto {
   @IsOptional()
   @IsString()
-  @IsIn(['stripe', 'paypal'], { message: 'Provider must be stripe or paypal' })
-  declare provider?: 'stripe' | 'paypal';
+  @IsIn(['stripe', 'paypal', 'gocardless'], { message: 'Provider must be stripe, paypal or gocardless' })
+  declare provider?: 'stripe' | 'paypal' | 'gocardless';
 
   @IsOptional()
   @IsString()
@@ -35,6 +35,18 @@ export class UpdatePaymentSettingsDto {
   @IsUrl()
   @IsIn(ALLOWED_PAYPAL_URLS, { message: 'PAYPAL_API_BASE_URL must be an official PayPal API host' })
   declare paypalApiBaseUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  declare gocardlessAccessToken?: string;
+
+  @IsOptional()
+  @IsString()
+  declare gocardlessWebhookSecret?: string;
+
+  @IsOptional()
+  @IsIn(['sandbox', 'live'], { message: 'gocardlessEnvironment must be sandbox or live' })
+  declare gocardlessEnvironment?: 'sandbox' | 'live';
 
   @IsOptional()
   @IsBoolean()

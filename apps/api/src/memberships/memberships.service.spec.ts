@@ -3,6 +3,11 @@ import { MembershipsService } from './memberships.service.js';
 import { MembershipStatus } from '@kentslsc/database';
 import type { ApplyMembershipDto } from './dto/apply-membership.dto.js';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 const mockMembershipType = {
   id: 'type-free',
   name: 'Free Membership',
@@ -197,6 +202,11 @@ describe('MembershipsService', () => {
     refundPayment: (jest.fn() as jest.Mock<(...args: any[]) => Promise<any>>).mockResolvedValue(undefined)
   };
 
+  const mockGoCardlessService: any = {
+    getBillingRequest: jest.fn(),
+    getPayment: jest.fn()
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     service = new MembershipsService(
@@ -206,7 +216,8 @@ describe('MembershipsService', () => {
       mockEmailService,
       mockAiService,
       mockConfigService,
-      mockSupabaseStorage
+      mockSupabaseStorage,
+      mockGoCardlessService
     );
   });
 

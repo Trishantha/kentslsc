@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { MembershipExpiryService } from './membership-expiry.service.js';
 import { MembershipStatus } from '@kentslsc/database';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 describe('MembershipExpiryService', () => {
   let service: MembershipExpiryService;
 

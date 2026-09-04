@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateDonationDto {
   @IsUUID()
@@ -25,4 +25,8 @@ export class CreateDonationDto {
   @IsOptional()
   @IsBoolean()
   declare addProcessingFee?: boolean;
+
+  @IsOptional()
+  @IsIn(['bacs', 'faster_payments'])
+  declare paymentScheme?: 'bacs' | 'faster_payments';
 }

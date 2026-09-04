@@ -9,6 +9,8 @@ import type Stripe from 'stripe';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
+import { GoCardlessService } from '../payments/gocardless.service.js';
+import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailService } from '../email/email.service.js';
 import { SupabaseStorageService } from '../core/supabase/supabase.service.js';
 import { FundraiserStatus } from '@kentslsc/shared';
@@ -37,7 +39,8 @@ export class FundraisingService {
     private readonly payments: PaymentsService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
-    private readonly supabase: SupabaseStorageService
+    private readonly supabase: SupabaseStorageService,
+    private readonly goCardlessService: GoCardlessService
   ) {}
 
   async listActive(category?: string, page = 1, limit = 20) {
@@ -333,6 +336,12 @@ export class FundraisingService {
     if (!fundraiser) throw new NotFoundException('Fundraiser not found or not active');
 
     const baseUrl = this.configService.get('FRONTEND_URL') ?? 'http://localhost:3000';
+
+    const settings = await this.payments.getPublicPaymentSettings();
+    if (settings.provider === 'gocardless') {
+      return this.createGoCardlessDonationSession(fundraiser, dto, userId, baseUrl);
+    }
+
     // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
     const metaMessage = dto.message?.slice(0, 490);
     const checkout = await this.payments.createCheckout({
@@ -358,6 +367,74 @@ export class FundraisingService {
       url: checkout.url,
       provider: checkout.provider,
       clientSecret: checkout.clientSecret
+    };
+  }
+
+  /**
+   * GoCardless variant of createDonationSession. Creates a one-off billing
+   * request for the donation (plus the processing fee only when the donor
+   * opted in, mirroring the Stripe checkout) and records a pending Payment
+   * row keyed by the billing request id, which the fulfilment handler
+   * completes in place when the payment confirms.
+   */
+  private async createGoCardlessDonationSession(
+    fundraiser: { id: string; title: string },
+    dto: CreateDonationDto,
+    userId: string | undefined,
+    baseUrl: string
+  ) {
+    const netPence = Math.round(dto.amount * 100);
+    const feeResult = dto.addProcessingFee
+      ? this.payments.calculateProcessingFee(netPence)
+      : { net: netPence, fee: 0, gross: netPence };
+    // Truncate message to keep billing request metadata values compact.
+    const metaMessage = dto.message?.slice(0, 490);
+    const customerId = userId ? await this.goCardlessService.getOrCreateCustomer(userId) : undefined;
+
+    const checkout = await this.goCardlessService.createBillingRequestFlow({
+      plan: 'one_off',
+      amountPence: feeResult.gross,
+      description: `Donation to ${fundraiser.title}`,
+      scheme: dto.paymentScheme ?? 'bacs',
+      metadata: {
+        type: 'donation',
+        fundraiserId: fundraiser.id,
+        amount: String(netPence),
+        netAmount: String(feeResult.net),
+        processingFee: String(feeResult.fee),
+        grossAmount: String(feeResult.gross),
+        ...(userId && { userId }),
+        ...(dto.displayName && { displayName: dto.displayName }),
+        ...(metaMessage && { message: metaMessage }),
+        isAnonymous: String(dto.isAnonymous ?? false)
+      },
+      redirectUri: `${baseUrl}/fundraisers/${fundraiser.id}?success=1&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+      exitUri: `${baseUrl}/fundraisers/${fundraiser.id}?canceled=1`,
+      ...(customerId ? { customerId } : {})
+    });
+
+    await this.prisma.payment.create({
+      data: {
+        userId: userId ?? null,
+        paymentChannel: 'gocardless',
+        paymentMethod: 'direct_debit',
+        paymentStatus: PaymentStatus.PENDING,
+        providerCheckoutId: checkout.id,
+        currency: 'GBP',
+        grossAmount: feeResult.gross / 100,
+        processingFee: feeResult.fee / 100,
+        netAmount: (feeResult.gross - feeResult.fee) / 100,
+        description: `Donation to ${fundraiser.title}`,
+        payerName: dto.displayName ?? null,
+        purchasedAt: new Date(),
+        sourceType: PaymentSourceType.DONATION
+      }
+    });
+
+    return {
+      sessionId: checkout.id,
+      url: checkout.url,
+      provider: checkout.provider
     };
   }
 
@@ -396,6 +473,68 @@ export class FundraisingService {
       payerName: session.customer_details?.name ?? displayName,
       payerPhone: session.customer_details?.phone ?? null,
       purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
+    });
+  }
+
+  /**
+   * Fulfil a confirmed GoCardless donation. Metadata keys mirror the Stripe
+   * session conventions: `type: 'donation'`, `fundraiserId`, optional
+   * `userId`, `displayName`, `message`, `isAnonymous`, and the pence amounts
+   * (`amount` is the net donation, matching the Stripe checkout metadata).
+   * When the pending Payment row created at checkout exists it is updated in
+   * place instead of creating a duplicate.
+   */
+  async handleGoCardlessPaymentCompleted(
+    payment: GoCardlessPaymentResource,
+    metadata: Record<string, string>
+  ) {
+    if (metadata.type !== 'donation') return null;
+    const fundraiserId = metadata.fundraiserId;
+    if (!fundraiserId) return null;
+
+    const billingRequestId = payment.links?.billing_request ?? null;
+    const pendingPayment = billingRequestId
+      ? await this.prisma.payment.findFirst({
+          where: { providerCheckoutId: billingRequestId, paymentChannel: 'gocardless' }
+        })
+      : null;
+
+    const amount = Number(metadata.amount ?? metadata.netAmount ?? payment.amount ?? 0) / 100;
+    if (amount <= 0) return null;
+
+    // recordDonation is idempotent by payment id (donation.paymentId).
+    if (payment.id) {
+      const existingDonation = await this.prisma.donation.findFirst({
+        where: { fundraiserId, paymentId: payment.id }
+      });
+      if (existingDonation) {
+        return { received: true, donationId: existingDonation.id };
+      }
+    }
+
+    const grossAmount = Number(payment.amount ?? metadata.grossAmount ?? amount * 100) / 100;
+
+    return this.recordDonation({
+      fundraiserId,
+      amount,
+      userId: metadata.userId ?? pendingPayment?.userId ?? null,
+      displayName: metadata.displayName ?? null,
+      message: metadata.message ?? null,
+      isAnonymous: metadata.isAnonymous === 'true',
+      donorEmail: pendingPayment?.payerEmail ?? null,
+      paymentId: payment.id ?? null,
+      channel: 'gocardless',
+      providerCheckoutId: billingRequestId,
+      providerPaymentId: payment.id ?? null,
+      paymentMethod: 'direct_debit',
+      currency: payment.currency ?? 'GBP',
+      grossAmount,
+      processingFee: Math.max(0, grossAmount - amount),
+      payerName: metadata.displayName ?? pendingPayment?.payerName ?? null,
+      payerPhone: null,
+      purchasedAt: payment.created_at ? new Date(payment.created_at) : new Date(),
+      notes: 'Donation via GoCardless Direct Debit',
+      existingPaymentId: pendingPayment?.id
     });
   }
 
@@ -452,6 +591,8 @@ export class FundraisingService {
       payerPhone?: string | null;
       purchasedAt?: Date;
       notes?: string;
+      /** Update this existing (pending) Payment row instead of creating a new one. */
+      existingPaymentId?: string;
     }
   ) {
     const {
@@ -499,29 +640,56 @@ export class FundraisingService {
           }
         });
         donationId = donation.id;
-        await tx.payment.create({
-          data: {
-            userId,
-            donationId: donation.id,
-            paymentChannel: input.channel ?? 'stripe',
-            paymentMethod: input.paymentMethod ?? null,
-            paymentStatus: PaymentStatus.COMPLETED,
-            providerPaymentId: input.providerPaymentId ?? paymentId ?? null,
-            providerCheckoutId: input.providerCheckoutId ?? null,
-            currency,
-            grossAmount,
-            processingFee,
-            netAmount,
-            description: `Donation to fundraiser`,
-            notes: input.notes ?? message,
-            payerName: input.payerName ?? displayName,
-            payerEmail: donorEmail,
-            payerPhone: input.payerPhone ?? null,
-            purchasedAt: input.purchasedAt ?? new Date(),
-            sourceType: PaymentSourceType.DONATION,
-            sourceId: donation.id
-          }
-        });
+        if (input.existingPaymentId) {
+          await tx.payment.update({
+            where: { id: input.existingPaymentId },
+            data: {
+              userId,
+              donationId: donation.id,
+              paymentChannel: input.channel ?? 'stripe',
+              paymentMethod: input.paymentMethod ?? null,
+              paymentStatus: PaymentStatus.COMPLETED,
+              providerPaymentId: input.providerPaymentId ?? paymentId ?? null,
+              providerCheckoutId: input.providerCheckoutId ?? null,
+              currency,
+              grossAmount,
+              processingFee,
+              netAmount,
+              description: `Donation to fundraiser`,
+              notes: input.notes ?? message,
+              payerName: input.payerName ?? displayName,
+              payerEmail: donorEmail,
+              payerPhone: input.payerPhone ?? null,
+              purchasedAt: input.purchasedAt ?? new Date(),
+              sourceType: PaymentSourceType.DONATION,
+              sourceId: donation.id
+            }
+          });
+        } else {
+          await tx.payment.create({
+            data: {
+              userId,
+              donationId: donation.id,
+              paymentChannel: input.channel ?? 'stripe',
+              paymentMethod: input.paymentMethod ?? null,
+              paymentStatus: PaymentStatus.COMPLETED,
+              providerPaymentId: input.providerPaymentId ?? paymentId ?? null,
+              providerCheckoutId: input.providerCheckoutId ?? null,
+              currency,
+              grossAmount,
+              processingFee,
+              netAmount,
+              description: `Donation to fundraiser`,
+              notes: input.notes ?? message,
+              payerName: input.payerName ?? displayName,
+              payerEmail: donorEmail,
+              payerPhone: input.payerPhone ?? null,
+              purchasedAt: input.purchasedAt ?? new Date(),
+              sourceType: PaymentSourceType.DONATION,
+              sourceId: donation.id
+            }
+          });
+        }
         const updated = await tx.fundraiser.update({
           where: { id: fundraiserId },
           data: {

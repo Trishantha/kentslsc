@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
 import { api } from '@/lib/api';
+import { inferPaymentProvider } from '@/lib/payments';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
 import { ProgressStats } from '@/components/fundraising/ProgressStats';
 import { DonationForm } from '@/components/fundraising/DonationForm';
@@ -58,7 +59,7 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
 
   useEffect(() => {
     const sessionId = searchParams?.get('session_id');
-    const provider = searchParams?.get('provider') ?? 'stripe';
+    const provider = searchParams?.get('provider') ?? (sessionId ? inferPaymentProvider(sessionId) : 'stripe');
     if (success && sessionId && !confirmDonation.isPending) {
       confirmDonation.mutate({ sessionId, provider });
     }

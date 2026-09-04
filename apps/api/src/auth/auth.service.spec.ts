@@ -13,6 +13,11 @@ import { MembershipsService } from '../memberships/memberships.service.js';
 import { MembershipFeaturesService } from '../memberships/membership-features.service.js';
 import { UserRole, UserStatus } from '@kentslsc/shared';
 
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
+
 const PASSWORD = 'Str0ngPassw0rd!x';
 
 const mockUser = {

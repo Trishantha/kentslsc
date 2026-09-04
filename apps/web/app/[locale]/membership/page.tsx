@@ -37,6 +37,7 @@ interface ApplyMembershipResponse {
   sessionId?: string;
   clientSecret?: string;
   url?: string;
+  provider?: 'stripe' | 'gocardless';
   appliedCredit?: number;
   freeMonths?: number;
 }
@@ -82,6 +83,10 @@ export default function MembershipPlansPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['my-membership'] });
+      if (data.provider === 'gocardless' && data.url) {
+        window.location.assign(data.url);
+        return;
+      }
       if (!data.paid || !data.sessionId || !data.clientSecret) {
         router.push(data.awaitingApproval ? '/dashboard?membership=awaiting-approval' : '/dashboard?membership=success');
         return;

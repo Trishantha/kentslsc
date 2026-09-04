@@ -17,7 +17,7 @@ import { resolveInvoicePaymentIntentId } from './utils/stripe-compat.js';
 const STRIPE_TIMEOUT_MS = 30_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
 
-export type PaymentProvider = 'stripe' | 'paypal';
+export type PaymentProvider = 'stripe' | 'paypal' | 'gocardless';
 
 export type CheckoutUiMode = 'hosted' | 'embedded' | 'embedded_page';
 
@@ -93,6 +93,9 @@ interface EffectivePaymentSettings {
   paypalClientId?: string;
   paypalClientSecret?: string;
   paypalApiBaseUrl: string;
+  gocardlessAccessToken?: string;
+  gocardlessWebhookSecret?: string;
+  gocardlessEnvironment: 'sandbox' | 'live';
   processingFeeConfig: ProcessingFeeConfig;
 }
 
@@ -107,7 +110,11 @@ export class PaymentsService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService
   ) {
-    this.defaultProvider = (configService.get<string>('DEFAULT_PAYMENT_PROVIDER') === 'paypal' ? 'paypal' : 'stripe');
+    const configuredProvider = configService.get<string>('DEFAULT_PAYMENT_PROVIDER');
+    this.defaultProvider =
+      configuredProvider === 'paypal' || configuredProvider === 'gocardless'
+        ? configuredProvider
+        : 'stripe';
     this.paypalApiBaseUrl = configService.get<string>('PAYPAL_API_BASE_URL') ?? 'https://api-m.sandbox.paypal.com';
   }
 
@@ -146,6 +153,13 @@ export class PaymentsService {
         persisted?.paypalApiBaseUrl ??
         this.configService.get<string>('PAYPAL_API_BASE_URL') ??
         'https://api-m.sandbox.paypal.com'
+      ),
+      gocardlessAccessToken:
+        persisted?.gocardlessAccessToken ?? this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN') ?? undefined,
+      gocardlessWebhookSecret:
+        persisted?.gocardlessWebhookSecret ?? this.configService.get<string>('GOCARDLESS_WEBHOOK_SECRET') ?? undefined,
+      gocardlessEnvironment: this.resolveGoCardlessEnvironment(
+        persisted?.gocardlessEnvironment ?? this.configService.get<string>('GOCARDLESS_ENVIRONMENT')
       ),
       processingFeeConfig: {
         enabled: persisted?.processingFeeEnabled ?? DEFAULT_PROCESSING_FEE.enabled,
@@ -218,6 +232,9 @@ export class PaymentsService {
       hasPaypalClientId: !!effective.paypalClientId,
       hasPaypalClientSecret: !!effective.paypalClientSecret,
       paypalApiBaseUrl: effective.paypalApiBaseUrl,
+      hasGocardlessAccessToken: !!effective.gocardlessAccessToken,
+      hasGocardlessWebhookSecret: !!effective.gocardlessWebhookSecret,
+      gocardlessEnvironment: effective.gocardlessEnvironment,
       processingFeeEnabled: effective.processingFeeConfig.enabled,
       processingFeePercent: effective.processingFeeConfig.percent,
       processingFeeFixed: effective.processingFeeConfig.fixed
@@ -322,6 +339,54 @@ export class PaymentsService {
 
     return this.stripe!.checkout.sessions.retrieve(sessionId, {
       expand: ['subscription.latest_invoice', 'payment_intent']
+    });
+  }
+
+  /**
+   * Find the local Payment ledger row recorded for a provider checkout
+   * reference (Stripe session id, PayPal order id, or GoCardless billing
+   * request id). Used by the GoCardless confirmation backstop to locate the
+   * pending row created when the checkout started.
+   */
+  async getPaymentByProviderCheckoutId(providerCheckoutId: string) {
+    return this.prisma.payment.findFirst({
+      where: { providerCheckoutId, deletedAt: null }
+    });
+  }
+
+  /**
+   * Apply a GoCardless refund (from a `refunds.created` webhook) to the local
+   * Payment ledger row. GoCardless refund amounts are strings in minor units.
+   */
+  async recordGoCardlessRefund(refund: {
+    id?: string;
+    amount?: string;
+    reference?: string | null;
+    created_at?: string;
+    links?: { payment?: string };
+  }) {
+    const paymentId = refund.links?.payment;
+    if (!paymentId) return null;
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { providerPaymentId: paymentId, deletedAt: null }
+    });
+    if (!payment) return null;
+
+    const refundPence = Number(refund.amount ?? 0);
+    const refundAmount = refundPence / 100;
+    const newRefundedAmount = Number(payment.refundedAmount ?? 0) + refundAmount;
+    const isFullyRefunded = newRefundedAmount >= Number(payment.grossAmount) - 0.001;
+    const refundedAt = refund.created_at ? new Date(refund.created_at) : new Date();
+
+    return this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        paymentStatus: isFullyRefunded ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED,
+        refundedAmount: newRefundedAmount,
+        refundReason: refund.reference ?? `GoCardless refund ${refund.id ?? ''}`.trim(),
+        refundedAt
+      }
     });
   }
 
@@ -966,6 +1031,9 @@ export class PaymentsService {
           ? this.validatePayPalApiBaseUrl(dto.paypalApiBaseUrl)
           : null
       }),
+      ...(dto.gocardlessAccessToken !== undefined && { gocardlessAccessToken: dto.gocardlessAccessToken || null }),
+      ...(dto.gocardlessWebhookSecret !== undefined && { gocardlessWebhookSecret: dto.gocardlessWebhookSecret || null }),
+      ...(dto.gocardlessEnvironment !== undefined && { gocardlessEnvironment: dto.gocardlessEnvironment }),
       ...(dto.processingFeeEnabled !== undefined && { processingFeeEnabled: dto.processingFeeEnabled }),
       ...(dto.processingFeePercent !== undefined && { processingFeePercent: dto.processingFeePercent }),
       ...(dto.processingFeeFixed !== undefined && { processingFeeFixed: dto.processingFeeFixed })
@@ -1421,6 +1489,10 @@ export class PaymentsService {
 
   private validatePayPalApiBaseUrl(url: string): string {
     return this.isValidPayPalApiBaseUrl(url) ? url : 'https://api-m.sandbox.paypal.com';
+  }
+
+  private resolveGoCardlessEnvironment(value: string | null | undefined): 'sandbox' | 'live' {
+    return value === 'live' ? 'live' : 'sandbox';
   }
 
   private isTrustedPayPalCertUrl(url: string): boolean {

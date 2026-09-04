@@ -38,6 +38,7 @@ import { UpdateMembershipStatusDto } from './dto/update-membership-status.dto.js
 import { RejectMembershipDto } from './dto/reject-membership.dto.js';
 import { AdminCreateMembershipDto } from './dto/create-user-membership.dto.js';
 import { UpdateDependantsDto } from '../memberships/dto/update-dependants.dto.js';
+import { SendMembershipPaymentLinkDto } from './dto/send-payment-link.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
 import { CreateEventDto } from '../events/dto/create-event.dto.js';
 import { UpdateEventDto } from '../events/dto/update-event.dto.js';
@@ -353,8 +354,11 @@ export class AdminController {
 
   @Post('memberships/:id/send-payment-link')
   @RequirePermission(Permission.MANAGE_MEMBERSHIPS)
-  sendMembershipPaymentLink(@Param('id') membershipId: string) {
-    return this.adminService.sendMembershipPaymentLink(membershipId);
+  sendMembershipPaymentLink(
+    @Param('id') membershipId: string,
+    @Body() dto: SendMembershipPaymentLinkDto
+  ) {
+    return this.adminService.sendMembershipPaymentLink(membershipId, dto);
   }
 
   @Post('memberships/send-payment-reminders')

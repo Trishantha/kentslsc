@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export interface PublicPaymentSettings {
-  provider: 'stripe' | 'paypal';
+  provider: 'stripe' | 'paypal' | 'gocardless';
   processingFeeEnabled: boolean;
   processingFeePercent: number;
   processingFeeFixed: number;

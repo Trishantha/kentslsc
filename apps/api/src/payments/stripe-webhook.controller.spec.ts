@@ -6,6 +6,12 @@ import type { PaymentsService } from './payments.service.js';
 import type { WebhookEventService } from './webhook-event.service.js';
 import type { WebhookQueueService } from './webhook-queue.service.js';
 import type { WebhookProcessor } from './webhook.processor.js';
+import type { GoCardlessService } from './gocardless.service.js';
+
+jest.mock('gocardless-nodejs', () => ({
+  GoCardlessClient: jest.fn(),
+  Environments: { Live: 'live', Sandbox: 'sandbox' }
+}));
 
 type MockResponse = {
   json: jest.Mock;
@@ -50,7 +56,8 @@ describe('StripeWebhookController', () => {
   const paymentsService = {
     constructEvent: jest.fn(),
     syncStripeFeesFromSession: jest.fn(),
-    getFullCheckoutSession: jest.fn()
+    getFullCheckoutSession: jest.fn(),
+    getPaymentByProviderCheckoutId: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
   const webhookEvents = {
@@ -66,6 +73,10 @@ describe('StripeWebhookController', () => {
     process: jest.fn()
   } as unknown as jest.Mocked<WebhookProcessor>;
 
+  const goCardlessService = {
+    getBillingRequest: jest.fn()
+  } as unknown as jest.Mocked<GoCardlessService>;
+
   let controller: StripeWebhookController;
 
   beforeEach(() => {
@@ -77,7 +88,8 @@ describe('StripeWebhookController', () => {
       paymentsService as unknown as PaymentsService,
       webhookEvents as unknown as WebhookEventService,
       webhookQueue as unknown as WebhookQueueService,
-      webhookProcessor as unknown as WebhookProcessor
+      webhookProcessor as unknown as WebhookProcessor,
+      goCardlessService as unknown as GoCardlessService
     );
   });
 
@@ -262,6 +274,79 @@ describe('StripeWebhookController', () => {
       await expect(controller.confirmSession({ sessionId: 'cs_test_123', provider: '' as any })).rejects.toThrow(
         'sessionId and provider are required'
       );
+    });
+
+    it('confirms a fulfilled GoCardless billing request via a synthetic event', async () => {
+      goCardlessService.getBillingRequest.mockResolvedValue({
+        id: 'BR123',
+        status: 'fulfilled',
+        metadata: { source: 'membership', membershipId: 'membership-1', userId: 'user-1' },
+        links: { payment_request_payment: 'PM123', mandate_request_mandate: 'MD123' }
+      } as any);
+      paymentsService.getPaymentByProviderCheckoutId.mockResolvedValue(null);
+      webhookProcessor.process.mockResolvedValue(undefined);
+
+      const result = await controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' });
+
+      expect(goCardlessService.getBillingRequest).toHaveBeenCalledWith('BR123');
+      expect(webhookEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'gocardless',
+          eventType: 'payments.confirmed',
+          externalId: 'confirm:BR123',
+          status: 'received'
+        })
+      );
+      expect(webhookProcessor.process).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ledgerId: 'ledger-1',
+          provider: 'gocardless',
+          eventType: 'payments.confirmed',
+          payload: expect.objectContaining({
+            resource_type: 'payments',
+            action: 'confirmed',
+            body: expect.objectContaining({
+              payments: expect.objectContaining({
+                id: 'PM123',
+                metadata: expect.objectContaining({ source: 'membership' })
+              })
+            })
+          })
+        })
+      );
+      expect(result).toEqual({ received: true });
+    });
+
+    it('returns duplicate when the GoCardless billing request was already confirmed', async () => {
+      goCardlessService.getBillingRequest.mockResolvedValue({
+        id: 'BR123',
+        status: 'fulfilled',
+        metadata: { source: 'membership' },
+        links: { payment_request_payment: 'PM123' }
+      } as any);
+      webhookEvents.record.mockResolvedValue({
+        event: { id: 'ledger-1', status: 'processed' } as any,
+        isDuplicate: true
+      });
+
+      const result = await controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' });
+
+      expect(webhookProcessor.process).not.toHaveBeenCalled();
+      expect(result).toEqual({ received: true, duplicate: true });
+    });
+
+    it('throws when the GoCardless billing request is not fulfilled', async () => {
+      goCardlessService.getBillingRequest.mockResolvedValue({
+        id: 'BR123',
+        status: 'pending',
+        metadata: {}
+      } as any);
+
+      await expect(controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' })).rejects.toThrow(
+        'Billing request is not fulfilled'
+      );
+      expect(webhookEvents.record).not.toHaveBeenCalled();
+      expect(webhookProcessor.process).not.toHaveBeenCalled();
     });
   });
 });

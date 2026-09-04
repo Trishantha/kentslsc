@@ -18,7 +18,7 @@
    - Admin UI at `/admin/payments/reports` with Excel and PDF export buttons.
 
 4. **Refunds**
-   - `POST /payments/:id/refund` supports full and partial refunds for Stripe, PayPal, manual, offline and free payments.
+   - `POST /payments/:id/refund` supports full and partial refunds for Stripe, PayPal, GoCardless, manual, offline and free payments.
    - Fully refunded tickets are automatically cancelled.
 
 ## Deployment steps
@@ -97,7 +97,7 @@ The revenue report includes:
 - Processing fees
 - Net payment
 - Refunded amount
-- Payment channel (stripe, paypal, manual, offline, free)
+- Payment channel (stripe, paypal, gocardless, manual, offline, free)
 - Payment ID / provider payment ID
 - Payment date
 - Payment method
@@ -110,3 +110,7 @@ Exports are generated in Excel (`.xlsx`) and PDF formats.
 ## Refunds
 
 From the revenue report UI, click **Refund** on any completed payment. Admins can issue a full refund or enter a partial amount and reason. Refunds call the payment provider when a provider payment ID is available; manual/offline/free payments are recorded as manual refunds only.
+
+## GoCardless
+
+GoCardless (Direct Debit / open banking, GBP only) is available as a third payment provider alongside Stripe and PayPal. See `docs/gocardless-setup.md` for account setup, credentials, environment variables, sandbox testing and webhook troubleshooting.

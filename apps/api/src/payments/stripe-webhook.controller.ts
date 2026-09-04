@@ -5,10 +5,12 @@ import type Stripe from 'stripe';
 import { Public } from '../common/decorators/public.decorator.js';
 import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { PaymentsService } from './payments.service.js';
+import { GoCardlessService } from './gocardless.service.js';
 import { WebhookEventService } from './webhook-event.service.js';
 import { WebhookQueueService } from './webhook-queue.service.js';
 import { WebhookProcessor } from './webhook.processor.js';
 import type { WebhookJobData } from '../queue/queue.types.js';
+import type { GoCardlessPaymentResource } from './gocardless-webhook.types.js';
 
 /**
  * Single production Stripe webhook endpoint.
@@ -27,7 +29,8 @@ export class StripeWebhookController {
     private readonly paymentsService: PaymentsService,
     private readonly webhookEvents: WebhookEventService,
     private readonly webhookQueue: WebhookQueueService,
-    private readonly webhookProcessor: WebhookProcessor
+    private readonly webhookProcessor: WebhookProcessor,
+    private readonly goCardlessService?: GoCardlessService
   ) {}
 
   @Post('webhook')
@@ -80,19 +83,24 @@ export class StripeWebhookController {
   }
 
   /**
-   * Explicit success confirmation for any Stripe/PayPal checkout session.
+   * Explicit success confirmation for any Stripe/PayPal/GoCardless checkout.
    *
    * The frontend calls this when the payer returns from the gateway. It
    * protects against webhooks that are delayed, misconfigured, or dropped:
-   * we ask Stripe/PayPal for the session status and run the same handlers
+   * we ask the gateway for the checkout status and run the same handlers
    * that the webhook worker would run. All handlers are idempotent, so
    * calling this after a successful webhook is safe.
+   *
+   * For GoCardless, `sessionId` is the Billing Request id (BR...): the flow
+   * only completes once the billing request is fulfilled, and the synthetic
+   * `payments.confirmed` event built here is routed by the billing request
+   * metadata exactly like a real webhook.
    */
   @Post('confirm-session')
   @Public()
   @OptionalAuthRoute()
   @ApiBearerAuth()
-  async confirmSession(@Body() body: { sessionId: string; provider: 'stripe' | 'paypal' }) {
+  async confirmSession(@Body() body: { sessionId: string; provider: 'stripe' | 'paypal' | 'gocardless' }) {
     const { sessionId, provider } = body;
 
     if (!sessionId || !provider) {
@@ -101,6 +109,10 @@ export class StripeWebhookController {
 
     if (provider === 'paypal') {
       throw new BadRequestException('PayPal confirmation is not yet supported');
+    }
+
+    if (provider === 'gocardless') {
+      return this.confirmGoCardlessSession(sessionId);
     }
 
     const session = await this.paymentsService.getFullCheckoutSession(sessionId);
@@ -139,6 +151,88 @@ export class StripeWebhookController {
       ledgerId: recordResult.event.id,
       provider: 'stripe',
       eventType: 'checkout.session.completed',
+      payload: syntheticEvent
+    };
+
+    await this.webhookProcessor.process(job);
+
+    return { received: true };
+  }
+
+  /**
+   * GoCardless confirmation backstop. `sessionId` is the billing request id;
+   * the payment is considered complete once the billing request is fulfilled.
+   * A synthetic `payments.confirmed` event (metadata already resolved from the
+   * billing request) is fed through the same processor path as real webhooks.
+   */
+  private async confirmGoCardlessSession(sessionId: string) {
+    if (!this.goCardlessService) {
+      throw new BadRequestException('GoCardless is not available in this environment');
+    }
+
+    const billingRequest = await this.goCardlessService.getBillingRequest(sessionId);
+
+    if (billingRequest.status !== 'fulfilled') {
+      throw new BadRequestException(`Billing request is not fulfilled (status: ${billingRequest.status})`);
+    }
+
+    const metadata = billingRequest.metadata ?? {};
+    const pendingPayment = await this.paymentsService.getPaymentByProviderCheckoutId(sessionId);
+
+    const payment: GoCardlessPaymentResource = {
+      id: pendingPayment?.providerPaymentId ?? billingRequest.links?.payment_request_payment ?? undefined,
+      amount:
+        pendingPayment && pendingPayment.grossAmount
+          ? String(Math.round(Number(pendingPayment.grossAmount) * 100))
+          : billingRequest.payment_request?.amount,
+      currency: (pendingPayment?.currency ?? billingRequest.payment_request?.currency ?? 'GBP') as
+        | GoCardlessPaymentResource['currency'],
+      created_at: pendingPayment?.purchasedAt?.toISOString?.() ?? undefined,
+      metadata,
+      links: {
+        billing_request: sessionId,
+        mandate: pendingPayment ? undefined : (billingRequest.links?.mandate_request_mandate ?? undefined),
+        subscription: billingRequest.links?.subscription_request_subscription ?? undefined,
+        instalment_schedule:
+          billingRequest.links?.instalment_schedule_request_instalment_schedule ?? undefined
+      }
+    };
+
+    if (!payment.id) {
+      throw new BadRequestException(
+        'Billing request is fulfilled but no payment could be resolved for it yet; try again shortly'
+      );
+    }
+
+    // Record a synthetic webhook event so the processor can update its ledger.
+    const externalId = `confirm:${sessionId}`;
+    const recordResult = await this.webhookEvents.record({
+      provider: 'gocardless',
+      eventType: 'payments.confirmed',
+      externalId,
+      payload: Buffer.from(JSON.stringify({ billingRequest, payment })),
+      status: 'received'
+    });
+
+    // Only skip reprocessing when a previous confirmation actually succeeded.
+    // A ledger row left in `received` or `failed` means the payment was never
+    // applied. All handlers are idempotent, so replaying is safe.
+    if (recordResult.isDuplicate && recordResult.event.status === 'processed') {
+      return { received: true, duplicate: true };
+    }
+
+    const syntheticEvent = {
+      id: externalId,
+      action: 'confirmed',
+      resource_type: 'payments',
+      links: { payment: payment.id },
+      body: { payments: payment }
+    };
+
+    const job: WebhookJobData = {
+      ledgerId: recordResult.event.id,
+      provider: 'gocardless',
+      eventType: 'payments.confirmed',
       payload: syntheticEvent
     };
 
