@@ -250,6 +250,37 @@ describe('WebhookProcessor', () => {
       expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
     });
 
+    it('waits for payment confirmation before fulfilling subscription collections', async () => {
+      const job = buildGoCardlessJob({
+        action: 'payment_created',
+        resourceType: 'subscriptions',
+        payment: { id: 'PM123', links: { subscription: 'SB123' } }
+      });
+
+      await processor.process(job);
+
+      expect(membershipsService.handleGoCardlessPaymentCompleted).not.toHaveBeenCalled();
+      expect(membershipsService.handleGoCardlessSubscriptionPaymentCreated).not.toHaveBeenCalled();
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+
+    it('fulfils confirmed subscription payments without checkout metadata', async () => {
+      const job = buildGoCardlessJob({
+        action: 'confirmed',
+        resourceType: 'payments',
+        payment: { id: 'PM123', links: { subscription: 'SB123' } }
+      });
+      membershipsService.handleGoCardlessPaymentCompleted.mockResolvedValue({} as any);
+
+      await processor.process(job);
+
+      expect(membershipsService.handleGoCardlessPaymentCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'PM123', links: { subscription: 'SB123' } }),
+        {}
+      );
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+
     it('marks failed payments and notifies the memberships service', async () => {
       const job = buildGoCardlessJob({
         action: 'failed',

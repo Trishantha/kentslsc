@@ -2291,7 +2291,13 @@ export class MembershipsService {
    * when the billing request flow was created.
    */
   private async resolveGoCardlessMembership(
-    resource: { id?: string; links?: { billing_request?: string } },
+    resource: {
+      id?: string;
+      links?: Pick<
+        NonNullable<GoCardlessPaymentResource['links']>,
+        'billing_request' | 'subscription' | 'instalment_schedule'
+      >;
+    },
     metadata: Record<string, string>
   ) {
     const include = {
@@ -2305,6 +2311,24 @@ export class MembershipsService {
         include
       });
       if (byId) return byId;
+    }
+
+    const subscriptionId = resource.links?.subscription;
+    if (subscriptionId) {
+      const bySubscription = await this.prisma.membership.findFirst({
+        where: { gocardlessSubscriptionId: subscriptionId, deletedAt: null },
+        include
+      });
+      if (bySubscription) return bySubscription;
+    }
+
+    const instalmentScheduleId = resource.links?.instalment_schedule;
+    if (instalmentScheduleId) {
+      const byInstalmentSchedule = await this.prisma.membership.findFirst({
+        where: { gocardlessInstalmentScheduleId: instalmentScheduleId, deletedAt: null },
+        include
+      });
+      if (byInstalmentSchedule) return byInstalmentSchedule;
     }
 
     const billingRequestId = resource.links?.billing_request;

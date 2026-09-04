@@ -127,7 +127,11 @@ export class WebhookProcessor {
         }
 
         const metadata = await this.resolveGoCardlessMetadata(payment);
-        if (metadata.source === 'membership') {
+        if (
+          metadata.source === 'membership' ||
+          payment.links?.subscription ||
+          payment.links?.instalment_schedule
+        ) {
           await this.membershipsService.handleGoCardlessPaymentCompleted(payment, metadata);
         } else if (metadata.type === 'event_ticket') {
           await this.eventsService.handleGoCardlessPaymentCompleted(payment, metadata);
@@ -171,9 +175,8 @@ export class WebhookProcessor {
       }
 
       case 'subscriptions.payment_created': {
-        const payment = await this.resolveGoCardlessPayment(event);
-        if (!payment?.id) return 'ignored';
-        await this.membershipsService.handleGoCardlessSubscriptionPaymentCreated(payment);
+        // This event only means GoCardless has scheduled a collection. Access
+        // must wait for the corresponding payments.confirmed event.
         return 'processed';
       }
 
@@ -195,9 +198,8 @@ export class WebhookProcessor {
       }
 
       case 'instalment_schedules.payment_created': {
-        const payment = await this.resolveGoCardlessPayment(event);
-        if (!payment?.id) return 'ignored';
-        await this.membershipsService.handleGoCardlessInstalmentPayment(payment);
+        // This event only means GoCardless has scheduled a collection. Access
+        // must wait for the corresponding payments.confirmed event.
         return 'processed';
       }
 

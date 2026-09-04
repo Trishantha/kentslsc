@@ -315,6 +315,31 @@ describe('MembershipsService GoCardless handlers', () => {
         expect.objectContaining({ data: expect.objectContaining({ status: MembershipStatus.ACTIVE }) })
       );
     });
+
+    it('matches a confirmed subscription payment without checkout metadata', async () => {
+      const membership = buildMembership({ gocardlessSubscriptionId: 'SB123' });
+      const payment = buildGoCardlessPayment({
+        links: { subscription: 'SB123', mandate: 'MD123' }
+      });
+
+      mockPrisma.payment.findFirst
+        .mockResolvedValueOnce(null) // idempotency check
+        .mockResolvedValueOnce(null) // no prior completed payment
+        .mockResolvedValueOnce(null); // recordMembershipPayment dedupe check
+      mockPrisma.membership.findFirst.mockResolvedValue(membership);
+      mockPrisma.membership.update.mockResolvedValue({ ...membership, status: MembershipStatus.ACTIVE });
+      mockPrisma.payment.create.mockResolvedValue({ id: 'pay-1' });
+
+      const result = await service.handleGoCardlessPaymentCompleted(payment, {});
+
+      expect(result).toEqual({ received: true, membershipId: membership.membershipId });
+      expect(mockPrisma.membership.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { gocardlessSubscriptionId: 'SB123', deletedAt: null } })
+      );
+      expect(mockPrisma.membership.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: MembershipStatus.ACTIVE }) })
+      );
+    });
   });
 
   describe('handleGoCardlessPaymentFailed', () => {
