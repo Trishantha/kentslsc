@@ -4,7 +4,7 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 (App Router), React 18, TypeScript, TailwindCSS, Framer Motion, next-themes, TanStack Query
+- **Frontend:** Next.js 16 (App Router), React 19, TypeScript, TailwindCSS, Framer Motion, next-themes, TanStack Query
 - **Backend:** NestJS 10, TypeScript, Passport JWT, Prisma, PostgreSQL, Redis, Socket.io
 - **AI:** OpenAI API (summaries, recommendations, moderation, search, welcome messages)
 - **Payments:** Stripe (tickets, memberships, directory promotions, donations); GoCardless (Direct Debit / open banking, GBP — see `docs/gocardless-setup.md`)
@@ -18,7 +18,7 @@ A futuristic, AI-driven full-stack platform for the Kent Sri Lankan Social Club.
 .
 ├── apps/
 │   ├── api/                  # NestJS backend
-│   └── web/                  # Next.js 14 frontend
+│   └── web/                  # Next.js 16 frontend
 ├── packages/
 │   ├── config/               # Tailwind preset + shared tsconfig
 │   ├── database/             # Prisma schema + generated client

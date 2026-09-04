@@ -24,6 +24,8 @@ const SRC = join(__dirname, '..', '..');
 const PUBLIC_ALLOWLIST = new Set([
   // Liveness
   'app.controller.ts::health',
+  'health/health.controller.ts::live',
+  'health/health.controller.ts::ready',
 
   // Stripe webhooks. Authenticated by signature inside the handler, not by a
   // session -- Stripe has no cookie to send.
