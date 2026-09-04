@@ -9,6 +9,8 @@ import {
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { AuthEventType } from '@kentslsc/database';
 import { Public } from '../common/decorators/public.decorator.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
+import { UserRole } from '@kentslsc/shared';
 
 /**
  * Health and readiness endpoints for load balancers and monitoring.
@@ -16,7 +18,6 @@ import { Public } from '../common/decorators/public.decorator.js';
  * `/health/live` always returns 200 if the process is up.
  * `/health/ready` returns 200 only when critical dependencies are reachable.
  */
-@Public()
 @Controller('health')
 export class HealthController {
   constructor(
@@ -27,6 +28,7 @@ export class HealthController {
   ) {}
 
   @Get('live')
+  @Public()
   @HealthCheck()
   live() {
     return this.health.check([
@@ -35,6 +37,7 @@ export class HealthController {
   }
 
   @Get('ready')
+  @Public()
   @HealthCheck()
   async ready() {
     const checks: (() => Promise<HealthIndicatorResult>)[] = [
@@ -67,8 +70,8 @@ export class HealthController {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
       return { database: { status: 'up' } };
-    } catch (err) {
-      return { database: { status: 'down', message: (err as Error).message } };
+    } catch {
+      return { database: { status: 'down', message: 'Database connectivity check failed' } };
     }
   }
 
@@ -159,6 +162,7 @@ export class HealthController {
    * scraping logs.
    */
   @Get('metrics')
+  @Roles(UserRole.ADMIN)
   async metrics() {
     const since = new Date(Date.now() - 60 * 60 * 1000);
 
