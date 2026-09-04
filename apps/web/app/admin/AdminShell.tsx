@@ -97,9 +97,10 @@ function prefetchMembershipTypes(qc: ReturnType<typeof useQueryClient>) {
   qc.prefetchQuery({
     queryKey: ['admin', 'membership-types'],
     queryFn: async () => {
-      const { data } = await api.get('/membership/types');
+      const { data } = await api.get('/membership/types?includePaused=true');
       return data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 }
 

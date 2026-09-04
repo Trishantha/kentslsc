@@ -15,7 +15,8 @@ export default function AdminMembershipTypesPage() {
     queryFn: async () => {
       const res = await api.get('/membership/types?includePaused=true');
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 
   return (

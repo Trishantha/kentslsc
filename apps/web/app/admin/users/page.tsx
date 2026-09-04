@@ -15,7 +15,6 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Permission, permissionLabels } from '@kentslsc/shared';
 import { useAuth } from '@/hooks/useAuth';
@@ -70,6 +69,8 @@ export default function AdminUsersPage() {
   const handleExport = async () => {
     const result = await exportQuery.refetch();
     if (!result.data?.length) return;
+
+    const XLSX = await import('xlsx');
 
     const rows = result.data.map((u) => ({
       'User ID': u.id,

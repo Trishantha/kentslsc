@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { RichTextEditorInner } from './RichTextEditorInner';
+import dynamic from 'next/dynamic';
 
 interface RichTextEditorProps {
   value?: string;
@@ -10,22 +9,20 @@ interface RichTextEditorProps {
   minHeightClassName?: string;
 }
 
-export function RichTextEditor(props: RichTextEditorProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
+const RichTextEditorInner = dynamic(
+  () => import('./RichTextEditorInner').then((module) => module.RichTextEditorInner),
+  {
+    ssr: false,
+    loading: () => (
       <div
         className="animate-pulse rounded-xl border border-white/10 bg-white/5"
-        style={{ minHeight: props.minHeightClassName?.match(/\d+/)?.[0] ? `${props.minHeightClassName.match(/\d+/)?.[0]}px` : '180px' }}
+        style={{ minHeight: 180 }}
         aria-label="Loading editor"
       />
-    );
+    )
   }
+);
 
+export function RichTextEditor(props: RichTextEditorProps) {
   return <RichTextEditorInner {...props} />;
 }

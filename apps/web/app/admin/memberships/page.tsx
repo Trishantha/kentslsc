@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Users, Mail, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import { MembershipsList } from './MembershipsList';
@@ -71,6 +70,8 @@ export default function AdminMembershipsPage() {
   const handleExport = async () => {
     const result = await exportQuery.refetch();
     if (!result.data?.length) return;
+
+    const XLSX = await import('xlsx');
 
     const rows = result.data.map((m) => ({
       'Membership ID': m.membershipId,

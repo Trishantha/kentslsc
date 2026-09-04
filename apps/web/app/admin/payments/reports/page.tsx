@@ -15,9 +15,6 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 interface ReportRow {
   id: string;
@@ -145,7 +142,7 @@ export default function RevenueReportPage() {
     // Payments are written by webhook workers, so keep an open report current
     // without requiring an administrator to click Refresh.
     refetchInterval: 15_000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true
   });
@@ -249,6 +246,8 @@ export default function RevenueReportPage() {
     const rows = await exportQuery.refetch();
     if (!rows.data?.length) return;
 
+    const XLSX = await import('xlsx');
+
     const worksheetData = rows.data.map((row) => ({
       Date: row.date ? new Date(row.date).toLocaleString() : '',
       'Receipt #': row.receiptNumber ?? '',
@@ -285,6 +284,11 @@ export default function RevenueReportPage() {
   const exportToPDF = async () => {
     const rows = await exportQuery.refetch();
     if (!rows.data?.length) return;
+
+    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable')
+    ]);
 
     const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(14);

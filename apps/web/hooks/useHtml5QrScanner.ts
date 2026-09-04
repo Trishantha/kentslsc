@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
+import type { Html5Qrcode } from 'html5-qrcode';
 
 export type CameraState = 'idle' | 'requesting' | 'allowed' | 'denied' | 'unsupported' | 'error';
 
@@ -61,14 +61,7 @@ export function useHtml5QrScanner(options: UseHtml5QrScannerOptions): UseHtml5Qr
 
   const cleanup = useCallback(() => {
     if (scannerRef.current) {
-      try {
-        const state = scannerRef.current.getState();
-        if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-          scannerRef.current.stop().catch(() => undefined);
-        }
-      } catch {
-        // Scanner may have failed to start; ignore stop errors.
-      }
+      scannerRef.current.stop().catch(() => undefined);
       scannerRef.current = null;
     }
   }, []);
@@ -97,6 +90,9 @@ export function useHtml5QrScanner(options: UseHtml5QrScannerOptions): UseHtml5Qr
       }
 
       try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        if (!active) return;
+
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
 
@@ -118,14 +114,7 @@ export function useHtml5QrScanner(options: UseHtml5QrScannerOptions): UseHtml5Qr
         );
 
         if (!active) {
-          try {
-            const state = scanner.getState();
-            if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-              scanner.stop().catch(() => undefined);
-            }
-          } catch {
-            // Scanner may have failed to start; ignore stop errors.
-          }
+          scanner.stop().catch(() => undefined);
           return;
         }
 
