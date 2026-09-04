@@ -126,9 +126,60 @@ describe('PaymentsService', () => {
         key === 'DEFAULT_PAYMENT_PROVIDER' ? 'gocardless' : defaultConfig(key)
       );
       service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      // Default provider chosen but not configured: fall back to Stripe.
+      await expect(service.resolveCheckoutMethod()).resolves.toEqual({
+        method: 'card',
+        provider: 'stripe'
+      });
+
+      mockConfig.get.mockImplementation((key: string) => {
+        if (key === 'DEFAULT_PAYMENT_PROVIDER') return 'gocardless';
+        if (key === 'GOCARDLESS_ACCESS_TOKEN') return 'gc-token';
+        return defaultConfig(key);
+      });
+      service = new PaymentsService(mockConfig as any, mockPrisma as any);
       await expect(service.resolveCheckoutMethod()).resolves.toEqual({
         method: 'direct_debit',
         provider: 'gocardless'
+      });
+    });
+
+    it('throws a clear 400 when every platform is disabled', async () => {
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({
+        stripeEnabled: false,
+        paypalEnabled: false,
+        gocardlessEnabled: false
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod()).rejects.toThrow(
+        'No payment methods are currently available'
+      );
+    });
+
+    it('rejects a requested method when its platform is disabled, even if configured', async () => {
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'GOCARDLESS_ACCESS_TOKEN' ? 'gc-token' : defaultConfig(key)
+      );
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({ gocardlessEnabled: false });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('direct_debit')).rejects.toThrow(
+        'Direct Debit and Instant Bank Pay are not currently available'
+      );
+      await expect(service.resolveCheckoutMethod('card')).resolves.toEqual({
+        method: 'card',
+        provider: 'stripe'
+      });
+    });
+
+    it('falls back to an enabled platform when the default provider is disabled', async () => {
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({ stripeEnabled: false });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod()).resolves.toEqual({
+        method: 'card',
+        provider: 'paypal'
       });
     });
 
@@ -192,6 +243,19 @@ describe('PaymentsService', () => {
         provider: 'gocardless'
       });
     });
+
+    it('uses the environment GoCardless token when the persisted credential is blank', async () => {
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({ gocardlessAccessToken: '   ' });
+      mockConfig.get.mockImplementation((key: string) =>
+        key === 'GOCARDLESS_ACCESS_TOKEN' ? 'gc-token' : defaultConfig(key)
+      );
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      await expect(service.resolveCheckoutMethod('direct_debit')).resolves.toEqual({
+        method: 'direct_debit',
+        provider: 'gocardless'
+      });
+    });
   });
 
   describe('getPublicPaymentSettings availableMethods', () => {
@@ -242,6 +306,23 @@ describe('PaymentsService', () => {
       const settings = await service.getPublicPaymentSettings();
 
       expect(settings.availableMethods).toEqual({ card: true, directDebit: false });
+    });
+
+    it('reports methods unavailable when their platform is disabled, even if configured', async () => {
+      mockConfig.get.mockImplementation((key: string) => {
+        if (key === 'STRIPE_SECRET_KEY') return 'sk_test_123';
+        if (key === 'GOCARDLESS_ACCESS_TOKEN') return 'gc-token';
+        return undefined;
+      });
+      mockPrisma.paymentSettings.findFirst.mockResolvedValue({
+        stripeEnabled: false,
+        gocardlessEnabled: true
+      });
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const settings = await service.getPublicPaymentSettings();
+
+      expect(settings.availableMethods).toEqual({ card: false, directDebit: true });
     });
   });
 

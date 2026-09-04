@@ -96,12 +96,15 @@ interface GoCardlessSettings {
   accessToken?: string;
   webhookSecret?: string;
   environment: 'sandbox' | 'live';
+  enabled: boolean;
 }
 
 @Injectable()
 export class GoCardlessService {
   private readonly logger = new Logger(GoCardlessService.name);
   private client?: GoCardlessClient;
+  private clientAccessToken?: string;
+  private clientEnvironment?: GoCardlessSettings['environment'];
 
   constructor(
     private readonly configService: ConfigService,
@@ -113,16 +116,17 @@ export class GoCardlessService {
 
     return {
       accessToken:
-        persisted?.gocardlessAccessToken ??
-        this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN') ??
+        persisted?.gocardlessAccessToken?.trim() ||
+        this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN')?.trim() ||
         undefined,
       webhookSecret:
-        persisted?.gocardlessWebhookSecret ??
-        this.configService.get<string>('GOCARDLESS_WEBHOOK_SECRET') ??
+        persisted?.gocardlessWebhookSecret?.trim() ||
+        this.configService.get<string>('GOCARDLESS_WEBHOOK_SECRET')?.trim() ||
         undefined,
       environment: this.resolveEnvironment(
         persisted?.gocardlessEnvironment ?? this.configService.get<string>('GOCARDLESS_ENVIRONMENT')
-      )
+      ),
+      enabled: persisted?.gocardlessEnabled ?? true
     };
   }
 
@@ -133,18 +137,29 @@ export class GoCardlessService {
   private ensureClient(settings: GoCardlessSettings) {
     if (!settings.accessToken) {
       this.client = undefined;
+      this.clientAccessToken = undefined;
+      this.clientEnvironment = undefined;
       return;
     }
 
-    if (!this.client) {
+    if (
+      !this.client ||
+      this.clientAccessToken !== settings.accessToken ||
+      this.clientEnvironment !== settings.environment
+    ) {
       this.client = new GoCardlessClient(
         settings.accessToken,
         settings.environment === 'live' ? Environments.Live : Environments.Sandbox
       );
+      this.clientAccessToken = settings.accessToken;
+      this.clientEnvironment = settings.environment;
     }
   }
 
-  private ensureEnabled() {
+  private ensureEnabled(settings?: GoCardlessSettings) {
+    if (settings && !settings.enabled) {
+      throw new Error('GoCardless payments are currently disabled.');
+    }
     if (!this.client) {
       throw new Error(
         'GoCardless is not configured. Set GOCARDLESS_ACCESS_TOKEN to enable GoCardless payments.'
@@ -155,7 +170,7 @@ export class GoCardlessService {
   private async getClient(): Promise<GoCardlessClient> {
     const settings = await this.getEffectiveSettings();
     this.ensureClient(settings);
-    this.ensureEnabled();
+    this.ensureEnabled(settings);
     return this.client!;
   }
 

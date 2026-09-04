@@ -98,6 +98,9 @@ interface EffectivePaymentSettings {
   gocardlessAccessToken?: string;
   gocardlessWebhookSecret?: string;
   gocardlessEnvironment: 'sandbox' | 'live';
+  stripeEnabled: boolean;
+  paypalEnabled: boolean;
+  gocardlessEnabled: boolean;
   processingFeeConfig: ProcessingFeeConfig;
 }
 
@@ -157,12 +160,19 @@ export class PaymentsService {
         'https://api-m.sandbox.paypal.com'
       ),
       gocardlessAccessToken:
-        persisted?.gocardlessAccessToken ?? this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN') ?? undefined,
+        persisted?.gocardlessAccessToken?.trim() ||
+        this.configService.get<string>('GOCARDLESS_ACCESS_TOKEN')?.trim() ||
+        undefined,
       gocardlessWebhookSecret:
-        persisted?.gocardlessWebhookSecret ?? this.configService.get<string>('GOCARDLESS_WEBHOOK_SECRET') ?? undefined,
+        persisted?.gocardlessWebhookSecret?.trim() ||
+        this.configService.get<string>('GOCARDLESS_WEBHOOK_SECRET')?.trim() ||
+        undefined,
       gocardlessEnvironment: this.resolveGoCardlessEnvironment(
         persisted?.gocardlessEnvironment ?? this.configService.get<string>('GOCARDLESS_ENVIRONMENT')
       ),
+      stripeEnabled: persisted?.stripeEnabled ?? true,
+      paypalEnabled: persisted?.paypalEnabled ?? true,
+      gocardlessEnabled: persisted?.gocardlessEnabled ?? true,
       processingFeeConfig: {
         enabled: persisted?.processingFeeEnabled ?? DEFAULT_PROCESSING_FEE.enabled,
         percent: persisted?.processingFeePercent ? Number(persisted.processingFeePercent) : DEFAULT_PROCESSING_FEE.percent,
@@ -237,6 +247,9 @@ export class PaymentsService {
       hasGocardlessAccessToken: !!effective.gocardlessAccessToken,
       hasGocardlessWebhookSecret: !!effective.gocardlessWebhookSecret,
       gocardlessEnvironment: effective.gocardlessEnvironment,
+      stripeEnabled: effective.stripeEnabled,
+      paypalEnabled: effective.paypalEnabled,
+      gocardlessEnabled: effective.gocardlessEnabled,
       processingFeeEnabled: effective.processingFeeConfig.enabled,
       processingFeePercent: effective.processingFeeConfig.percent,
       processingFeeFixed: effective.processingFeeConfig.fixed
@@ -251,8 +264,8 @@ export class PaymentsService {
       processingFeePercent: effective.processingFeeConfig.percent,
       processingFeeFixed: effective.processingFeeConfig.fixed,
       availableMethods: {
-        card: !!effective.stripeSecretKey,
-        directDebit: !!effective.gocardlessAccessToken
+        card: effective.stripeEnabled && !!effective.stripeSecretKey,
+        directDebit: effective.gocardlessEnabled && !!effective.gocardlessAccessToken
       }
     };
   }
@@ -262,7 +275,9 @@ export class PaymentsService {
    * explicit payer choice of payment method when one is supplied.
    *
    * - When `requested` is omitted the global default provider decides, exactly
-   *   as before payer choice existed.
+   *   as before payer choice existed — unless that provider is disabled or
+   *   unconfigured, in which case the first enabled platform is used.
+   * - Disabling all platforms makes the no-choice path throw a clear 400.
    * - 'card' routes to Stripe and 'direct_debit'/'instant_bank_pay' route to
    *   GoCardless (bacs / faster_payments respectively). If the chosen
    *   platform is not configured a clear 400 is thrown so the payer can pick
@@ -273,18 +288,37 @@ export class PaymentsService {
   ): Promise<{ method: PaymentMethodOption; provider: PaymentProvider }> {
     const effective = await this.getEffectiveSettings();
 
+    const stripeAvailable = effective.stripeEnabled && !!effective.stripeSecretKey;
+    const gocardlessAvailable = effective.gocardlessEnabled && !!effective.gocardlessAccessToken;
+    const paypalAvailable =
+      effective.paypalEnabled && !!effective.paypalClientId && !!effective.paypalClientSecret;
+
     if (!requested) {
-      return {
-        method: effective.provider === 'gocardless' ? 'direct_debit' : 'card',
-        provider: effective.provider
-      };
+      if (effective.provider === 'stripe' && stripeAvailable) {
+        return { method: 'card', provider: 'stripe' };
+      }
+      if (effective.provider === 'gocardless' && gocardlessAvailable) {
+        return { method: 'direct_debit', provider: 'gocardless' };
+      }
+      if (effective.provider === 'paypal' && paypalAvailable) {
+        return { method: 'card', provider: 'paypal' };
+      }
+
+      // Configured default is disabled or unconfigured: fall back to the first
+      // enabled platform in a stable order, so a disabled default never
+      // silently routes payers to an unavailable method.
+      if (stripeAvailable) return { method: 'card', provider: 'stripe' };
+      if (gocardlessAvailable) return { method: 'direct_debit', provider: 'gocardless' };
+      if (paypalAvailable) return { method: 'card', provider: 'paypal' };
+
+      throw new BadRequestException('No payment methods are currently available');
     }
 
     const provider = methodToProvider(requested);
-    if (provider === 'stripe' && !effective.stripeSecretKey) {
+    if (provider === 'stripe' && !stripeAvailable) {
       throw new BadRequestException('Card payments are not currently available');
     }
-    if (provider === 'gocardless' && !effective.gocardlessAccessToken) {
+    if (provider === 'gocardless' && !gocardlessAvailable) {
       throw new BadRequestException('Direct Debit and Instant Bank Pay are not currently available');
     }
 
@@ -1074,6 +1108,9 @@ export class PaymentsService {
       ...(dto.gocardlessAccessToken !== undefined && { gocardlessAccessToken: dto.gocardlessAccessToken || null }),
       ...(dto.gocardlessWebhookSecret !== undefined && { gocardlessWebhookSecret: dto.gocardlessWebhookSecret || null }),
       ...(dto.gocardlessEnvironment !== undefined && { gocardlessEnvironment: dto.gocardlessEnvironment }),
+      ...(dto.stripeEnabled !== undefined && { stripeEnabled: dto.stripeEnabled }),
+      ...(dto.paypalEnabled !== undefined && { paypalEnabled: dto.paypalEnabled }),
+      ...(dto.gocardlessEnabled !== undefined && { gocardlessEnabled: dto.gocardlessEnabled }),
       ...(dto.processingFeeEnabled !== undefined && { processingFeeEnabled: dto.processingFeeEnabled }),
       ...(dto.processingFeePercent !== undefined && { processingFeePercent: dto.processingFeePercent }),
       ...(dto.processingFeeFixed !== undefined && { processingFeeFixed: dto.processingFeeFixed })
@@ -1109,9 +1146,15 @@ export class PaymentsService {
     const provider = input.provider ?? effective.provider;
 
     if (provider === 'paypal') {
+      if (!effective.paypalEnabled) {
+        throw new BadRequestException('PayPal payments are not currently available');
+      }
       return this.createPayPalCheckout(input, effective);
     }
 
+    if (!effective.stripeEnabled) {
+      throw new BadRequestException('Card payments are not currently available');
+    }
     return this.createStripeCheckout(input, effective);
   }
 

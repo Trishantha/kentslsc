@@ -986,6 +986,10 @@ model PaymentSettings {
   processingFeeEnabled Boolean  @default(true) @map("processing_fee_enabled")
   processingFeePercent Decimal  @default(1.50) @db.Decimal(5, 2) @map("processing_fee_percent")
   processingFeeFixed   Int      @default(20) @map("processing_fee_fixed")
+  // Admin toggles: a platform is offered only when enabled AND configured.
+  stripeEnabled     Boolean @default(true) @map("stripe_enabled")
+  paypalEnabled     Boolean @default(true) @map("paypal_enabled")
+  gocardlessEnabled Boolean @default(true) @map("gocardless_enabled")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 

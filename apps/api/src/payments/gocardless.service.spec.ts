@@ -124,11 +124,34 @@ describe('GoCardlessService', () => {
       expect(await service.isConfigured()).toBe(true);
     });
 
+    it('uses the environment token when the persisted credential is blank', async () => {
+      prisma.paymentSettings.findFirst.mockResolvedValue({ gocardlessAccessToken: '   ' });
+
+      expect(await service.isConfigured()).toBe(true);
+    });
+
     it('throws a helpful error when creating a flow without credentials', async () => {
       configService.get.mockReturnValue(undefined);
       await expect(service.createBillingRequestFlow(buildFlowInput())).rejects.toThrow(
         /GoCardless is not configured/
       );
+    });
+
+    it('blocks new flows when the platform is disabled, even with credentials', async () => {
+      prisma.paymentSettings.findFirst.mockResolvedValue({ gocardlessEnabled: false });
+
+      await expect(service.createBillingRequestFlow(buildFlowInput())).rejects.toThrow(
+        /GoCardless payments are currently disabled/
+      );
+    });
+
+    it('still exposes the webhook secret when the platform is disabled', async () => {
+      prisma.paymentSettings.findFirst.mockResolvedValue({
+        gocardlessWebhookSecret: 'whsec_persisted',
+        gocardlessEnabled: false
+      });
+
+      await expect(service.getWebhookSecret()).resolves.toBe('whsec_persisted');
     });
 
     it('prefers persisted PaymentSettings over environment variables', async () => {
@@ -145,6 +168,22 @@ describe('GoCardlessService', () => {
       expect(GoCardlessClient).toHaveBeenCalledWith('persisted-token', 'SANDBOX');
       // Existing customer id is returned without calling the API.
       expect(mockGoCardlessClient.customers.create).not.toHaveBeenCalled();
+    });
+
+    it('recreates the client when payment settings rotate credentials or environment', async () => {
+      prisma.user.findUnique.mockResolvedValue(buildUser({ gocardlessCustomerId: 'CU_existing' }));
+
+      await service.getOrCreateCustomer('user-1');
+
+      prisma.paymentSettings.findFirst.mockResolvedValue({
+        gocardlessAccessToken: 'rotated-token',
+        gocardlessEnvironment: 'live'
+      });
+      await service.getOrCreateCustomer('user-1');
+
+      const { GoCardlessClient, Environments } = jest.requireMock('gocardless-nodejs') as any;
+      expect(GoCardlessClient).toHaveBeenNthCalledWith(1, 'gc-token', Environments.Sandbox);
+      expect(GoCardlessClient).toHaveBeenNthCalledWith(2, 'rotated-token', Environments.Live);
     });
   });
 

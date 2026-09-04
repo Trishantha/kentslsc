@@ -19,6 +19,9 @@ interface PaymentSettings {
   processingFeeEnabled: boolean;
   processingFeePercent: number;
   processingFeeFixed: number;
+  stripeEnabled: boolean;
+  paypalEnabled: boolean;
+  gocardlessEnabled: boolean;
 }
 
 type PaymentProvider = PaymentSettings['provider'];
@@ -46,6 +49,9 @@ export default function AdminPaymentsPage() {
   const [processingFeeEnabled, setProcessingFeeEnabled] = useState(true);
   const [processingFeePercent, setProcessingFeePercent] = useState(1.5);
   const [processingFeeFixed, setProcessingFeeFixed] = useState(20);
+  const [stripeEnabled, setStripeEnabled] = useState(true);
+  const [paypalEnabled, setPaypalEnabled] = useState(true);
+  const [gocardlessEnabled, setGocardlessEnabled] = useState(true);
 
   useEffect(() => {
     if (data) {
@@ -62,6 +68,9 @@ export default function AdminPaymentsPage() {
       setProcessingFeeEnabled(data.processingFeeEnabled ?? true);
       setProcessingFeePercent(data.processingFeePercent ?? 1.5);
       setProcessingFeeFixed(data.processingFeeFixed ?? 20);
+      setStripeEnabled(data.stripeEnabled ?? true);
+      setPaypalEnabled(data.paypalEnabled ?? true);
+      setGocardlessEnabled(data.gocardlessEnabled ?? true);
     }
   }, [data]);
 
@@ -99,12 +108,18 @@ export default function AdminPaymentsPage() {
       processingFeeEnabled: boolean;
       processingFeePercent: number;
       processingFeeFixed: number;
+      stripeEnabled: boolean;
+      paypalEnabled: boolean;
+      gocardlessEnabled: boolean;
     } = {
       provider,
       paypalApiBaseUrl,
       processingFeeEnabled,
       processingFeePercent,
-      processingFeeFixed
+      processingFeeFixed,
+      stripeEnabled,
+      paypalEnabled,
+      gocardlessEnabled
     };
 
     if (stripeSecretKey.trim()) payload.stripeSecretKey = stripeSecretKey.trim();
@@ -137,6 +152,42 @@ export default function AdminPaymentsPage() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="glass-card space-y-5 p-6">
+          <div>
+            <h3 className="mb-3 text-sm font-semibold">Enabled platforms</h3>
+            <p className="mb-3 text-xs text-slate-500">
+              Turn a platform off to hide it from checkout pages and block new payments on it. Disabling never deletes its credentials, and payments already in progress still complete.
+            </p>
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={stripeEnabled}
+                  onChange={(e) => setStripeEnabled(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">Card payments (Stripe)</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={paypalEnabled}
+                  onChange={(e) => setPaypalEnabled(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">PayPal</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={gocardlessEnabled}
+                  onChange={(e) => setGocardlessEnabled(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-neon-blue"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">Direct Debit &amp; Instant Bank Pay (GoCardless)</span>
+              </label>
+            </div>
+          </div>
+
           <div>
             <label className={labelClass}>Default provider</label>
             <select value={provider} onChange={(e) => setProvider(e.target.value as PaymentProvider)} className={inputClass}>

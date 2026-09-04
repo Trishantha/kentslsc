@@ -53,6 +53,18 @@ export class UpdatePaymentSettingsDto {
   declare processingFeeEnabled?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  declare stripeEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  declare paypalEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  declare gocardlessEnabled?: boolean;
+
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)

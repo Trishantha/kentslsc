@@ -8,6 +8,15 @@ GoCardless is the third supported payment provider, alongside Stripe and PayPal.
 
 Payments are **GBP only**. GoCardless is selected either by setting `DEFAULT_PAYMENT_PROVIDER=gocardless` in the environment or from **Admin → Payments Settings**, which stores the provider and credentials in the database and overrides the env default.
 
+## Enabling and disabling payment platforms
+
+Each platform (Stripe/card, PayPal, GoCardless) has an on/off toggle in **Admin → Finance → Payment Settings**, under "Enabled platforms". The flags are stored in the `payment_settings` table (`stripe_enabled`, `paypal_enabled`, `gocardless_enabled`) and default to enabled.
+
+- Turning a platform **off** hides its methods from member checkout pages and blocks new payments on it, even if its credentials are still configured. Disabling never deletes credentials.
+- If the configured default provider is disabled, checkouts automatically fall back to the first enabled platform; if every platform is disabled, checkout attempts fail with a clear "No payment methods are currently available" error.
+- Payments already in progress are unaffected: provider webhooks keep being verified and fulfilled while a platform is disabled, so pending payments still complete.
+
+
 ## 1. Create a GoCardless account
 
 1. Sign up at https://gocardless.com and verify your email address.
