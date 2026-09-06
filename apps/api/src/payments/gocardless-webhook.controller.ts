@@ -61,13 +61,16 @@ export class GoCardlessWebhookController {
     }
 
     const events = Array.isArray(batch?.events) ? batch.events : [];
-    const results: Array<{ id: string; received?: boolean; duplicate?: boolean }> = [];
+    const results: Array<{ id: string; received?: boolean; duplicate?: boolean; error?: string }> = [];
 
     // GoCardless sends batches of unrelated events; each one is ledgered and
     // queued independently so a single bad event cannot drop the rest.
+    let firstFailure: string | null = null;
     for (const event of events) {
       const eventType = `${event.resource_type}.${event.action}`;
 
+      // A ledger failure means we cannot durably record the batch; fail the
+      // whole request so GoCardless redelivers rather than silently dropping.
       const { event: ledgerEvent, isDuplicate } = await this.webhookEvents.record({
         provider: 'gocardless',
         eventType,
@@ -94,8 +97,15 @@ export class GoCardlessWebhookController {
         const message = (err as Error).message;
         this.logger.error(`GoCardless webhook ${event.id} enqueue failed: ${message}`);
         await this.webhookEvents.markStatus(ledgerEvent.id, 'failed', message);
-        return res.status(500).send(`Webhook error: ${message}`);
+        // Keep processing the rest of the batch; the failed event is reported
+        // below so GoCardless still redelivers it.
+        firstFailure ??= message;
+        results.push({ id: event.id, error: message });
       }
+    }
+
+    if (firstFailure) {
+      return res.status(500).send(`Webhook error: ${firstFailure}`);
     }
 
     return res.json({ received: true, events: results });
