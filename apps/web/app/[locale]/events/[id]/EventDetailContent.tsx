@@ -113,6 +113,14 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
       window.location.href = data.url;
     },
     onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
+      // Recording the click is best-effort analytics. The ticket URL is
+      // already on the event, so a failed tracking call (API restarting,
+      // rate limit from repeated taps, mobile network blip) must never
+      // become a dead end on the buy path — still send the user through.
+      if (event?.externalTicketingUrl) {
+        window.location.href = event.externalTicketingUrl;
+        return;
+      }
       const text = err.response?.data?.message || err.message || t('purchaseFailed');
       setMessage({ type: 'error', text });
     }
