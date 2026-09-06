@@ -48,19 +48,49 @@ export async function createApiApp() {
   app.use(helmet());
   app.use(cookieParser());
 
-  const allowedOrigins = new Set<string>([
-    configService.get('FRONTEND_URL') ?? 'http://localhost:3000'
-  ]);
+  // Allow the configured frontend origin plus its www/non-www twin. Visitors
+  // reach the site through both hosts (search results, typed URLs), and they
+  // are the same deployment — rejecting the twin turns every POST from that
+  // host into a failure.
+  const allowedOrigins = new Set<string>();
+  const addOrigin = (value: string) => {
+    try {
+      allowedOrigins.add(new URL(value).origin);
+    } catch {
+      allowedOrigins.add(value);
+    }
+  };
+  addOrigin(configService.get('FRONTEND_URL') ?? 'http://localhost:3000');
+  try {
+    const variant = new URL(configService.get('FRONTEND_URL') ?? 'http://localhost:3000');
+    if (variant.hostname.includes('.') && !/^(localhost|127\.0\.0\.1)$/i.test(variant.hostname)) {
+      variant.hostname = variant.hostname.startsWith('www.')
+        ? variant.hostname.slice(4)
+        : `www.${variant.hostname}`;
+      allowedOrigins.add(variant.origin);
+    }
+  } catch {
+    // FRONTEND_URL is not a parseable URL; the raw value above still applies.
+  }
   // Only trust the dev origin outside production.
   if (!isProduction) {
     allowedOrigins.add('http://localhost:3000');
   }
+  // Same-origin requests proxied through the web app (the normal browser
+  // path) carry an Origin header that browsers do not CORS-check; rejecting
+  // such an origin must not 500 the request. Disallowing it (no ACAO header)
+  // still blocks genuine cross-origin browser reads.
+  const rejectedOrigins = new Set<string>();
   const corsOptions: CorsOptions = {
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.has(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+        if (!rejectedOrigins.has(origin)) {
+          rejectedOrigins.add(origin);
+          console.warn(`CORS: origin ${origin} not in allowed list (${[...allowedOrigins].join(', ')})`);
+        }
+        callback(null, false);
       }
     },
     credentials: true,
