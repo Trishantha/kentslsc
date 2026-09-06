@@ -53,13 +53,26 @@ function createQueue(name: string) {
           lazyConnect: true
         });
 
+        // Without an error listener ioredis prints "Unhandled error event"
+        // (with a full stack) every time a connection attempt fails, which
+        // surfaces as a scary startup error on hosts where Redis is
+        // unreachable. The initial failure is reported once by the catch
+        // below; only errors after a successful connect are logged here.
+        let suppressConnectionErrors = true;
+        redis.on('error', (error: Error) => {
+          if (!suppressConnectionErrors) {
+            logger.warn(`Redis connection error: ${error.message}`);
+          }
+        });
+
         try {
           await redis.connect();
+          suppressConnectionErrors = false;
           logger.log('Redis connected; queues enabled.');
           return redis;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          logger.warn(`Redis connection failed; queues disabled. ${message}`, error);
+          logger.warn(`Redis connection failed; queues disabled. ${message}`);
           try {
             redis.disconnect();
           } catch {

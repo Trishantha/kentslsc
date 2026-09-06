@@ -14,20 +14,23 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-function gitInfo() {
+function runGit(command) {
   try {
-    const commit = execSync('git rev-parse HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
-    const branch = execSync('git branch --show-current', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim() || 'detached';
-    const tag = execSync('git describe --tags --exact-match HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim() || null;
-    return { commit, branch, tag, builtAt: new Date().toISOString() };
+    return execSync(command, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
   } catch {
-    return {
-      commit: process.env.GIT_COMMIT || 'unknown',
-      branch: process.env.GIT_BRANCH || 'unknown',
-      tag: process.env.GIT_TAG || null,
-      builtAt: new Date().toISOString()
-    };
+    return '';
   }
+}
+
+function gitInfo() {
+  // Resolve each value independently: a missing tag or detached head must not
+  // blank out the commit, and hosts that build from a source tarball without
+  // a git binary fall back to CI-provided environment variables.
+  const commit = runGit('git rev-parse HEAD') || process.env.GIT_COMMIT || process.env.GITHUB_SHA || 'unknown';
+  const branch =
+    runGit('git branch --show-current') || process.env.GIT_BRANCH || process.env.GITHUB_REF_NAME || 'unknown';
+  const tag = runGit('git describe --tags --exact-match HEAD') || process.env.GIT_TAG || null;
+  return { commit, branch, tag, builtAt: new Date().toISOString() };
 }
 
 function writeBuildInfo(targetDir, info) {
