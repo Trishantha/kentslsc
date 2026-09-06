@@ -297,3 +297,75 @@ describe('FundraisingService.handleGoCardlessPaymentCompleted', () => {
     expect(mockPrisma.payment.findFirst).not.toHaveBeenCalled();
   });
 });
+
+describe('FundraisingService.handleCheckoutCompleted', () => {
+  let service: FundraisingService;
+  let tx: any;
+
+  const mockPrisma: any = {
+    donation: {
+      findFirst: jest.fn()
+    },
+    fundraiser: {
+      findUnique: jest.fn()
+    },
+    $transaction: jest.fn()
+  };
+
+  const mockEmailService: any = {
+    sendDonationThankYou: jest.fn()
+  };
+
+  const baseSession = {
+    id: 'cs_123',
+    metadata: { type: 'donation', fundraiserId: 'fundraiser-1', amount: '2500' },
+    amount_total: 2500,
+    currency: 'gbp',
+    customer_details: { email: 'donor@example.com' }
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    tx = {
+      donation: { create: jest.fn().mockResolvedValue({ id: 'don-1' }) },
+      payment: { create: jest.fn().mockResolvedValue({ id: 'pay-1' }) },
+      fundraiser: { update: jest.fn().mockResolvedValue({ raisedAmount: 25, targetAmount: 100 }) }
+    };
+    mockPrisma.donation.findFirst.mockResolvedValue(null);
+    mockPrisma.fundraiser.findUnique.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
+    mockEmailService.sendDonationThankYou.mockResolvedValue(undefined);
+    service = new FundraisingService(mockPrisma, {}, {}, { get: jest.fn() }, mockEmailService, {}, {});
+  });
+
+  it('records the donation with the payment intent id when payment_intent is expanded', async () => {
+    await service.handleCheckoutCompleted({
+      ...baseSession,
+      payment_intent: { id: 'pi_123', object: 'payment_intent' }
+    } as any);
+
+    expect(tx.donation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fundraiserId: 'fundraiser-1', paymentId: 'pi_123' })
+      })
+    );
+    expect(tx.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ providerPaymentId: 'pi_123', providerCheckoutId: 'cs_123' })
+      })
+    );
+    expect(tx.fundraiser.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { raisedAmount: { increment: 25 }, totalDonors: { increment: 1 } } })
+    );
+  });
+
+  it('records the donation when payment_intent is a plain id (webhook shape)', async () => {
+    await service.handleCheckoutCompleted({ ...baseSession, payment_intent: 'pi_123' } as any);
+
+    expect(tx.donation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paymentId: 'pi_123' })
+      })
+    );
+  });
+});

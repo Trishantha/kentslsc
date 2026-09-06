@@ -464,6 +464,12 @@ export class FundraisingService {
     const isAnonymous = session.metadata?.isAnonymous === 'true';
     const donorEmail = session.customer_details?.email ?? null;
 
+    // payment_intent may be an expanded PaymentIntent object (confirm-session
+    // retrieves the session with expand: ['payment_intent']) or just the id
+    // (webhook payloads); only the id is storable/queryable.
+    const paymentIntentId =
+      typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? null);
+
     await this.recordDonation({
       fundraiserId,
       amount,
@@ -472,11 +478,10 @@ export class FundraisingService {
       message,
       isAnonymous,
       donorEmail,
-      paymentId: session.payment_intent as string | null,
+      paymentId: paymentIntentId,
       channel: 'stripe',
       providerCheckoutId: session.id,
-      providerPaymentId:
-        typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+      providerPaymentId: paymentIntentId,
       paymentMethod: session.payment_method_types?.[0],
       currency: session.currency ?? 'gbp',
       grossAmount: amount,
