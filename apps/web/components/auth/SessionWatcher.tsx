@@ -56,7 +56,10 @@ export function SessionWatcher() {
           // dashboard/profile entries for a dead session.
           queryClient.removeQueries({ queryKey: ['auth', 'me'] });
 
-          if (isProtectedPath(window.location.pathname) || user !== null) {
+          // Only force a redirect from protected areas. On public pages the
+          // stale cache is already cleared above; bouncing an anonymous
+          // browser to the login screen mid-browse just strands readers.
+          if (isProtectedPath(window.location.pathname)) {
             window.location.href = buildLoginRedirect(
               window.location.pathname,
               window.location.search

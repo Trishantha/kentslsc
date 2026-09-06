@@ -34,14 +34,24 @@ export function CookieConsentBanner() {
     }
   }, []);
 
-  function accept() {
-    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({ accepted: true, date: new Date().toISOString() }));
+  // Hide the banner before touching storage: on iOS with "Block All Cookies"
+  // enabled or in Private Browsing, localStorage.setItem throws, which used to
+  // leave the banner permanently stuck on screen.
+  function persistConsent(accepted: boolean) {
     setVisible(false);
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({ accepted, date: new Date().toISOString() }));
+    } catch {
+      // Storage unavailable (blocked cookies / private mode) — banner already dismissed.
+    }
+  }
+
+  function accept() {
+    persistConsent(true);
   }
 
   function decline() {
-    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({ accepted: false, date: new Date().toISOString() }));
-    setVisible(false);
+    persistConsent(false);
   }
 
   if (!visible || gdpr?.cookieConsentEnabled === false) return null;
