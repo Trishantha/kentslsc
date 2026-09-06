@@ -396,23 +396,28 @@ export class FundraisingService {
     // the legacy paymentScheme (default bacs) applies.
     const scheme = method === 'instant_bank_pay' ? 'faster_payments' : (dto.paymentScheme ?? 'bacs');
 
+    // Kept on both the billing request and the pending Payment row so the
+    // fulfilment handler can still resolve it locally if the GoCardless API
+    // is unreachable when the payment confirms.
+    const checkoutMetadata = {
+      type: 'donation',
+      fundraiserId: fundraiser.id,
+      amount: String(netPence),
+      netAmount: String(feeResult.net),
+      processingFee: String(feeResult.fee),
+      grossAmount: String(feeResult.gross),
+      ...(userId && { userId }),
+      ...(dto.displayName && { displayName: dto.displayName }),
+      ...(metaMessage && { message: metaMessage }),
+      isAnonymous: String(dto.isAnonymous ?? false)
+    };
+
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan: 'one_off',
       amountPence: feeResult.gross,
       description: `Donation to ${fundraiser.title}`,
       scheme,
-      metadata: {
-        type: 'donation',
-        fundraiserId: fundraiser.id,
-        amount: String(netPence),
-        netAmount: String(feeResult.net),
-        processingFee: String(feeResult.fee),
-        grossAmount: String(feeResult.gross),
-        ...(userId && { userId }),
-        ...(dto.displayName && { displayName: dto.displayName }),
-        ...(metaMessage && { message: metaMessage }),
-        isAnonymous: String(dto.isAnonymous ?? false)
-      },
+      metadata: checkoutMetadata,
       redirectUri: `${baseUrl}/fundraisers/${fundraiser.id}?success=1&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
       exitUri: `${baseUrl}/fundraisers/${fundraiser.id}?canceled=1`,
       ...(customerId ? { customerId } : {})
@@ -432,7 +437,8 @@ export class FundraisingService {
         description: `Donation to ${fundraiser.title}`,
         payerName: dto.displayName ?? null,
         purchasedAt: new Date(),
-        sourceType: PaymentSourceType.DONATION
+        sourceType: PaymentSourceType.DONATION,
+        metadata: checkoutMetadata
       }
     });
 
@@ -495,7 +501,11 @@ export class FundraisingService {
   ) {
     if (metadata.type !== 'donation') return null;
     const fundraiserId = metadata.fundraiserId;
-    if (!fundraiserId) return null;
+    if (!fundraiserId) {
+      // Throw rather than silently skip: the processor treats a thrown error as
+      // a failed (retryable, visible) webhook instead of a processed one.
+      throw new Error(`GoCardless donation payment ${payment.id ?? ''} is missing fundraiserId in its metadata`);
+    }
 
     const billingRequestId = payment.links?.billing_request ?? null;
     const pendingPayment = billingRequestId
@@ -505,7 +515,11 @@ export class FundraisingService {
       : null;
 
     const amount = Number(metadata.amount ?? metadata.netAmount ?? payment.amount ?? 0) / 100;
-    if (amount <= 0) return null;
+    if (amount <= 0) {
+      throw new Error(
+        `GoCardless donation payment ${payment.id ?? ''} for fundraiser ${fundraiserId} has no resolvable amount`
+      );
+    }
 
     // recordDonation is idempotent by payment id (donation.paymentId).
     if (payment.id) {

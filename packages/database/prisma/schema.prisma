@@ -1014,6 +1014,7 @@ model WebhookEvent {
   eventType    String    @map("event_type")
   externalId   String?   @map("external_id")
   payloadHash  String    @map("payload_hash")
+  payload      Json?     @db.JsonB
   status       String    // received, processed, ignored, failed
   processedAt  DateTime? @map("processed_at")
   errorMessage String?   @map("error_message")

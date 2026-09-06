@@ -56,7 +56,8 @@ describe('GoCardlessWebhookController', () => {
 
   const webhookEvents = {
     record: jest.fn(),
-    markStatus: jest.fn()
+    markStatus: jest.fn(),
+    listFailed: jest.fn()
   } as unknown as jest.Mocked<WebhookEventService>;
 
   const webhookQueue = {
@@ -76,6 +77,7 @@ describe('GoCardlessWebhookController', () => {
     goCardlessService.verifyWebhookSignature.mockReturnValue(true);
     webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: false });
     webhookEvents.markStatus.mockResolvedValue(undefined as any);
+    webhookQueue.addWebhookJob.mockResolvedValue(undefined as any);
     controller = new GoCardlessWebhookController(
       goCardlessService as unknown as GoCardlessService,
       webhookEvents as unknown as WebhookEventService,
@@ -141,6 +143,80 @@ describe('GoCardlessWebhookController', () => {
     expect(res.json).toHaveBeenCalledWith({
       received: true,
       events: [{ id: event.id, duplicate: true }]
+    });
+  });
+
+  it('re-queues a duplicate event that previously failed', async () => {
+    const event = buildEvent();
+    webhookEvents.record.mockResolvedValue({
+      event: { id: 'ledger-1', status: 'failed' } as any,
+      isDuplicate: true
+    });
+
+    const res = mockResponse();
+    await controller.handleWebhook('valid-sig', buildBatch([event]), res as unknown as Response);
+
+    expect(webhookQueue.addWebhookJob).toHaveBeenCalledWith(
+      expect.objectContaining({ ledgerId: 'ledger-1', provider: 'gocardless', payload: event })
+    );
+    expect(res.json).toHaveBeenCalledWith({
+      received: true,
+      events: [{ id: event.id, received: true }]
+    });
+  });
+
+  it('reports 500 when re-enqueueing a failed duplicate fails', async () => {
+    const event = buildEvent();
+    webhookEvents.record.mockResolvedValue({
+      event: { id: 'ledger-1', status: 'failed' } as any,
+      isDuplicate: true
+    });
+    webhookQueue.addWebhookJob.mockRejectedValue(new Error('Redis unreachable'));
+
+    const res = mockResponse();
+    await controller.handleWebhook('valid-sig', buildBatch([event]), res as unknown as Response);
+
+    expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'failed', 'Redis unreachable');
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  describe('replayFailedWebhooks', () => {
+    it('re-queues failed events with payloads and resets their status', async () => {
+      webhookEvents.listFailed.mockResolvedValue([
+        {
+          id: 'ledger-1',
+          provider: 'gocardless',
+          eventType: 'payments.confirmed',
+          payload: { id: 'EV1', action: 'confirmed', resource_type: 'payments' }
+        },
+        { id: 'ledger-2', provider: 'stripe', eventType: 'checkout.session.completed', payload: null }
+      ] as any[]);
+
+      const result = await controller.replayFailedWebhooks();
+
+      expect(webhookQueue.addWebhookJob).toHaveBeenCalledTimes(1);
+      expect(webhookQueue.addWebhookJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ledgerId: 'ledger-1',
+          provider: 'gocardless',
+          eventType: 'payments.confirmed',
+          payload: { id: 'EV1', action: 'confirmed', resource_type: 'payments' }
+        })
+      );
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'received');
+      expect(result).toEqual({ requeued: 1, skipped: 1, skippedIds: ['ledger-2'] });
+    });
+
+    it('keeps the failed status when re-enqueueing throws', async () => {
+      webhookEvents.listFailed.mockResolvedValue([
+        { id: 'ledger-1', provider: 'gocardless', eventType: 'payments.confirmed', payload: { id: 'EV1' } }
+      ] as any[]);
+      webhookQueue.addWebhookJob.mockRejectedValue(new Error('Redis unreachable'));
+
+      const result = await controller.replayFailedWebhooks();
+
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'failed', 'Redis unreachable');
+      expect(result.requeued).toBe(0);
     });
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
@@ -44,6 +44,7 @@ interface Props {
 }
 
 export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const t = useTranslations('fundraiserDetail');
   const [activeTab, setActiveTab] = useState<'updates' | 'donations'>('donations');
@@ -54,6 +55,15 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
     mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
       const res = await api.post('/payments/confirm-session', { sessionId, provider });
       return res.data;
+    },
+    // The billing request may not be fulfilled yet right after redirect; retry
+    // a few times so the confirmation backstop doesn't give up after one attempt.
+    retry: 3,
+    retryDelay: 2000,
+    onSuccess: () => {
+      // The fundraiser props were fetched server-side before the donation was
+      // recorded; refresh so the progress total and donor count update.
+      router.refresh();
     }
   });
 

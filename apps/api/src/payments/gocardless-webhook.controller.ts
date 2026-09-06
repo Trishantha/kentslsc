@@ -1,9 +1,13 @@
-import { Controller, Logger, Post, Headers, RawBody, Res } from '@nestjs/common';
+import { Controller, Logger, Post, Headers, RawBody, Res, Body, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
+import { UserRole } from '@kentslsc/shared';
 import { GoCardlessService } from './gocardless.service.js';
 import { WebhookEventService } from './webhook-event.service.js';
 import { WebhookQueueService } from './webhook-queue.service.js';
+import type { WebhookJobData } from '../queue/queue.types.js';
 import type { GoCardlessWebhookEvent } from './gocardless-webhook.types.js';
 
 interface GoCardlessWebhookBatch {
@@ -80,8 +84,30 @@ export class GoCardlessWebhookController {
       });
 
       if (isDuplicate) {
-        this.logger.debug(`Duplicate GoCardless event ${event.id} ignored.`);
-        results.push({ id: event.id, duplicate: true });
+        if (ledgerEvent.status === 'failed') {
+          // A previous delivery was ledgered but never processed (e.g. the
+          // enqueue failed). GoCardless will not send anything new for it, so
+          // re-queue it here; the handlers are idempotent.
+          this.logger.log(`Re-queuing previously failed GoCardless event ${event.id}.`);
+          try {
+            await this.webhookQueue.addWebhookJob({
+              ledgerId: ledgerEvent.id,
+              provider: 'gocardless',
+              eventType,
+              payload: event
+            });
+            results.push({ id: event.id, received: true });
+          } catch (err) {
+            const message = (err as Error).message;
+            this.logger.error(`GoCardless webhook ${event.id} re-enqueue failed: ${message}`);
+            await this.webhookEvents.markStatus(ledgerEvent.id, 'failed', message);
+            firstFailure ??= message;
+            results.push({ id: event.id, error: message });
+          }
+        } else {
+          this.logger.debug(`Duplicate GoCardless event ${event.id} ignored.`);
+          results.push({ id: event.id, duplicate: true });
+        }
         continue;
       }
 
@@ -109,5 +135,45 @@ export class GoCardlessWebhookController {
     }
 
     return res.json({ received: true, events: results });
+  }
+
+  /**
+   * Admin recovery: re-queue ledger rows left in `failed` status (e.g. enqueue
+   * failures, or events that failed processing before a fix was deployed).
+   * Events recorded before payloads were stored in the ledger cannot be
+   * replayed and are reported as skipped. Processing is idempotent.
+   */
+  @Post('webhooks/replay-failed')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  async replayFailedWebhooks(@Body() body?: { limit?: number }) {
+    const limit = Math.min(Math.max(body?.limit ?? 50, 1), 200);
+    const failed = await this.webhookEvents.listFailed(limit);
+    let requeued = 0;
+    const skipped: string[] = [];
+
+    for (const row of failed) {
+      const provider = row.provider as WebhookJobData['provider'];
+      if (!row.payload || !['stripe', 'gocardless', 'paypal'].includes(provider)) {
+        skipped.push(row.id);
+        continue;
+      }
+      try {
+        await this.webhookQueue.addWebhookJob({
+          ledgerId: row.id,
+          provider,
+          eventType: row.eventType,
+          payload: row.payload as WebhookJobData['payload']
+        });
+        await this.webhookEvents.markStatus(row.id, 'received');
+        requeued++;
+      } catch (err) {
+        const message = (err as Error).message;
+        this.logger.error(`Replay of webhook event ${row.id} failed to enqueue: ${message}`);
+        await this.webhookEvents.markStatus(row.id, 'failed', message);
+      }
+    }
+
+    return { requeued, skipped: skipped.length, skippedIds: skipped };
   }
 }

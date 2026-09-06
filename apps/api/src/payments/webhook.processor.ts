@@ -121,12 +121,18 @@ export class WebhookProcessor {
           return 'ignored';
         }
 
-        // Settlement only: the payment was already fulfilled at `confirmed`.
+        const metadata = await this.resolveGoCardlessMetadata(payment);
+
         if (key === 'payments.paid_out') {
+          // Settlement only for most flows — but if the matching payments.confirmed
+          // was missed, a donation would otherwise never be recorded. Fulfilment is
+          // idempotent, so this only recovers donations that slipped through.
+          if (metadata.type === 'donation') {
+            await this.fundraisingService.handleGoCardlessPaymentCompleted(payment, metadata);
+          }
           return 'processed';
         }
 
-        const metadata = await this.resolveGoCardlessMetadata(payment);
         if (
           metadata.source === 'membership' ||
           payment.links?.subscription ||
@@ -142,7 +148,7 @@ export class WebhookProcessor {
         } else if (metadata.type === 'job_publish') {
           await this.directoryService.handleGoCardlessPaymentCompleted(payment, metadata, 'job_publish');
         } else {
-          this.logger.debug(`GoCardless payment ${payment.id} has no fulfilment metadata; ignoring.`);
+          this.logger.warn(`GoCardless payment ${payment.id} has no fulfilment metadata; ignoring.`);
           return 'ignored';
         }
         return 'processed';
@@ -260,15 +266,29 @@ export class WebhookProcessor {
       return fromPayment;
     }
 
+    let merged: Record<string, string>;
     try {
       const billingRequest = await this.goCardlessService.getBillingRequest(billingRequestId);
-      return { ...unpackBillingRequestMetadata(fromPayment), ...unpackBillingRequestMetadata(billingRequest.metadata) };
+      merged = { ...unpackBillingRequestMetadata(fromPayment), ...unpackBillingRequestMetadata(billingRequest.metadata) };
     } catch (err) {
       this.logger.warn(
         `Could not fetch GoCardless billing request ${billingRequestId}: ${(err as Error).message}`
       );
-      return unpackBillingRequestMetadata(fromPayment);
+      merged = unpackBillingRequestMetadata(fromPayment);
     }
+
+    // The billing request metadata (and even the payment's own) can be empty
+    // when the API is unreachable or the environment mismatches. The pending
+    // Payment row recorded at checkout carries the same metadata locally.
+    if (!merged.type && !merged.source) {
+      const pending = await this.paymentsService.getPaymentByProviderCheckoutId(billingRequestId);
+      const local = pending?.metadata as Record<string, string> | null | undefined;
+      if (local) {
+        merged = { ...merged, ...local };
+      }
+    }
+
+    return merged;
   }
 
   private async resolveGoCardlessScheduleMetadata(

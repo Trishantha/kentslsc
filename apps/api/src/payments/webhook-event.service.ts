@@ -22,6 +22,14 @@ export class WebhookEventService {
     return createHash('sha256').update(payload).digest('hex');
   }
 
+  private parsePayload(payload: Buffer | string): unknown {
+    try {
+      return JSON.parse(payload.toString('utf8'));
+    } catch {
+      return undefined;
+    }
+  }
+
   /**
    * Record a webhook event and return its id. If an event with the same
    * provider and external id already exists, return the existing row instead of
@@ -52,6 +60,7 @@ export class WebhookEventService {
           eventType: input.eventType,
           externalId: input.externalId ?? null,
           payloadHash,
+          payload: this.parsePayload(input.payload) as Prisma.InputJsonValue | undefined,
           status: input.status ?? 'received',
           errorMessage: input.errorMessage ?? null
         }
@@ -85,6 +94,17 @@ export class WebhookEventService {
         processedAt: status === 'processed' || status === 'ignored' ? new Date() : null,
         errorMessage: errorMessage ?? null
       }
+    });
+  }
+
+  /**
+   * Failed events that still have their payload stored and can be replayed.
+   */
+  async listFailed(limit = 50) {
+    return this.prisma.webhookEvent.findMany({
+      where: { status: 'failed' },
+      orderBy: { createdAt: 'asc' },
+      take: limit
     });
   }
 }

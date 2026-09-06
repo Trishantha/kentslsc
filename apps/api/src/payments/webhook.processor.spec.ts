@@ -17,7 +17,8 @@ jest.mock('gocardless-nodejs', () => ({
 describe('WebhookProcessor', () => {
   const paymentsService = {
     syncStripeFeesFromSession: jest.fn(),
-    recordGoCardlessRefund: jest.fn()
+    recordGoCardlessRefund: jest.fn(),
+    getPaymentByProviderCheckoutId: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
   const eventsService = {
@@ -66,6 +67,7 @@ describe('WebhookProcessor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     webhookEvents.markStatus.mockResolvedValue(undefined as any);
+    paymentsService.getPaymentByProviderCheckoutId.mockResolvedValue(undefined as any);
     processor = new WebhookProcessor(
       paymentsService as any,
       eventsService as any,
@@ -237,7 +239,7 @@ describe('WebhookProcessor', () => {
       expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
     });
 
-    it('treats payments.paid_out as a no-op for fulfilment', async () => {
+    it('treats payments.paid_out as a no-op for membership fulfilment', async () => {
       const job = buildGoCardlessJob({
         action: 'paid_out',
         resourceType: 'payments',
@@ -247,6 +249,65 @@ describe('WebhookProcessor', () => {
       await processor.process(job);
 
       expect(membershipsService.handleGoCardlessPaymentCompleted).not.toHaveBeenCalled();
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+
+    it('fulfils a missed donation on payments.paid_out', async () => {
+      const job = buildGoCardlessJob({
+        action: 'paid_out',
+        resourceType: 'payments',
+        payment: { id: 'PM123', metadata: { type: 'donation', fundraiserId: 'fr-1', amount: '2500' } }
+      });
+      fundraisingService.handleGoCardlessPaymentCompleted.mockResolvedValue({} as any);
+
+      await processor.process(job);
+
+      expect(fundraisingService.handleGoCardlessPaymentCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'PM123' }),
+        expect.objectContaining({ type: 'donation', fundraiserId: 'fr-1' })
+      );
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+
+    it('marks the ledger failed when donation fulfilment throws on payments.paid_out', async () => {
+      const job = buildGoCardlessJob({
+        action: 'paid_out',
+        resourceType: 'payments',
+        payment: { id: 'PM123', metadata: { type: 'donation' } }
+      });
+      fundraisingService.handleGoCardlessPaymentCompleted.mockRejectedValue(
+        new Error('GoCardless donation payment PM123 is missing fundraiserId in its metadata')
+      );
+
+      await expect(processor.process(job)).rejects.toThrow('missing fundraiserId');
+
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith(
+        'ledger-1',
+        'failed',
+        'GoCardless donation payment PM123 is missing fundraiserId in its metadata'
+      );
+    });
+
+    it('recovers donation metadata from the local pending payment when the billing request fetch fails', async () => {
+      const job = buildGoCardlessJob({
+        action: 'confirmed',
+        resourceType: 'payments',
+        billingRequest: 'BR123',
+        payment: { id: 'PM123', amount: '2500', currency: 'GBP' } // no metadata on the payment body
+      });
+      goCardlessService.getBillingRequest.mockRejectedValue(new Error('unauthorized') as any);
+      paymentsService.getPaymentByProviderCheckoutId.mockResolvedValue({
+        metadata: { type: 'donation', fundraiserId: 'fr-1', amount: '2500' }
+      } as any);
+      fundraisingService.handleGoCardlessPaymentCompleted.mockResolvedValue({} as any);
+
+      await processor.process(job);
+
+      expect(paymentsService.getPaymentByProviderCheckoutId).toHaveBeenCalledWith('BR123');
+      expect(fundraisingService.handleGoCardlessPaymentCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'PM123' }),
+        expect.objectContaining({ type: 'donation', fundraiserId: 'fr-1' })
+      );
       expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
     });
 

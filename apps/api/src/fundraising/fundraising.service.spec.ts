@@ -140,7 +140,12 @@ describe('FundraisingService checkout provider branching', () => {
           paymentMethod: 'direct_debit',
           paymentStatus: PaymentStatus.PENDING,
           providerCheckoutId: 'BR123',
-          sourceType: PaymentSourceType.DONATION
+          sourceType: PaymentSourceType.DONATION,
+          metadata: expect.objectContaining({
+            type: 'donation',
+            fundraiserId: mockFundraiser.id,
+            amount: '2500'
+          })
         })
       })
     );
@@ -237,5 +242,58 @@ describe('FundraisingService checkout provider branching', () => {
     expect(result).toEqual(
       expect.objectContaining({ sessionId: 'BR123', provider: 'gocardless' })
     );
+  });
+});
+
+describe('FundraisingService.handleGoCardlessPaymentCompleted', () => {
+  let service: FundraisingService;
+
+  const mockPrisma: any = {
+    payment: {
+      findFirst: jest.fn()
+    },
+    donation: {
+      findFirst: jest.fn()
+    }
+  };
+
+  const payment = {
+    id: 'PM123',
+    amount: '2500',
+    currency: 'GBP',
+    links: { billing_request: 'BR123' }
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new FundraisingService(
+      mockPrisma,
+      {},
+      {},
+      { get: jest.fn() },
+      {},
+      {},
+      {}
+    );
+  });
+
+  it('throws when the donation metadata has no fundraiserId', async () => {
+    await expect(
+      service.handleGoCardlessPaymentCompleted(payment as any, { type: 'donation', amount: '2500' })
+    ).rejects.toThrow('missing fundraiserId');
+  });
+
+  it('throws when the donation amount cannot be resolved', async () => {
+    await expect(
+      service.handleGoCardlessPaymentCompleted(
+        { ...payment, amount: undefined } as any,
+        { type: 'donation', fundraiserId: 'fundraiser-1' }
+      )
+    ).rejects.toThrow('no resolvable amount');
+  });
+
+  it('returns null for non-donation metadata without throwing', async () => {
+    await expect(service.handleGoCardlessPaymentCompleted(payment as any, { source: 'membership' })).resolves.toBeNull();
+    expect(mockPrisma.payment.findFirst).not.toHaveBeenCalled();
   });
 });

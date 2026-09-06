@@ -91,6 +91,42 @@ describe('WebhookEventService', () => {
     );
   });
 
+  it('stores the parsed JSON payload alongside the hash', async () => {
+    prisma.webhookEvent.findUnique.mockResolvedValue(null);
+    prisma.webhookEvent.create.mockResolvedValue({ id: 'evt-3' } as any);
+
+    await service.record({
+      provider: 'gocardless',
+      eventType: 'payments.confirmed',
+      externalId: 'EV123',
+      payload: Buffer.from(JSON.stringify({ id: 'EV123', action: 'confirmed' }))
+    });
+
+    expect(prisma.webhookEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payload: { id: 'EV123', action: 'confirmed' },
+          payloadHash: expect.any(String)
+        })
+      })
+    );
+  });
+
+  it('omits the payload when the body is not valid JSON', async () => {
+    prisma.webhookEvent.findUnique.mockResolvedValue(null);
+    prisma.webhookEvent.create.mockResolvedValue({ id: 'evt-4' } as any);
+
+    await service.record({
+      provider: 'stripe',
+      eventType: 'checkout.session.completed',
+      externalId: 'cs_1',
+      payload: Buffer.from('not-json')
+    });
+
+    const createArg = prisma.webhookEvent.create.mock.calls[0][0] as { data: { payload?: unknown } };
+    expect(createArg.data.payload).toBeUndefined();
+  });
+
   it('marks an event as processed', async () => {
     prisma.webhookEvent.update.mockResolvedValue({ id: 'evt-1', status: 'processed' } as any);
 
