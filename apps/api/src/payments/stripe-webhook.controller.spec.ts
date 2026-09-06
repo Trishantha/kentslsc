@@ -181,7 +181,7 @@ describe('StripeWebhookController', () => {
     it('retrieves the session, records a synthetic event and processes it', async () => {
       const session = buildStripeSession();
       paymentsService.getFullCheckoutSession.mockResolvedValue(session);
-      webhookProcessor.process.mockResolvedValue(undefined);
+      webhookProcessor.process.mockResolvedValue(true);
 
       const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
 
@@ -201,7 +201,7 @@ describe('StripeWebhookController', () => {
           eventType: 'checkout.session.completed'
         })
       );
-      expect(result).toEqual({ received: true });
+      expect(result).toEqual({ received: true, fulfilled: true });
     });
 
     it('returns duplicate when the session has already been confirmed', async () => {
@@ -225,14 +225,14 @@ describe('StripeWebhookController', () => {
         event: { id: 'ledger-1', status: 'failed' } as any,
         isDuplicate: true
       });
-      webhookProcessor.process.mockResolvedValue(undefined);
+      webhookProcessor.process.mockResolvedValue(true);
 
       const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
 
       expect(webhookProcessor.process).toHaveBeenCalledWith(
         expect.objectContaining({ ledgerId: 'ledger-1', eventType: 'checkout.session.completed' })
       );
-      expect(result).toEqual({ received: true });
+      expect(result).toEqual({ received: true, fulfilled: true });
     });
 
     it('reprocesses a confirmation whose ledger entry never reached processed', async () => {
@@ -242,12 +242,24 @@ describe('StripeWebhookController', () => {
         event: { id: 'ledger-1', status: 'received' } as any,
         isDuplicate: true
       });
-      webhookProcessor.process.mockResolvedValue(undefined);
+      webhookProcessor.process.mockResolvedValue(true);
 
       const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
 
       expect(webhookProcessor.process).toHaveBeenCalled();
-      expect(result).toEqual({ received: true });
+      expect(result).toEqual({ received: true, fulfilled: true });
+    });
+
+    it('marks the ledger ignored and reports fulfilled:false when no handler applied the payment', async () => {
+      const session = buildStripeSession();
+      paymentsService.getFullCheckoutSession.mockResolvedValue(session);
+      webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: false });
+      webhookProcessor.process.mockResolvedValue(false);
+
+      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+
+      expect(result).toEqual({ received: true, fulfilled: false });
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'ignored');
     });
 
     it('throws when the checkout session is not complete', async () => {
@@ -284,7 +296,7 @@ describe('StripeWebhookController', () => {
         links: { payment_request_payment: 'PM123', mandate_request_mandate: 'MD123' }
       } as any);
       paymentsService.getPaymentByProviderCheckoutId.mockResolvedValue(null);
-      webhookProcessor.process.mockResolvedValue(undefined);
+      webhookProcessor.process.mockResolvedValue(true);
 
       const result = await controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' });
 

@@ -30,15 +30,18 @@ export class WebhookProcessor {
     private readonly goCardlessService: GoCardlessService
   ) {}
 
-  async process(data: WebhookJobData): Promise<void> {
+  async process(data: WebhookJobData): Promise<unknown> {
     try {
       if (data.provider === 'stripe') {
-        await this.processStripeEvent(data);
+        const fulfilled = await this.processStripeEvent(data);
         await this.webhookEvents.markStatus(data.ledgerId, 'processed');
+        return fulfilled;
       } else if (data.provider === 'gocardless') {
         const status = await this.processGoCardlessEvent(data);
         await this.webhookEvents.markStatus(data.ledgerId, status);
+        return status;
       }
+      return undefined;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Webhook ${data.provider} ${data.eventType} processing failed: ${message}`);
@@ -47,19 +50,23 @@ export class WebhookProcessor {
     }
   }
 
-  private async processStripeEvent(data: WebhookJobData): Promise<void> {
+  private async processStripeEvent(data: WebhookJobData): Promise<boolean> {
     const event = data.payload as Stripe.Event;
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const metadata = session.metadata ?? {};
+      let fulfilled = false;
 
       if (metadata.source === 'membership') {
         await this.membershipsService.handleCheckoutSessionCompleted(session);
+        fulfilled = true;
       } else if (metadata.type === 'event_ticket') {
         await this.eventsService.handleCheckoutCompleted(session);
+        fulfilled = true;
       } else if (metadata.type === 'donation') {
         await this.fundraisingService.handleCheckoutCompleted(session);
+        fulfilled = true;
       } else if (metadata.type === 'directory_promotion') {
         await this.directoryService.handlePromotionCompleted(metadata, 'stripe', {
           providerCheckoutId: session.id,
@@ -93,6 +100,7 @@ export class WebhookProcessor {
       // Overwrite the estimated processing fee with Stripe's actual fee and net
       // settlement so the revenue report matches Stripe's payout reporting.
       await this.paymentsService.syncStripeFeesFromSession(session);
+      return fulfilled;
     } else if (event.type === 'customer.subscription.updated') {
       await this.membershipsService.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
     } else if (event.type === 'customer.subscription.deleted') {
@@ -100,6 +108,7 @@ export class WebhookProcessor {
     } else if (event.type === 'invoice.paid') {
       await this.membershipsService.handleInvoicePaid(event.data.object as Stripe.Invoice);
     }
+    return false;
   }
 
   /**

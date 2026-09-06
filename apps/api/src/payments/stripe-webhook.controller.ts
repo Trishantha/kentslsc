@@ -155,9 +155,20 @@ export class StripeWebhookController {
       payload: syntheticEvent
     };
 
-    await this.webhookProcessor.process(job);
+    const fulfilled = await this.webhookProcessor.process(job);
 
-    return { received: true };
+    // The frontend only calls this route from a checkout success redirect, so
+    // a session with no fulfilment metadata means the payment was never
+    // applied. Leave the ledger 'ignored' (not 'processed') so a later retry
+    // re-runs, and log what Stripe actually returned.
+    if (fulfilled !== true) {
+      this.logger.warn(
+        `confirm-session ${sessionId}: no fulfilment handler ran; stripe metadata keys: ${Object.keys(session.metadata ?? {}).join(',') || '(none)'}`
+      );
+      await this.webhookEvents.markStatus(recordResult.event.id, 'ignored');
+    }
+
+    return { received: true, fulfilled: fulfilled === true };
   }
 
   /**

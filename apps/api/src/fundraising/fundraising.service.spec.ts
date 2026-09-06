@@ -268,12 +268,12 @@ describe('FundraisingService.handleGoCardlessPaymentCompleted', () => {
     jest.clearAllMocks();
     service = new FundraisingService(
       mockPrisma,
-      {},
-      {},
-      { get: jest.fn() },
-      {},
-      {},
-      {}
+      {} as any,
+      {} as any,
+      { get: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any
     );
   });
 
@@ -327,15 +327,15 @@ describe('FundraisingService.handleCheckoutCompleted', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     tx = {
-      donation: { create: jest.fn().mockResolvedValue({ id: 'don-1' }) },
-      payment: { create: jest.fn().mockResolvedValue({ id: 'pay-1' }) },
-      fundraiser: { update: jest.fn().mockResolvedValue({ raisedAmount: 25, targetAmount: 100 }) }
+      donation: { create: (jest.fn() as any).mockResolvedValue({ id: 'don-1' }) },
+      payment: { create: (jest.fn() as any).mockResolvedValue({ id: 'pay-1' }) },
+      fundraiser: { update: (jest.fn() as any).mockResolvedValue({ raisedAmount: 25, targetAmount: 100 }) }
     };
     mockPrisma.donation.findFirst.mockResolvedValue(null);
     mockPrisma.fundraiser.findUnique.mockResolvedValue(null);
     mockPrisma.$transaction.mockImplementation((fn: any) => fn(tx));
     mockEmailService.sendDonationThankYou.mockResolvedValue(undefined);
-    service = new FundraisingService(mockPrisma, {}, {}, { get: jest.fn() }, mockEmailService, {}, {});
+    service = new FundraisingService(mockPrisma, {} as any, {} as any, { get: jest.fn() } as any, mockEmailService, {} as any, {} as any);
   });
 
   it('records the donation with the payment intent id when payment_intent is expanded', async () => {
@@ -367,5 +367,28 @@ describe('FundraisingService.handleCheckoutCompleted', () => {
         data: expect.objectContaining({ paymentId: 'pi_123' })
       })
     );
+  });
+
+  it('throws when donation metadata has no fundraiserId', async () => {
+    await expect(
+      service.handleCheckoutCompleted({
+        ...baseSession,
+        metadata: { type: 'donation', amount: '2500' },
+        payment_intent: 'pi_123'
+      } as any)
+    ).rejects.toThrow('missing fundraiserId');
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('throws when the donation amount cannot be resolved', async () => {
+    await expect(
+      service.handleCheckoutCompleted({
+        ...baseSession,
+        metadata: { type: 'donation', fundraiserId: 'fundraiser-1' },
+        amount_total: null,
+        payment_intent: 'pi_123'
+      } as any)
+    ).rejects.toThrow('no resolvable amount');
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 });

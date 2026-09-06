@@ -450,18 +450,27 @@ export class FundraisingService {
   }
 
   async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    const fundraiserId = session.metadata?.fundraiserId;
-    if (!fundraiserId || session.metadata?.type !== 'donation') return;
+    const metadata = session.metadata ?? {};
+    if (metadata.type !== 'donation') return;
+
+    const fundraiserId = metadata.fundraiserId;
+    if (!fundraiserId) {
+      // Throw rather than silently skip: the processor treats a thrown error as
+      // a failed (retryable, visible) webhook instead of a processed one.
+      throw new Error(`Stripe donation session ${session.id} is missing fundraiserId in its metadata`);
+    }
 
     // Use the net/advertised amount recorded in metadata rather than the
     // gross Stripe total, which may include the processing fee line item.
-    const amount = Number(session.metadata?.netAmount ?? session.amount_total ?? 0) / 100;
-    if (amount <= 0) return;
+    const amount = Number(metadata.netAmount ?? metadata.amount ?? session.amount_total ?? 0) / 100;
+    if (amount <= 0) {
+      throw new Error(`Stripe donation session ${session.id} for fundraiser ${fundraiserId} has no resolvable amount`);
+    }
 
-    const userId = session.metadata?.userId ?? null;
-    const displayName = session.metadata?.displayName ?? null;
-    const message = session.metadata?.message ?? null;
-    const isAnonymous = session.metadata?.isAnonymous === 'true';
+    const userId = metadata.userId ?? null;
+    const displayName = metadata.displayName ?? null;
+    const message = metadata.message ?? null;
+    const isAnonymous = metadata.isAnonymous === 'true';
     const donorEmail = session.customer_details?.email ?? null;
 
     // payment_intent may be an expanded PaymentIntent object (confirm-session
@@ -733,6 +742,10 @@ export class FundraisingService {
       }
       throw err;
     }
+
+    this.logger.log(
+      `Donation recorded: ${currency} ${amount} for fundraiser ${fundraiserId} (payment ${paymentId ?? input.existingPaymentId ?? 'unknown'})`
+    );
 
     // Send thank-you email to donor
     if (donorEmail) {
