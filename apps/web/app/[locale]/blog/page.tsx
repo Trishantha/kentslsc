@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link, useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils';
 import { summarizeRichText } from '@/lib/rich-text';
 import type { MixedBlogListItem } from '@kentslsc/shared';
 
-export default function BlogPage() {
+function BlogPageContent() {
   const t = useTranslations('blog');
   const tCommon = useTranslations('common');
   const router = useRouter();
@@ -174,5 +174,13 @@ export default function BlogPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BlogPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <BlogPageContent />
+    </Suspense>
   );
 }
