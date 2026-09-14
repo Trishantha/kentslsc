@@ -270,6 +270,9 @@ importers:
       '@stripe/stripe-js':
         specifier: ^9.13.0
         version: 9.13.0
+      '@swc/helpers':
+        specifier: ^0.5.23
+        version: 0.5.23
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
