@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="mt-4 text-lg text-slate-600 dark:text-slate-400">
         The page you are looking for does not exist.
       </p>
-      <a href="/en" className="btn-primary mt-8">
+      <a href="/" className="btn-primary mt-8">
         Go home
       </a>
     </div>
