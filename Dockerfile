@@ -11,6 +11,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY packages/config/package.json ./packages/config/package.json
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
+COPY patches ./patches
 RUN mkdir -p apps/web/public && pnpm install --frozen-lockfile
 
 FROM deps AS build

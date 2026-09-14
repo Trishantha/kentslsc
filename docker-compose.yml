@@ -36,12 +36,15 @@ services:
       # This compose file is for local development. Production deployments must not
       # point FRONTEND_URL at localhost; the API explicitly rejects localhost
       # origins in production to prevent broken callbacks and insecure setup.
+      # The unified server forces production mode for its child processes and the
+      # API rejects localhost FRONTEND_URL values, so this codespace's forwarded
+      # origin is used here instead of localhost.
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://kentslsc:kentslsc@postgres:5432/kentslsc
       REDIS_URL: redis://redis:6379
       QUEUE_ENABLED: "true"
-      FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: https://laughing-waffle-rpw6wv5vq7qfw5g-3000.app.github.dev
       NEXT_PUBLIC_API_URL: http://localhost:3000
       # Run API and web as separate child processes so a crash or memory spike in
       # one side does not take down the other. The proxy routes /api to the unix
