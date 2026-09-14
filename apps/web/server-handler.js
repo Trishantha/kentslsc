@@ -16,7 +16,10 @@ const quiet = process.env.WEB_QUIET !== 'false';
 // without them the in-process handler 500s every request ("Internal Server
 // Error") even though prepare() succeeds. The unified server exports these
 // before requiring this module; fallbacks keep standalone use working.
-const hostname = process.env.WEB_INTERNAL_HOSTNAME || process.env.HOST || '0.0.0.0';
+// 127.0.0.1 is mapped to 'localhost': with an IP literal the middleware
+// rewrite origin mismatches the request URL and locale routes redirect-loop.
+const resolvedHostname = process.env.WEB_INTERNAL_HOSTNAME || process.env.HOST || '0.0.0.0';
+const hostname = resolvedHostname === '127.0.0.1' ? 'localhost' : resolvedHostname;
 const port = Number(process.env.WEB_INTERNAL_PORT || process.env.PORT || 3000);
 const app = next({ dev, dir, quiet, hostname, port });
 const handle = app.getRequestHandler();
