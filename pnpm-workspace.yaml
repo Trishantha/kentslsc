@@ -2,6 +2,15 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# Hostinger's hbuilds deploy copy dereferences pnpm's symlinked node_modules, so
+# packages reachable only through .pnpm real paths (transitive deps such as
+# next's own @next/env, styled-jsx, caniuse-lite, postcss, @swc/helpers) become
+# unresolvable at runtime and the web handler crash-loops. Hoist every
+# dependency into the root node_modules so plain Node walk-up resolution finds
+# them regardless of how the host copies symlinks.
+publicHoistPattern:
+  - '*'
+
 overrides:
   body-parser: ^1.20.6
   deepmerge-ts: ^8.0.0
