@@ -1254,6 +1254,13 @@ async function startInProcessWeb() {
   // Force server-to-API calls inside this process to use the local in-process
   // listener, even if the env file points API_PROXY_TARGET at a public URL.
   process.env.INTERNAL_API_URL = localApiOrigin;
+  // Next 16 requires hostname/port for in-process request handling (absolute
+  // URL construction at request time); without them every web request 500s.
+  // NOTE: must be 'localhost', not '127.0.0.1' — with an IP-literal hostname
+  // the middleware rewrite origin mismatches the request URL and locale routes
+  // redirect-loop (/) <-> (/en).
+  process.env.WEB_INTERNAL_HOSTNAME = 'localhost';
+  process.env.WEB_INTERNAL_PORT = String(publicPort);
   console.log(`Server-side API origin forced to local: ${localApiOrigin}`);
   const handlerPath = path.join(webDir, 'server-handler.js');
   // eslint-disable-next-line import/no-dynamic-require
