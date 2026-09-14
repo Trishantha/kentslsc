@@ -5,6 +5,8 @@ import { TerminusModule } from '@nestjs/terminus';
 import { HealthController } from './health.controller.js';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator.js';
+import { ROLES_KEY } from '../common/decorators/roles.decorator.js';
+import { UserRole } from '@kentslsc/shared';
 
 describe('HealthController', () => {
   let controller: HealthController;
@@ -54,7 +56,15 @@ describe('HealthController', () => {
   });
 
   it('exposes operational endpoints without authentication', () => {
-    expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController)).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController.prototype.live)).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController.prototype.ready)).toBe(true);
+  });
+
+  it('restricts the metrics endpoint to admins', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, HealthController.prototype.metrics)).not.toBe(true);
+    expect(Reflect.getMetadata(ROLES_KEY, HealthController.prototype.metrics)).toEqual([
+      UserRole.ADMIN
+    ]);
   });
 
   it('live endpoint returns up', async () => {

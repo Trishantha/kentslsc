@@ -20,13 +20,13 @@ overrides:
   body-parser: ^1.20.6
   deepmerge-ts: ^8.0.0
   file-type: ^21.3.2
-  js-yaml: ^4.1.2
+  js-yaml: ^4.3.2
   lodash: ^4.17.23
-  mysql2: ^3.22.0
-  multer: ^2.2.0
+  mysql2: ^3.24.4
+  multer: ^2.4.0
   postcss: ^8.5.23
-  qs: ^6.15.2
-  sharp: ^0.35.0
+  qs: ^6.16.0
+  sharp: ^0.35.4
   fast-uri: ^3.1.6
   xlsx: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
@@ -58,3 +58,6 @@ onlyBuiltDependencies:
 
 patchedDependencies:
   gocardless-nodejs: patches/gocardless-nodejs.patch
+
+minimumReleaseAgeExclude:
+  - multer@2.4.0
