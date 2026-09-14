@@ -8,6 +8,8 @@ import { safeRedirect } from './lib/safe-redirect';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const intlMiddleware = createMiddleware(routing);
+const maintenanceModeEnabled = process.env.MAINTENANCE_MODE === 'true';
+const maintenancePath = '/maintenance';
 
 // These live outside the [locale] segment and supply their own layouts.
 const protectedPrefixes = ['/dashboard', '/forum', '/admin', '/verify-email'];
@@ -22,10 +24,25 @@ function isProtectedPath(pathname: string) {
   );
 }
 
+function isMaintenancePath(pathname: string) {
+  return pathname === maintenancePath || pathname.startsWith(`${maintenancePath}/`);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const redirectBase =
     process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? request.url;
+
+  if (maintenanceModeEnabled && !isMaintenancePath(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = maintenancePath;
+    url.search = '';
+    return NextResponse.rewrite(url, { status: 503 });
+  }
+
+  if (isMaintenancePath(pathname)) {
+    return NextResponse.next();
+  }
 
   // Presence of a refresh cookie is the signal that a session exists at all.
   // The access cookie lasts 15 minutes while the session lasts 7 days, so keying

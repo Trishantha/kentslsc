@@ -88,6 +88,7 @@ See `.env.example` for the full list. Key variables:
 - `GOCARDLESS_ACCESS_TOKEN` / `GOCARDLESS_WEBHOOK_SECRET` / `GOCARDLESS_ENVIRONMENT` – GoCardless credentials (optional; see `docs/gocardless-setup.md`)
 - `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` – SMTP settings
 - `FRONTEND_URL` – URL of the Next.js app
+- `MAINTENANCE_MODE` – set to `true` and redeploy/restart the Node.js app to serve the maintenance page for public frontend routes
 - `NEXT_PUBLIC_API_URL` – URL of the NestJS API
 - `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` / `SUPABASE_BUCKET` – optional Supabase Storage bucket for file uploads
 
