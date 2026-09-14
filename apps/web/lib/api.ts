@@ -102,7 +102,7 @@ api.interceptors.response.use(
       typeof window !== 'undefined' &&
       !window.location.pathname.startsWith('/verify-email')
     ) {
-      window.location.href = '/verify-email';
+      window.location.replace('/verify-email');
       return Promise.reject(error);
     }
 
@@ -134,7 +134,7 @@ api.interceptors.response.use(
         const target = safeRedirect(here, '/dashboard');
         const localeMatch = window.location.pathname.match(/^\/(en|si|ta)(?:\/|$)/);
         const localePrefix = localeMatch ? `/${localeMatch[1]}` : '';
-        window.location.href = `${localePrefix}/auth/login?redirect=${encodeURIComponent(target)}`;
+        window.location.replace(`${localePrefix}/auth/login?redirect=${encodeURIComponent(target)}`);
       }
     }
     return Promise.reject(error);

@@ -7,7 +7,7 @@
  */
 
 // Control characters (CR/LF/NUL/tab) can split headers or defeat the checks below.
-// eslint-disable-next-line no-control-regex
+
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 const AUTH_PATH = /^\/(?:[a-z]{2}\/)?auth\//;

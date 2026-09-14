@@ -90,7 +90,6 @@ export function usePhotoLightbox(photos: LightboxPhoto[]): UsePhotoLightboxResul
           className="flex max-h-full max-w-full flex-col items-center"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={photo.url}
             alt={photo.caption || ''}

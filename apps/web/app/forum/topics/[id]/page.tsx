@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Send, ArrowLeft, Trash2 } from 'lucide-react';
@@ -35,6 +35,7 @@ interface Post {
 }
 
 export default function TopicPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const topicId = params?.id ?? '';
   const { data: user } = useAuth();
@@ -98,7 +99,7 @@ export default function TopicPage() {
 
   async function deleteTopic() {
     await api.delete(`/forum/topics/${topicId}`);
-    window.location.href = `/forum/categories/${topic?.category.id}`;
+    router.push(`/forum/categories/${topic?.category.id}`);
   }
 
   if (topicLoading || postsLoading) {

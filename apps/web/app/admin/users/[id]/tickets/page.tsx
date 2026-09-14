@@ -389,7 +389,7 @@ function TicketViewCard({ ticket }: { ticket: UserDetail['tickets'][number] }) {
         <h3 className="mt-4 text-lg font-bold leading-tight">{ticket.event.title}</h3>
 
         {design.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
+
           <img src={design.logoUrl} alt="" className="mt-4 h-10 w-auto object-contain" />
         )}
       </div>

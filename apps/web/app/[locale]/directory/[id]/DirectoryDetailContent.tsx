@@ -208,7 +208,7 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   const deleteBusiness = useMutation({
     mutationFn: () => api.delete(`/directory/businesses/${resolvedId}`),
     onSuccess: () => {
-      window.location.href = '/directory';
+      router.push('/directory');
     }
   });
 

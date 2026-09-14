@@ -111,7 +111,7 @@ export function MembershipDetailsForm({ membership }: MembershipDetailsFormProps
 
   useEffect(() => {
     setDependants(membership.dependants ?? []);
-  }, [membership.dependants?.length]);
+  }, [membership.dependants]);
 
   const dependantsMutation = useMutation({
     mutationFn: async () => {

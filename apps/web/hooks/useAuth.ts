@@ -55,12 +55,7 @@ export function useSignOut() {
     onSuccess: () => {
       queryClient.setQueryData(['auth', 'me'], null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      // Use a full page navigation to the login page so the middleware runs with
-      // the cleared cookies and the browser fetches fresh HTML instead of
-      // relying on a client-side transition that can hydrate with stale state.
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login';
-      }
+      window.location.replace('/auth/login');
     }
   });
 }

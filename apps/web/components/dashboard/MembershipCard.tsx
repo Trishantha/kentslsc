@@ -197,7 +197,6 @@ export function MembershipCard() {
         {cardAssetUrl ? (
           <div className="mt-6 flex flex-col items-center gap-6">
             <div className="relative overflow-hidden rounded-2xl border border-slate-300 shadow-xl dark:border-white/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 key={cardAssetUrl}
                 src={cardAssetUrl}

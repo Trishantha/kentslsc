@@ -12,7 +12,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console
+
     console.error('Admin error boundary caught:', error);
   }, [error]);
 

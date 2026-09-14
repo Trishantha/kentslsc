@@ -30,12 +30,12 @@ export function DebugHydration() {
 
   useEffect(() => {
     const before = getHydrationSnapshot();
-    // eslint-disable-next-line no-console
+
     console.log('[KENTSLSC-DEBUG] Hydration/effect running', before);
 
     const timer = setTimeout(() => {
       const after = getHydrationSnapshot();
-      // eslint-disable-next-line no-console
+
       console.log('[KENTSLSC-DEBUG] Post-hydration state', after);
       setHydrated(true);
     }, 500);
@@ -49,7 +49,7 @@ export function DebugHydration() {
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && (mutation.target === document.documentElement || mutation.target === document.body)) {
-          // eslint-disable-next-line no-console
+
           console.log('[KENTSLSC-DEBUG] DOM attribute mutation', {
             target: (mutation.target as Element).tagName,
             attributeName: mutation.attributeName,

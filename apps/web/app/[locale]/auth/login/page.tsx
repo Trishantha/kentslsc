@@ -43,10 +43,7 @@ export default function LoginPage() {
         destination = '/admin';
       }
 
-      // Use a full page navigation so the new session cookies are sent on the
-      // first request to the destination, rather than relying on a client-side
-      // transition that may skip the server-side auth check.
-      window.location.href = destination;
+      window.location.replace(destination);
     } catch (error) {
       if (!isAxiosError(error) || !error.response) {
         setError('root', { message: t('cannotReachServer') });

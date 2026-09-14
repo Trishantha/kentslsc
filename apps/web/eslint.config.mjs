@@ -15,6 +15,11 @@ export default defineConfig([
       'react-hooks/purity': 'off',
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/refs': 'off',
+      // React Hook Form exposes imperative APIs that React Compiler cannot memoize.
+      'react-hooks/incompatible-library': 'off',
+      // Media URLs are user/configuration supplied and also used by the OG renderer;
+      // they cannot be safely constrained to next/image remote patterns here.
+      '@next/next/no-img-element': 'off',
     },
   },
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'public/tinymce/**']),

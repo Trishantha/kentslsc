@@ -64,7 +64,6 @@ export function MembershipCardPanel({ membership }: MembershipCardPanelProps) {
           <div className="space-y-4">
             <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2">
               <div className="relative mx-auto inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cardImageUrl}
                   alt={`Membership card for ${membership.user.name}`}

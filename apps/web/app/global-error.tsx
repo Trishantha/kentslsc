@@ -32,7 +32,7 @@ function GlobalErrorInner({
 
   useEffect(() => {
     // Log to your error tracking service here (e.g. Sentry)
-    // eslint-disable-next-line no-console
+
     console.error('Global error:', error);
   }, [error]);
 

@@ -34,7 +34,7 @@ async function init() {
   if (!preparePromise) {
     preparePromise = app.prepare().then(() => {
       prepared = true;
-      // eslint-disable-next-line no-console
+
       console.log('Next.js web handler prepared in-process');
       return handle;
     });
