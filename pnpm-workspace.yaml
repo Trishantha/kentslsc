@@ -11,6 +11,11 @@ packages:
 publicHoistPattern:
   - '*'
 
+# The hoisting change (and any future linker-affecting change) makes pnpm purge
+# and relink node_modules on the next install. Hostinger's build has no TTY, and
+# pnpm aborts that purge without confirmation, failing the whole deploy.
+confirmModulesPurge: false
+
 overrides:
   body-parser: ^1.20.6
   deepmerge-ts: ^8.0.0
