@@ -14,15 +14,15 @@ describe('FacebookService', () => {
   beforeEach(() => {
     mockPrisma = {
       externalSocialPost: {
-        findMany: jest.fn().mockResolvedValue([]),
-        create: jest.fn().mockResolvedValue({}),
-        update: jest.fn().mockResolvedValue({}),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+        findMany: (jest.fn() as any).mockResolvedValue([]),
+        create: (jest.fn() as any).mockResolvedValue({}),
+        update: (jest.fn() as any).mockResolvedValue({}),
+        deleteMany: (jest.fn() as any).mockResolvedValue({ count: 0 })
       }
     };
     fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({
+      json: (jest.fn() as any).mockResolvedValue({
         data: [
           {
             id: 'fb_1',
@@ -74,7 +74,7 @@ describe('FacebookService', () => {
   it('falls back to story when message is missing', async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({
+      json: (jest.fn() as any).mockResolvedValue({
         data: [
           {
             id: 'fb_2',

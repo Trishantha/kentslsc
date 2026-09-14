@@ -30,12 +30,14 @@ export function packBillingRequestMetadata(metadata: Record<string, string>): Re
 
   let data = JSON.stringify(rest);
   if (data.length > 500 && rest.message) {
-    const { message, ...withoutMessage } = rest;
+    const withoutMessage = { ...rest };
+    delete withoutMessage.message;
     data = JSON.stringify(withoutMessage);
   }
   if (data.length > 500 && rest.displayName) {
-    const { displayName, ...withoutName } = JSON.parse(data);
-    data = JSON.stringify(withoutName);
+    const parsed = JSON.parse(data);
+    delete parsed.displayName;
+    data = JSON.stringify(parsed);
   }
   if (data.length > 500) {
     throw new Error('GoCardless metadata too large: reduce checkout metadata and try again');

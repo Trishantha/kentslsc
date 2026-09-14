@@ -459,21 +459,21 @@ describe('AdminService - sendMembershipPaymentLink provider branching', () => {
 
 describe('AdminService - getDashboardStats', () => {
   const mockPrisma: any = {
-    user: { count: jest.fn().mockResolvedValue(10) },
+    user: { count: (jest.fn() as any).mockResolvedValue(10) },
     membership: {
-      count: jest
-        .fn()
+      count: (jest
+        .fn() as any)
         .mockResolvedValueOnce(5)
         .mockResolvedValueOnce(2)
     },
-    event: { count: jest.fn().mockResolvedValue(3) },
-    businessListing: { count: jest.fn().mockResolvedValue(4) },
-    fundraiser: { count: jest.fn().mockResolvedValue(1) },
-    blogPost: { count: jest.fn().mockResolvedValue(6) },
-    contactMessage: { count: jest.fn().mockResolvedValue(7) },
-    membershipType: { findMany: jest.fn().mockResolvedValue([]) },
-    forumTopic: { count: jest.fn().mockResolvedValue(1) },
-    forumPost: { count: jest.fn().mockResolvedValue(1) }
+    event: { count: (jest.fn() as any).mockResolvedValue(3) },
+    businessListing: { count: (jest.fn() as any).mockResolvedValue(4) },
+    fundraiser: { count: (jest.fn() as any).mockResolvedValue(1) },
+    blogPost: { count: (jest.fn() as any).mockResolvedValue(6) },
+    contactMessage: { count: (jest.fn() as any).mockResolvedValue(7) },
+    membershipType: { findMany: (jest.fn() as any).mockResolvedValue([]) },
+    forumTopic: { count: (jest.fn() as any).mockResolvedValue(1) },
+    forumPost: { count: (jest.fn() as any).mockResolvedValue(1) }
   };
 
   const service = new AdminService(

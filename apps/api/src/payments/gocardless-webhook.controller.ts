@@ -1,4 +1,4 @@
-import { Controller, Logger, Post, Headers, RawBody, Res, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Logger, Post, Headers, RawBody, Res, Body } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator.js';

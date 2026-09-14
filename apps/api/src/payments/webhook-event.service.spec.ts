@@ -123,8 +123,8 @@ describe('WebhookEventService', () => {
       payload: Buffer.from('not-json')
     });
 
-    const createArg = prisma.webhookEvent.create.mock.calls[0][0] as { data: { payload?: unknown } };
-    expect(createArg.data.payload).toBeUndefined();
+    const createArg = prisma.webhookEvent.create.mock.calls[0]?.[0] as { data: { payload?: unknown } } | undefined;
+    expect(createArg?.data.payload).toBeUndefined();
   });
 
   it('marks an event as processed', async () => {
