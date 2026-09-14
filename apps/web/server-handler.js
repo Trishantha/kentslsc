@@ -16,7 +16,7 @@ const quiet = process.env.WEB_QUIET !== 'false';
 // without them the in-process handler 500s every request ("Internal Server
 // Error") even though prepare() succeeds. The unified server exports these
 // before requiring this module; fallbacks keep standalone use working.
-const hostname = process.env.WEB_INTERNAL_HOSTNAME || 'localhost';
+const hostname = process.env.WEB_INTERNAL_HOSTNAME || process.env.HOST || '0.0.0.0';
 const port = Number(process.env.WEB_INTERNAL_PORT || process.env.PORT || 3000);
 const app = next({ dev, dir, quiet, hostname, port });
 const handle = app.getRequestHandler();

@@ -1256,10 +1256,9 @@ async function startInProcessWeb() {
   process.env.INTERNAL_API_URL = localApiOrigin;
   // Next 16 requires hostname/port for in-process request handling (absolute
   // URL construction at request time); without them every web request 500s.
-  // NOTE: must be 'localhost', not '127.0.0.1' — with an IP-literal hostname
-  // the middleware rewrite origin mismatches the request URL and locale routes
-  // redirect-loop (/) <-> (/en).
-  process.env.WEB_INTERNAL_HOSTNAME = 'localhost';
+  // Use the same bind host as the unified listener so Hostinger's forwarded
+  // public requests and the in-process handler resolve the same origin.
+  process.env.WEB_INTERNAL_HOSTNAME = host;
   process.env.WEB_INTERNAL_PORT = String(publicPort);
   console.log(`Server-side API origin forced to local: ${localApiOrigin}`);
   const handlerPath = path.join(webDir, 'server-handler.js');
