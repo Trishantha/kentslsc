@@ -412,6 +412,7 @@ let webProcess;
 let apiServer;
 let apiApp;
 let webHandler;
+let proxyServer;
 let isShuttingDown = false;
 let isUpstreamReady = false;
 
@@ -464,6 +465,53 @@ function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
   });
 
   return child;
+}
+
+function removeApiSocket() {
+  try {
+    if (fs.existsSync(apiSocketPath)) {
+      fs.unlinkSync(apiSocketPath);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function stopChildProcesses() {
+  [apiProcess, webProcess].forEach((child) => {
+    if (child && !child.killed) {
+      child.kill('SIGTERM');
+    }
+  });
+}
+
+function beginShutdown(exitCode, reason) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  if (exitCode === 0) {
+    console.log(reason);
+  } else {
+    console.error(reason);
+  }
+
+  if (proxyServer) {
+    try {
+      proxyServer.close();
+    } catch {
+      // ignore
+    }
+  }
+  if (apiApp) {
+    apiApp.close().catch((error) => {
+      console.error('Error closing in-process API:', error);
+    });
+  }
+  stopChildProcesses();
+  removeApiSocket();
+
+  setTimeout(() => process.exit(exitCode), 250).unref();
 }
 
 function findAvailableLocalPort(startPort) {
@@ -1348,7 +1396,7 @@ async function startApiAsChild(socketPath) {
     console.error(details.join(' '));
 
     if (!isShuttingDown) {
-      process.exit(1);
+      beginShutdown(1, 'Stopping app services because API child process exited unexpectedly...');
     }
   });
 
@@ -1387,7 +1435,7 @@ async function startWebChild() {
     console.error(details.join(' '));
 
     if (!isShuttingDown) {
-      process.exit(1);
+      beginShutdown(1, 'Stopping app services because web child process exited unexpectedly...');
     }
   });
 
@@ -1413,7 +1461,7 @@ async function startServices() {
   // Start the public listener immediately so platforms like Hostinger see
   // server.listen() within their startup window. Requests arriving before the
   // upstreams are ready receive a clear 503 instead of a connection failure.
-  const proxyServer = startProxyServer();
+  proxyServer = startProxyServer();
 
   // Apply any pending database migrations before the API starts handling
   // requests. This prevents runtime errors caused by missing columns (e.g. the
@@ -1454,27 +1502,7 @@ async function startServices() {
   }
 
   const shutdown = () => {
-    isShuttingDown = true;
-    console.log('Stopping app services...');
-    proxyServer.close();
-    if (apiApp) {
-      apiApp.close().catch((error) => {
-        console.error('Error closing in-process API:', error);
-      });
-    }
-    [apiProcess, webProcess].forEach((child) => {
-      if (child && !child.killed) {
-        child.kill('SIGTERM');
-      }
-    });
-    try {
-      if (fs.existsSync(apiSocketPath)) {
-        fs.unlinkSync(apiSocketPath);
-      }
-    } catch {
-      // ignore
-    }
-    process.exit(0);
+    beginShutdown(0, 'Stopping app services...');
   };
 
   process.on('SIGINT', shutdown);
@@ -1497,7 +1525,7 @@ function registerFatalErrorHandlers() {
     if (error && error.stack) {
       console.error(error.stack);
     }
-    process.exit(1);
+    beginShutdown(1, 'Stopping app services after fatal uncaught exception...');
   });
 
   process.on('unhandledRejection', (reason) => {
@@ -1505,6 +1533,7 @@ function registerFatalErrorHandlers() {
     if (reason && reason.stack) {
       console.error(reason.stack);
     }
+    beginShutdown(1, 'Stopping app services after fatal unhandled rejection...');
   });
 }
 
