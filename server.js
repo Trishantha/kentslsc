@@ -351,7 +351,17 @@ const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 const apiMode = process.env.API_MODE || 'in-process';
-const webMode = process.env.WEB_MODE || 'in-process';
+// Hostinger serves Node apps through lsnode (LiteSpeed): argv[1] is
+// /usr/local/lsws/fcgi-bin/lsnode.js and the app is required in-process under
+// lsnode's module/request shims. Under those shims Next 16's in-process handler
+// renders every dynamic app-router page outside the workStore context (E1068,
+// "Expected workStore to be initialized") — even with no middleware rewrite at
+// all; a plain `node next start` child process is unaffected. Detect lsnode and
+// default the web app to child mode there (WEB_MODE still overrides).
+const runningUnderLsnode =
+  Boolean(process.env.LSNODE_STARTUP_FILE) ||
+  /(^|[\\/])lsnode\.js$/.test(process.argv[1] || '');
+const webMode = process.env.WEB_MODE || (runningUnderLsnode ? 'child' : 'in-process');
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 
 // When running the API/web in-process (or child mode on the same host), the
@@ -1393,7 +1403,7 @@ function startProxyServer() {
       return;
     }
 
-    if (!toApi && webHandler) {
+    if (!toApi) {
       // The unified listener is plain HTTP, so report the hop truthfully. Next
       // 16's proxy phase routes middleware rewrites through an HTTP round-trip
       // to WEB_INTERNAL_HOSTNAME:WEB_INTERNAL_PORT using the request's forwarded
@@ -1404,7 +1414,8 @@ function startProxyServer() {
       req.headers['x-forwarded-proto'] = 'http';
       // Locale-prefix the path here (never via a middleware rewrite — see
       // resolveLocalePrefix above) and mark the request so proxy.ts skips
-      // routing decisions it must not re-apply.
+      // routing decisions it must not re-apply. Applies in both web modes
+      // (in-process handler and proxied child).
       req.headers['x-locale-routed'] = '1';
       const localePrefix = resolveLocalePrefix(urlPath, req.headers['accept-language']);
       if (localePrefix) {
@@ -1419,6 +1430,9 @@ function startProxyServer() {
       if (recentRewrites.length > MAX_RECENT_REWRITES) {
         recentRewrites.shift();
       }
+    }
+
+    if (!toApi && webHandler) {
       // Web runs in-process; hand the request directly to Next.js.
       webHandler(req, res);
       return;
@@ -1686,6 +1700,9 @@ async function startServices() {
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   console.log(`API mode: ${apiMode}`);
   console.log(`Web mode: ${webMode}`);
+  if (runningUnderLsnode) {
+    console.log('lsnode (LiteSpeed) runtime detected — web served by child process');
+  }
   logStartupDiagnostics();
   logBuildInfo();
   if (webMode === 'child') {
