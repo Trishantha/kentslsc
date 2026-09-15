@@ -42,6 +42,40 @@ function isInternalRewriteRequest(request: NextRequest) {
   return /^(localhost|127\.0\.0\.1|0\.0\.0\.0):\d+$/.test(host);
 }
 
+// Next 16.3 has a bug (vercel/next.js#91844): when a middleware rewrite is
+// relativized to the request's own origin, the server resolves it INLINE
+// without entering Next's workStore context, and every dynamic page render
+// crashes with "Expected workStore to be initialized" (E1068). When the
+// rewrite stays an absolute URL to the internal listener, Next proxies it as
+// a real request and rendering works. Whether next-intl's rewrite matches the
+// request origin (and thus relativizes) depends on environment details we
+// cannot control, so force the rewrite to an absolute internal URL here.
+function internalOrigin() {
+  const hostname = process.env.WEB_INTERNAL_HOSTNAME || '127.0.0.1';
+  const port = process.env.WEB_INTERNAL_PORT || process.env.PORT || '3000';
+  return `http://${hostname}:${port}`;
+}
+
+function absolutizeInternalRewrite(response: NextResponse): NextResponse {
+  const rewrite = response.headers.get('x-middleware-rewrite');
+  if (!rewrite) {
+    return response;
+  }
+  let path = rewrite;
+  try {
+    const url = new URL(rewrite);
+    const internal = new URL(internalOrigin());
+    if (url.host === internal.host) {
+      return response;
+    }
+    path = `${url.pathname}${url.search}`;
+  } catch {
+    // Already a relative path — use it verbatim.
+  }
+  response.headers.set('x-middleware-rewrite', `${internalOrigin()}${path}`);
+  return response;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const redirectBase =
@@ -55,7 +89,7 @@ export function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = maintenancePath;
     url.search = '';
-    return NextResponse.rewrite(url, { status: 503 });
+    return absolutizeInternalRewrite(NextResponse.rewrite(url, { status: 503 }));
   }
 
   if (isMaintenancePath(pathname)) {
@@ -78,7 +112,7 @@ export function proxy(request: NextRequest) {
     // a stale/invalid cookie in a loop: login -> dashboard -> login. The API
     // already rejects POST /auth/register for authenticated users, and the
     // dashboard/server layouts perform the real session check.
-    return intlMiddleware(request);
+    return absolutizeInternalRewrite(intlMiddleware(request));
   }
 
   if (isProtectedPath(pathname)) {
@@ -95,7 +129,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Everything else goes through next-intl for locale prefixing
-  return intlMiddleware(request);
+  return absolutizeInternalRewrite(intlMiddleware(request));
 }
 
 export const config = {
