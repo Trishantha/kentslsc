@@ -135,6 +135,11 @@ const nextConfig = {
   transpilePackages: ['@kentslsc/shared'],
   images: {
     formats: ['image/avif', 'image/webp'],
+    // Keep CDN caches honest: edge caches in front of this app have cached
+    // truncated optimizer responses when allowed to (public max-age). Zero TTL
+    // forces revalidation on every request; the unified server buffers
+    // /_next/image responses anyway (see server.js).
+    minimumCacheTTL: 0,
     remotePatterns
   },
   webpack: (config, { dev }) => {

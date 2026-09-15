@@ -29,6 +29,10 @@ fresh database is migrated automatically.
 
 - `/api/*`, `/uploads/*`, `/socket.io/*` → the NestJS API (in-process)
 - `/_next/static/*` → static files served straight from the build output
+- `/_next/image/*` (child mode) → buffered from the web child with
+  `Cache-Control: no-cache`; lsnode's shimmed responses truncate streamed
+  pipes intermittently, and single-write buffering plus no-cache prevents an
+  edge cache from pinning a truncated optimizer response
 - everything else → the Next.js web app
 
 ### lsnode (LiteSpeed) and the web child process

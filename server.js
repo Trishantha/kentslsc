@@ -1143,7 +1143,69 @@ function serveNextStaticFile(req, res, fallback) {
   });
 }
 
-// --- Locale prefix routing -------------------------------------------------
+/**
+ * Buffer /_next/image optimizer responses instead of streaming them through.
+ *
+ * Two reasons:
+ * 1. Under lsnode (LiteSpeed) the public listener's req/res objects are shimmed
+ *    and streamed pipe() responses are intermittently truncated to 0 bytes.
+ *    Collecting the upstream body and writing it in a single res.end() avoids
+ *    that class of shim bug (same reason pages are served via a child process).
+ * 2. The response is served with Cache-Control: no-cache so an edge/CDN cache
+ *    in front of the app cannot pin a truncated response for hours (Hostinger's
+ *    CDN ignored cdn-cache-control: no-store but honors standard directives).
+ *    Browsers revalidate; the Next child answers from its local optimizer cache.
+ */
+function serveNextImage(req, res) {
+  const target = new URL(internalWebUrl);
+  const upstream = http.request(
+    {
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port,
+      method: req.method,
+      path: normalizeRequestPath(req.url || '/'),
+      headers: { ...req.headers, host: target.host, connection: 'close' }
+    },
+    (upstreamRes) => {
+      const chunks = [];
+      upstreamRes.on('data', (chunk) => chunks.push(chunk));
+      upstreamRes.on('end', () => {
+        const body = Buffer.concat(chunks);
+        const headers = { ...upstreamRes.headers };
+        delete headers['transfer-encoding'];
+        delete headers['content-length'];
+        delete headers['connection'];
+        headers['content-length'] = body.length;
+        headers['cache-control'] = 'no-cache';
+        res.writeHead(upstreamRes.statusCode || 502, headers);
+        res.end(body);
+      });
+      upstreamRes.on('error', (error) => {
+        console.error(`/_next/image upstream response error: ${error.message}`);
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+        }
+        res.end();
+      });
+    }
+  );
+
+  upstream.setTimeout(proxyRequestTimeoutMs, () => {
+    upstream.destroy(new Error(`/_next/image upstream timed out after ${proxyRequestTimeoutMs}ms`));
+  });
+
+  upstream.on('error', (error) => {
+    console.error(`/_next/image upstream error: ${error.message}`);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+    }
+    res.end();
+  });
+
+  req.pipe(upstream);
+}
+
 // Locale prefixing is done HERE, before a request ever reaches Next.js, so
 // that no middleware rewrite is needed. Next 16 resolves middleware rewrites
 // whose origin matches the request inline, without entering Next's workStore
@@ -1292,6 +1354,12 @@ function startProxyServer() {
     if (!toApi && webHandler) {
       // Web runs in-process; hand the request directly to Next.js.
       webHandler(req, res);
+      return;
+    }
+
+    // Child mode: optimizer responses must be buffered (see serveNextImage).
+    if (!toApi && urlPath.startsWith('/_next/image')) {
+      serveNextImage(req, res);
       return;
     }
 

@@ -20,7 +20,7 @@ export function MemberHeader({ onMenuOpen }: MemberHeaderProps) {
         <Link href="/dashboard" className="flex items-center gap-3">
           <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/5">
             <Image
-              src="/logo.png"
+              src="/logo-v2.png"
               alt="Kent SLSC logo"
               width={40}
               height={40}

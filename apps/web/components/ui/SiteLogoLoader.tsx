@@ -60,7 +60,7 @@ export function SiteLogoLoader({ className, size = 96, showText = true }: SiteLo
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <Image
-            src="/logo.png"
+            src="/logo-v2.png"
             alt="Kent SLSC"
             width={size}
             height={size}

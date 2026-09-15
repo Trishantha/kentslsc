@@ -20,8 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
     icons: {
-      icon: '/logo.png',
-      apple: '/logo.png'
+      icon: '/logo-v2.png',
+      apple: '/logo-v2.png'
     },
     openGraph: {
       type: 'website',

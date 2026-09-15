@@ -65,7 +65,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
         <Link href="/" className="relative hidden items-center gap-3 md:flex">
           <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
             <Image
-              src="/logo.png"
+              src="/logo-v2.png"
               alt={t('logoAlt')}
               width={compact ? 44 : 144}
               height={compact ? 44 : 144}
@@ -195,7 +195,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
               className="relative top-[25px] flex h-[132px] w-[132px] items-center justify-center"
             >
               <Image
-                src="/logo.png"
+                src="/logo-v2.png"
                 alt={t('logoAlt')}
                 fill
                 sizes="132px"
@@ -215,7 +215,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
             <Link href="/" className="relative flex items-center gap-3">
               <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
                 <Image
-                  src="/logo.png"
+                  src="/logo-v2.png"
                   alt={t('logoAlt')}
                   fill
                   sizes="44px"
