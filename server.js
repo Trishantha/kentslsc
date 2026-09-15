@@ -1241,7 +1241,20 @@ function startProxyServer() {
     // are logged to the console but never reach the client).
     if (urlPath === DIAG_ROUTE) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ errors: recentErrors }, null, 2));
+      res.end(
+        JSON.stringify(
+          {
+            errors: recentErrors,
+            build: {
+              web: readBuildInfo(path.join(webDir, '.next')),
+              api: readBuildInfo(path.join(apiDir, 'dist')),
+              serverJsCommit: currentGitCommit()
+            }
+          },
+          null,
+          2
+        )
+      );
       return;
     }
 
