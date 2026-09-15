@@ -1158,7 +1158,9 @@ const LOCALE_ROUTER_EXACT_PATHS = new Set([
   '/robots.txt',
   '/opengraph-image',
   '/twitter-image',
-  '/favicon.ico'
+  '/favicon.ico',
+  // TEMPORARY diagnostic (remove after the session-check investigation)
+  '/_diag/api-probe'
 ]);
 
 function detectRequestLocale(acceptLanguage) {
@@ -1198,6 +1200,26 @@ function resolveLocalePrefix(urlPath, acceptLanguage) {
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
+
+    // TEMPORARY diagnostic (remove after the session-check investigation):
+    // does THIS process reach the API over http://127.0.0.1:<publicPort>?
+    if (urlPath === '/_diag/parent-probe') {
+      const target = `http://127.0.0.1:${publicPort}/api/health`;
+      const request = http.get(target, { timeout: 5000 }, (upstream) => {
+        let body = '';
+        upstream.on('data', (chunk) => (body += chunk));
+        upstream.on('end', () => {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ probe: 'parent', target, status: upstream.statusCode, body: body.slice(0, 200) }));
+        });
+      });
+      request.on('timeout', () => { request.destroy(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ probe: 'parent', target, error: 'timeout' })); });
+      request.on('error', (error) => {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ probe: 'parent', target, error: error.message }));
+      });
+      return;
+    }
 
     // Respond to platform/health probes immediately so the host does not
     // restart the process while the API and web handlers are still warming up.
