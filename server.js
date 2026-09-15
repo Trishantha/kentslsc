@@ -416,6 +416,50 @@ let proxyServer;
 let isShuttingDown = false;
 let isUpstreamReady = false;
 
+// TEMPORARY diagnostic (remove after the production 500 investigation):
+// Next logs render errors via console.error and answers a fixed 500 body, so
+// the error text never reaches the client. Stash recent error-looking console
+// output and expose it via /_diag/recent-errors (served by the proxy itself).
+const DIAG_ROUTE = '/_diag/recent-errors';
+const recentErrors = [];
+const MAX_RECENT_ERRORS = 10;
+
+function formatDiagArg(arg) {
+  if (arg instanceof Error) {
+    return `${arg.message}\n${arg.stack || ''}`;
+  }
+  if (typeof arg === 'string') {
+    return arg;
+  }
+  try {
+    return String(arg);
+  } catch {
+    return '[unstringifiable]';
+  }
+}
+
+function looksLikeErrorText(text) {
+  return /error|Error|exception|Exception|failed|Failed|Cannot find|ENOENT|EACCES|EPROTO|ECONN/.test(
+    text
+  );
+}
+
+const originalConsoleError = console.error.bind(console);
+console.error = (...args) => {
+  try {
+    const text = args.map(formatDiagArg).join(' ');
+    if (looksLikeErrorText(text) && !text.includes(DIAG_ROUTE)) {
+      recentErrors.push({ at: new Date().toISOString(), text: text.slice(0, 4000) });
+      if (recentErrors.length > MAX_RECENT_ERRORS) {
+        recentErrors.shift();
+      }
+    }
+  } catch {
+    // never break logging
+  }
+  originalConsoleError(...args);
+};
+
 function delay(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -1133,6 +1177,15 @@ function serveNextStaticFile(req, res, fallback) {
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
+
+    // TEMPORARY diagnostic (remove after the production 500 investigation):
+    // expose the most recent error logged by the process (Next render errors
+    // are logged to the console but never reach the client).
+    if (urlPath === DIAG_ROUTE) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ errors: recentErrors }, null, 2));
+      return;
+    }
 
     // Respond to platform/health probes immediately so the host does not
     // restart the process while the API and web handlers are still warming up.
