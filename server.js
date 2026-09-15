@@ -1177,6 +1177,61 @@ function serveNextStaticFile(req, res, fallback) {
   });
 }
 
+// --- Locale prefix routing -------------------------------------------------
+// Locale prefixing is done HERE, before a request ever reaches Next.js, so
+// that no middleware rewrite is needed. Next 16 resolves middleware rewrites
+// whose origin matches the request inline, without entering Next's workStore
+// context, and every dynamic page render then crashes with "Expected
+// workStore to be initialized" (E1068, vercel/next.js#91844). Direct requests
+// to the [locale] segment render normally, so we translate the path up front
+// and mark the request; proxy.ts lets marked requests through untouched.
+const LOCALE_SEGMENTS = new Set(['en', 'si', 'ta']);
+const LOCALE_ROUTER_PREFIX_TREES = ['/admin', '/dashboard', '/forum'];
+const LOCALE_ROUTER_EXACT_PATHS = new Set([
+  '/login',
+  '/maintenance',
+  '/verify-email',
+  '/sitemap.xml',
+  '/robots.txt',
+  '/opengraph-image',
+  '/twitter-image',
+  '/favicon.ico'
+]);
+
+function detectRequestLocale(acceptLanguage) {
+  if (typeof acceptLanguage === 'string' && acceptLanguage) {
+    for (const entry of acceptLanguage.split(',')) {
+      const base = entry.split(';')[0].trim().toLowerCase().split('-')[0];
+      if (LOCALE_SEGMENTS.has(base)) {
+        return base;
+      }
+    }
+  }
+  return 'en';
+}
+
+// Returns the locale segment to prepend (e.g. 'si'), or null when the path
+// must be passed through unmodified.
+function resolveLocalePrefix(urlPath, acceptLanguage) {
+  const pathOnly = urlPath.split('?')[0] || '/';
+  const firstSegment = pathOnly.slice(1).split('/')[0];
+
+  if (LOCALE_SEGMENTS.has(firstSegment)) {
+    return null;
+  }
+  if (LOCALE_ROUTER_EXACT_PATHS.has(pathOnly)) {
+    return null;
+  }
+  if (LOCALE_ROUTER_PREFIX_TREES.some((p) => pathOnly === p || pathOnly.startsWith(`${p}/`))) {
+    return null;
+  }
+  const lastSegment = pathOnly.slice(pathOnly.lastIndexOf('/') + 1);
+  if (lastSegment.includes('.')) {
+    return null;
+  }
+  return detectRequestLocale(acceptLanguage);
+}
+
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
@@ -1284,6 +1339,14 @@ function startProxyServer() {
       // page 500s — vercel/next.js#91844). The public scheme for URL generation
       // comes from FRONTEND_URL, so nothing else should read the hop protocol.
       req.headers['x-forwarded-proto'] = 'http';
+      // Locale-prefix the path here (never via a middleware rewrite — see
+      // resolveLocalePrefix above) and mark the request so proxy.ts skips
+      // routing decisions it must not re-apply.
+      req.headers['x-locale-routed'] = '1';
+      const localePrefix = resolveLocalePrefix(urlPath, req.headers['accept-language']);
+      if (localePrefix) {
+        req.url = `/${localePrefix}${urlPath === '/' ? '' : urlPath}`;
+      }
       // Web runs in-process; hand the request directly to Next.js.
       webHandler(req, res);
       return;
