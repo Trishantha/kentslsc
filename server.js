@@ -1251,7 +1251,12 @@ function startProxyServer() {
               web: readBuildInfo(path.join(webDir, '.next')),
               api: readBuildInfo(path.join(apiDir, 'dist')),
               serverJsCommit: currentGitCommit(),
-              node: process.version
+              node: process.version,
+              pid: process.pid,
+              cwd: process.cwd(),
+              argv: process.argv,
+              execArgv: process.execArgv,
+              envKeys: Object.keys(process.env).sort()
             }
           },
           null,
