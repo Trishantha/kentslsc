@@ -426,55 +426,6 @@ let proxyServer;
 let isShuttingDown = false;
 let isUpstreamReady = false;
 
-// TEMPORARY diagnostic (remove after the production 500 investigation):
-// Next logs render errors via console.error and answers a fixed 500 body, so
-// the error text never reaches the client. Stash recent error-looking console
-// output and expose it via /_diag/recent-errors (served by the proxy itself).
-const DIAG_ROUTE = '/_diag/recent-errors';
-const DIAG_ROUTE_REQUESTS = '/_diag/recent-requests';
-const recentErrors = [];
-const recentRequests = [];
-const recentRewrites = [];
-const MAX_RECENT_ERRORS = 10;
-const MAX_RECENT_REQUESTS = 30;
-const MAX_RECENT_REWRITES = 20;
-
-function formatDiagArg(arg) {
-  if (arg instanceof Error) {
-    return `${arg.message}\n${arg.stack || ''}`;
-  }
-  if (typeof arg === 'string') {
-    return arg;
-  }
-  try {
-    return String(arg);
-  } catch {
-    return '[unstringifiable]';
-  }
-}
-
-function looksLikeErrorText(text) {
-  return /error|Error|exception|Exception|failed|Failed|Cannot find|ENOENT|EACCES|EPROTO|ECONN/.test(
-    text
-  );
-}
-
-const originalConsoleError = console.error.bind(console);
-console.error = (...args) => {
-  try {
-    const text = args.map(formatDiagArg).join(' ');
-    if (looksLikeErrorText(text) && !text.includes(DIAG_ROUTE)) {
-      recentErrors.push({ at: new Date().toISOString(), text: text.slice(0, 4000) });
-      if (recentErrors.length > MAX_RECENT_ERRORS) {
-        recentErrors.shift();
-      }
-    }
-  } catch {
-    // never break logging
-  }
-  originalConsoleError(...args);
-};
-
 function delay(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -1248,100 +1199,6 @@ function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
 
-    // TEMPORARY diagnostic (remove after the production 500 investigation):
-    // expose the most recent error logged by the process (Next render errors
-    // are logged to the console but never reach the client).
-    if (urlPath === '/_diag/als-test') {
-      // Verify the host's Node runtime propagates AsyncLocalStorage across
-      // awaits. Next's workStore is an ALS; if this test shows lost: true, the
-      // runtime (flags/preload) is what breaks every dynamic render.
-      const { AsyncLocalStorage } = require('async_hooks');
-      const als = new AsyncLocalStorage();
-      new Promise((resolve) => {
-        als.run({ marker: 'als-ok' }, async () => {
-          await Promise.resolve();
-          await new Promise((r) => setImmediate(r));
-          resolve(als.getStore() || null);
-        });
-      }).then((result) => {
-        let nextPkgPath = null;
-        let wasPath = null;
-        try {
-          nextPkgPath = require.resolve('next/package.json', { paths: [webDir] });
-          wasPath = require.resolve('next/dist/server/app-render/work-async-storage', {
-            paths: [webDir]
-          });
-        } catch {
-          // leave null
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(
-          JSON.stringify(
-            { alsStore: result, lost: !result, nextPkgPath, workAsyncStoragePath: wasPath },
-            null,
-            2
-          )
-        );
-      });
-      return;
-    }
-
-    if (urlPath === DIAG_ROUTE) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(
-        JSON.stringify(
-          {
-            errors: recentErrors,
-            build: {
-              web: readBuildInfo(path.join(webDir, '.next')),
-              api: readBuildInfo(path.join(apiDir, 'dist')),
-              serverJsCommit: currentGitCommit(),
-              node: process.version,
-              pid: process.pid,
-              cwd: process.cwd(),
-              argv: process.argv,
-              execArgv: process.execArgv,
-              envKeys: Object.keys(process.env).sort()
-            }
-          },
-          null,
-          2
-        )
-      );
-      return;
-    }
-
-    // TEMPORARY diagnostic: record how requests (including Next's internal
-    // middleware-rewrite round-trips) arrive at the proxy.
-    if (!urlPath.startsWith('/_next/static/') && !urlPath.startsWith('/_diag/')) {
-      const headersForDiag = {};
-      for (const [k, v] of Object.entries(req.headers)) {
-        if (k === 'cookie' || k === 'authorization') continue;
-        headersForDiag[k] = Array.isArray(v) ? v.join(', ') : String(v);
-      }
-      recentRequests.push({
-        at: new Date().toISOString(),
-        pid: process.pid,
-        uptime: Math.round(process.uptime()),
-        method: req.method,
-        url: req.url,
-        httpVersion: req.httpVersion,
-        host: req.headers.host || null,
-        proto: req.headers['x-forwarded-proto'] || null,
-        headers: headersForDiag,
-        cookie: req.headers.cookie ? req.headers.cookie.slice(0, 120) : null
-      });
-      if (recentRequests.length > MAX_RECENT_REQUESTS) {
-        recentRequests.shift();
-      }
-    }
-
-    if (urlPath === DIAG_ROUTE_REQUESTS) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ requests: recentRequests, rewrites: recentRewrites }, null, 2));
-      return;
-    }
-
     // Respond to platform/health probes immediately so the host does not
     // restart the process while the API and web handlers are still warming up.
     if (urlPath === '/health' || urlPath === '/api/health') {
@@ -1420,15 +1277,6 @@ function startProxyServer() {
       const localePrefix = resolveLocalePrefix(urlPath, req.headers['accept-language']);
       if (localePrefix) {
         req.url = `/${localePrefix}${urlPath === '/' ? '' : urlPath}`;
-      }
-      recentRewrites.push({
-        at: new Date().toISOString(),
-        original: urlPath,
-        final: req.url,
-        marker: req.headers['x-locale-routed']
-      });
-      if (recentRewrites.length > MAX_RECENT_REWRITES) {
-        recentRewrites.shift();
       }
     }
 
