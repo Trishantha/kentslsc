@@ -1623,8 +1623,61 @@ async function startWebChild() {
   await waitForService(internalWebUrl, 'Web service');
 }
 
-async function startServices() {
-  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
+// The Hostinger/hbuilds pipeline starts a new app process without stopping the
+// previous deploy's processes, and LiteSpeed load-balances across every live
+// worker — so a stale version keeps answering a share of requests (observed as
+// intermittent empty 200s for API calls, and old-code behavior for pages).
+// Each deploy lives in its own versions/<id>/ directory; once THIS worker is
+// fully up, terminate older workers from other version directories. Same-version
+// siblings are left alone (they may be intentional extra capacity), and the age
+// guard ensures a freshly-started sibling is never killed by a race with us.
+function terminateStaleSiblingWorkers() {
+  if (!runningUnderLsnode) {
+    return;
+  }
+  const marker = `${path.sep}hbuilds${path.sep}versions${path.sep}`;
+  const selfVersion = (() => {
+    const idx = rootDir.indexOf(marker);
+    return idx === -1 ? null : rootDir.slice(idx + marker.length).split(path.sep)[0];
+  })();
+  if (!selfVersion) {
+    return;
+  }
+
+  try {
+    const result = spawnSync('ps', ['-eo', 'pid,etimes,args'], { encoding: 'utf8' });
+    if (result.status !== 0 || !result.stdout) {
+      return;
+    }
+    for (const line of result.stdout.split('\n')) {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) {
+        continue;
+      }
+      const [, pidText, etimesText, args] = match;
+      if (!args.includes('server.js') || !args.includes(marker)) {
+        continue;
+      }
+      const theirVersion = args.slice(args.indexOf(marker) + marker.length).split(path.sep)[0];
+      if (theirVersion === selfVersion) {
+        continue;
+      }
+      if (Number(etimesText) < process.uptime() + 60) {
+        continue;
+      }
+      console.log(`Terminating stale worker from versions/${theirVersion} (pid ${pidText})`);
+      try {
+        process.kill(Number(pidText), 'SIGTERM');
+      } catch {
+        // already gone or not ours to kill
+      }
+    }
+  } catch {
+    // best-effort cleanup only
+  }
+}
+
+async function startServices() {  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
   internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
 
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
@@ -1686,6 +1739,10 @@ async function startServices() {
         'The health endpoint will continue to report warming_up until the build is fixed.'
     );
   }
+
+  // Once we are healthy, retire processes from previous deploys so LiteSpeed
+  // stops routing a share of requests to them.
+  terminateStaleSiblingWorkers();
 
   const shutdown = () => {
     beginShutdown(0, 'Stopping app services...');
