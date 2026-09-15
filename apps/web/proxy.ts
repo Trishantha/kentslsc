@@ -45,38 +45,6 @@ export function proxy(request: NextRequest) {
   const redirectBase =
     process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? request.url;
 
-  // TEMPORARY diagnostic (remove after the session-check investigation):
-  // can the web child reach the API internally, like getServerSession does?
-  if (pathname === '/_diag/api-probe') {
-    const internal = process.env.INTERNAL_API_URL ?? process.env.API_PROXY_TARGET ?? null;
-    const cookieHeader = request.headers.get('cookie');
-    const runProbe = async () => {
-      const results: Record<string, unknown> = { internal, hasCookie: Boolean(cookieHeader) };
-      for (const path of ['/api/health', '/api/auth/session']) {
-        const origin = internal ?? 'http://127.0.0.1:3000';
-        try {
-          const res = await fetch(`${origin}${path}`, {
-            headers: cookieHeader ? { cookie: cookieHeader } : {},
-            signal: AbortSignal.timeout(5000)
-          });
-          results[path] = { status: res.status, body: (await res.text()).slice(0, 200) };
-        } catch (error) {
-          results[path] = {
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-      return results;
-    };
-    return runProbe().then(
-      (results) =>
-        new NextResponse(JSON.stringify({ probe: 'web-child', ...results }, null, 2), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json; charset=utf-8' }
-        })
-    );
-  }
-
   if (maintenanceModeEnabled && !isMaintenancePath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = maintenancePath;

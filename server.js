@@ -348,9 +348,9 @@ async function runMigrations() {
 
 const publicPort = Number(process.env.PORT || process.env.WEB_PORT || 3000);
 const preferredInternalWebPort = Number(process.env.INTERNAL_WEB_PORT || 3100);
+const preferredInternalApiPort = Number(process.env.INTERNAL_API_PORT || 3001);
 const host = process.env.HOST || '0.0.0.0';
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-const apiMode = process.env.API_MODE || 'in-process';
 // Hostinger serves Node apps through lsnode (LiteSpeed): argv[1] is
 // /usr/local/lsws/fcgi-bin/lsnode.js and the app is required in-process under
 // lsnode's module/request shims. Under those shims Next 16's in-process handler
@@ -362,22 +362,25 @@ const runningUnderLsnode =
   Boolean(process.env.LSNODE_STARTUP_FILE) ||
   /(^|[\\/])lsnode\.js$/.test(process.argv[1] || '');
 const webMode = process.env.WEB_MODE || (runningUnderLsnode ? 'child' : 'in-process');
+// The web child reaches the API through INTERNAL_API_URL. lsnode only feeds the
+// parent's public listener through its LiteSpeed socket, so 127.0.0.1:<PORT> in
+// the parent is not a real TCP port and the child cannot dial it. A child
+// process binds real TCP (the web child proves it), so when the web app runs as
+// a child the API runs as a real-TCP child too, and both the proxy and the web
+// child target that origin. API_MODE still overrides ('in-process' | 'unix' |
+// 'tcp').
+const apiMode = process.env.API_MODE || (webMode === 'child' ? 'tcp' : 'in-process');
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
+let internalApiPort = preferredInternalApiPort;
+let internalApiUrl = `http://127.0.0.1:${internalApiPort}`;
 
-// When running the API/web in-process (or child mode on the same host), the
-// public origin may be unreachable from inside the container and the build may
-// have baked in a different default (e.g. http://localhost:3001). Set the
-// internal API origin before any Next.js module is loaded so server-side fetches
-// and rewrites target the local unified proxy.
-//
-// In webMode === 'in-process' the Next.js runtime lives inside this process, so
-// we always route internal server-to-API calls through the local listener.
-// webMode === 'child' gets the same variables explicitly when spawned below.
+// Internal API origin the unified proxy and (in child mode) the web child use.
+// In webMode === 'in-process' the Next.js runtime lives in this process and
+// server-to-API calls go through the local listener; the in-process API is
+// invoked directly via server emission, so this origin is only a fallback for
+// the web app's own server-side fetches.
 const localApiOrigin = `http://127.0.0.1:${publicPort}`;
 if (webMode === 'in-process') {
-  process.env.API_PROXY_TARGET = localApiOrigin;
-  process.env.INTERNAL_API_URL = localApiOrigin;
-} else {
   process.env.API_PROXY_TARGET = process.env.API_PROXY_TARGET || localApiOrigin;
   process.env.INTERNAL_API_URL = process.env.INTERNAL_API_URL || localApiOrigin;
 }
@@ -1158,9 +1161,7 @@ const LOCALE_ROUTER_EXACT_PATHS = new Set([
   '/robots.txt',
   '/opengraph-image',
   '/twitter-image',
-  '/favicon.ico',
-  // TEMPORARY diagnostic (remove after the session-check investigation)
-  '/_diag/api-probe'
+  '/favicon.ico'
 ]);
 
 function detectRequestLocale(acceptLanguage) {
@@ -1184,6 +1185,12 @@ function resolveLocalePrefix(urlPath, acceptLanguage) {
   if (LOCALE_SEGMENTS.has(firstSegment)) {
     return null;
   }
+  // Next.js internals (e.g. the /_next/image optimizer) must reach the web
+  // handler unmodified; prefixing them (/_next/image -> /en/_next/image)
+  // makes Next 404 every optimized image.
+  if (firstSegment === '_next') {
+    return null;
+  }
   if (LOCALE_ROUTER_EXACT_PATHS.has(pathOnly)) {
     return null;
   }
@@ -1200,26 +1207,6 @@ function resolveLocalePrefix(urlPath, acceptLanguage) {
 function startProxyServer() {
   const server = http.createServer((req, res) => {
     const urlPath = normalizeRequestPath(req.url || '/');
-
-    // TEMPORARY diagnostic (remove after the session-check investigation):
-    // does THIS process reach the API over http://127.0.0.1:<publicPort>?
-    if (urlPath === '/_diag/parent-probe') {
-      const target = `http://127.0.0.1:${publicPort}/api/health`;
-      const request = http.get(target, { timeout: 5000 }, (upstream) => {
-        let body = '';
-        upstream.on('data', (chunk) => (body += chunk));
-        upstream.on('end', () => {
-          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ probe: 'parent', target, status: upstream.statusCode, body: body.slice(0, 200) }));
-        });
-      });
-      request.on('timeout', () => { request.destroy(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ probe: 'parent', target, error: 'timeout' })); });
-      request.on('error', (error) => {
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ probe: 'parent', target, error: error.message }));
-      });
-      return;
-    }
 
     // Respond to platform/health probes immediately so the host does not
     // restart the process while the API and web handlers are still warming up.
@@ -1243,7 +1230,7 @@ function startProxyServer() {
       if (apiServer) {
         apiServer.emit('request', req, res);
       } else {
-        proxyRequest(req, res, `unix:${apiSocketPath}`);
+        proxyRequest(req, res, apiUpstreamBaseUrl());
       }
       return;
     }
@@ -1308,7 +1295,7 @@ function startProxyServer() {
       return;
     }
 
-    const targetBaseUrl = toApi ? `unix:${apiSocketPath}` : internalWebUrl;
+    const targetBaseUrl = toApi ? apiUpstreamBaseUrl() : internalWebUrl;
     proxyRequest(req, res, targetBaseUrl);
   });
 
@@ -1316,16 +1303,53 @@ function startProxyServer() {
     console.log(`Public listener ready on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   });
 
-  // Route Socket.io WebSocket upgrades to the in-process API.
+  // Route Socket.io WebSocket upgrades to the API (in-process emission, or a raw
+  // TCP bridge when the API runs as a TCP child — engine.io also has HTTP
+  // long-polling fallback through the normal proxy).
   server.on('upgrade', (req, socket, head) => {
-    if (req.url && req.url.startsWith('/socket.io') && apiServer) {
-      apiServer.emit('upgrade', req, socket, head);
-    } else {
+    if (!(req.url && req.url.startsWith('/socket.io'))) {
       socket.destroy();
+      return;
     }
+    if (apiServer) {
+      apiServer.emit('upgrade', req, socket, head);
+      return;
+    }
+    pipeUpgradeToTcp(req, socket, head, apiUpstreamBaseUrl());
   });
 
   return server;
+}
+
+// Base URL the unified proxy uses to reach the API when it does not run
+// in-process: a unix socket for API_MODE=unix, the TCP child for API_MODE=tcp.
+function apiUpstreamBaseUrl() {
+  return apiMode === 'unix' ? `unix:${apiSocketPath}` : internalApiUrl;
+}
+
+// Minimal raw-TCP WebSocket bridge: forwards an upgrade request to an HTTP
+// origin by writing the request line/headers manually, then pipes both sockets.
+function pipeUpgradeToTcp(req, socket, head, targetBaseUrl) {
+  let target;
+  try {
+    target = new URL(targetBaseUrl);
+  } catch {
+    socket.destroy();
+    return;
+  }
+  const upstream = net.connect(Number(target.port || 80), target.hostname, () => {
+    const headerLines = Object.entries(req.headers)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join('\r\n');
+    upstream.write(`${req.method} ${req.url} HTTP/1.1\r\n${headerLines}\r\n\r\n`);
+    if (head && head.length) {
+      upstream.write(head);
+    }
+    socket.pipe(upstream);
+    upstream.pipe(socket);
+  });
+  upstream.on('error', () => socket.destroy());
+  socket.on('error', () => upstream.destroy());
 }
 
 function getRegisteredApiRoutes(expressApp) {
@@ -1524,7 +1548,43 @@ async function startApiAsChild(socketPath) {
   await waitForSocket(socketPath, 'API service');
 }
 
+async function startApiTcpChild() {
+  internalApiPort = await findAvailableLocalPort(preferredInternalApiPort);
+  internalApiUrl = `http://127.0.0.1:${internalApiPort}`;
+
+  const apiEnv = {
+    NODE_ENV: 'production',
+    NODE_OPTIONS: `--max-old-space-size=${apiMemoryLimitMb}`,
+    PORT: String(internalApiPort),
+    HOST: '127.0.0.1',
+    FRONTEND_URL: frontendUrl
+  };
+
+  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
+
+  apiProcess.on('exit', (code, signal) => {
+    const details = ['API process exited'];
+    if (typeof code === 'number') {
+      details.push(`code=${code}`);
+    }
+    if (signal) {
+      details.push(`signal=${signal}`);
+    }
+    console.error(details.join(' '));
+
+    if (!isShuttingDown) {
+      beginShutdown(1, 'Stopping app services because API child process exited unexpectedly...');
+    }
+  });
+
+  await waitForService(`${internalApiUrl}/api/health`, 'API service');
+  console.log(`Internal API target: ${internalApiUrl}`);
+}
+
 async function startWebChild() {
+  const apiOriginForChild =
+    apiMode === 'tcp' ? internalApiUrl : `http://127.0.0.1:${publicPort}`;
+
   const webEnv = {
     NODE_ENV: 'production',
     NODE_OPTIONS: `--max-old-space-size=${webMemoryLimitMb}`,
@@ -1533,8 +1593,8 @@ async function startWebChild() {
     FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_SOCKET_URL: publicApiUrl || frontendUrl,
-    API_PROXY_TARGET: `http://127.0.0.1:${publicPort}`,
-    INTERNAL_API_URL: `http://127.0.0.1:${publicPort}`,
+    API_PROXY_TARGET: apiOriginForChild,
+    INTERNAL_API_URL: apiOriginForChild,
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
@@ -1596,8 +1656,10 @@ async function startServices() {
     await startInProcessApi();
   } else if (apiMode === 'unix') {
     await startApiAsChild(apiSocketPath);
+  } else if (apiMode === 'tcp') {
+    await startApiTcpChild();
   } else {
-    throw new Error(`Unsupported API_MODE: ${apiMode}. Use 'in-process' or 'unix'.`);
+    throw new Error(`Unsupported API_MODE: ${apiMode}. Use 'in-process', 'unix', or 'tcp'.`);
   }
 
   if (webMode === 'in-process') {
