@@ -1241,6 +1241,41 @@ function startProxyServer() {
     // TEMPORARY diagnostic (remove after the production 500 investigation):
     // expose the most recent error logged by the process (Next render errors
     // are logged to the console but never reach the client).
+    if (urlPath === '/_diag/als-test') {
+      // Verify the host's Node runtime propagates AsyncLocalStorage across
+      // awaits. Next's workStore is an ALS; if this test shows lost: true, the
+      // runtime (flags/preload) is what breaks every dynamic render.
+      const { AsyncLocalStorage } = require('async_hooks');
+      const als = new AsyncLocalStorage();
+      new Promise((resolve) => {
+        als.run({ marker: 'als-ok' }, async () => {
+          await Promise.resolve();
+          await new Promise((r) => setImmediate(r));
+          resolve(als.getStore() || null);
+        });
+      }).then((result) => {
+        let nextPkgPath = null;
+        let wasPath = null;
+        try {
+          nextPkgPath = require.resolve('next/package.json', { paths: [webDir] });
+          wasPath = require.resolve('next/dist/server/app-render/work-async-storage', {
+            paths: [webDir]
+          });
+        } catch {
+          // leave null
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(
+          JSON.stringify(
+            { alsStore: result, lost: !result, nextPkgPath, workAsyncStoragePath: wasPath },
+            null,
+            2
+          )
+        );
+      });
+      return;
+    }
+
     if (urlPath === DIAG_ROUTE) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
