@@ -421,8 +421,11 @@ let isUpstreamReady = false;
 // the error text never reaches the client. Stash recent error-looking console
 // output and expose it via /_diag/recent-errors (served by the proxy itself).
 const DIAG_ROUTE = '/_diag/recent-errors';
+const DIAG_ROUTE_REQUESTS = '/_diag/recent-requests';
 const recentErrors = [];
+const recentRequests = [];
 const MAX_RECENT_ERRORS = 10;
+const MAX_RECENT_REQUESTS = 30;
 
 function formatDiagArg(arg) {
   if (arg instanceof Error) {
@@ -1184,6 +1187,30 @@ function startProxyServer() {
     if (urlPath === DIAG_ROUTE) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ errors: recentErrors }, null, 2));
+      return;
+    }
+
+    // TEMPORARY diagnostic: record how requests (including Next's internal
+    // middleware-rewrite round-trips) arrive at the proxy.
+    if (!urlPath.startsWith('/_next/static/') && !urlPath.startsWith('/_diag/')) {
+      recentRequests.push({
+        at: new Date().toISOString(),
+        pid: process.pid,
+        uptime: Math.round(process.uptime()),
+        method: req.method,
+        url: req.url,
+        host: req.headers.host || null,
+        proto: req.headers['x-forwarded-proto'] || null,
+        cookie: req.headers.cookie ? req.headers.cookie.slice(0, 120) : null
+      });
+      if (recentRequests.length > MAX_RECENT_REQUESTS) {
+        recentRequests.shift();
+      }
+    }
+
+    if (urlPath === DIAG_ROUTE_REQUESTS) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ requests: recentRequests }, null, 2));
       return;
     }
 
