@@ -1309,13 +1309,15 @@ async function startInProcessWeb() {
   process.env.INTERNAL_API_URL = localApiOrigin;
   // Next 16 requires hostname/port for in-process request handling (absolute
   // URL construction at request time); without them every web request 500s.
-  // Use the same bind host as the unified listener so Hostinger's forwarded
-  // public requests and the in-process handler resolve the same origin —
-  // except 127.0.0.1: with an IP-literal hostname the middleware rewrite
-  // origin mismatches the request URL and locale routes redirect-loop
-  // (/) <-> (/en). Verified by request matrix; 'localhost' and '0.0.0.0' are
-  // both safe.
-  process.env.WEB_INTERNAL_HOSTNAME = host === '127.0.0.1' ? 'localhost' : host;
+  // Use the bind host VERBATIM. An earlier revision mapped 127.0.0.1 to
+  // 'localhost' fearing an IP-literal rewrite-origin mismatch, but on hosts
+  // where 'localhost' resolves to ::1 while the unified listener binds IPv4
+  // 127.0.0.1, Next 16's proxy phase gets ECONNREFUSED on ::1 and every
+  // dynamic page 500s in ~50ms (static pages still serve, which is the
+  // telltale symptom). Rewrites are emitted relative (/en), so the literal IP
+  // causes no redirect loop on Next 16.3.5 — verified by request matrix:
+  // / 200, /about 200, /si 200, /en 307->/, /auth/login 200, /events 200.
+  process.env.WEB_INTERNAL_HOSTNAME = host;
   process.env.WEB_INTERNAL_PORT = String(publicPort);
   // next-intl's plugin resolves the relative requestConfig path
   // ('./i18n/request.ts' in next.config.js) against process.cwd(). `next start`
