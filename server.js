@@ -1295,6 +1295,11 @@ async function startInProcessApi() {
 
 async function startInProcessWeb() {
   console.log('Starting web handler in-process (no secondary child process)');
+  // Match startWebChild: the in-process handler serves the production build, so
+  // it must run with NODE_ENV=production. Otherwise next() enters dev mode,
+  // recompiles on the fly, and next-intl's plugin fails to load next.config.js,
+  // killing startup with "Failed to load next.config.js".
+  process.env.NODE_ENV = 'production';
   // Make sure Next.js server-side fetches and rewrites target the local proxy
   // instead of relying on a public origin that may not be reachable from the host.
   const localApiOrigin = `http://127.0.0.1:${publicPort}`;
@@ -1312,6 +1317,13 @@ async function startInProcessWeb() {
   // both safe.
   process.env.WEB_INTERNAL_HOSTNAME = host === '127.0.0.1' ? 'localhost' : host;
   process.env.WEB_INTERNAL_PORT = String(publicPort);
+  // next-intl's plugin resolves the relative requestConfig path
+  // ('./i18n/request.ts' in next.config.js) against process.cwd(). `next start`
+  // works because it runs from apps/web, but the unified server runs from the
+  // repo root, so loading the config here fails with "Could not find i18n
+  // config". Serve the web app from its own directory like next start does.
+  // All unified-server paths are absolute, so the cwd change is safe.
+  process.chdir(webDir);
   console.log(`Server-side API origin forced to local: ${localApiOrigin}`);
   const handlerPath = path.join(webDir, 'server-handler.js');
   // eslint-disable-next-line import/no-dynamic-require

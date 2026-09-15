@@ -46,11 +46,15 @@ services:
       QUEUE_ENABLED: "true"
       FRONTEND_URL: https://laughing-waffle-rpw6wv5vq7qfw5g-3000.app.github.dev
       NEXT_PUBLIC_API_URL: http://localhost:3000
-      # Run API and web as separate child processes so a crash or memory spike in
-      # one side does not take down the other. The proxy routes /api to the unix
-      # socket and everything else to the internal web port.
+      # API runs as a separate child process so a crash or memory spike on that
+      # side does not take down the web. The web runs in-process: Next 16's
+      # `next start` handles middleware rewrites (next-intl locale rewriting) as
+      # external HTTP fetches, which breaks the locale rewrite and produces
+      # redirect loops (307 to self) and 500s when x-forwarded-proto is https.
+      # The in-process handler resolves the same rewrite internally, which the
+      # server-handler smoke tests verify (/ 200, /en 307 -> /, /auth/login 200).
       API_MODE: unix
-      WEB_MODE: child
+      WEB_MODE: in-process
     depends_on:
       postgres:
         condition: service_healthy
