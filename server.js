@@ -942,21 +942,80 @@ function proxyRequest(req, res, targetBaseUrl) {
         );
       }
 
-      res.writeHead(proxyRes.statusCode || 502, headers);
-      proxyRes.pipe(res);
+      // Under lsnode (LiteSpeed) the public listener's req/res objects are
+      // shimmed and streamed pipe() responses are intermittently truncated to
+      // 0 bytes (observed as random empty 200s for API calls, logins, and
+      // page loads). Buffer the upstream body and write it in a single
+      // res.end() to avoid that shim bug (same approach as serveNextImage).
+      // Responses over the cap fall back to streaming.
+      const chunks = [];
+      let buffered = 0;
+      let flushed = false;
+      const BUFFER_CAP = 32 * 1024 * 1024;
+
+      const flushStreaming = () => {
+        if (flushed) return;
+        flushed = true;
+        const streamHeaders = { ...headers };
+        delete streamHeaders['transfer-encoding'];
+        delete streamHeaders['connection'];
+        res.writeHead(proxyRes.statusCode || 502, streamHeaders);
+        for (const chunk of chunks) {
+          res.write(chunk);
+        }
+        proxyRes.pipe(res);
+      };
+
+      proxyRes.on('data', (chunk) => {
+        if (flushed) return;
+        buffered += chunk.length;
+        chunks.push(chunk);
+        if (buffered > BUFFER_CAP) {
+          flushStreaming();
+        }
+      });
+
+      proxyRes.on('end', () => {
+        if (flushed || responded) return;
+        flushed = true;
+        responded = true;
+        delete headers['transfer-encoding'];
+        delete headers['connection'];
+        if (req.method === 'HEAD') {
+          // No body is sent for HEAD; keep whatever the upstream declared.
+          res.writeHead(proxyRes.statusCode || 502, headers);
+          res.end();
+          return;
+        }
+        const body = Buffer.concat(chunks);
+        delete headers['content-length'];
+        headers['content-length'] = body.length;
+        res.writeHead(proxyRes.statusCode || 502, headers);
+        res.end(body);
+      });
 
       proxyRes.on('error', (error) => {
+        if (flushed) {
+          try {
+            if (!res.writableEnded) res.end();
+          } catch {
+            // connection already torn down
+          }
+          return;
+        }
         failRequest(`upstream response error: ${error.message}`, 502);
       });
 
       proxyRes.on('aborted', () => {
-        failRequest('upstream aborted response', 502);
-      });
-
-      proxyRes.on('close', () => {
-        if (!res.writableEnded) {
-          res.end();
+        if (flushed) {
+          try {
+            if (!res.writableEnded) res.end();
+          } catch {
+            // connection already torn down
+          }
+          return;
         }
+        failRequest('upstream aborted response', 502);
       });
     }
   );
