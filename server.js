@@ -424,8 +424,10 @@ const DIAG_ROUTE = '/_diag/recent-errors';
 const DIAG_ROUTE_REQUESTS = '/_diag/recent-requests';
 const recentErrors = [];
 const recentRequests = [];
+const recentRewrites = [];
 const MAX_RECENT_ERRORS = 10;
 const MAX_RECENT_REQUESTS = 30;
+const MAX_RECENT_REWRITES = 20;
 
 function formatDiagArg(arg) {
   if (arg instanceof Error) {
@@ -1248,7 +1250,8 @@ function startProxyServer() {
             build: {
               web: readBuildInfo(path.join(webDir, '.next')),
               api: readBuildInfo(path.join(apiDir, 'dist')),
-              serverJsCommit: currentGitCommit()
+              serverJsCommit: currentGitCommit(),
+              node: process.version
             }
           },
           null,
@@ -1261,14 +1264,21 @@ function startProxyServer() {
     // TEMPORARY diagnostic: record how requests (including Next's internal
     // middleware-rewrite round-trips) arrive at the proxy.
     if (!urlPath.startsWith('/_next/static/') && !urlPath.startsWith('/_diag/')) {
+      const headersForDiag = {};
+      for (const [k, v] of Object.entries(req.headers)) {
+        if (k === 'cookie' || k === 'authorization') continue;
+        headersForDiag[k] = Array.isArray(v) ? v.join(', ') : String(v);
+      }
       recentRequests.push({
         at: new Date().toISOString(),
         pid: process.pid,
         uptime: Math.round(process.uptime()),
         method: req.method,
         url: req.url,
+        httpVersion: req.httpVersion,
         host: req.headers.host || null,
         proto: req.headers['x-forwarded-proto'] || null,
+        headers: headersForDiag,
         cookie: req.headers.cookie ? req.headers.cookie.slice(0, 120) : null
       });
       if (recentRequests.length > MAX_RECENT_REQUESTS) {
@@ -1278,7 +1288,7 @@ function startProxyServer() {
 
     if (urlPath === DIAG_ROUTE_REQUESTS) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ requests: recentRequests }, null, 2));
+      res.end(JSON.stringify({ requests: recentRequests, rewrites: recentRewrites }, null, 2));
       return;
     }
 
@@ -1359,6 +1369,15 @@ function startProxyServer() {
       const localePrefix = resolveLocalePrefix(urlPath, req.headers['accept-language']);
       if (localePrefix) {
         req.url = `/${localePrefix}${urlPath === '/' ? '' : urlPath}`;
+      }
+      recentRewrites.push({
+        at: new Date().toISOString(),
+        original: urlPath,
+        final: req.url,
+        marker: req.headers['x-locale-routed']
+      });
+      if (recentRewrites.length > MAX_RECENT_REWRITES) {
+        recentRewrites.shift();
       }
       // Web runs in-process; hand the request directly to Next.js.
       webHandler(req, res);
