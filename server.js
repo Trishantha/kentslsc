@@ -1196,6 +1196,14 @@ function startProxyServer() {
     }
 
     if (!toApi && webHandler) {
+      // The unified listener is plain HTTP, so report the hop truthfully. Next
+      // 16's proxy phase routes middleware rewrites through an HTTP round-trip
+      // to WEB_INTERNAL_HOSTNAME:WEB_INTERNAL_PORT using the request's forwarded
+      // scheme; a TLS-terminating edge sets x-forwarded-proto: https, which makes
+      // that round-trip attempt TLS against our HTTP listener (EPROTO, every
+      // page 500s — vercel/next.js#91844). The public scheme for URL generation
+      // comes from FRONTEND_URL, so nothing else should read the hop protocol.
+      req.headers['x-forwarded-proto'] = 'http';
       // Web runs in-process; hand the request directly to Next.js.
       webHandler(req, res);
       return;

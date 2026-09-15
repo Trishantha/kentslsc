@@ -28,10 +28,28 @@ function isMaintenancePath(pathname: string) {
   return pathname === maintenancePath || pathname.startsWith(`${maintenancePath}/`);
 }
 
-export function middleware(request: NextRequest) {
+// Next 16 routes middleware rewrites through an internal HTTP round-trip back
+// to the server (vercel/next.js#91844). The rewritten request re-enters this
+// proxy with the internal listener as Host; re-applying next-intl's prefix
+// logic to it would redirect /en back to / and loop every page. Detect the
+// round-trip and serve it. (Production only: in dev, rewrites are handled
+// in-process and real browsers legitimately send Host: localhost.)
+function isInternalRewriteRequest(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return false;
+  }
+  const host = request.headers.get('host') || '';
+  return /^(localhost|127\.0\.0\.1|0\.0\.0\.0):\d+$/.test(host);
+}
+
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const redirectBase =
     process.env.FRONTEND_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? request.url;
+
+  if (isInternalRewriteRequest(request)) {
+    return NextResponse.next();
+  }
 
   if (maintenanceModeEnabled && !isMaintenancePath(pathname)) {
     const url = request.nextUrl.clone();
@@ -70,10 +88,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
     // NOTE: this is a cheap routing decision, not an authorisation check. The
-    // cookie is not verified here — middleware runs on the Edge runtime, and
-    // pulling JWT_SECRET into the web bundle to verify it would couple the two
-    // services' secrets. Real enforcement is the server layouts (which call
-    // GET /auth/session) plus the API guards.
+    // cookie is not verified here, and the secret stays with the API (which
+    // enforces auth on every request). Real enforcement is the server layouts
+    // (which call GET /auth/session) plus the API guards.
     return NextResponse.next();
   }
 
