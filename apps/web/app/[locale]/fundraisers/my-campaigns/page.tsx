@@ -5,6 +5,7 @@ import { Link } from '@/i18n/routing';
 import { Loader2, Plus, Clock, CheckCircle2, XCircle, Megaphone } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { formatCurrency } from '@/lib/utils';
 
 interface Campaign {
   id: string;
@@ -108,7 +109,7 @@ export default function MyCampaignsPage() {
                       />
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      £{c.raisedAmount.toLocaleString()} raised of £{c.targetAmount.toLocaleString()} · {c.totalDonors} donors
+                      {formatCurrency(c.raisedAmount)} raised of {formatCurrency(c.targetAmount)} · {c.totalDonors} donors
                     </p>
                   </div>
 

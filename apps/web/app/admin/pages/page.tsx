@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, Loader2, Home, Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 
 interface SitePage {
   id: string;
@@ -87,7 +88,7 @@ export default function AdminPagesPage() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                    {new Date(page.updatedAt).toLocaleDateString()}
+                    {formatDate(page.updatedAt)}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">

@@ -1,4 +1,6 @@
-export type PaymentProvider = 'stripe' | 'gocardless';
+import type { PaymentMethodProvider } from '@kentslsc/shared';
+
+export type PaymentProvider = PaymentMethodProvider;
 
 /**
  * Success-return URLs carry a session identifier whose prefix identifies the

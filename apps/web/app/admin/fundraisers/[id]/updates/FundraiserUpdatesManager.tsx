@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { RichTextContent } from '@/components/ui/RichTextContent';
 import { hasRichTextContent } from '@/lib/rich-text';
+import { formatDate } from '@/lib/utils';
 import type { FundraiserUpdate } from '../../types';
 
 const updateSchema = z.object({
@@ -116,7 +117,7 @@ export function FundraiserUpdatesManager({ fundraiserId }: FundraiserUpdatesMana
                   <div>
                     <p className="text-sm font-semibold">{u.title}</p>
                     <p className="text-xs text-slate-400">
-                      {u.author?.firstName ?? u.author?.name} · {new Date(u.createdAt).toLocaleDateString()}
+                      {u.author?.firstName ?? u.author?.name} · {formatDate(u.createdAt)}
                     </p>
                   </div>
                 </div>

@@ -5,15 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date | null | undefined) {
+export function formatDate(
+  date: string | Date | null | undefined,
+  options?: Intl.DateTimeFormatOptions
+) {
   if (!date) return 'TBC';
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return 'Invalid date';
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
-    year: 'numeric'
+    year: 'numeric',
+    ...options
   }).format(d);
+}
+
+/** e.g. "September 2026" */
+export function formatMonthYear(date: string | Date | null | undefined) {
+  if (!date) return 'TBC';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return 'Invalid date';
+  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(d);
 }
 
 export function formatDateTime(date: string | Date | null | undefined) {

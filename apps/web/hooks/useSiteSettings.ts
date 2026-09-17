@@ -2,13 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { type SiteSettingsInput } from '@kentslsc/shared';
-
-export interface SiteSettings extends SiteSettingsInput {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { type SiteSettings } from '@kentslsc/shared';
 
 export function useSiteSettings() {
   return useQuery<SiteSettings>({

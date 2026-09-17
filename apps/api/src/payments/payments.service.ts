@@ -15,15 +15,16 @@ import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import type { Prisma } from '@kentslsc/database';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 import { resolveInvoicePaymentIntentId } from './utils/stripe-compat.js';
+import { sha256 } from '../common/utils/crypto.js';
 
 const STRIPE_TIMEOUT_MS = 30_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
 
-export type PaymentProvider = 'stripe' | 'paypal' | 'gocardless';
+type PaymentProvider = 'stripe' | 'paypal' | 'gocardless';
 
-export type CheckoutUiMode = 'hosted' | 'embedded' | 'embedded_page';
+type CheckoutUiMode = 'hosted' | 'embedded' | 'embedded_page';
 
-export interface CreateCheckoutInput {
+interface CreateCheckoutInput {
   provider?: PaymentProvider;
   amount?: number;
   currency?: string;
@@ -42,7 +43,7 @@ export interface CreateCheckoutInput {
   includeProcessingFee?: boolean;
 }
 
-export interface CheckoutResult {
+interface CheckoutResult {
   provider: PaymentProvider;
   id: string;
   url: string;
@@ -66,7 +67,7 @@ export interface CheckoutSessionDetail {
     | undefined;
 }
 
-export interface SyncedStripePrice {
+interface SyncedStripePrice {
   productId: string;
   priceId: string;
 }
@@ -1742,7 +1743,7 @@ export class PaymentsService {
         provider: 'paypal',
         eventType,
         externalId: transmissionId,
-        payloadHash: crypto.createHash('sha256').update(rawBody).digest('hex'),
+        payloadHash: sha256(rawBody.toString()),
         status: 'received'
       }
     });

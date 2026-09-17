@@ -7,7 +7,7 @@ import { PaymentsController } from './payments.controller.js';
 import { RefundsService } from './refunds.service.js';
 import { PaymentReportsService } from './reports.service.js';
 
-export const PAYMENTS_SERVICE = 'PAYMENTS_SERVICE';
+const PAYMENTS_SERVICE = 'PAYMENTS_SERVICE';
 
 @Module({
   imports: [PrismaModule, EmailModule],

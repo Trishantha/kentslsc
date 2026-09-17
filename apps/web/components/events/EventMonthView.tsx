@@ -3,7 +3,7 @@
 import { useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PartyPopper } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDate, formatMonthYear } from '@/lib/utils';
 import EventCard from '@/components/events/EventCard';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
@@ -37,25 +37,16 @@ function getDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function formatMonthYear(date: Date) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(date);
-}
-
 function formatFullDate(date: Date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(date);
+  return formatDate(date, { weekday: 'long', month: 'long' });
 }
 
 function AgendaEventCard({ event }: { event: MonthEvent }) {
   const router = useRouter();
   const start = new Date(event.startDatetime);
   const day = start.getDate();
-  const weekday = start.toLocaleDateString('en-GB', { weekday: 'short' }).toUpperCase();
-  const monthShort = start.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase();
+  const weekday = formatDate(start, { weekday: 'short' }).toUpperCase();
+  const monthShort = formatDate(start, { month: 'short' }).toUpperCase();
   const year = start.getFullYear();
 
   return (

@@ -1272,7 +1272,16 @@ function serveNextImage(req, res) {
 // workStore to be initialized" (E1068, vercel/next.js#91844). Direct requests
 // to the [locale] segment render normally, so we translate the path up front
 // and mark the request; proxy.ts lets marked requests through untouched.
-const LOCALE_SEGMENTS = new Set(['en', 'si', 'ta']);
+// Canonical locale list lives in @kentslsc/shared; fall back to the same
+// values if the ESM package cannot be required (Node < 20.19 without
+// require(esm) support, e.g. a pinned older node:20-alpine image).
+let LOCALES;
+try {
+  ({ LOCALES } = require('@kentslsc/shared'));
+} catch {
+  LOCALES = ['en', 'si', 'ta'];
+}
+const LOCALE_SEGMENTS = new Set(LOCALES);
 const LOCALE_ROUTER_PREFIX_TREES = ['/admin', '/dashboard', '/forum'];
 const LOCALE_ROUTER_EXACT_PATHS = new Set([
   '/login',

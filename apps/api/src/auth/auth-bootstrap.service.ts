@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
 import { AuthEventType } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { UserRole } from '@kentslsc/shared';
+import { hashPassword } from '../common/utils/crypto.js';
 
 /**
  * Emergency admin account recovery / creation.
@@ -47,7 +47,7 @@ export class AuthBootstrapService implements OnModuleInit {
     }
 
     const email = (this.config.get<string>('ADMIN_EMERGENCY_EMAIL') ?? 'admin@kentslsc.org').toLowerCase().trim();
-    const passwordHash = await bcrypt.hash(emergencyPassword, 12);
+    const passwordHash = await hashPassword(emergencyPassword);
 
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
 

@@ -3,15 +3,15 @@ import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 
-export type RecommendType = 'events' | 'fundraisers' | 'topics' | 'businesses';
+type RecommendType = 'events' | 'fundraisers' | 'topics' | 'businesses';
 
-export interface RecommendParams {
+interface RecommendParams {
   type: RecommendType;
   userId?: string;
   limit?: number;
 }
 
-export interface SearchParams {
+interface SearchParams {
   query: string;
   limit?: number;
 }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 
-export type CameraState = 'idle' | 'requesting' | 'allowed' | 'denied' | 'unsupported' | 'error';
+type CameraState = 'idle' | 'requesting' | 'allowed' | 'denied' | 'unsupported' | 'error';
 
 interface UseHtml5QrScannerOptions {
   enabled: boolean;

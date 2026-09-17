@@ -1,6 +1,10 @@
 import axios from 'axios';
-import { csrfTokenCookieName } from '@kentslsc/shared';
+import { csrfTokenCookieName, LOCALES } from '@kentslsc/shared';
 import { safeRedirect } from './safe-redirect';
+import { getCookieValue as readCookieValue } from './cookie-value';
+
+/** Matches an optional locale path prefix, e.g. `/si/...`. */
+const localePathRegex = new RegExp(`^/(${LOCALES.join('|')})(?:/|$)`);
 
 /**
  * The browser must always talk to the API through the Next.js rewrite proxy
@@ -9,7 +13,7 @@ import { safeRedirect } from './safe-redirect';
  * they are scoped to the frontend origin with SameSite=Lax. The proxy keeps
  * everything same-origin and works behind forwarded hosts such as Codespaces.
  */
-export const baseURL = '/api';
+const baseURL = '/api';
 
 /**
  * Browser-side API client. Do not set a default Content-Type: axios
@@ -25,10 +29,7 @@ export const api = axios.create({
 
 function getCookieValue(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
-  const match = document.cookie.match(
-    new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
-  );
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  return readCookieValue(document.cookie, name);
 }
 
 api.interceptors.request.use((config) => {
@@ -132,7 +133,7 @@ api.interceptors.response.use(
         // rather than being dumped on the dashboard.
         const here = `${window.location.pathname}${window.location.search}`;
         const target = safeRedirect(here, '/dashboard');
-        const localeMatch = window.location.pathname.match(/^\/(en|si|ta)(?:\/|$)/);
+        const localeMatch = window.location.pathname.match(localePathRegex);
         const localePrefix = localeMatch ? `/${localeMatch[1]}` : '';
         window.location.replace(`${localePrefix}/auth/login?redirect=${encodeURIComponent(target)}`);
       }

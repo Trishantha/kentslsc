@@ -1,7 +1,7 @@
 import { IsString, IsOptional, IsUrl, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class PosterImageDto {
+class PosterImageDto {
   @IsUrl()
   declare url: string;
 

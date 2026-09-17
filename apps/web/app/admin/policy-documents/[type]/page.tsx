@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
 import { PolicyDocumentType, policyDocumentTypeLabels } from '@kentslsc/shared';
+import { formatDateTime } from '@/lib/utils';
 
 interface PolicyDoc {
   id: string;
@@ -183,7 +184,7 @@ export default function AdminPolicyDocumentEditPage() {
 
         {data?.updatedBy && (
           <p className="text-xs text-slate-500">
-            Last updated by {data.updatedBy} on {new Date(data.updatedAt).toLocaleString()}
+            Last updated by {data.updatedBy} on {formatDateTime(data.updatedAt)}
           </p>
         )}
       </form>

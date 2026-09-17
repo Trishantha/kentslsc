@@ -1,18 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { AuthEventType, type Prisma } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { sha256 } from '../common/utils/crypto.js';
 
-export const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  return sha256(token);
 }
 
 /** Stored so sessions are attributable without retaining raw client IPs. */
 export function hashIp(ip?: string | null): string | undefined {
   if (!ip) return undefined;
-  return createHash('sha256').update(ip).digest('hex').slice(0, 32);
+  return sha256(ip).slice(0, 32);
 }
 
 export interface RequestContext {

@@ -1,20 +1,15 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { AuthEventType } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { SessionsService, hashToken, hashIp, type RequestContext } from './sessions.service.js';
 import { LoginLockoutService } from './login-lockout.service.js';
+import { generateToken, hashPassword } from '../common/utils/crypto.js';
 
 const VERIFICATION_TTL_HOURS = 24;
 const RESET_TTL_MINUTES = 60;
-
-/** 32 random bytes, url-safe. Only the sha256 is persisted. */
-function generateToken(): string {
-  return randomBytes(32).toString('base64url');
-}
 
 @Injectable()
 export class CredentialsService {
@@ -189,7 +184,7 @@ export class CredentialsService {
       });
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await hashPassword(newPassword);
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -243,7 +238,7 @@ export class CredentialsService {
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Current password is incorrect');
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await hashPassword(newPassword);
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash, passwordChangedAt: new Date() }

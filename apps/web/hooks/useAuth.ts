@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Permission } from '@kentslsc/shared';
+import type { Permission, UserRoleValue } from '@kentslsc/shared';
 
 export interface AuthUser {
   id: string;
@@ -17,7 +17,7 @@ export interface AuthUser {
     townCity: string;
     postcode: string;
   };
-  role: 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
+  role: UserRoleValue;
   permissions: Permission[];
   emailVerified: boolean;
   createdAt: string;

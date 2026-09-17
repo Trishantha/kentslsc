@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { ArrowLeft, Calendar, Images } from 'lucide-react';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
+import { formatDate } from '@/lib/utils';
 
 interface GalleryPhoto {
   id: string;
@@ -86,7 +87,7 @@ export default function BlogGalleryPage() {
           {gallery?.eventDate && (
             <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
               <Calendar className="h-4 w-4" />
-              {new Date(gallery.eventDate).toLocaleDateString('en-GB')}
+              {formatDate(gallery.eventDate)}
             </p>
           )}
         </div>

@@ -7,13 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Globe, Mail, Phone, MessageCircle, MapPin, ToggleLeft } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
-import { siteSettingsSchema, type SiteSettingsInput } from '@kentslsc/shared';
-
-interface SiteSettings extends SiteSettingsInput {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { siteSettingsSchema, type SiteSettings, type SiteSettingsInput } from '@kentslsc/shared';
 
 const inputClass =
   'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';

@@ -17,7 +17,7 @@ interface FontSet {
 
 let fontCache: FontSet | null = null;
 
-export type FontFileResolver = (file: string) => Promise<string> | string;
+type FontFileResolver = (file: string) => Promise<string> | string;
 
 async function loadFonts(fontResolver?: FontFileResolver): Promise<FontSet> {
   if (fontCache) {
@@ -254,7 +254,7 @@ function resolveTierPalette(membershipTypeName: string, isFree: boolean): TierPa
   };
 }
 
-export interface CardDetails {
+interface CardDetails {
   membershipId: string;
   memberName: string;
   membershipTypeName: string;

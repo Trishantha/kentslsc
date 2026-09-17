@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Images, Calendar, FileText, Eye, Loader2 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
+import { formatDate } from '@/lib/utils';
 import type { AdminGallery } from '../types';
 
 interface GalleryDetailLayoutProps {
@@ -78,7 +79,7 @@ export default function GalleryDetailLayout({ children }: GalleryDetailLayoutPro
                 <>
                   <span>·</span>
                   <Calendar className="h-3.5 w-3.5" />
-                  <span>{new Date(gallery.eventDate).toLocaleDateString('en-GB')}</span>
+                  <span>{formatDate(gallery.eventDate)}</span>
                 </>
               )}
               <span

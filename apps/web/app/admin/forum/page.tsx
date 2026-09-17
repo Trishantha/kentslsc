@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Loader2, Trash2, MessageSquareWarning } from 'lucide-react';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
+import { formatDateTime } from '@/lib/utils';
 
 interface ForumTopic {
   id: string;
@@ -104,7 +105,7 @@ export default function AdminForumPage() {
                           </div>
                           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{topic.content}</p>
                           <div className="mt-2 text-xs text-slate-500">
-                            by {topic.user.name} in {topic.category.name} · {new Date(topic.createdAt).toLocaleString('en-GB')}
+                            by {topic.user.name} in {topic.category.name} · {formatDateTime(topic.createdAt)}
                           </div>
                         </div>
                         <button
@@ -138,7 +139,7 @@ export default function AdminForumPage() {
                         <div>
                           <p className="text-sm text-slate-600 dark:text-slate-400">{post.content}</p>
                           <div className="mt-2 text-xs text-slate-500">
-                            by {post.user.name} in {post.topic.title} · {new Date(post.createdAt).toLocaleString('en-GB')}
+                            by {post.user.name} in {post.topic.title} · {formatDateTime(post.createdAt)}
                           </div>
                         </div>
                         <button

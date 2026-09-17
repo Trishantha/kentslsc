@@ -26,7 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { summarizeRichText } from '@/lib/rich-text';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
-import { getVideoMimeType } from '@/lib/utils';
+import { getVideoMimeType, formatDate, formatCurrency } from '@/lib/utils';
 import type { MixedBlogListItem } from '@kentslsc/shared';
 
 interface EventItem {
@@ -64,24 +64,6 @@ interface ForumCategory {
   id: string;
   name: string;
   description?: string | null;
-}
-
-function formatDate(date: string | Date | null | undefined) {
-  if (!date) return 'TBC';
-  const d = typeof date === 'string' ? new Date(date) : date;
-  if (isNaN(d.getTime())) return 'Invalid date';
-  return d.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
-function formatCurrency(value: number | string | null | undefined) {
-  const num = typeof value === 'string' ? Number(value) : value;
-  if (num == null || Number.isNaN(num)) return '£0.00';
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(num);
 }
 
 function initials(name: string) {
@@ -429,7 +411,7 @@ export default function HomePageContent() {
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
                           <span className="inline-flex items-center gap-1.5">
                             <Clock className="h-4 w-4 text-neon-blue" />
-                            {formatDate(evt.startDatetime)}
+                            {formatDate(evt.startDatetime, { weekday: 'short' })}
                           </span>
                           {evt.location && (
                             <span className="inline-flex items-center gap-1.5">
@@ -731,7 +713,7 @@ export default function HomePageContent() {
                               {summary}
                             </p>
                             {post.publishedAt && (
-                              <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
+                              <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt, { weekday: 'short' })}</p>
                             )}
                           </div>
                         </motion.div>

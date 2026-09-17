@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Loader2, Plus, QrCode, TicketCheck, TicketX, Search, Download } from 'lucide-react';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 import type { AdminEvent } from '../../page';
 
 interface TicketRow {
@@ -223,7 +223,7 @@ export default function EventTicketsPage() {
                       </span>
                     </td>
                     <td className="py-3 text-slate-500">
-                      {new Date(ticket.purchaseDatetime).toLocaleString('en-GB')}
+                      {formatDateTime(ticket.purchaseDatetime)}
                     </td>
                     <td className="py-3 text-right text-xs text-slate-500">
                       {ticket.qrCodeValue.slice(0, 12)}…

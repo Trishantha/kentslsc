@@ -3,7 +3,6 @@ import { Inter, Russo_One } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import JsonLd from '@/components/JsonLd';
-import { DebugHydration } from '@/components/DebugHydration';
 import { getFrontendUrl } from '@/lib/env';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -69,7 +68,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.variable} ${russoOne.variable} font-sans`} suppressHydrationWarning>
         <Providers>
-          {process.env.NODE_ENV === 'development' && <DebugHydration />}
           {children}
         </Providers>
       </body>

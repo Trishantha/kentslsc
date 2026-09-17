@@ -3,6 +3,7 @@ import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { PolicyDocumentType, policyDocumentTypeLabels } from '@kentslsc/shared';
 import { notFound } from 'next/navigation';
 import { setRequestLocale } from 'next-intl/server';
+import { formatDate } from '@/lib/utils';
 
 interface PolicyDoc {
   id: string;
@@ -44,11 +45,7 @@ export default async function PolicyDocumentPage({ params, docType }: Props) {
         <h1 className="section-title">{doc.title}</h1>
         <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">
           Last updated:{' '}
-          {new Date(doc.updatedAt).toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-          })}
+          {formatDate(doc.updatedAt, { month: 'long' })}
         </p>
 
         <div className="mt-10 glass-card p-6 md:p-10">

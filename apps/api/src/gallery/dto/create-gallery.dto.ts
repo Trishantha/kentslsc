@@ -1,7 +1,7 @@
 import { IsString, IsOptional, IsBoolean, IsDate, IsUrl, IsArray, ValidateNested, Matches, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class GalleryPhotoDto {
+class GalleryPhotoDto {
   @IsOptional()
   @IsString()
   declare id?: string;

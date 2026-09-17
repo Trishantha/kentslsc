@@ -8,25 +8,12 @@
 // browser refers to the user's own machine rather than the server.
 
 import { headers } from 'next/headers';
+import { readEnv } from './env';
 
 function normalizeApiOrigin(value: string): string {
   return value
     .replace(/\/api\/?$/, '')
     .replace(/\/$/, '');
-}
-
-/**
- * Resolve the public API origin at call time rather than module-load time.
- *
- * In unified/shared-hosting deployments the environment files are loaded after
- * the build, so baking the value in at import time captures the wrong default
- * (e.g. http://localhost:3001). Evaluating it lazily lets server.js-injected
- * variables like API_PROXY_TARGET take effect at runtime.
- */
-function readEnv(key: string): string | undefined {
-  // Use dynamic property access so the bundler cannot hoist the lookup to
-  // module-evaluation time and capture a stale value.
-  return process.env[key];
 }
 
 /**
@@ -60,29 +47,6 @@ async function getRequestOrigin(): Promise<string | undefined> {
 }
 
 /**
- * Resolve an API origin that the frontend server can actually reach.
- *
- * Resolution order:
- *   1. INTERNAL_API_URL (explicit internal origin)
- *   2. API_PROXY_TARGET / NEXT_PUBLIC_API_URL (configured public origin)
- *   3. The current request's own origin (for unified/same-container setups)
- *   4. http://127.0.0.1:<PORT|WEB_PORT|3000> (unified server loopback fallback)
- */
-async function resolveApiOrigin(): Promise<string> {
-  const internal = readEnv('INTERNAL_API_URL');
-  if (internal) return normalizeApiOrigin(internal);
-
-  const publicOrigin = readEnv('API_PROXY_TARGET') ?? readEnv('NEXT_PUBLIC_API_URL');
-  if (publicOrigin) return normalizeApiOrigin(publicOrigin);
-
-  const requestOrigin = await getRequestOrigin();
-  if (requestOrigin) return requestOrigin;
-
-  const port = readEnv('PORT') ?? readEnv('WEB_PORT') ?? '3000';
-  return `http://127.0.0.1:${port}`;
-}
-
-/**
  * All candidate origins that the frontend server might use to reach the API,
  * ordered from most explicit to least explicit.
  *
@@ -107,29 +71,4 @@ export async function getApiOriginCandidates(): Promise<string[]> {
   candidates.add(`http://127.0.0.1:${port}`);
 
   return [...candidates];
-}
-
-/**
- * Public API origin.
- *
- * Used for server-side content fetches (pages, sitemap, fundraisers, etc.).
- * In shared-hosting/unified deployments this resolves to the same robust set of
- * fallbacks as getInternalApiUrl(), so server-side renders do not fail just
- * because the public domain is unreachable from inside the container.
- */
-export async function getServerApiUrl(): Promise<string> {
-  return resolveApiOrigin();
-}
-
-/**
- * Internal API origin for server-side calls.
- *
- * Some hosts (e.g. shared-hosting containers) can proxy browser requests to a
- * public API domain but cannot reach that same public origin from inside the
- * container. Set INTERNAL_API_URL to an origin the frontend container can
- * reach directly (e.g. an internal service URL or http://127.0.0.1:3000 when
- * the API runs in-process).
- */
-export async function getInternalApiUrl(): Promise<string> {
-  return resolveApiOrigin();
 }

@@ -1,24 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
+import type { AvailablePaymentMethods, PaymentPlatform, ProcessingFeeConfig } from '@kentslsc/shared';
 import { api } from '@/lib/api';
 
-export interface ProcessingFeeConfig {
-  enabled: boolean;
-  percent: number;
-  fixed: number;
-}
-
-export interface PublicPaymentSettings {
-  provider: 'stripe' | 'paypal' | 'gocardless';
+interface PublicPaymentSettings {
+  provider: PaymentPlatform;
   /** Processing fee per payment method, keyed as the payer selects it. */
   fees: {
     card: ProcessingFeeConfig;
     directDebit: ProcessingFeeConfig;
   };
   /** Which payment methods are configured and may be offered to payers. */
-  availableMethods: {
-    card: boolean;
-    directDebit: boolean;
-  };
+  availableMethods: AvailablePaymentMethods;
 }
 
 export function usePaymentSettings() {

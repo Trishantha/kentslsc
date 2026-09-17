@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
+import { formatDate } from '@/lib/utils';
 import type { AdminFundraiser } from '../types';
 import { FUNDRAISER_CATEGORIES, FUNDRAISER_STATUS_COLORS } from '../types';
 
@@ -91,9 +92,9 @@ export default function FundraiserDetailLayout({ children }: FundraiserDetailLay
               <span>{FUNDRAISER_CATEGORIES.find((c) => c.value === fundraiser.category)?.label ?? fundraiser.category}</span>
               <span>·</span>
               <Calendar className="h-3.5 w-3.5" />
-              <span>{new Date(fundraiser.startDate).toLocaleDateString('en-GB')}</span>
+              <span>{formatDate(fundraiser.startDate)}</span>
               <span>–</span>
-              <span>{new Date(fundraiser.endDate).toLocaleDateString('en-GB')}</span>
+              <span>{formatDate(fundraiser.endDate)}</span>
               {hasEnded && (
                 <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
                   Ended

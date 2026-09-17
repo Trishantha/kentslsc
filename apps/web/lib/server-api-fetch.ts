@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { csrfTokenCookieName } from '@kentslsc/shared';
 import { getApiOriginCandidates } from './api-base';
+import { getCookieValue } from './cookie-value';
 import { fetchWithRetry, type FetchWithRetryOptions } from './server-fetch';
 
 interface FetchWithOriginFallbackOptions<T> extends FetchWithRetryOptions {
@@ -22,9 +23,7 @@ async function getIncomingCookieHeader(): Promise<string | undefined> {
 }
 
 function getCsrfToken(cookieHeader: string): string | undefined {
-  const cookieName = csrfTokenCookieName(process.env.NODE_ENV === 'production');
-  const match = cookieHeader.match(new RegExp('(?:^|;\\s*)' + cookieName + '=([^;]*)'));
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  return getCookieValue(cookieHeader, csrfTokenCookieName(process.env.NODE_ENV === 'production'));
 }
 
 function mergeCookieHeader(options: RequestInit, cookieHeader: string): RequestInit {

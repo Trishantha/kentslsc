@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
 import { Prisma } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import { sha256 } from '../common/utils/crypto.js';
 
-export type WebhookStatus = 'received' | 'processed' | 'ignored' | 'failed';
+type WebhookStatus = 'received' | 'processed' | 'ignored' | 'failed';
 
 interface RecordWebhookInput {
   provider: string;
@@ -19,7 +19,7 @@ export class WebhookEventService {
   constructor(private readonly prisma: PrismaService) {}
 
   private hashPayload(payload: Buffer | string): string {
-    return createHash('sha256').update(payload).digest('hex');
+    return sha256(payload.toString());
   }
 
   private parsePayload(payload: Buffer | string): unknown {

@@ -12,14 +12,3 @@ export interface AdminJob {
   createdAt?: string;
   updatedAt?: string;
 }
-
-export interface JobApplication {
-  id: string;
-  jobAdId: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  coverLetter?: string | null;
-  cvUrl?: string | null;
-  createdAt: string;
-}

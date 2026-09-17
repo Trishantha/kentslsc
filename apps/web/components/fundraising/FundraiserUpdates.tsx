@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Megaphone } from 'lucide-react';
 import { api } from '@/lib/api';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { formatDate } from '@/lib/utils';
 
 interface Update {
   id: string;
@@ -53,7 +54,7 @@ export function FundraiserUpdates({ fundraiserId }: Props) {
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{u.title}</p>
               <p className="text-xs text-slate-400">
-                {u.author.firstName ?? u.author.name} · {new Date(u.createdAt).toLocaleDateString()}
+                {u.author.firstName ?? u.author.name} · {formatDate(u.createdAt)}
               </p>
             </div>
           </div>

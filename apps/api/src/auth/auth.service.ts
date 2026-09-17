@@ -12,8 +12,9 @@ import { RegisterDto } from './dto/register.dto.js';
 import { SessionsService, type RequestContext } from './sessions.service.js';
 import { LoginLockoutService } from './login-lockout.service.js';
 import { EmailService } from '../email/email.service.js';
+import { hashPassword } from '../common/utils/crypto.js';
 
-export interface AuthTokens {
+interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
@@ -45,7 +46,7 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(data.password, 12);
+    const passwordHash = await hashPassword(data.password);
     const fullName = `${data.firstName} ${data.lastName}`.trim();
     const user = await this.prisma.user.create({
       data: {

@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Permission, permissionLabels } from '@kentslsc/shared';
 import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
+import { cn, formatDate, formatDateTime } from '@/lib/utils';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import type { UserItem, UsersResponse, Role, ExportedUser } from './types';
 
@@ -82,13 +82,13 @@ export default function AdminUsersPage() {
       Role: u.role,
       Status: u.status,
       'Email Verified At': u.emailVerifiedAt
-        ? new Date(u.emailVerifiedAt).toLocaleString('en-GB')
+        ? formatDateTime(u.emailVerifiedAt)
         : '',
       'Password Changed At': u.passwordChangedAt
-        ? new Date(u.passwordChangedAt).toLocaleString('en-GB')
+        ? formatDateTime(u.passwordChangedAt)
         : '',
-      'Created At': u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-GB') : '',
-      'Updated At': u.updatedAt ? new Date(u.updatedAt).toLocaleDateString('en-GB') : '',
+      'Created At': u.createdAt ? formatDate(u.createdAt) : '',
+      'Updated At': u.updatedAt ? formatDate(u.updatedAt) : '',
       'Building / Street': u.buildingStreet,
       Locality: u.locality,
       'Town / City': u.townCity,
@@ -96,10 +96,10 @@ export default function AdminUsersPage() {
       'Latest Membership Type': u.latestMembershipType,
       'Latest Membership Status': u.latestMembershipStatus,
       'Latest Membership Start': u.latestMembershipStartDate
-        ? new Date(u.latestMembershipStartDate).toLocaleDateString('en-GB')
+        ? formatDate(u.latestMembershipStartDate)
         : '',
       'Latest Membership End': u.latestMembershipEndDate
-        ? new Date(u.latestMembershipEndDate).toLocaleDateString('en-GB')
+        ? formatDate(u.latestMembershipEndDate)
         : '',
       'Latest Membership Card URL': u.latestMembershipCardUrl
     }));
@@ -208,7 +208,7 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="py-3 text-slate-600 dark:text-slate-400">
-                      {new Date(user.createdAt).toLocaleDateString('en-GB')}
+                      {formatDate(user.createdAt)}
                     </td>
                     <td className="py-3">
                       <Link

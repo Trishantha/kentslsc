@@ -88,7 +88,7 @@ export function RegistrationWizard() {
 
   function formatPrice(type: MembershipType) {
     if (type.isFree || type.price === 0) return tCommon('free');
-    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
+    return formatCurrency(type.price);
   }
   const router = useRouter();
   const searchParams = useClientSearchParams();

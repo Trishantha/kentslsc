@@ -6,6 +6,7 @@ import { Plus, Loader2, Images, Upload, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
+import { formatDate } from '@/lib/utils';
 import type { AdminGallery } from './types';
 
 export default function AdminGalleriesPage() {
@@ -75,7 +76,7 @@ export default function AdminGalleriesPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                       {gallery.eventDate
-                        ? new Date(gallery.eventDate).toLocaleDateString('en-GB')
+                        ? formatDate(gallery.eventDate)
                         : '—'}
                     </td>
                     <td className="px-4 py-3">

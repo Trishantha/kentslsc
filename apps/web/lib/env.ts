@@ -5,7 +5,7 @@
  * build/module-load time. This is essential in unified/shared-hosting
  * deployments where environment files are loaded after the build.
  */
-function readEnv(key: string): string | undefined {
+export function readEnv(key: string): string | undefined {
   return process.env[key];
 }
 

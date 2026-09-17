@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Eye } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { AdminMembership } from './types';
 
 interface MembershipsListProps {
@@ -61,7 +61,7 @@ export function MembershipsList({ memberships }: MembershipsListProps) {
                 </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                   {m.startDate && m.endDate
-                    ? `${new Date(m.startDate).toLocaleDateString('en-GB')} – ${new Date(m.endDate).toLocaleDateString('en-GB')}`
+                    ? `${formatDate(m.startDate)} – ${formatDate(m.endDate)}`
                     : '-'}
                 </td>
                 <td className="px-4 py-3">

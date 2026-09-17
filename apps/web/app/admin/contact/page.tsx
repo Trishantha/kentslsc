@@ -6,6 +6,7 @@ import { Loader2, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
+import { formatDate } from '@/lib/utils';
 import type { ContactMessage } from './types';
 
 export default function AdminContactPage() {
@@ -65,7 +66,7 @@ export default function AdminContactPage() {
                       </span>
                     </td>
                     <td className="py-3 text-slate-600 dark:text-slate-400">
-                      {new Date(msg.createdAt).toLocaleDateString('en-GB')}
+                      {formatDate(msg.createdAt)}
                     </td>
                     <td className="py-3">
                       <div className="flex justify-end">

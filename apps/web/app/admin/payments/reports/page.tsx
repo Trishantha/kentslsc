@@ -14,7 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 
 interface ReportRow {
   id: string;
@@ -249,7 +249,7 @@ export default function RevenueReportPage() {
     const XLSX = await import('xlsx');
 
     const worksheetData = rows.data.map((row) => ({
-      Date: row.date ? new Date(row.date).toLocaleString() : '',
+      Date: row.date ? formatDateTime(row.date) : '',
       'Receipt #': row.receiptNumber ?? '',
       Name: row.name ?? '',
       'Address 1': row.addressLine1 ?? '',
@@ -268,7 +268,7 @@ export default function RevenueReportPage() {
       'Payment Channel': row.paymentChannel,
       'Payment ID': row.paymentId ?? '',
       'Subscription ID': row.subscriptionId ?? '',
-      'Payment Date': row.paymentDate ? new Date(row.paymentDate).toLocaleString() : '',
+      'Payment Date': row.paymentDate ? formatDateTime(row.paymentDate) : '',
       'Payment Method': row.paymentMethod ?? '',
       'Payment Status': row.paymentStatus,
       Source: row.sourceType,
@@ -294,10 +294,10 @@ export default function RevenueReportPage() {
     doc.setFontSize(14);
     doc.text('Kent SLSC Revenue Report', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated ${new Date().toLocaleString()}`, 14, 22);
+    doc.text(`Generated ${formatDateTime(new Date())}`, 14, 22);
 
     const body = rows.data.map((row) => [
-      row.date ? new Date(row.date).toLocaleDateString() : '',
+      row.date ? formatDate(row.date) : '',
       row.receiptNumber ?? '',
       row.name ?? '',
       row.addressLine1 ?? '',
@@ -512,7 +512,7 @@ export default function RevenueReportPage() {
                   if (['amount', 'fees', 'netPayment', 'refundedAmount'].includes(col.key)) {
                     value = formatMoney(row[col.key as keyof ReportRow] as number | null);
                   } else if (col.key === 'date' || col.key === 'paymentDate') {
-                    value = value ? new Date(value as string).toLocaleDateString() : '-';
+                    value = value ? formatDate(value as string) : '-';
                   } else if (col.key === 'paymentStatus') {
                     value = (
                       <span

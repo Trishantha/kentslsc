@@ -18,20 +18,6 @@ import {
   PaymentSourceType
 } from '@kentslsc/database';
 
-export interface TicketWithEvent {
-  id: string;
-  qrCodeValue: string;
-  status: string;
-  purchaseDatetime: Date;
-  event: {
-    id: string;
-    title: string;
-    startDatetime: Date;
-    endDatetime: Date;
-    location: string | null;
-  };
-}
-
 interface PayerAddress {
   line1?: string | null;
   line2?: string | null;

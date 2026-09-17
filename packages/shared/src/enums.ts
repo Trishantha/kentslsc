@@ -5,6 +5,13 @@ export enum UserRole {
   GUEST = 'GUEST'
 }
 
+/**
+ * Plain string-literal form of UserRole. Roles decoded from JSON API payloads
+ * arrive as plain strings, so DTOs type them with this union rather than the
+ * nominal enum, while remaining comparable to 'ADMIN'-style literals.
+ */
+export type UserRoleValue = `${UserRole}`;
+
 export enum UserStatus {
   ACTIVE = 'ACTIVE',
   BANNED = 'BANNED'

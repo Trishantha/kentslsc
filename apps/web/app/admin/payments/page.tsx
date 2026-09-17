@@ -4,15 +4,10 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, CreditCard } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
-
-interface ProcessingFeeConfig {
-  enabled: boolean;
-  percent: number;
-  fixed: number;
-}
+import { DEFAULT_PROCESSING_FEE, type PaymentPlatform, type ProcessingFeeConfig } from '@kentslsc/shared';
 
 interface PaymentSettings {
-  provider: 'stripe' | 'paypal' | 'gocardless';
+  provider: PaymentPlatform;
   hasStripeSecretKey: boolean;
   hasStripeWebhookSecret: boolean;
   hasStripePublishableKey: boolean;
@@ -30,7 +25,7 @@ interface PaymentSettings {
   gocardlessFee: ProcessingFeeConfig;
 }
 
-type PaymentProvider = PaymentSettings['provider'];
+type PaymentProvider = PaymentPlatform;
 
 const inputClass = 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';
 const labelClass = 'mb-1 block text-xs text-slate-500';
@@ -52,9 +47,9 @@ export default function AdminPaymentsPage() {
   const [gocardlessAccessToken, setGocardlessAccessToken] = useState('');
   const [gocardlessWebhookSecret, setGocardlessWebhookSecret] = useState('');
   const [gocardlessEnvironment, setGocardlessEnvironment] = useState<'sandbox' | 'live'>('sandbox');
-  const [stripeFee, setStripeFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
-  const [paypalFee, setPaypalFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
-  const [gocardlessFee, setGocardlessFee] = useState<ProcessingFeeConfig>({ enabled: true, percent: 1.5, fixed: 20 });
+  const [stripeFee, setStripeFee] = useState<ProcessingFeeConfig>(DEFAULT_PROCESSING_FEE);
+  const [paypalFee, setPaypalFee] = useState<ProcessingFeeConfig>(DEFAULT_PROCESSING_FEE);
+  const [gocardlessFee, setGocardlessFee] = useState<ProcessingFeeConfig>(DEFAULT_PROCESSING_FEE);
   const [stripeEnabled, setStripeEnabled] = useState(true);
   const [paypalEnabled, setPaypalEnabled] = useState(true);
   const [gocardlessEnabled, setGocardlessEnabled] = useState(true);
@@ -71,9 +66,9 @@ export default function AdminPaymentsPage() {
       setGocardlessAccessToken('');
       setGocardlessWebhookSecret('');
       setGocardlessEnvironment(data.gocardlessEnvironment ?? 'sandbox');
-      setStripeFee(data.stripeFee ?? { enabled: true, percent: 1.5, fixed: 20 });
-      setPaypalFee(data.paypalFee ?? { enabled: true, percent: 1.5, fixed: 20 });
-      setGocardlessFee(data.gocardlessFee ?? { enabled: true, percent: 1.5, fixed: 20 });
+      setStripeFee(data.stripeFee ?? DEFAULT_PROCESSING_FEE);
+      setPaypalFee(data.paypalFee ?? DEFAULT_PROCESSING_FEE);
+      setGocardlessFee(data.gocardlessFee ?? DEFAULT_PROCESSING_FEE);
       setStripeEnabled(data.stripeEnabled ?? true);
       setPaypalEnabled(data.paypalEnabled ?? true);
       setGocardlessEnabled(data.gocardlessEnabled ?? true);
@@ -129,13 +124,13 @@ export default function AdminPaymentsPage() {
       stripeEnabled,
       paypalEnabled,
       gocardlessEnabled,
-      stripeFeeEnabled: stripeFee.enabled,
+      stripeFeeEnabled: stripeFee.enabled ?? false,
       stripeFeePercent: stripeFee.percent,
       stripeFeeFixed: stripeFee.fixed,
-      paypalFeeEnabled: paypalFee.enabled,
+      paypalFeeEnabled: paypalFee.enabled ?? false,
       paypalFeePercent: paypalFee.percent,
       paypalFeeFixed: paypalFee.fixed,
-      gocardlessFeeEnabled: gocardlessFee.enabled,
+      gocardlessFeeEnabled: gocardlessFee.enabled ?? false,
       gocardlessFeePercent: gocardlessFee.percent,
       gocardlessFeeFixed: gocardlessFee.fixed
     };

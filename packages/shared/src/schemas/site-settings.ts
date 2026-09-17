@@ -15,3 +15,10 @@ export const siteSettingsSchema = z.object({
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
+
+/** Site settings as returned by the API (input fields plus resource metadata). */
+export interface SiteSettings extends SiteSettingsInput {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}

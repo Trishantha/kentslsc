@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Pencil, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PolicyDocumentType, policyDocumentTypeLabels } from '@kentslsc/shared';
+import { formatDate } from '@/lib/utils';
 
 interface PolicyDoc {
   id: string;
@@ -70,7 +71,7 @@ export default function AdminPolicyDocumentsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                      {doc ? new Date(doc.updatedAt).toLocaleDateString() : '—'}
+                      {doc ? formatDate(doc.updatedAt) : '—'}
                     </td>
                     <td className="px-6 py-4">
                       <Link

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Eye, Ticket, QrCode } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 import { eventCategoryLabels } from '@kentslsc/shared';
 import type { AdminEvent } from './page';
 
@@ -58,7 +58,7 @@ export function EventsList({ events }: EventsListProps) {
                     {event.location || '-'}
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
-                    {new Date(event.startDatetime).toLocaleString('en-GB')}
+                    {formatDateTime(event.startDatetime)}
                   </td>
                   <td className="px-4 py-3">
                     {event.externalTicketingUrl

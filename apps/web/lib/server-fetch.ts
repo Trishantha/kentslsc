@@ -16,7 +16,7 @@ export interface FetchWithRetryOptions extends RequestInit {
   next?: { revalidate?: number | false; tags?: string[] };
 }
 
-export type FetchResult =
+type FetchResult =
   | { ok: true; response: Response }
   | { ok: false; status: number | null; error?: unknown };
 
@@ -29,7 +29,7 @@ export type FetchResult =
  * Returns a tagged result so callers can distinguish "API unreachable" from a
  * genuine 404. For the simpler "response or null" behaviour, use fetchWithRetry().
  */
-export async function fetchWithRetryResult(
+async function fetchWithRetryResult(
   url: string,
   options: FetchWithRetryOptions = {}
 ): Promise<FetchResult> {

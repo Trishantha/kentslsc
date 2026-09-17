@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Users, Mail, FileSpreadsheet } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import { MembershipsList } from './MembershipsList';
 import type { AdminMembership, ExportedMembership } from './types';
@@ -80,10 +81,10 @@ export default function AdminMembershipsPage() {
       'Membership Type Description': m.membershipTypeDescription,
       'Membership Price': m.membershipPrice,
       'Duration (Months)': m.membershipDurationMonths,
-      'Start Date': m.startDate ? new Date(m.startDate).toLocaleDateString('en-GB') : '',
-      'End Date': m.endDate ? new Date(m.endDate).toLocaleDateString('en-GB') : '',
-      'Issued At': m.issuedAt ? new Date(m.issuedAt).toLocaleString('en-GB') : '',
-      'Paid At': m.paidAt ? new Date(m.paidAt).toLocaleString('en-GB') : '',
+      'Start Date': m.startDate ? formatDate(m.startDate) : '',
+      'End Date': m.endDate ? formatDate(m.endDate) : '',
+      'Issued At': m.issuedAt ? formatDateTime(m.issuedAt) : '',
+      'Paid At': m.paidAt ? formatDateTime(m.paidAt) : '',
       'Payment Method': m.paymentMethod,
       'Subscription Status': m.subscriptionStatus,
       'Credit Applied': m.creditAmountApplied ?? 0,
@@ -101,9 +102,9 @@ export default function AdminMembershipsPage() {
       'Member Role': m.memberRole,
       'Member Status': m.memberStatus,
       'Email Verified At': m.memberEmailVerifiedAt
-        ? new Date(m.memberEmailVerifiedAt).toLocaleString('en-GB')
+        ? formatDateTime(m.memberEmailVerifiedAt)
         : '',
-      'Member Since': m.memberCreatedAt ? new Date(m.memberCreatedAt).toLocaleDateString('en-GB') : '',
+      'Member Since': m.memberCreatedAt ? formatDate(m.memberCreatedAt) : '',
       'Building / Street': m.buildingStreet,
       Locality: m.locality,
       'Town / City': m.townCity,

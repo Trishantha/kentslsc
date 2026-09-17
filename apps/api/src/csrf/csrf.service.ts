@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
 import type { CookieOptions } from 'express';
 import { csrfTokenCookieName } from '@kentslsc/shared';
+import { generateToken } from '../common/utils/crypto.js';
 
-export const CSRF_HEADER_NAME = 'x-csrf-token';
+const CSRF_HEADER_NAME = 'x-csrf-token';
 
 @Injectable()
 export class CsrfService {
   generateToken(): string {
-    return randomBytes(32).toString('base64url');
+    return generateToken();
   }
 
   getCookieName(): string {

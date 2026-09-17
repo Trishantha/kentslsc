@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, Newspaper, Calendar, Images, FileText, Search, Eye } from 'lucide-react';
 import { AdminDetailTabs } from '@/components/admin/AdminDetailTabs';
 import { BlogPostProvider, useBlogPost } from './BlogPostProvider';
+import { formatDateTime } from '@/lib/utils';
 
 interface BlogDetailLayoutProps {
   children: React.ReactNode;
@@ -38,7 +39,7 @@ function BlogDetailShell({ children }: { children: React.ReactNode }) {
               <Calendar className="h-3.5 w-3.5" />
               <span>
                 {post.publishedAt
-                  ? new Date(post.publishedAt).toLocaleString('en-GB')
+                  ? formatDateTime(post.publishedAt)
                   : 'Unpublished'}
               </span>
               <span

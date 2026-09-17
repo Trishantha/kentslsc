@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePaymentSettings } from '@/hooks/usePaymentSettings';
 import { PaymentMethodSelector, defaultPaymentMethod } from '@/components/payments/PaymentMethodSelector';
 import { MembershipFeature, membershipFeatureLabels, type PaymentMethodOption } from '@kentslsc/shared';
+import { formatCurrency } from '@/lib/utils';
 
 interface MembershipType {
   id: string;
@@ -46,7 +47,7 @@ interface ApplyMembershipResponse {
 
 function formatPrice(type: MembershipType) {
   if (type.isFree || type.price === 0) return 'Free';
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(type.price);
+  return formatCurrency(type.price);
 }
 
 export default function MembershipPlansPage() {

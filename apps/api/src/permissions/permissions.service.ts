@@ -9,16 +9,6 @@ export interface RoleInput {
   permissions: Permission[];
 }
 
-export interface BackOfficeUserInput {
-  userId?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
-  roleId?: string;
-  permissions?: Permission[];
-}
-
 @Injectable()
 export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}

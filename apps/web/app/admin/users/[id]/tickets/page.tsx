@@ -20,7 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import { formatDate, formatDateTime, formatCurrency, cn } from '@/lib/utils';
 import type { UserDetail } from '../../types';
 
 interface TicketDesign {
@@ -414,7 +414,7 @@ function TicketViewCard({ ticket }: { ticket: UserDetail['tickets'][number] }) {
           </div>
         )}
         <div className="text-xs text-slate-500">
-          Purchased {new Date(ticket.purchaseDatetime).toLocaleString('en-GB')}
+          Purchased {formatDateTime(ticket.purchaseDatetime)}
         </div>
         {design.sponsorText && <p className="text-xs italic text-slate-400">{design.sponsorText}</p>}
       </div>

@@ -1,9 +1,10 @@
 import { defineRouting } from 'next-intl/routing';
 import { createNavigation } from 'next-intl/navigation';
+import { DEFAULT_LOCALE, LOCALES } from '@kentslsc/shared';
 
 export const routing = defineRouting({
-  locales: ['en', 'si', 'ta'],
-  defaultLocale: 'en',
+  locales: [...LOCALES],
+  defaultLocale: DEFAULT_LOCALE,
   localePrefix: 'as-needed'
 });
 

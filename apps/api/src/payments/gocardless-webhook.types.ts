@@ -101,12 +101,3 @@ export interface GoCardlessWebhookEvent {
   };
 }
 
-export function isGoCardlessWebhookEvent(payload: unknown): payload is GoCardlessWebhookEvent {
-  return (
-    typeof payload === 'object' &&
-    payload !== null &&
-    typeof (payload as GoCardlessWebhookEvent).id === 'string' &&
-    typeof (payload as GoCardlessWebhookEvent).action === 'string' &&
-    typeof (payload as GoCardlessWebhookEvent).resource_type === 'string'
-  );
-}

@@ -4,7 +4,7 @@ import { Prisma } from '@kentslsc/database';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
 
-export interface FacebookPost {
+interface FacebookPost {
   id: string;
   message?: string;
   createdTime: string;

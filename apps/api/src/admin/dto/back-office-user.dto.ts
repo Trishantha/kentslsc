@@ -9,7 +9,7 @@ import {
   MinLength,
   ValidateIf
 } from 'class-validator';
-import { Permission, UserRole } from '@kentslsc/shared';
+import { Permission } from '@kentslsc/shared';
 import { StrongPassword } from '../../common/validators/strong-password.decorator.js';
 
 export class AddExistingBackOfficeUserDto {
@@ -64,11 +64,3 @@ export class InviteBackOfficeUserDto {
   declare password?: string;
 }
 
-export class BackOfficeUserResponseDto {
-  declare id: string;
-  declare name: string;
-  declare email: string;
-  declare role: UserRole;
-  declare permissions: Permission[];
-  declare createdAt: Date;
-}

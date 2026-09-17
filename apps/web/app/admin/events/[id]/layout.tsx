@@ -3,6 +3,7 @@ import { ArrowLeft, Calendar } from 'lucide-react';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { notFound } from 'next/navigation';
 import { EventDetailTabs } from './EventDetailTabs';
+import { formatDateTime } from '@/lib/utils';
 import type { AdminEvent } from '../page';
 
 interface EventDetailLayoutProps {
@@ -35,7 +36,7 @@ export default async function EventDetailLayout({ children, params }: EventDetai
             <h1 className="section-title">{event.title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <Calendar className="h-3.5 w-3.5" />
-              <span>{new Date(event.startDatetime).toLocaleString('en-GB')}</span>
+              <span>{formatDateTime(event.startDatetime)}</span>
               {hasEnded && (
                 <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
                   Event ended

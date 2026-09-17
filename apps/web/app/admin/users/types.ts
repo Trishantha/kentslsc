@@ -1,4 +1,5 @@
 import { Permission } from '@kentslsc/shared';
+import type { MembershipBase } from '@/lib/membership-types';
 
 export interface StructuredAddress {
   buildingStreet: string;
@@ -7,23 +8,12 @@ export interface StructuredAddress {
   postcode: string;
 }
 
-export interface MembershipItem {
-  id: string;
-  membershipId: string;
-  status: string;
-  startDate: string;
-  endDate: string;
+export interface MembershipItem extends MembershipBase {
   membershipCardUrl: string | null;
   qrCodeValue: string | null;
   dependantsJson: unknown;
   createdAt: string;
-  paidAt: string | null;
-  paymentMethod: string | null;
-  membershipType: {
-    name: string;
-    description?: string | null;
-    price: number;
-    isFree: boolean;
+  membershipType: MembershipBase['membershipType'] & {
     durationMonths: number;
   };
 }

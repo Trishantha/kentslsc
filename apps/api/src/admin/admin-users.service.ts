@@ -5,8 +5,6 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { AuthEventType } from '@kentslsc/database';
 import { UserRole, Permission, UserStatus, permissionLabels } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
@@ -14,6 +12,7 @@ import { EmailService } from '../email/email.service.js';
 import { CredentialsService } from '../auth/credentials.service.js';
 import { SessionsService, type RequestContext } from '../auth/sessions.service.js';
 import { PermissionsService, type RoleInput } from '../permissions/permissions.service.js';
+import { generateToken, hashPassword } from '../common/utils/crypto.js';
 import type { AdminCreateUserDto } from './dto/admin-user.dto.js';
 import type {
   AddExistingBackOfficeUserDto,
@@ -53,7 +52,7 @@ export class AdminUsersService {
     // With sendInvite the admin never sees a password: a random one is stored
     // and immediately superseded by whatever the user chooses via the link.
     const rawPassword = dto.sendInvite
-      ? randomBytes(32).toString('base64url')
+      ? generateToken()
       : dto.password;
 
     if (!rawPassword) {
@@ -68,7 +67,7 @@ export class AdminUsersService {
         email,
         phone: dto.phone,
         role: dto.role,
-        passwordHash: await bcrypt.hash(rawPassword, 12),
+        passwordHash: await hashPassword(rawPassword),
         emailVerifiedAt: dto.markEmailVerified === false ? null : new Date()
       },
       select: { id: true, name: true, email: true, role: true, createdAt: true }
@@ -329,7 +328,7 @@ export class AdminUsersService {
     }
 
     const rawPassword = dto.sendInvite
-      ? randomBytes(32).toString('base64url')
+      ? generateToken()
       : dto.password;
     if (!rawPassword) {
       throw new BadRequestException('Provide a password or set sendInvite');
@@ -343,7 +342,7 @@ export class AdminUsersService {
         email,
         phone: dto.phone,
         role: UserRole.MEMBER,
-        passwordHash: await bcrypt.hash(rawPassword, 12),
+        passwordHash: await hashPassword(rawPassword),
         emailVerifiedAt: new Date()
       },
       select: { id: true, name: true, email: true, role: true, createdAt: true }

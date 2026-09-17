@@ -1,18 +1,16 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getApiOriginCandidates } from './api-base';
-import { accessTokenCookieName, refreshTokenCookieName, type Permission } from '@kentslsc/shared';
+import { accessTokenCookieName, refreshTokenCookieName, type Permission, type UserRoleValue } from '@kentslsc/shared';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-export type SessionRole = 'ADMIN' | 'MEMBER' | 'BUSINESS_OWNER' | 'GUEST';
-
-export type ServerSession =
+type ServerSession =
   | { authenticated: false }
   | {
       authenticated: true;
       userId: string;
-      role: SessionRole;
+      role: UserRoleValue;
       emailVerified: boolean;
       permissions: Permission[];
     };
@@ -106,17 +104,8 @@ export async function requireSession(options: { verified?: boolean } = {}) {
   return session;
 }
 
-/** Require a specific role. Non-admins are sent to their own dashboard, not the login page. */
-export async function requireRole(role: SessionRole) {
-  const session = await requireSession();
-  if (session.role !== role) {
-    redirect('/dashboard');
-  }
-  return session;
-}
-
 /** True when the session belongs to an admin or holds at least one of the given permissions. */
-export function hasPermission(
+function hasPermission(
   session: ServerSession,
   ...permissions: Permission[]
 ): session is Extract<ServerSession, { authenticated: true }> {

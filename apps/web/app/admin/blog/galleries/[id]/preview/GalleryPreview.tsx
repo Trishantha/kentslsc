@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
+import { formatDate } from '@/lib/utils';
 import type { AdminGallery } from '../../types';
 
 export function GalleryPreview({ gallery }: { gallery: AdminGallery }) {
@@ -34,7 +35,7 @@ export function GalleryPreview({ gallery }: { gallery: AdminGallery }) {
         )}
         {gallery.eventDate && (
           <p className="mt-1 text-sm text-slate-500">
-            {new Date(gallery.eventDate).toLocaleDateString('en-GB')}
+            {formatDate(gallery.eventDate)}
           </p>
         )}
       </div>

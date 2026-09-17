@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { CreditCard, QrCode, Download, Calendar, Users, Sparkles, Loader2, RefreshCw, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatCurrency } from '@/lib/utils';
 import { MembershipProgressSteps } from './MembershipProgressSteps';
 import { useMyMembership } from './useMyMembership';
 
@@ -126,9 +126,7 @@ export function MembershipCard() {
             <div className="flex justify-between border-b border-slate-300 pb-3 dark:border-white/10">
               <span className="text-slate-700 dark:text-slate-400">Credit applied</span>
               <span className="text-sm font-semibold text-neon-gold">
-                {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(
-                  membership.creditAmountApplied ?? 0
-                )}{' '}
+                {formatCurrency(membership.creditAmountApplied ?? 0)}{' '}
                 ({membership.creditMonthsGranted} free month
                 {(membership.creditMonthsGranted ?? 0) === 1 ? '' : 's'})
               </span>
