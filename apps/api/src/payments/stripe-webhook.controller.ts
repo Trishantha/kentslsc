@@ -228,7 +228,12 @@ export class StripeWebhookController {
     const session = await this.webhookProcessor.buildPseudoSessionFromPaymentIntent(sessionId);
 
     if (!session) {
-      throw new BadRequestException('Payment is not complete yet');
+      // The intent exists but has not succeeded yet (e.g. abandoned Pay by
+      // Bank flow, or a Bacs Direct Debit still clearing). Report the actual
+      // status instead of throwing so the frontend can tell "payment still
+      // pending" apart from "payment failed to confirm".
+      const paymentIntent = await this.paymentsService.getClient().paymentIntents.retrieve(sessionId);
+      return { received: false, status: paymentIntent.status };
     }
 
     // Record a synthetic webhook event so the processor can update its ledger.

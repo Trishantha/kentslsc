@@ -106,16 +106,17 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
         return;
       }
 
-      // Non-redirect methods resolve here instead of navigating to return_url:
-      // Bacs Direct Debit returns `processing` (first debit clears in a few
-      // working days) and Pay by Bank returns `requires_action`, with the
-      // Payment Element displaying the transfer instructions inline.
+      // Non-redirect methods resolve here instead of navigating to return_url.
+      // Only a succeeded intent may claim the success URL: `processing`
+      // (Bacs Direct Debit clearing, Pay by Bank awaiting transfer) has not
+      // moved money yet, and sending the payer to ?success=1 would make the
+      // thank-you banner lie about an unpaid donation.
       if (paymentIntent) {
-        if (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing') {
+        if (paymentIntent.status === 'succeeded') {
           window.location.assign(detail.returnUrl ?? window.location.href);
           return;
         }
-        if (paymentIntent.status === 'requires_action') {
+        if (paymentIntent.status === 'processing' || paymentIntent.status === 'requires_action') {
           setPendingMessage(
             'Follow the payment instructions above to complete your payment. We will confirm it automatically once the funds reach us.'
           );

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
-import { CheckCircle, XCircle, Megaphone } from 'lucide-react';
+import { CheckCircle, XCircle, Megaphone, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { inferPaymentProvider } from '@/lib/payments';
 import { usePhotoLightbox } from '@/components/ui/PhotoLightbox';
@@ -50,6 +50,7 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   const [activeTab, setActiveTab] = useState<'updates' | 'donations'>('donations');
   const success = searchParams?.get('success');
   const canceled = searchParams?.get('canceled');
+  const sessionIdParam = searchParams?.get('session_id');
 
   const confirmDonation = useMutation({
     mutationFn: async ({ sessionId, provider, confirmToken }: { sessionId: string; provider: string; confirmToken?: string | null }) => {
@@ -76,6 +77,15 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
     }
   }, [searchParams, success, confirmDonation]);
 
+  // The success URL alone proves nothing (Stripe redirects back to it even
+  // when a redirect-based payment was abandoned). The thank-you banner only
+  // shows once the confirmation backstop has verified the payment; anything
+  // else gets an honest "still processing" message.
+  const donationConfirmed = Boolean(
+    success && sessionIdParam && confirmDonation.isSuccess && confirmDonation.data?.received !== false
+  );
+  const donationPending = Boolean(success && sessionIdParam && !donationConfirmed);
+
   const sortedPhotos = useMemo(
     () => (fundraiser.photos ? [...fundraiser.photos].sort((a, b) => a.sortOrder - b.sortOrder) : []),
     [fundraiser.photos]
@@ -85,10 +95,16 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   return (
     <div className="px-4 py-12 md:px-6">
       <div className="mx-auto max-w-5xl">
-        {success && (
+        {donationConfirmed && (
           <div className="mb-6 flex items-center gap-3 rounded-xl bg-green-50 p-4 text-green-800 dark:bg-green-900/30 dark:text-green-200">
             <CheckCircle className="h-5 w-5 shrink-0" />
             {t('thankYou')}
+          </div>
+        )}
+        {donationPending && (
+          <div className="mb-6 flex items-center gap-3 rounded-xl bg-amber-50 p-4 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+            <Clock className="h-5 w-5 shrink-0" />
+            {t('paymentPending')}
           </div>
         )}
         {canceled && (

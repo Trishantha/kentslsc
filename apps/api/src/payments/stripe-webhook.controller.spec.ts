@@ -58,7 +58,8 @@ describe('StripeWebhookController', () => {
     constructEvent: jest.fn(),
     syncStripeFeesFromSession: jest.fn(),
     getFullCheckoutSession: jest.fn(),
-    getPaymentByProviderCheckoutId: jest.fn()
+    getPaymentByProviderCheckoutId: jest.fn(),
+    getClient: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
   const webhookEvents = {
@@ -324,16 +325,21 @@ describe('StripeWebhookController', () => {
       expect(result).toEqual({ received: true, fulfilled: true });
     });
 
-    it('throws when the PaymentIntent has not succeeded', async () => {
+    it('reports received:false with the intent status when the PaymentIntent has not succeeded', async () => {
       webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => null) as any;
+      paymentsService.getClient.mockReturnValue({
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({ status: 'requires_payment_method' }))
+        }
+      } as any);
 
-      await expect(
-        controller.confirmSession({
-          sessionId: 'pi_test_123',
-          provider: 'stripe',
-          confirmToken: createConfirmToken('pi_test_123')
-        })
-      ).rejects.toThrow('Payment is not complete yet');
+      const result = await controller.confirmSession({
+        sessionId: 'pi_test_123',
+        provider: 'stripe',
+        confirmToken: createConfirmToken('pi_test_123')
+      });
+
+      expect(result).toEqual({ received: false, status: 'requires_payment_method' });
       expect(webhookEvents.record).not.toHaveBeenCalled();
     });
 

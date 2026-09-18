@@ -540,6 +540,7 @@
     "loadError": "Failed to load fundraiser",
     "loginToDonateError": "Could not start donation. Please try again.",
     "thankYou": "Thank you so much for your generous donation! Your support makes a real difference.",
+    "paymentPending": "Your payment has not completed yet — if you finished it, it is still being processed. We will confirm your donation by email once the funds reach us.",
     "canceled": "Donation canceled — you have not been charged.",
     "amountPlaceholder": "Amount (£)",
     "makeDonation": "Make a donation",
