@@ -339,20 +339,25 @@ export class FundraisingService {
     const baseUrl = this.configService.get('FRONTEND_URL') ?? 'http://localhost:3000';
 
     const { provider, method } = await this.payments.resolveCheckoutMethod(dto.paymentMethod);
-    if (provider === 'gocardless') {
-      return this.createGoCardlessDonationSession(fundraiser, dto, userId, baseUrl, method);
-    }
 
-    // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
-    const metaMessage = dto.message?.slice(0, 490);
     // Logged-in donors: attach their Stripe customer / email so the checkout
     // page skips the email field and Stripe pre-fills the mandate details.
     const donor = userId
       ? await this.prisma.user.findUnique({
           where: { id: userId },
-          select: { email: true, stripeCustomerId: true }
+          select: { name: true, email: true, stripeCustomerId: true }
         })
       : null;
+    // Logged-in donors who leave the name field blank default to their account
+    // name; without this the donation list renders them as "Anonymous".
+    const displayName = dto.isAnonymous ? undefined : (dto.displayName?.trim() || donor?.name);
+
+    if (provider === 'gocardless') {
+      return this.createGoCardlessDonationSession(fundraiser, dto, userId, baseUrl, method, displayName);
+    }
+
+    // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
+    const metaMessage = dto.message?.slice(0, 490);
     const checkout = await this.payments.createCheckout({
       amount: Math.round(dto.amount * 100),
       currency: 'gbp',
@@ -372,7 +377,7 @@ export class FundraisingService {
         fundraiserId,
         amount: String(Math.round(dto.amount * 100)),
         ...(userId && { userId }),
-        ...(dto.displayName && { displayName: dto.displayName }),
+        ...(displayName && { displayName }),
         ...(metaMessage && { message: metaMessage }),
         isAnonymous: String(dto.isAnonymous ?? false)
       }
@@ -397,7 +402,8 @@ export class FundraisingService {
     dto: CreateDonationDto,
     userId: string | undefined,
     baseUrl: string,
-    method: PaymentMethodOption = 'direct_debit'
+    method: PaymentMethodOption = 'direct_debit',
+    displayName?: string
   ) {
     const netPence = Math.round(dto.amount * 100);
     const feeResult = dto.addProcessingFee
@@ -421,7 +427,7 @@ export class FundraisingService {
       processingFee: String(feeResult.fee),
       grossAmount: String(feeResult.gross),
       ...(userId && { userId }),
-      ...(dto.displayName && { displayName: dto.displayName }),
+      ...(displayName && { displayName }),
       ...(metaMessage && { message: metaMessage }),
       isAnonymous: String(dto.isAnonymous ?? false)
     };
@@ -449,7 +455,7 @@ export class FundraisingService {
         processingFee: feeResult.fee / 100,
         netAmount: (feeResult.gross - feeResult.fee) / 100,
         description: `Donation to ${fundraiser.title}`,
-        payerName: dto.displayName ?? null,
+        payerName: displayName ?? null,
         purchasedAt: new Date(),
         sourceType: PaymentSourceType.DONATION,
         metadata: checkoutMetadata

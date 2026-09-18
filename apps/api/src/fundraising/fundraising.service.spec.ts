@@ -207,6 +207,42 @@ describe('FundraisingService checkout provider branching', () => {
     );
   });
 
+  it('falls back to the donor account name when a logged-in donor omits the display name', async () => {
+    useStripe();
+    mockPrisma.user.findUnique.mockResolvedValue({
+      name: 'Jane Donor',
+      email: 'donor@example.com',
+      stripeCustomerId: null
+    });
+
+    await service.createDonationSession(mockFundraiser.id, baseDonation, 'user-1');
+
+    expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ displayName: 'Jane Donor', userId: 'user-1' })
+      })
+    );
+  });
+
+  it('never stores a display name for anonymous donors, even when a fallback exists', async () => {
+    useStripe();
+    mockPrisma.user.findUnique.mockResolvedValue({
+      name: 'Jane Donor',
+      email: 'donor@example.com',
+      stripeCustomerId: null
+    });
+
+    await service.createDonationSession(
+      mockFundraiser.id,
+      { ...baseDonation, isAnonymous: true, displayName: 'Should Be Ignored' },
+      'user-1'
+    );
+
+    const metadata = mockPaymentsService.createCheckout.mock.calls[0][0].metadata;
+    expect(metadata.displayName).toBeUndefined();
+    expect(metadata.isAnonymous).toBe('true');
+  });
+
   it('routes to Stripe when the donor explicitly picks card, even under a GoCardless default', async () => {
     useGoCardless();
 
