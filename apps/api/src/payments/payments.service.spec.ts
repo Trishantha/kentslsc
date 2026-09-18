@@ -611,12 +611,12 @@ describe('PaymentsService', () => {
 
   describe('getPaymentIntentDetail', () => {
     const paymentIntent = {
-      id: 'pi_test_123',
+      id: 'pi_test123',
       status: 'requires_payment_method',
       amount: 1035,
       currency: 'gbp',
       description: 'Donation to Test',
-      client_secret: 'pi_test_123_secret',
+      client_secret: 'pi_test123_secret',
       receipt_email: 'donor@example.com',
       metadata: {
         netAmount: '1000',
@@ -629,7 +629,7 @@ describe('PaymentsService', () => {
 
     function buildService(retrieveImpl: () => Promise<unknown>) {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
-      const retrieveMock = jest.fn(retrieveImpl);
+      const retrieveMock = jest.fn((_id: string) => retrieveImpl());
       (service as any).stripe = { paymentIntents: { retrieve: retrieveMock } };
       return { service, retrieveMock };
     }
@@ -646,25 +646,41 @@ describe('PaymentsService', () => {
     it('rejects a missing or incorrect client secret', async () => {
       const { service, retrieveMock } = buildService(async () => paymentIntent);
 
-      await expect(service.getPaymentIntentDetail('pi_test_123', undefined)).rejects.toThrow(
+      await expect(service.getPaymentIntentDetail('pi_test123', undefined)).rejects.toThrow(
         'Invalid or incomplete checkout link'
       );
-      await expect(service.getPaymentIntentDetail('pi_test_123', 'wrong-secret')).rejects.toThrow(
+      await expect(service.getPaymentIntentDetail('pi_test123', 'wrong-secret')).rejects.toThrow(
         'Invalid or incomplete checkout link'
       );
       expect(retrieveMock).toHaveBeenCalledTimes(2);
     });
 
+    it('accepts real Stripe id format (pi_ + base62, no live/test infix)', async () => {
+      const { service, retrieveMock } = buildService(async () => ({
+        ...paymentIntent,
+        id: 'pi_3UH0hnQwLAF1PT3J0GGlroti',
+        client_secret: 'pi_3UH0hnQwLAF1PT3J0GGlroti_secret_x'
+      }));
+
+      const detail = await service.getPaymentIntentDetail(
+        'pi_3UH0hnQwLAF1PT3J0GGlroti',
+        'pi_3UH0hnQwLAF1PT3J0GGlroti_secret_x'
+      );
+
+      expect(retrieveMock).toHaveBeenCalledWith('pi_3UH0hnQwLAF1PT3J0GGlroti');
+      expect(detail.id).toBe('pi_3UH0hnQwLAF1PT3J0GGlroti');
+    });
+
     it('returns detail with a fully expanded return URL to the holder of the secret', async () => {
       const { service } = buildService(async () => paymentIntent);
 
-      const detail = await service.getPaymentIntentDetail('pi_test_123', 'pi_test_123_secret');
+      const detail = await service.getPaymentIntentDetail('pi_test123', 'pi_test123_secret');
 
       expect(detail.grossAmount).toBe(1035);
       expect(detail.customerEmail).toBe('donor@example.com');
       const returnUrl = new URL(detail.returnUrl!);
-      expect(returnUrl.searchParams.get('session_id')).toBe('pi_test_123');
-      expect(verifyConfirmToken('pi_test_123', returnUrl.searchParams.get('confirm_token'))).toBe(true);
+      expect(returnUrl.searchParams.get('session_id')).toBe('pi_test123');
+      expect(verifyConfirmToken('pi_test123', returnUrl.searchParams.get('confirm_token'))).toBe(true);
     });
   });
   describe('getOrCreateStripeCustomer', () => {

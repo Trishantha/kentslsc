@@ -461,7 +461,10 @@ export class PaymentsService {
     paymentIntentId: string,
     clientSecret?: string | null
   ): Promise<PaymentIntentDetail> {
-    if (!/^pi_(live|test)_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+    // Stripe PaymentIntent ids are `pi_` + base62 (e.g. pi_3UH0hn...); the
+    // pi_live_/pi_test_ shape assumed here only exists in test fixtures and
+    // rejected every real id with 400, breaking embedded checkout.
+    if (!/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
       throw new BadRequestException('Invalid payment intent id');
     }
 
