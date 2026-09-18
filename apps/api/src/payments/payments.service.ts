@@ -1417,11 +1417,11 @@ export class PaymentsService {
       // list keeps the PaymentElement free of dashboard-auto-enabled methods.
       // Wallets (Apple/Google Pay) still work via the ExpressCheckoutElement.
       payment_method_types: input.paymentMethodTypes ?? ['card'],
-      ...(input.customer
-        ? { customer: input.customer }
-        : input.customerEmail
-          ? { receipt_email: input.customerEmail }
-          : {}),
+      // receipt_email is set even when a Stripe customer is attached, so the
+      // checkout detail endpoint can expose the payer email (the page hides
+      // its email field and Stripe pre-fills mandate details from it).
+      ...(input.customer ? { customer: input.customer } : {}),
+      ...(input.customerEmail ? { receipt_email: input.customerEmail } : {}),
       metadata: {
         ...input.metadata,
         netAmount: String(feeResult.net),

@@ -27,6 +27,9 @@ describe('FundraisingService checkout provider branching', () => {
     },
     payment: {
       create: jest.fn()
+    },
+    user: {
+      findUnique: jest.fn()
     }
   };
 
@@ -187,6 +190,20 @@ describe('FundraisingService checkout provider branching', () => {
     expect(mockPaymentsService.createCheckout).toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({ sessionId: 'cs_test_123', provider: 'stripe' })
+    );
+  });
+
+  it('attaches the logged-in donor email and Stripe customer to the checkout', async () => {
+    useStripe();
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: 'donor@example.com',
+      stripeCustomerId: 'cus_donor1'
+    });
+
+    await service.createDonationSession(mockFundraiser.id, baseDonation, 'user-1');
+
+    expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_donor1', customerEmail: 'donor@example.com' })
     );
   });
 

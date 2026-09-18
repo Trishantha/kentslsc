@@ -169,8 +169,17 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
       <form onSubmit={handleSubmit}>
         {/* The API creates intents with an explicit method list per flow
             (card everywhere; fundraising adds Bacs Direct Debit and Pay by
-            Bank), so no dashboard-auto-enabled methods appear here. */}
-        <PaymentElement />
+            Bank), so no dashboard-auto-enabled methods appear here.
+            defaultCollapsed keeps the accordion to one row per method; the
+            row headers are Stripe's own expand/collapse toggle. */}
+        <PaymentElement
+          options={{
+            layout: { type: 'accordion', defaultCollapsed: true },
+            ...(detail.customerEmail
+              ? { defaultValues: { billingDetails: { email: detail.customerEmail } } }
+              : {})
+          }}
+        />
 
         {emailRequired && (
           <div className="mt-4">

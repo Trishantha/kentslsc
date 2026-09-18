@@ -345,6 +345,14 @@ export class FundraisingService {
 
     // Truncate message to 500 chars for Stripe metadata (limit: 500 chars per value)
     const metaMessage = dto.message?.slice(0, 490);
+    // Logged-in donors: attach their Stripe customer / email so the checkout
+    // page skips the email field and Stripe pre-fills the mandate details.
+    const donor = userId
+      ? await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, stripeCustomerId: true }
+        })
+      : null;
     const checkout = await this.payments.createCheckout({
       amount: Math.round(dto.amount * 100),
       currency: 'gbp',
@@ -357,6 +365,8 @@ export class FundraisingService {
       // enabled in Stripe; other embedded flows (tickets, membership, etc.)
       // stay card-only.
       paymentMethodTypes: ['card', 'bacs_debit', 'pay_by_bank'],
+      ...(donor?.stripeCustomerId ? { customer: donor.stripeCustomerId } : {}),
+      ...(donor?.email ? { customerEmail: donor.email } : {}),
       metadata: {
         type: 'donation',
         fundraiserId,
