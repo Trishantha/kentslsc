@@ -24,7 +24,7 @@ export class CredentialsService {
   ) {}
 
   private get frontendUrl(): string {
-    return this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    return (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000').replace(/\/+$/, '');
   }
 
   /** Only ever exposed outside production, and only behind an explicit flag. */
