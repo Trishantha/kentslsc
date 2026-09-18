@@ -59,6 +59,7 @@ describe('StripeWebhookController', () => {
     syncStripeFeesFromSession: jest.fn(),
     getFullCheckoutSession: jest.fn(),
     getPaymentByProviderCheckoutId: jest.fn(),
+    getPaymentIntentStatus: jest.fn(),
     getClient: jest.fn()
   } as unknown as jest.Mocked<PaymentsService>;
 
@@ -86,6 +87,7 @@ describe('StripeWebhookController', () => {
     eventSequence = 0;
     webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: false });
     webhookEvents.markStatus.mockResolvedValue(undefined as any);
+    paymentsService.getPaymentIntentStatus.mockResolvedValue('succeeded');
     controller = new StripeWebhookController(
       paymentsService as unknown as PaymentsService,
       webhookEvents as unknown as WebhookEventService,
@@ -326,12 +328,7 @@ describe('StripeWebhookController', () => {
     });
 
     it('reports received:false with the intent status when the PaymentIntent has not succeeded', async () => {
-      webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => null) as any;
-      paymentsService.getClient.mockReturnValue({
-        paymentIntents: {
-          retrieve: jest.fn(async () => ({ status: 'requires_payment_method' }))
-        }
-      } as any);
+      paymentsService.getPaymentIntentStatus.mockResolvedValue('requires_payment_method');
 
       const result = await controller.confirmSession({
         sessionId: 'pi_AbC123xYz789',
@@ -341,6 +338,7 @@ describe('StripeWebhookController', () => {
 
       expect(result).toEqual({ received: false, status: 'requires_payment_method' });
       expect(webhookEvents.record).not.toHaveBeenCalled();
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
     });
 
     it('throws when the PaymentIntent id is malformed', async () => {
@@ -352,12 +350,7 @@ describe('StripeWebhookController', () => {
 
     it('accepts real-shaped PaymentIntent ids (pi_ + base62, no env segment)', async () => {
       const realId = 'pi_3UH0hnQwLAF1PT3J0GGlroti';
-      webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => null) as any;
-      paymentsService.getClient.mockReturnValue({
-        paymentIntents: {
-          retrieve: jest.fn(async () => ({ status: 'requires_payment_method' }))
-        }
-      } as any);
+      paymentsService.getPaymentIntentStatus.mockResolvedValue('requires_payment_method');
 
       const result = await controller.confirmSession({
         sessionId: realId,
@@ -366,7 +359,8 @@ describe('StripeWebhookController', () => {
       });
 
       expect(result).toEqual({ received: false, status: 'requires_payment_method' });
-      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).toHaveBeenCalledWith(realId);
+      expect(paymentsService.getPaymentIntentStatus).toHaveBeenCalledWith(realId);
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
     });
 
     it('rejects a PaymentIntent confirmation without a valid confirmation token', async () => {

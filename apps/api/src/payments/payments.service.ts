@@ -500,6 +500,21 @@ export class PaymentsService {
   }
 
   /**
+   * Lightweight status lookup for the confirmation backstop. Unlike getClient()
+   * it initializes the Stripe client from the effective settings first, so it
+   * is safe to call on a freshly started instance where no other payment call
+   * has run yet.
+   */
+  async getPaymentIntentStatus(paymentIntentId: string): Promise<string> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const paymentIntent = await this.stripe!.paymentIntents.retrieve(paymentIntentId);
+    return paymentIntent.status;
+  }
+
+  /**
    * Find the local Payment ledger row recorded for a provider checkout
    * reference (Stripe session id, PayPal order id, or GoCardless billing
    * request id). Used by the GoCardless confirmation backstop to locate the

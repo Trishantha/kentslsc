@@ -513,6 +513,20 @@ describe('PaymentsService', () => {
       expect(intentParams.payment_method_types).toEqual(['card', 'bacs_debit', 'pay_by_bank']);
     });
 
+    it('returns the PaymentIntent status for the confirmation backstop', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const retrieveMock = jest.fn(async (_id: string) => ({ status: 'processing' }));
+      (service as any).stripe = {
+        paymentIntents: { retrieve: retrieveMock }
+      };
+
+      const status = await service.getPaymentIntentStatus('pi_AbC123xYz789');
+
+      expect(status).toBe('processing');
+      expect(retrieveMock).toHaveBeenCalledWith('pi_AbC123xYz789');
+    });
+
     it('still creates a Checkout Session for subscription checkouts', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
 

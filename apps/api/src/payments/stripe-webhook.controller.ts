@@ -227,15 +227,25 @@ export class StripeWebhookController {
    * pseudo-session path as the payment_intent.succeeded webhook.
    */
   private async confirmStripePaymentIntent(sessionId: string) {
-    const session = await this.webhookProcessor.buildPseudoSessionFromPaymentIntent(sessionId);
+    // The status lookup doubles as client initialization: the Stripe client
+    // is created lazily by the regular service methods, so on a freshly
+    // started instance (webhooks not yet received) getClient() would throw.
+    const status = await this.paymentsService.getPaymentIntentStatus(sessionId);
 
-    if (!session) {
+    if (status !== 'succeeded') {
       // The intent exists but has not succeeded yet (e.g. abandoned Pay by
       // Bank flow, or a Bacs Direct Debit still clearing). Report the actual
       // status instead of throwing so the frontend can tell "payment still
       // pending" apart from "payment failed to confirm".
-      const paymentIntent = await this.paymentsService.getClient().paymentIntents.retrieve(sessionId);
-      return { received: false, status: paymentIntent.status };
+      return { received: false, status };
+    }
+
+    const session = await this.webhookProcessor.buildPseudoSessionFromPaymentIntent(sessionId);
+
+    if (!session) {
+      // Status flipped between the two lookups (e.g. a refund raced us);
+      // report the fresh state rather than celebrating.
+      return { received: false, status: await this.paymentsService.getPaymentIntentStatus(sessionId) };
     }
 
     // Record a synthetic webhook event so the processor can update its ledger.
