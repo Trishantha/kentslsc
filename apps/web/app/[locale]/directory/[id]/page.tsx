@@ -3,6 +3,9 @@ import JsonLd from '@/components/JsonLd';
 import DirectoryDetailContent, { type Business } from './DirectoryDetailContent';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { getFrontendUrl } from '@/lib/env';
+import { ServerMessagesProvider } from '@/components/i18n/ServerMessagesProvider';
+
+const DIRECTORY_DETAIL_MESSAGE_NAMESPACES = ['directoryDetail', 'directory', 'common'];
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -41,9 +44,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function DirectoryDetailPage({ params }: Props) {
   const { id } = await params;
   const business = await fetchBusiness(id);
+  const wrap = (children: React.ReactNode) => (
+    <ServerMessagesProvider namespaces={DIRECTORY_DETAIL_MESSAGE_NAMESPACES}>
+      {children}
+    </ServerMessagesProvider>
+  );
 
   if (!business) {
-    return <DirectoryDetailContent id={id} />;
+    return wrap(<DirectoryDetailContent id={id} />);
   }
 
   const baseUrl = getFrontendUrl();
@@ -70,7 +78,7 @@ export default async function DirectoryDetailPage({ params }: Props) {
     ].filter((url): url is string => typeof url === 'string' && url.length > 0)
   };
 
-  return (
+  return wrap(
     <>
       <JsonLd data={localBusinessSchema} />
       <DirectoryDetailContent id={id} business={business} />

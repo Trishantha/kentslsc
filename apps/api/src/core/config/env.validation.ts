@@ -17,6 +17,8 @@ export const envValidationSchema = z.object({
   QUEUE_CONCURRENCY: z.coerce.number().default(5),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
+  /** Dedicated key for payment confirmation tokens; falls back to JWT_SECRET. */
+  PAYMENT_CONFIRM_SECRET: z.string().min(32).optional(),
   JWT_ACCESS_EXPIRY: z.string().default('15m'),
   JWT_REFRESH_EXPIRY: z.string().default('7d'),
   // Optional third-party service keys. The API will start without them and

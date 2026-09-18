@@ -1,36 +1,36 @@
 'use client';
 
+import Image from 'next/image';
 import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { FadeIn } from '@/components/ui/FadeIn';
+import type { BlockFundraiserItem } from '@/lib/server-blocks';
 import type { FundraisersBlock } from '@kentslsc/shared';
 
 interface Props {
   block: FundraisersBlock;
+  /** Server-prefetched fundraisers (keyed by block id). Falls back to client fetching. */
+  data?: BlockFundraiserItem[];
 }
 
-interface FundraiserItem {
-  id: string;
-  title: string;
-  description?: string;
-  targetAmount: number;
-  raisedAmount: number;
-  imageUrl?: string;
-  aiSummary?: string;
-}
+interface FundraiserItem extends BlockFundraiserItem {}
 
-export default function FundraisersBlockComponent({ block }: Props) {
+export default function FundraisersBlockComponent({ block, data }: Props) {
   const { title, limit = 3 } = block;
 
-  const { data: fundraisers = [], isLoading } = useQuery<FundraiserItem[]>({
+  const { data: fetched, isLoading } = useQuery<FundraiserItem[]>({
     queryKey: ['blocks', 'fundraisers', limit],
     queryFn: async () => {
       const { data } = await api.get('/fundraisers', { params: { limit } });
       return data?.items ?? [];
-    }
+    },
+    enabled: data === undefined
   });
+
+  const fundraisers = data ?? fetched ?? [];
+  const showLoading = data === undefined && isLoading;
 
   return (
     <section className="px-4 py-16 md:px-6">
@@ -42,7 +42,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
           </SmartLink>
         </div>
 
-        {isLoading ? (
+        {showLoading ? (
           <div className="grid gap-6 md:grid-cols-2">
             {[1, 2].map((i) => (
               <div key={i} className="glass-card h-64 animate-pulse" />
@@ -55,17 +55,19 @@ export default function FundraisersBlockComponent({ block }: Props) {
             {fundraisers.slice(0, limit).map((f, index) => {
               const progress = f.targetAmount > 0 ? Math.min((f.raisedAmount / f.targetAmount) * 100, 100) : 0;
               return (
-                <motion.div
-                  key={f.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.05 }}
-                >
+                <FadeIn key={f.id} delay={index * 0.05}>
                   <SmartLink href={`/fundraisers/${f.id}`}>
                     <div className="glass-card flex h-full flex-col p-6">
                       {f.imageUrl ? (
-                        <img src={f.imageUrl} alt={f.title} className="mb-4 h-40 w-full rounded-xl object-contain" />
+                        <div className="relative mb-4 h-40 w-full overflow-hidden rounded-xl">
+                          <Image
+                            src={f.imageUrl}
+                            alt={f.title}
+                            fill
+                            sizes="(min-width: 768px) 50vw, 100vw"
+                            className="object-contain"
+                          />
+                        </div>
                       ) : (
                         <div className="mb-4 h-40 w-full rounded-xl bg-gradient-to-br from-neon-blue/40 to-neon-gold/40" />
                       )}
@@ -85,7 +87,7 @@ export default function FundraisersBlockComponent({ block }: Props) {
                       </div>
                     </div>
                   </SmartLink>
-                </motion.div>
+                </FadeIn>
               );
             })}
           </div>

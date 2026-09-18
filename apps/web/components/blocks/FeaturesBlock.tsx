@@ -1,8 +1,8 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { LucideIcon, Calendar, Heart, Briefcase, Users, Star } from 'lucide-react';
 import type { FeaturesBlock } from '@kentslsc/shared';
+import { FadeIn } from '@/components/ui/FadeIn';
 
 interface Props {
   block: FeaturesBlock;
@@ -27,18 +27,11 @@ export default function FeaturesBlockComponent({ block }: Props) {
           {features.map((feature, idx) => {
             const Icon = iconMap[feature.icon] || Star;
             return (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.05 }}
-                className="glass-card p-6"
-              >
+              <FadeIn key={idx} delay={idx * 0.05} className="glass-card p-6">
                 <Icon className="h-8 w-8 text-neon-blue" />
                 <h3 className="mt-4 text-xl font-bold">{feature.title}</h3>
                 <p className="mt-2 text-sm text-slate-700 dark:text-slate-400">{feature.description}</p>
-              </motion.div>
+              </FadeIn>
             );
           })}
         </div>

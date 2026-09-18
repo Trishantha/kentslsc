@@ -244,6 +244,160 @@ select option {
   animation: marquee 40s linear infinite;
 }
 
+/* Shell/loader animations (CSS replacements for framer-motion) */
+@keyframes kslsc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes kslsc-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes loader-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.9;
+  }
+}
+
+@keyframes loader-logo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes loader-text-blink {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-up-lg {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blob-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(30px, -20px);
+  }
+  66% {
+    transform: translate(-15px, 15px);
+  }
+}
+
+.animate-kslsc-spin {
+  animation: kslsc-spin 1.2s linear infinite;
+}
+
+.animate-kslsc-spin-reverse {
+  animation: kslsc-spin-reverse 1.8s linear infinite;
+}
+
+.animate-loader-glow {
+  animation: loader-glow 2s ease-in-out infinite;
+}
+
+.animate-loader-logo-pulse {
+  animation: loader-logo-pulse 2s ease-in-out infinite;
+}
+
+.animate-loader-text-blink {
+  animation: loader-text-blink 1.5s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.2s ease-out 0.1s backwards;
+}
+
+.animate-sheet-slide-up {
+  animation: sheet-slide-up 0.3s ease-out;
+}
+
+.animate-fade-in-up-lg {
+  animation: fade-in-up-lg 0.6s ease-out backwards;
+}
+
+.animate-blob {
+  animation: blob-drift 8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-kslsc-spin,
+  .animate-kslsc-spin-reverse,
+  .animate-loader-glow,
+  .animate-loader-logo-pulse,
+  .animate-loader-text-blink,
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-sheet-slide-up,
+  .animate-fade-in-up-lg,
+  .animate-blob {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee {
     animation: none;

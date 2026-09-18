@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { StripeWebhookController } from './stripe-webhook.controller.js';
+import { createConfirmToken } from './utils/confirm-token.js';
 import type { PaymentsService } from './payments.service.js';
 import type { WebhookEventService } from './webhook-event.service.js';
 import type { WebhookQueueService } from './webhook-queue.service.js';
@@ -183,7 +184,10 @@ describe('StripeWebhookController', () => {
       paymentsService.getFullCheckoutSession.mockResolvedValue(session);
       webhookProcessor.process.mockResolvedValue(true);
 
-      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+      const result = await controller.confirmSession(
+        { sessionId: 'cs_test_123', provider: 'stripe' },
+        { sub: 'user-1' } as any
+      );
 
       expect(paymentsService.getFullCheckoutSession).toHaveBeenCalledWith('cs_test_123');
       expect(webhookEvents.record).toHaveBeenCalledWith(
@@ -212,7 +216,10 @@ describe('StripeWebhookController', () => {
         isDuplicate: true
       });
 
-      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+      const result = await controller.confirmSession(
+        { sessionId: 'cs_test_123', provider: 'stripe' },
+        { sub: 'user-1' } as any
+      );
 
       expect(webhookProcessor.process).not.toHaveBeenCalled();
       expect(result).toEqual({ received: true, duplicate: true });
@@ -227,7 +234,10 @@ describe('StripeWebhookController', () => {
       });
       webhookProcessor.process.mockResolvedValue(true);
 
-      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+      const result = await controller.confirmSession(
+        { sessionId: 'cs_test_123', provider: 'stripe' },
+        { sub: 'user-1' } as any
+      );
 
       expect(webhookProcessor.process).toHaveBeenCalledWith(
         expect.objectContaining({ ledgerId: 'ledger-1', eventType: 'checkout.session.completed' })
@@ -244,7 +254,10 @@ describe('StripeWebhookController', () => {
       });
       webhookProcessor.process.mockResolvedValue(true);
 
-      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+      const result = await controller.confirmSession(
+        { sessionId: 'cs_test_123', provider: 'stripe' },
+        { sub: 'user-1' } as any
+      );
 
       expect(webhookProcessor.process).toHaveBeenCalled();
       expect(result).toEqual({ received: true, fulfilled: true });
@@ -256,7 +269,10 @@ describe('StripeWebhookController', () => {
       webhookEvents.record.mockResolvedValue({ event: { id: 'ledger-1' } as any, isDuplicate: false });
       webhookProcessor.process.mockResolvedValue(false);
 
-      const result = await controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' });
+      const result = await controller.confirmSession(
+        { sessionId: 'cs_test_123', provider: 'stripe' },
+        { sub: 'user-1' } as any
+      );
 
       expect(result).toEqual({ received: true, fulfilled: false });
       expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'ignored');
@@ -271,6 +287,82 @@ describe('StripeWebhookController', () => {
       );
       expect(webhookEvents.record).not.toHaveBeenCalled();
       expect(webhookProcessor.process).not.toHaveBeenCalled();
+    });
+
+    it('confirms a succeeded PaymentIntent via a synthetic payment_intent.succeeded event', async () => {
+      webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => ({
+        id: 'pi_test_123',
+        status: 'complete',
+        payment_status: 'paid',
+        metadata: { type: 'donation', fundraiserId: 'fr-1' }
+      })) as any;
+      webhookProcessor.process.mockResolvedValue(true);
+
+      const result = await controller.confirmSession({
+        sessionId: 'pi_test_123',
+        provider: 'stripe',
+        confirmToken: createConfirmToken('pi_test_123')
+      });
+
+      expect(paymentsService.getFullCheckoutSession).not.toHaveBeenCalled();
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).toHaveBeenCalledWith('pi_test_123');
+      expect(webhookEvents.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'stripe',
+          eventType: 'payment_intent.succeeded',
+          externalId: 'confirm:pi_test_123',
+          status: 'received'
+        })
+      );
+      expect(webhookProcessor.process).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ledgerId: 'ledger-1',
+          provider: 'stripe',
+          eventType: 'payment_intent.succeeded'
+        })
+      );
+      expect(result).toEqual({ received: true, fulfilled: true });
+    });
+
+    it('throws when the PaymentIntent has not succeeded', async () => {
+      webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => null) as any;
+
+      await expect(
+        controller.confirmSession({
+          sessionId: 'pi_test_123',
+          provider: 'stripe',
+          confirmToken: createConfirmToken('pi_test_123')
+        })
+      ).rejects.toThrow('Payment is not complete yet');
+      expect(webhookEvents.record).not.toHaveBeenCalled();
+    });
+
+    it('throws when the PaymentIntent id is malformed', async () => {
+      await expect(
+        controller.confirmSession({ sessionId: 'not-a-real-id', provider: 'stripe' })
+      ).rejects.toThrow('Invalid Stripe checkout id');
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
+    });
+
+    it('rejects a PaymentIntent confirmation without a valid confirmation token', async () => {
+      await expect(
+        controller.confirmSession({ sessionId: 'pi_test_123', provider: 'stripe', confirmToken: 'bogus' })
+      ).rejects.toThrow('Missing or invalid confirmation token');
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
+    });
+
+    it('rejects a checkout session confirmation without token or ownership', async () => {
+      paymentsService.getFullCheckoutSession.mockResolvedValue({
+        id: 'cs_test_123',
+        status: 'complete',
+        payment_status: 'paid',
+        metadata: { source: 'membership', userId: 'user-1' }
+      } as unknown as Stripe.Checkout.Session);
+
+      await expect(
+        controller.confirmSession({ sessionId: 'cs_test_123', provider: 'stripe' }, { sub: 'someone-else' } as any)
+      ).rejects.toThrow('Cannot verify checkout ownership');
+      expect(webhookEvents.record).not.toHaveBeenCalled();
     });
 
     it('throws when provider is paypal', async () => {
@@ -290,7 +382,7 @@ describe('StripeWebhookController', () => {
 
     it('confirms a fulfilled GoCardless billing request via a synthetic event', async () => {
       goCardlessService.getBillingRequest.mockResolvedValue({
-        id: 'BR123',
+        id: 'BR00000000000001',
         status: 'fulfilled',
         metadata: { source: 'membership', membershipId: 'membership-1', userId: 'user-1' },
         links: { payment_request_payment: 'PM123', mandate_request_mandate: 'MD123' }
@@ -298,14 +390,18 @@ describe('StripeWebhookController', () => {
       paymentsService.getPaymentByProviderCheckoutId.mockResolvedValue(null);
       webhookProcessor.process.mockResolvedValue(true);
 
-      const result = await controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' });
+      const result = await controller.confirmSession({
+        sessionId: 'BR00000000000001',
+        provider: 'gocardless',
+        confirmToken: createConfirmToken('BR00000000000001')
+      });
 
-      expect(goCardlessService.getBillingRequest).toHaveBeenCalledWith('BR123');
+      expect(goCardlessService.getBillingRequest).toHaveBeenCalledWith('BR00000000000001');
       expect(webhookEvents.record).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'gocardless',
           eventType: 'payments.confirmed',
-          externalId: 'confirm:BR123',
+          externalId: 'confirm:BR00000000000001',
           status: 'received'
         })
       );
@@ -331,7 +427,7 @@ describe('StripeWebhookController', () => {
 
     it('returns duplicate when the GoCardless billing request was already confirmed', async () => {
       goCardlessService.getBillingRequest.mockResolvedValue({
-        id: 'BR123',
+        id: 'BR00000000000001',
         status: 'fulfilled',
         metadata: { source: 'membership' },
         links: { payment_request_payment: 'PM123' }
@@ -341,7 +437,11 @@ describe('StripeWebhookController', () => {
         isDuplicate: true
       });
 
-      const result = await controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' });
+      const result = await controller.confirmSession({
+        sessionId: 'BR00000000000001',
+        provider: 'gocardless',
+        confirmToken: createConfirmToken('BR00000000000001')
+      });
 
       expect(webhookProcessor.process).not.toHaveBeenCalled();
       expect(result).toEqual({ received: true, duplicate: true });
@@ -349,16 +449,27 @@ describe('StripeWebhookController', () => {
 
     it('throws when the GoCardless billing request is not fulfilled', async () => {
       goCardlessService.getBillingRequest.mockResolvedValue({
-        id: 'BR123',
+        id: 'BR00000000000001',
         status: 'pending',
         metadata: {}
       } as any);
 
-      await expect(controller.confirmSession({ sessionId: 'BR123', provider: 'gocardless' })).rejects.toThrow(
-        'Billing request is not fulfilled'
-      );
+      await expect(
+        controller.confirmSession({
+          sessionId: 'BR00000000000001',
+          provider: 'gocardless',
+          confirmToken: createConfirmToken('BR00000000000001')
+        })
+      ).rejects.toThrow('Billing request is not fulfilled');
       expect(webhookEvents.record).not.toHaveBeenCalled();
       expect(webhookProcessor.process).not.toHaveBeenCalled();
+    });
+
+    it('rejects a GoCardless confirmation without a valid confirmation token', async () => {
+      await expect(
+        controller.confirmSession({ sessionId: 'BR00000000000001', provider: 'gocardless' })
+      ).rejects.toThrow('Missing or invalid confirmation token');
+      expect(goCardlessService.getBillingRequest).not.toHaveBeenCalled();
     });
   });
 });

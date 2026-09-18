@@ -2,27 +2,33 @@
 
 import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { summarizeRichText } from '@/lib/rich-text';
+import { FadeIn } from '@/components/ui/FadeIn';
 import type { BlogBlock, MixedBlogListItem } from '@kentslsc/shared';
 
 interface Props {
   block: BlogBlock;
+  /** Server-prefetched posts (keyed by block id). Falls back to client fetching. */
+  data?: MixedBlogListItem[];
 }
 
-export default function BlogBlockComponent({ block }: Props) {
+export default function BlogBlockComponent({ block, data }: Props) {
   const { title, limit = 3 } = block;
 
-  const { data: posts = [], isLoading } = useQuery<MixedBlogListItem[]>({
+  const { data: fetched, isLoading } = useQuery<MixedBlogListItem[]>({
     queryKey: ['blocks', 'blog', limit],
     queryFn: async () => {
       const { data } = await api.get('/blog', { params: { limit } });
       return data ?? [];
-    }
+    },
+    enabled: data === undefined
   });
+
+  const posts = data ?? fetched ?? [];
+  const showLoading = data === undefined && isLoading;
 
   return (
     <section className="px-4 py-16 md:px-6">
@@ -34,7 +40,7 @@ export default function BlogBlockComponent({ block }: Props) {
           </SmartLink>
         </div>
 
-        {isLoading ? (
+        {showLoading ? (
           <div className="grid gap-6 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="glass-card h-64 animate-pulse" />
@@ -56,13 +62,7 @@ export default function BlogBlockComponent({ block }: Props) {
               const LinkComponent = isFacebook ? 'a' : SmartLink;
 
               return (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.05 }}
-                >
+                <FadeIn key={post.id} delay={index * 0.05}>
                   <LinkComponent {...linkProps} className="group block h-full">
                     <div className="glass-card group h-full overflow-hidden p-0">
                       <div
@@ -87,7 +87,7 @@ export default function BlogBlockComponent({ block }: Props) {
                       </div>
                     </div>
                   </LinkComponent>
-                </motion.div>
+                </FadeIn>
               );
             })}
           </div>

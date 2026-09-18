@@ -56,9 +56,14 @@ export class RefundsService {
     let providerRefundId: string | null = null;
 
     if (payment.paymentChannel === 'stripe') {
-      // Some legacy rows stored a subscription ID rather than a payment intent ID.
+      // Payment Element checkouts key the Payment row to the PaymentIntent id
+      // directly; older rows point at a Checkout Session instead.
       let paymentIntentId =
-        payment.providerPaymentId?.startsWith('pi_') ? payment.providerPaymentId : null;
+        payment.providerPaymentId?.startsWith('pi_')
+          ? payment.providerPaymentId
+          : payment.providerCheckoutId?.startsWith('pi_')
+            ? payment.providerCheckoutId
+            : null;
 
       // Backfill a missing payment intent from the checkout session when possible.
       if (!paymentIntentId && payment.providerCheckoutId) {

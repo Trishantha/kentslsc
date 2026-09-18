@@ -40,11 +40,16 @@ export class BlogService {
     private readonly ai: AiService
   ) {}
 
-  async listPublished(): Promise<MixedBlogListItem[]> {
+  async listPublished(page = 1, limit = 50): Promise<MixedBlogListItem[]> {
+    // Fetch enough from each source to assemble the merged page: the page
+    // boundary falls inside either list, so each must contribute up to
+    // page * limit items before the merge sort.
+    const take = page * limit;
     const [blogPosts, facebookPosts] = await Promise.all([
       this.prisma.blogPost.findMany({
         where: { isPublished: true, deletedAt: null },
         orderBy: { publishedAt: 'desc' },
+        take,
         select: {
           id: true,
           title: true,
@@ -60,6 +65,7 @@ export class BlogService {
       this.prisma.externalSocialPost.findMany({
         where: { source: 'facebook' },
         orderBy: { publishedAt: 'desc' },
+        take,
         select: {
           id: true,
           title: true,
@@ -94,11 +100,13 @@ export class BlogService {
       publishedAt: post.publishedAt?.toISOString() ?? null
     }));
 
-    return [...blogItems, ...facebookItems].sort((a, b) => {
-      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-      return dateB - dateA;
-    });
+    return [...blogItems, ...facebookItems]
+      .sort((a, b) => {
+        const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice((page - 1) * limit, page * limit);
   }
 
   async findBySlug(slug: string) {

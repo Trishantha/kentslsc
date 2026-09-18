@@ -4,6 +4,9 @@ import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import JsonLd from '@/components/JsonLd';
 import FundraiserDetailContent, { type Fundraiser } from './FundraiserDetailContent';
 import { getFrontendUrl } from '@/lib/env';
+import { ServerMessagesProvider } from '@/components/i18n/ServerMessagesProvider';
+
+const FUNDRAISER_DETAIL_MESSAGE_NAMESPACES = ['fundraiserDetail', 'common'];
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
@@ -75,9 +78,9 @@ export default async function FundraiserDetailPage({ params }: Props) {
   };
 
   return (
-    <>
+    <ServerMessagesProvider namespaces={FUNDRAISER_DETAIL_MESSAGE_NAMESPACES}>
       <JsonLd data={fundraiserSchema} />
       <FundraiserDetailContent fundraiser={fundraiser} shareUrl={shareUrl} />
-    </>
+    </ServerMessagesProvider>
   );
 }

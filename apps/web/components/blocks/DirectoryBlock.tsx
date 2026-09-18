@@ -1,35 +1,36 @@
 'use client';
 
+import Image from 'next/image';
 import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { FadeIn } from '@/components/ui/FadeIn';
+import type { BlockBusinessItem } from '@/lib/server-blocks';
 import type { DirectoryBlock } from '@kentslsc/shared';
 
 interface Props {
   block: DirectoryBlock;
+  /** Server-prefetched businesses (keyed by block id). Falls back to client fetching. */
+  data?: BlockBusinessItem[];
 }
 
-interface BusinessItem {
-  id: string;
-  businessName: string;
-  description?: string;
-  logoUrl?: string;
-  category?: string;
-  isPromoted?: boolean;
-}
+interface BusinessItem extends BlockBusinessItem {}
 
-export default function DirectoryBlockComponent({ block }: Props) {
+export default function DirectoryBlockComponent({ block, data }: Props) {
   const { title, limit = 3 } = block;
 
-  const { data: businesses = [], isLoading } = useQuery<BusinessItem[]>({
+  const { data: fetched, isLoading } = useQuery<BusinessItem[]>({
     queryKey: ['blocks', 'directory', limit],
     queryFn: async () => {
       const { data } = await api.get('/directory/businesses', { params: { promoted: true, limit } });
       return data ?? [];
-    }
+    },
+    enabled: data === undefined
   });
+
+  const businesses = data ?? fetched ?? [];
+  const showLoading = data === undefined && isLoading;
 
   return (
     <section className="px-4 py-16 md:px-6">
@@ -41,7 +42,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
           </SmartLink>
         </div>
 
-        {isLoading ? (
+        {showLoading ? (
           <div className="grid gap-6 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="glass-card h-48 animate-pulse" />
@@ -52,21 +53,18 @@ export default function DirectoryBlockComponent({ block }: Props) {
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             {businesses.slice(0, limit).map((business, index) => (
-              <motion.div
-                key={business.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.05 }}
-              >
+              <FadeIn key={business.id} delay={index * 0.05}>
                 <SmartLink href={`/directory/${business.id}`}>
                   <div className="glass-card flex h-full flex-col p-6">
                     <div className="flex items-start justify-between">
                       {business.logoUrl ? (
                         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
-                          <img
+                          <Image
                             src={business.logoUrl}
                             alt={business.businessName}
+                            width={56}
+                            height={56}
+                            sizes="56px"
                             className="h-full w-full object-contain"
                           />
                         </div>
@@ -89,7 +87,7 @@ export default function DirectoryBlockComponent({ block }: Props) {
                     </p>
                   </div>
                 </SmartLink>
-              </motion.div>
+              </FadeIn>
             ))}
           </div>
         )}

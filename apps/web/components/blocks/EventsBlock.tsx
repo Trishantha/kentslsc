@@ -1,42 +1,39 @@
 'use client';
 
+import Image from 'next/image';
 import { SmartLink } from '@/components/ui/SmartLink';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { Calendar, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
+import { FadeIn } from '@/components/ui/FadeIn';
 import EventLocationLink from '@/components/events/EventLocationLink';
+import type { BlockEventItem } from '@/lib/server-blocks';
 import type { EventsBlock } from '@kentslsc/shared';
 import { EventCategory, eventCategoryLabels, eventCategoryColors } from '@kentslsc/shared';
 
 interface Props {
   block: EventsBlock;
+  /** Server-prefetched events (keyed by block id). Falls back to client fetching. */
+  data?: BlockEventItem[];
 }
 
-interface EventItem {
-  id: string;
-  title: string;
-  description?: string;
-  location?: string;
-  startDatetime: string;
-  imageUrl?: string;
-  ticketPrice: number;
-  isFree: boolean;
-  category?: EventCategory;
-  externalTicketingUrl?: string | null;
-}
+interface EventItem extends BlockEventItem {}
 
-export default function EventsBlockComponent({ block }: Props) {
+export default function EventsBlockComponent({ block, data }: Props) {
   const { title, limit = 3 } = block;
 
-  const { data: events = [], isLoading } = useQuery<EventItem[]>({
+  const { data: fetched, isLoading } = useQuery<EventItem[]>({
     queryKey: ['blocks', 'events', limit],
     queryFn: async () => {
       const { data } = await api.get('/events', { params: { upcoming: true, limit } });
       return data?.data ?? [];
-    }
+    },
+    enabled: data === undefined
   });
+
+  const events = data ?? fetched ?? [];
+  const showLoading = data === undefined && isLoading;
 
   return (
     <section className="px-4 py-16 md:px-6">
@@ -50,7 +47,7 @@ export default function EventsBlockComponent({ block }: Props) {
           </SmartLink>
         </div>
 
-        {isLoading ? (
+        {showLoading ? (
           <div className="grid gap-6 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="glass-card h-80 animate-pulse" />
@@ -61,26 +58,22 @@ export default function EventsBlockComponent({ block }: Props) {
         ) : (
           <div className="grid gap-4">
             {events.slice(0, limit).map((event, index) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.05 }}
-              >
+              <FadeIn key={event.id} delay={index * 0.05}>
                 <SmartLink href={`/events/${event.id}`}>
                   <div className="glass-card group flex flex-col overflow-hidden sm:flex-row">
                     <div
                       className={cn(
-                        'flex aspect-[3/4] w-full items-center justify-center overflow-hidden bg-gradient-to-br',
+                        'relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden bg-gradient-to-br',
                         event.imageUrl ? 'from-black/5 to-black/10' : 'from-neon-blue/40 to-neon-gold/40'
                       )}
                     >
                       {event.imageUrl ? (
-                        <img
+                        <Image
                           src={event.imageUrl}
                           alt={event.title}
-                          className="h-full w-full object-contain"
+                          fill
+                          sizes="(min-width: 640px) 320px, 100vw"
+                          className="object-contain"
                         />
                       ) : (
                         <Calendar className="h-12 w-12 text-slate-400" />
@@ -119,7 +112,7 @@ export default function EventsBlockComponent({ block }: Props) {
                     </div>
                   </div>
                 </SmartLink>
-              </motion.div>
+              </FadeIn>
             ))}
           </div>
         )}

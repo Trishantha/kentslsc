@@ -1,12 +1,16 @@
-import { Controller, Logger, Post, Headers, RawBody, Res, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Logger, Post, Headers, RawBody, Res, Body, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import type Stripe from 'stripe';
 import { Public } from '../common/decorators/public.decorator.js';
 import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import type { TokenPayload } from '@kentslsc/shared';
 import { PaymentsService } from './payments.service.js';
 import { unpackBillingRequestMetadata } from './gocardless.service.js';
 import { GoCardlessService } from './gocardless.service.js';
+import { verifyConfirmToken } from './utils/confirm-token.js';
 import { WebhookEventService } from './webhook-event.service.js';
 import { WebhookQueueService } from './webhook-queue.service.js';
 import { WebhookProcessor } from './webhook.processor.js';
@@ -101,8 +105,12 @@ export class StripeWebhookController {
   @Public()
   @OptionalAuthRoute()
   @ApiBearerAuth()
-  async confirmSession(@Body() body: { sessionId: string; provider: 'stripe' | 'paypal' | 'gocardless' }) {
-    const { sessionId, provider } = body;
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async confirmSession(
+    @Body() body: { sessionId: string; provider: 'stripe' | 'paypal' | 'gocardless'; confirmToken?: string },
+    @CurrentUser() user?: TokenPayload
+  ) {
+    const { sessionId, provider, confirmToken } = body;
 
     if (!sessionId || !provider) {
       throw new BadRequestException('sessionId and provider are required');
@@ -112,8 +120,33 @@ export class StripeWebhookController {
       throw new BadRequestException('PayPal confirmation is not yet supported');
     }
 
+    // Validate identifier formats before any provider API call so garbage ids
+    // cost nothing.
+    if (provider === 'stripe' && !/^(pi|cs)_(live|test)_[A-Za-z0-9]+$/.test(sessionId)) {
+      throw new BadRequestException('Invalid Stripe checkout id');
+    }
+    if (provider === 'gocardless' && !/^BR[0-9A-Z]{14}$/i.test(sessionId)) {
+      throw new BadRequestException('Invalid GoCardless billing request id');
+    }
+
+    // PaymentIntents (Payment Element) and GoCardless billing requests carry a
+    // signed confirm_token in their success URL. Verifying it statelessly here
+    // means holding only a provider id (leaked via referrer/logs) can never
+    // trigger someone else's fulfilment workflow.
+    if (provider === 'gocardless' || sessionId.startsWith('pi_')) {
+      if (!verifyConfirmToken(sessionId, confirmToken)) {
+        throw new ForbiddenException(
+          'Missing or invalid confirmation token. The payment will be confirmed automatically once the provider notifies us.'
+        );
+      }
+    }
+
     if (provider === 'gocardless') {
       return this.confirmGoCardlessSession(sessionId);
+    }
+
+    if (sessionId.startsWith('pi_')) {
+      return this.confirmStripePaymentIntent(sessionId);
     }
 
     const session = await this.paymentsService.getFullCheckoutSession(sessionId);
@@ -121,6 +154,20 @@ export class StripeWebhookController {
     if (session.status !== 'complete' || session.payment_status !== 'paid') {
       throw new BadRequestException(
         `Checkout session is not complete (status: ${session.status}, payment_status: ${session.payment_status})`
+      );
+    }
+
+    // Hosted Stripe checkout sessions cannot embed the confirm token (Stripe
+    // only expands {CHECKOUT_SESSION_ID} in success URLs), so ownership is
+    // verified instead: the caller must be logged in as the user bound to the
+    // checkout metadata. If that cannot be established, webhooks remain the
+    // authoritative fulfilment path.
+    if (
+      !verifyConfirmToken(sessionId, confirmToken) &&
+      !(user?.sub && session.metadata?.userId && session.metadata.userId === user.sub)
+    ) {
+      throw new ForbiddenException(
+        'Cannot verify checkout ownership. The payment will be confirmed automatically once Stripe notifies us.'
       );
     }
 
@@ -161,6 +208,61 @@ export class StripeWebhookController {
     // a session with no fulfilment metadata means the payment was never
     // applied. Leave the ledger 'ignored' (not 'processed') so a later retry
     // re-runs, and log what Stripe actually returned.
+    if (fulfilled !== true) {
+      this.logger.warn(
+        `confirm-session ${sessionId}: no fulfilment handler ran; stripe metadata keys: ${Object.keys(session.metadata ?? {}).join(',') || '(none)'}`
+      );
+      await this.webhookEvents.markStatus(recordResult.event.id, 'ignored');
+    }
+
+    return { received: true, fulfilled: fulfilled === true };
+  }
+
+  /**
+   * Confirmation backstop for Payment Element checkouts. `sessionId` is a
+   * PaymentIntent id (the return pages pass it in the session_id param). The
+   * intent must have succeeded; fulfilment then runs through the same
+   * pseudo-session path as the payment_intent.succeeded webhook.
+   */
+  private async confirmStripePaymentIntent(sessionId: string) {
+    const session = await this.webhookProcessor.buildPseudoSessionFromPaymentIntent(sessionId);
+
+    if (!session) {
+      throw new BadRequestException('Payment is not complete yet');
+    }
+
+    // Record a synthetic webhook event so the processor can update its ledger.
+    const externalId = `confirm:${sessionId}`;
+    const recordResult = await this.webhookEvents.record({
+      provider: 'stripe',
+      eventType: 'payment_intent.succeeded',
+      externalId,
+      payload: Buffer.from(JSON.stringify(session)),
+      status: 'received'
+    });
+
+    // Only skip reprocessing when a previous confirmation actually succeeded.
+    // A ledger row left in `received` or `failed` means the payment was never
+    // applied. All handlers are idempotent, so replaying is safe.
+    if (recordResult.isDuplicate && recordResult.event.status === 'processed') {
+      return { received: true, duplicate: true };
+    }
+
+    const syntheticEvent = {
+      id: externalId,
+      type: 'payment_intent.succeeded',
+      data: { object: { id: sessionId } }
+    } as unknown as Stripe.Event;
+
+    const job: WebhookJobData = {
+      ledgerId: recordResult.event.id,
+      provider: 'stripe',
+      eventType: 'payment_intent.succeeded',
+      payload: syntheticEvent
+    };
+
+    const fulfilled = await this.webhookProcessor.process(job);
+
     if (fulfilled !== true) {
       this.logger.warn(
         `confirm-session ${sessionId}: no fulfilment handler ran; stripe metadata keys: ${Object.keys(session.metadata ?? {}).join(',') || '(none)'}`

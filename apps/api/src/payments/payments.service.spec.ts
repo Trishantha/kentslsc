@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import crypto from 'crypto';
 import { PaymentsService } from './payments.service.js';
+import { verifyConfirmToken } from './utils/confirm-token.js';
 
 const mockConfig = {
   get: jest.fn((key: string): string | undefined => {
@@ -440,6 +441,76 @@ describe('PaymentsService', () => {
       expect(sessionParams.metadata.grossAmount).toBe('1035');
     });
 
+    it('creates a PaymentIntent for embedded one-off checkouts', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'pi_test_123',
+        client_secret: 'pi_test_123_secret',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        paymentIntents: { create: createMock }
+      };
+
+      const result = await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Test payment',
+        successUrl: 'https://example.com/success?session_id={CHECKOUT_SESSION_ID}',
+        cancelUrl: 'https://example.com/cancel',
+        uiMode: 'embedded',
+        metadata: { type: 'donation' }
+      });
+
+      expect(result.provider).toBe('stripe');
+      expect(result.id).toBe('pi_test_123');
+      expect(result.clientSecret).toBe('pi_test_123_secret');
+      expect(result.netAmount).toBe(1000);
+      expect(result.processingFee).toBe(35);
+      expect(result.grossAmount).toBe(1035);
+
+      const intentParams = createMock.mock.calls[0]?.[0];
+      if (!intentParams) throw new Error('Expected payment intent params');
+      expect(intentParams.amount).toBe(1035);
+      expect(intentParams.automatic_payment_methods).toEqual({ enabled: true });
+      expect(intentParams.metadata.type).toBe('donation');
+      expect(intentParams.metadata.netAmount).toBe('1000');
+      expect(intentParams.metadata.processingFee).toBe('35');
+      expect(intentParams.metadata.grossAmount).toBe('1035');
+      expect(intentParams.metadata.returnUrlTemplate).toBe(
+        'https://example.com/success?session_id={CHECKOUT_SESSION_ID}&confirm_token={CONFIRM_TOKEN}'
+      );
+    });
+
+    it('still creates a Checkout Session for subscription checkouts', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'stripe-session-sub',
+        url: 'https://checkout.stripe.com/pay/session-sub',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        checkout: { sessions: { create: createMock } }
+      };
+
+      const result = await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Membership',
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel',
+        uiMode: 'embedded',
+        mode: 'subscription'
+      });
+
+      expect(result.id).toBe('stripe-session-sub');
+      expect(createMock).toHaveBeenCalled();
+    });
+
     it('creates a single line item when fees are disabled', async () => {
       const service = new PaymentsService(mockConfig as any, {
         paymentSettings: {
@@ -508,8 +579,94 @@ describe('PaymentsService', () => {
       expect(sessionParams.customer).toBe('cus_test_123');
       expect(sessionParams.customer_email).toBeUndefined();
     });
+
+    it('appends the confirm token placeholder to hosted checkout success URLs', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'stripe-session-hosted',
+        url: 'https://checkout.stripe.com/pay/session-hosted',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        checkout: { sessions: { create: createMock } }
+      };
+
+      await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Test payment',
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel'
+      });
+
+      const sessionParams = createMock.mock.calls[0]?.[0];
+      if (!sessionParams) throw new Error('Expected checkout session params');
+      expect(sessionParams.success_url).toBe(
+        'https://example.com/success?confirm_token={CONFIRM_TOKEN}'
+      );
+    });
   });
 
+  describe('getPaymentIntentDetail', () => {
+    const paymentIntent = {
+      id: 'pi_test_123',
+      status: 'requires_payment_method',
+      amount: 1035,
+      currency: 'gbp',
+      description: 'Donation to Test',
+      client_secret: 'pi_test_123_secret',
+      receipt_email: 'donor@example.com',
+      metadata: {
+        netAmount: '1000',
+        processingFee: '35',
+        grossAmount: '1035',
+        returnUrlTemplate:
+          'https://example.com/success?session_id={CHECKOUT_SESSION_ID}&confirm_token={CONFIRM_TOKEN}'
+      }
+    };
+
+    function buildService(retrieveImpl: () => Promise<unknown>) {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      const retrieveMock = jest.fn(retrieveImpl);
+      (service as any).stripe = { paymentIntents: { retrieve: retrieveMock } };
+      return { service, retrieveMock };
+    }
+
+    it('rejects malformed ids before calling Stripe', async () => {
+      const { service, retrieveMock } = buildService(async () => paymentIntent);
+
+      await expect(service.getPaymentIntentDetail('not-a-pi-id', 'secret')).rejects.toThrow(
+        'Invalid payment intent id'
+      );
+      expect(retrieveMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing or incorrect client secret', async () => {
+      const { service, retrieveMock } = buildService(async () => paymentIntent);
+
+      await expect(service.getPaymentIntentDetail('pi_test_123', undefined)).rejects.toThrow(
+        'Invalid or incomplete checkout link'
+      );
+      await expect(service.getPaymentIntentDetail('pi_test_123', 'wrong-secret')).rejects.toThrow(
+        'Invalid or incomplete checkout link'
+      );
+      expect(retrieveMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns detail with a fully expanded return URL to the holder of the secret', async () => {
+      const { service } = buildService(async () => paymentIntent);
+
+      const detail = await service.getPaymentIntentDetail('pi_test_123', 'pi_test_123_secret');
+
+      expect(detail.grossAmount).toBe(1035);
+      expect(detail.customerEmail).toBe('donor@example.com');
+      const returnUrl = new URL(detail.returnUrl!);
+      expect(returnUrl.searchParams.get('session_id')).toBe('pi_test_123');
+      expect(verifyConfirmToken('pi_test_123', returnUrl.searchParams.get('confirm_token'))).toBe(true);
+    });
+  });
   describe('getOrCreateStripeCustomer', () => {
     it('reuses an existing stripeCustomerId', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
@@ -1087,6 +1244,9 @@ describe('PaymentsService', () => {
               has_more: false
             }))
           }
+        },
+        paymentIntents: {
+          list: jest.fn(async () => ({ data: [], has_more: false }))
         }
       };
 

@@ -35,7 +35,7 @@ export class DirectoryService {
     return user.role === UserRole.ADMIN || recordOwnerId === user.sub;
   }
 
-  async findBusinesses(search?: string, category?: string, promoted?: boolean) {
+  async findBusinesses(search?: string, category?: string, promoted?: boolean, page = 1, limit = 50) {
     const now = new Date();
     const where: {
       deletedAt: null;
@@ -71,7 +71,9 @@ export class DirectoryService {
       include: {
         _count: { select: { jobAds: { where: { deletedAt: null, isPublished: true } } } }
       },
-      orderBy: [{ isPromoted: 'desc' }, { promotedUntil: 'desc' }, { createdAt: 'desc' }]
+      orderBy: [{ isPromoted: 'desc' }, { promotedUntil: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+      skip: (page - 1) * limit
     });
 
     return listings.map((listing) => ({

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import crypto from 'crypto';
@@ -15,6 +15,11 @@ import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import type { Prisma } from '@kentslsc/database';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 import { resolveInvoicePaymentIntentId } from './utils/stripe-compat.js';
+import {
+  CONFIRM_TOKEN_PLACEHOLDER,
+  createConfirmToken,
+  withConfirmTokenPlaceholder
+} from './utils/confirm-token.js';
 import { sha256 } from '../common/utils/crypto.js';
 
 const STRIPE_TIMEOUT_MS = 30_000;
@@ -65,6 +70,19 @@ export interface CheckoutSessionDetail {
   lineItems:
     | { description: string | null; amount: number; quantity: number | null }[]
     | undefined;
+}
+
+export interface PaymentIntentDetail {
+  id: string;
+  status: Stripe.PaymentIntent.Status | null;
+  amount: number;
+  currency: string | null;
+  description: string | null;
+  customerEmail: string | null;
+  netAmount: number;
+  processingFee: number;
+  grossAmount: number;
+  returnUrl: string | null;
 }
 
 interface SyncedStripePrice {
@@ -433,6 +451,52 @@ export class PaymentsService {
   }
 
   /**
+   * Detail for a PaymentIntent-backed embedded checkout. The PaymentIntent id
+   * travels in the browser URL and leaks via referrer/analytics, so it is NOT
+   * treated as a capability: the caller must also present the PaymentIntent's
+   * client secret (which the payer's checkout link already contains). Only then
+   * are amounts, fees, email and the return URL exposed.
+   */
+  async getPaymentIntentDetail(
+    paymentIntentId: string,
+    clientSecret?: string | null
+  ): Promise<PaymentIntentDetail> {
+    if (!/^pi_(live|test)_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+      throw new BadRequestException('Invalid payment intent id');
+    }
+
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    const paymentIntent = await this.stripe!.paymentIntents.retrieve(paymentIntentId);
+
+    if (!clientSecret || clientSecret !== paymentIntent.client_secret) {
+      throw new ForbiddenException('Invalid or incomplete checkout link');
+    }
+
+    const metadata = paymentIntent.metadata ?? {};
+    const returnUrlTemplate = metadata.returnUrlTemplate ?? null;
+
+    return {
+      id: paymentIntent.id,
+      status: paymentIntent.status,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      description: paymentIntent.description ?? null,
+      customerEmail: paymentIntent.receipt_email ?? null,
+      netAmount: Number(metadata.netAmount ?? paymentIntent.amount),
+      processingFee: Number(metadata.processingFee ?? 0),
+      grossAmount: Number(metadata.grossAmount ?? paymentIntent.amount),
+      returnUrl: returnUrlTemplate
+        ? returnUrlTemplate
+            .replace('{CHECKOUT_SESSION_ID}', paymentIntent.id)
+            .replace(CONFIRM_TOKEN_PLACEHOLDER, createConfirmToken(paymentIntent.id))
+        : null
+    };
+  }
+
+  /**
    * Find the local Payment ledger row recorded for a provider checkout
    * reference (Stripe session id, PayPal order id, or GoCardless billing
    * request id). Used by the GoCardless confirmation backstop to locate the
@@ -492,6 +556,10 @@ export class PaymentsService {
   private async resolvePaymentIntentIdForSession(
     session: Stripe.Checkout.Session
   ): Promise<string | null> {
+    // PaymentIntent-backed checkouts pass a pseudo-session whose id is the
+    // PaymentIntent id itself.
+    if (session.id.startsWith('pi_')) return session.id;
+
     const direct = this.resolvePaymentIntentIdFromSession(session);
     if (direct) return direct;
 
@@ -705,6 +773,67 @@ export class PaymentsService {
       startingAfter = hasMore ? page.data[page.data.length - 1]!.id : undefined;
     }
 
+    // Payment Element checkouts settle PaymentIntents directly, so they never
+    // appear in the Checkout Session scan above. Backfill rows for succeeded
+    // PaymentIntents we created, identified by our fulfilment metadata.
+    try {
+      let piHasMore = true;
+      let piStartingAfter: string | undefined;
+
+      while (piHasMore) {
+        const piPage = await this.stripe!.paymentIntents.list({
+          limit: 100,
+          expand: ['data.latest_charge'],
+          created: {
+            gte: Math.floor(from.getTime() / 1000),
+            lte: Math.ceil(to.getTime() / 1000)
+          },
+          ...(piStartingAfter && { starting_after: piStartingAfter })
+        });
+
+        for (const paymentIntent of piPage.data) {
+          try {
+            const metadata = paymentIntent.metadata ?? {};
+            if (paymentIntent.status !== 'succeeded' || (!metadata.type && !metadata.source)) {
+              result.skipped++;
+              continue;
+            }
+
+            const existing = await this.prisma.payment.findFirst({
+              where: { providerCheckoutId: paymentIntent.id, deletedAt: null },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                providerPaymentId: true,
+                paymentStatus: true,
+                refundedAmount: true,
+                grossAmount: true
+              }
+            });
+
+            if (existing) {
+              await this.updatePaymentFromStripePaymentIntent(existing, paymentIntent.id);
+              result.updated++;
+            } else {
+              await this.createPaymentFromStripePaymentIntent(paymentIntent);
+              result.created++;
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Stripe sync failed for payment intent ${paymentIntent.id}: ${message}`);
+            result.errors.push(`payment intent ${paymentIntent.id}: ${message}`);
+          }
+        }
+
+        piHasMore = piPage.has_more && piPage.data.length > 0;
+        piStartingAfter = piHasMore ? piPage.data[piPage.data.length - 1]!.id : undefined;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Stripe payment intent sync failed: ${message}`);
+      result.errors.push(`payment intent scan: ${message}`);
+    }
+
     // Subscription renewals are recorded with providerCheckoutId set to the
     // Stripe Invoice id, so they are not matched by the session scan above.
     // Backfill their actual fees using the stored PaymentIntent id.
@@ -882,8 +1011,16 @@ export class PaymentsService {
       }
     }
 
-    const description = this.inferDescription(sourceType, session);
-    const sourceIds = await this.inferSourceIds(sourceType, metadata, session);
+    const description = this.inferDescription(
+      sourceType,
+      metadata,
+      session.line_items?.data[0]?.description ?? 'Stripe payment'
+    );
+    const sourceIds = await this.inferSourceIds(
+      sourceType,
+      metadata,
+      typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null
+    );
     const subscriptionId =
       typeof session.subscription === 'string'
         ? session.subscription
@@ -927,6 +1064,70 @@ export class PaymentsService {
     return (session.amount_total ?? 0) / 100;
   }
 
+  /**
+   * Create a local Payment ledger row from a succeeded PaymentIntent created by
+   * our Payment Element checkouts (which have no Checkout Session).
+   */
+  private async createPaymentFromStripePaymentIntent(
+    paymentIntent: Stripe.PaymentIntent
+  ): Promise<void> {
+    const metadata = paymentIntent.metadata ?? {};
+    const sourceType = this.inferSourceType(metadata);
+    const currency = (paymentIntent.currency ?? 'gbp').toUpperCase();
+    const grossAmount = paymentIntent.amount / 100;
+
+    const charge =
+      typeof paymentIntent.latest_charge === 'string'
+        ? null
+        : paymentIntent.latest_charge;
+
+    let fee = 0;
+    let net = grossAmount;
+    const feeDetails = await this.getStripeFeeDetails(paymentIntent.id);
+    if (feeDetails) {
+      fee = feeDetails.fee;
+      net = feeDetails.net;
+    }
+
+    const description = this.inferDescription(
+      sourceType,
+      metadata,
+      paymentIntent.description ?? 'Stripe payment'
+    );
+    const sourceIds = await this.inferSourceIds(
+      sourceType,
+      metadata,
+      typeof paymentIntent.customer === 'string' ? paymentIntent.customer : null
+    );
+
+    await this.prisma.payment.create({
+      data: {
+        paymentChannel: 'stripe',
+        paymentMethod: paymentIntent.payment_method_types?.[0] ?? 'card',
+        paymentStatus: PaymentStatus.COMPLETED,
+        providerCheckoutId: paymentIntent.id,
+        providerPaymentId: paymentIntent.id,
+        currency,
+        grossAmount,
+        processingFee: fee,
+        netAmount: net,
+        description,
+        notes: 'Synced from Stripe PaymentIntent',
+        payerName: charge?.billing_details?.name ?? null,
+        payerEmail: charge?.billing_details?.email ?? paymentIntent.receipt_email ?? null,
+        payerPhone: charge?.billing_details?.phone ?? null,
+        purchasedAt: paymentIntent.created ? new Date(paymentIntent.created * 1000) : new Date(),
+        sourceType,
+        ...sourceIds,
+        metadata: {
+          ...metadata,
+          syncedAt: new Date().toISOString(),
+          sessionRef: paymentIntent.id
+        } as unknown as Prisma.InputJsonValue
+      }
+    });
+  }
+
   private inferSourceType(metadata: Record<string, string>): PaymentSourceType {
     if (metadata.source === 'membership') return PaymentSourceType.MEMBERSHIP;
     switch (metadata.type) {
@@ -945,9 +1146,9 @@ export class PaymentsService {
 
   private inferDescription(
     sourceType: PaymentSourceType,
-    session: Stripe.Checkout.Session
+    metadata: Record<string, string>,
+    fallbackDescription: string
   ): string | null {
-    const metadata = session.metadata ?? {};
     switch (sourceType) {
       case PaymentSourceType.TICKET:
         return metadata.eventTitle ? `Ticket(s) for ${metadata.eventTitle}` : 'Ticket purchase';
@@ -966,14 +1167,14 @@ export class PaymentsService {
       case PaymentSourceType.JOB_PUBLISH:
         return metadata.jobTitle ? `Job publish: ${metadata.jobTitle}` : 'Job publish';
       default:
-        return session.line_items?.data[0]?.description ?? 'Stripe payment';
+        return fallbackDescription;
     }
   }
 
   private async inferSourceIds(
     sourceType: PaymentSourceType,
     metadata: Record<string, string>,
-    session: Stripe.Checkout.Session
+    stripeCustomerId: string | null
   ): Promise<{
     userId: string | null;
     eventId?: string | null;
@@ -993,9 +1194,6 @@ export class PaymentsService {
       jobAdId?: string | null;
     } = { userId: metadata.userId ?? null };
 
-    const customerId =
-      typeof session.customer === 'string' ? session.customer : session.customer?.id ?? null;
-
     switch (sourceType) {
       case PaymentSourceType.TICKET:
         ids.eventId = metadata.eventId ?? null;
@@ -1014,10 +1212,10 @@ export class PaymentsService {
         break;
     }
 
-    if (!ids.userId && customerId) {
+    if (!ids.userId && stripeCustomerId) {
       // Best-effort lookup by Stripe customer id.
       const user = await this.prisma.user.findFirst({
-        where: { stripeCustomerId: customerId, deletedAt: null },
+        where: { stripeCustomerId, deletedAt: null },
         select: { id: true }
       });
       if (user) ids.userId = user.id;
@@ -1184,9 +1382,66 @@ export class PaymentsService {
     return this.createStripeCheckout(input, effective);
   }
 
+  /**
+   * Create a PaymentIntent for embedded one-off checkouts rendered with the
+   * custom Payment Element (the embedded Checkout Session iframe does not let
+   * us control payment-method ordering, e.g. Apple Pay / Google Pay first).
+   * The success URL is kept in metadata as a template so the checkout page can
+   * expand `{CHECKOUT_SESSION_ID}` with the PaymentIntent id at confirm time.
+   */
+  private async createStripePaymentIntent(
+    input: CreateCheckoutInput,
+    effective: EffectivePaymentSettings
+  ): Promise<CheckoutResult> {
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+
+    input = { ...input, successUrl: withConfirmTokenPlaceholder(input.successUrl) };
+
+    const currency = (input.currency ?? 'gbp').toLowerCase();
+    const netAmount = input.amount ?? 0;
+    const includeProcessingFee = input.includeProcessingFee !== false;
+    const feeResult = includeProcessingFee
+      ? this.calculateProcessingFee(netAmount, 'stripe', effective)
+      : { net: netAmount, fee: 0, gross: netAmount };
+
+    const paymentIntent = await this.stripe!.paymentIntents.create({
+      amount: feeResult.gross,
+      currency,
+      description: input.description,
+      automatic_payment_methods: { enabled: true },
+      ...(input.customer
+        ? { customer: input.customer }
+        : input.customerEmail
+          ? { receipt_email: input.customerEmail }
+          : {}),
+      metadata: {
+        ...input.metadata,
+        netAmount: String(feeResult.net),
+        processingFee: String(feeResult.fee),
+        grossAmount: String(feeResult.gross),
+        returnUrlTemplate: input.successUrl
+      }
+    });
+
+    return {
+      provider: 'stripe',
+      id: paymentIntent.id,
+      url: input.successUrl,
+      clientSecret: paymentIntent.client_secret ?? undefined,
+      netAmount: feeResult.net,
+      processingFee: feeResult.fee,
+      grossAmount: feeResult.gross
+    };
+  }
+
   async createStripeCheckout(input: CreateCheckoutInput, effective: EffectivePaymentSettings): Promise<CheckoutResult> {
     this.ensureStripeClient(effective.stripeSecretKey);
     this.ensureEnabled();
+
+    // Every success/return URL carries the confirmation-token placeholder so the
+    // confirm-session backstop can verify the caller holds the full URL.
+    input = { ...input, successUrl: withConfirmTokenPlaceholder(input.successUrl) };
 
     const currency = (input.currency ?? 'gbp').toLowerCase();
     const netAmount = input.amount ?? 0;
@@ -1238,6 +1493,12 @@ export class PaymentsService {
 
     const uiMode = input.uiMode === 'embedded' ? 'embedded_page' : input.uiMode;
     const isEmbedded = uiMode === 'embedded_page';
+
+    // Embedded one-off checkouts use the custom Payment Element, which needs a
+    // PaymentIntent rather than a Checkout Session (see createStripePaymentIntent).
+    if (isEmbedded && (input.mode ?? 'payment') === 'payment') {
+      return this.createStripePaymentIntent(input, effective);
+    }
 
     const session = await this.stripe!.checkout.sessions.create({
       mode: input.mode ?? 'payment',

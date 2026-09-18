@@ -91,6 +91,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'payments/payments.controller.ts::getStripeConfig',
   'payments/payments.controller.ts::getPublicSettings',
   'payments/payments.controller.ts::getCheckoutSession',
+  'payments/payments.controller.ts::getPaymentIntent',
 ]);
 
 function findControllers(dir: string, found: string[] = []): string[] {

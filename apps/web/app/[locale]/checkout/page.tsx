@@ -1,25 +1,31 @@
 'use client';
 
-import { useEffect, useState, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useEffect, useState, Component, type FormEvent, type ReactNode, type ErrorInfo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
-import { EmbeddedCheckout, EmbeddedCheckoutProvider } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  ExpressCheckoutElement,
+  PaymentElement,
+  useStripe,
+  useElements
+} from '@stripe/react-stripe-js';
 import { Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
-interface CheckoutSession {
+interface PaymentIntentDetail {
   id: string;
   status: string | null;
-  amountTotal: number;
-  currency: string;
+  amount: number;
+  currency: string | null;
+  description: string | null;
   customerEmail: string | null;
-  lineItems?: Array<{
-    description: string | null;
-    amount: number;
-    quantity: number | null;
-  }>;
+  netAmount: number;
+  processingFee: number;
+  grossAmount: number;
+  returnUrl: string | null;
 }
 
 interface CheckoutErrorBoundaryState {
@@ -53,38 +59,143 @@ class CheckoutErrorBoundary extends Component<
   }
 }
 
-function getSessionMode(sessionId: string): 'live' | 'test' | 'unknown' {
-  if (sessionId.startsWith('cs_live_')) return 'live';
-  if (sessionId.startsWith('cs_test_')) return 'test';
-  return 'unknown';
-}
+function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [email, setEmail] = useState(detail.customerEmail ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [expressAvailable, setExpressAvailable] = useState(false);
 
-function validateStripeKeyMatchesSession(publishableKey: string, sessionId: string): string | null {
-  if (publishableKey.startsWith('sk_')) {
-    return 'Stripe is misconfigured: a secret key is being used instead of a publishable key. Please update the payment settings.';
-  }
-  const mode = getSessionMode(sessionId);
-  if (mode === 'unknown') return 'Invalid checkout session ID.';
-  if (mode === 'live' && !publishableKey.startsWith('pk_live_')) {
-    return 'Stripe is configured for test mode, but this is a live checkout session.';
-  }
-  if (mode === 'test' && !publishableKey.startsWith('pk_test_')) {
-    return 'Stripe is configured for live mode, but this is a test checkout session.';
-  }
-  return null;
+  // Wallets (Apple Pay / Google Pay) only need the billing email, which the
+  // Payment Element collects; card payments need it passed at confirm time.
+  const emailRequired = !detail.customerEmail;
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    if (emailRequired && !email.trim()) {
+      setError('Please enter your email address so we can send you a receipt.');
+      return;
+    }
+
+    setIsPaying(true);
+    setError(null);
+
+    try {
+      const { error: confirmError } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: detail.returnUrl ?? window.location.href,
+          ...(email.trim()
+            ? { payment_method_data: { billing_details: { email: email.trim() } } }
+            : {})
+        }
+      });
+
+      if (confirmError) {
+        setError(confirmError.message ?? 'Payment failed. Please try again.');
+        setIsPaying(false);
+      }
+      // On success Stripe redirects to return_url; no further handling needed.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+      setIsPaying(false);
+    }
+  };
+
+  const handleExpressConfirm = async () => {
+    if (!stripe || !elements) return;
+    setIsPaying(true);
+    setError(null);
+    const { error: confirmError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: detail.returnUrl ?? window.location.href
+      }
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? 'Payment failed. Please try again.');
+      setIsPaying(false);
+    }
+    // On success Stripe redirects to return_url; no further handling needed.
+  };
+
+  return (
+    <div>
+      {expressAvailable && (
+        <div className="mb-2">
+          <ExpressCheckoutElement
+            options={{ paymentMethodOrder: ['apple_pay', 'google_pay'] }}
+            onReady={({ availablePaymentMethods }) =>
+              setExpressAvailable(Boolean(availablePaymentMethods))
+            }
+            onConfirm={handleExpressConfirm}
+            onCancel={() => setIsPaying(false)}
+          />
+          <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-500">
+            <span className="h-px flex-1 bg-white/10" />
+            or pay with card
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+        </div>
+      )}
+      <form onSubmit={handleSubmit}>
+        <PaymentElement options={{ paymentMethodOrder: ['card'] }} />
+
+        {emailRequired && (
+          <div className="mt-4">
+            <label htmlFor="checkout-email" className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+              Email for your receipt
+            </label>
+            <input
+              id="checkout-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
+              placeholder="you@example.com"
+            />
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={!stripe || isPaying}
+          className="mt-6 w-full rounded-xl bg-neon-blue px-4 py-3 font-semibold text-white transition-opacity disabled:opacity-50"
+        >
+          {isPaying ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Processing…
+            </span>
+          ) : (
+            `Pay ${formatCurrency(detail.grossAmount / 100)}`
+          )}
+        </button>
+      </form>
+    </div>
+  );
 }
 
 export default function CheckoutPage() {
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get('session_id');
+  const paymentIntentId = searchParams.get('payment_intent');
   const clientSecret = searchParams.get('client_secret');
   const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
-  const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [detail, setDetail] = useState<PaymentIntentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingStripe, setIsLoadingStripe] = useState(false);
 
   useEffect(() => {
-    if (!clientSecret || !sessionId) {
+    if (!clientSecret || !paymentIntentId) {
       setError('Invalid checkout session. Please start again.');
       return;
     }
@@ -93,11 +204,13 @@ export default function CheckoutPage() {
 
     async function init() {
       try {
-        if (!sessionId || !clientSecret) return;
+        if (!paymentIntentId || !clientSecret) return;
 
-        const [configRes, sessionRes] = await Promise.all([
+        const [configRes, detailRes] = await Promise.all([
           api.get<{ publishableKey: string | null }>('/payments/stripe-config'),
-          api.get<CheckoutSession>(`/payments/checkout-session/${sessionId}`)
+          api.get<PaymentIntentDetail>(
+            `/payments/payment-intent/${paymentIntentId}?client_secret=${encodeURIComponent(clientSecret)}`
+          )
         ]);
 
         if (cancelled) return;
@@ -107,23 +220,20 @@ export default function CheckoutPage() {
           return;
         }
 
-        const keyError = validateStripeKeyMatchesSession(configRes.data.publishableKey, sessionId);
-        if (keyError) {
-          setError(keyError);
+        if (configRes.data.publishableKey.startsWith('sk_')) {
+          setError(
+            'Stripe is misconfigured: a secret key is being used instead of a publishable key. Please update the payment settings.'
+          );
           return;
         }
 
-        const status = sessionRes.data.status;
-        if (status === 'complete') {
+        const status = detailRes.data.status;
+        if (status === 'succeeded') {
           setError('This payment has already been completed.');
           return;
         }
-        if (status === 'expired') {
-          setError('This checkout session has expired. Please start again.');
-          return;
-        }
-        if (status && status !== 'open') {
-          setError(`This checkout session cannot be used (status: ${status}). Please start again.`);
+        if (status === 'canceled') {
+          setError('This payment has been canceled. Please start again.');
           return;
         }
 
@@ -136,7 +246,7 @@ export default function CheckoutPage() {
             return;
           }
           setStripePromise(stripe);
-          setSession(sessionRes.data);
+          setDetail(detailRes.data);
         } catch (err) {
           if (!cancelled) {
             setError(`Stripe could not be initialised: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -162,14 +272,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [clientSecret, sessionId]);
-
-  const mainLineItem = session?.lineItems?.find(
-    (item) => item.description && item.description !== 'Processing fee'
-  );
-  const feeLineItem = session?.lineItems?.find(
-    (item) => item.description === 'Processing fee'
-  );
+  }, [clientSecret, paymentIntentId]);
 
   if (error) {
     return (
@@ -184,7 +287,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (!clientSecret || !sessionId) {
+  if (!clientSecret || !paymentIntentId) {
     return (
       <div className="px-4 py-16 md:px-6">
         <div className="mx-auto max-w-2xl">
@@ -205,37 +308,33 @@ export default function CheckoutPage() {
             Complete your payment
           </h1>
 
-          {session && (
+          {detail && (
             <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
               <div className="flex justify-between border-b border-white/10 py-2">
                 <span className="text-slate-600 dark:text-slate-400">
-                  {mainLineItem?.description ?? 'Payment'}
+                  {detail.description ?? 'Payment'}
                 </span>
-                <span className="font-medium">
-                  {formatCurrency((mainLineItem?.amount ?? session.amountTotal) / 100)}
-                </span>
+                <span className="font-medium">{formatCurrency(detail.netAmount / 100)}</span>
               </div>
-              {feeLineItem && (
+              {detail.processingFee > 0 && (
                 <div className="flex justify-between border-b border-white/10 py-2">
                   <span className="text-slate-600 dark:text-slate-400">Processing fee</span>
-                  <span className="font-medium">{formatCurrency(feeLineItem.amount / 100)}</span>
+                  <span className="font-medium">{formatCurrency(detail.processingFee / 100)}</span>
                 </div>
               )}
               <div className="flex justify-between py-2 font-semibold">
                 <span>Total to pay</span>
-                <span>{formatCurrency(session.amountTotal / 100)}</span>
+                <span>{formatCurrency(detail.grossAmount / 100)}</span>
               </div>
-              {session.customerEmail && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Paying as {session.customerEmail}
-                </p>
+              {detail.customerEmail && (
+                <p className="mt-2 text-xs text-slate-500">Paying as {detail.customerEmail}</p>
               )}
             </div>
           )}
 
-          {stripePromise ? (
-            <div className="relative min-h-[500px]">
-              {(isLoadingStripe || !session) && (
+          {stripePromise && detail ? (
+            <div className="relative">
+              {isLoadingStripe && (
                 <div className="absolute inset-0 flex items-center justify-center bg-transparent">
                   <Loader2 className="h-8 w-8 animate-spin text-neon-blue" />
                 </div>
@@ -245,9 +344,9 @@ export default function CheckoutPage() {
                   setError(`Payment form failed to load: ${err.message}`);
                 }}
               >
-                <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
-                  <EmbeddedCheckout />
-                </EmbeddedCheckoutProvider>
+                <Elements stripe={stripePromise} options={{ clientSecret }}>
+                  <CheckoutForm detail={detail} />
+                </Elements>
               </CheckoutErrorBoundary>
             </div>
           ) : (

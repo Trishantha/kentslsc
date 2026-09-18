@@ -111,10 +111,31 @@ const securityHeaders = [
       "form-action 'self'"
     ].join('; ')
   },
-  // Prevent browsers/CDNs from caching HTML pages across deployments. Stale HTML
-  // can reference static asset hashes that no longer exist after a rebuild.
-  // /_next/static files are served by server.js with immutable caching headers,
-  // so this does not affect CSS/JS chunks.
+];
+
+// Public pages: the browser must revalidate (max-age=0) so it never serves
+// stale HTML across deployments (which could reference static asset hashes
+// that no longer exist), while shared CDN/edge caches may serve the page for
+// a short window and revalidate in the background. This mirrors the 60s
+// revalidation used by the app's data fetching.
+const publicCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=0, must-revalidate'
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 's-maxage=60, stale-while-revalidate=300'
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 's-maxage=60, stale-while-revalidate=300'
+  }
+];
+
+// Auth/account areas: never cache. Personalized HTML must not leak through
+// shared caches, and stale sessions are a security risk.
+const privateCacheHeaders = [
   {
     key: 'Cache-Control',
     value: 'no-store, must-revalidate'
@@ -129,17 +150,27 @@ const securityHeaders = [
   }
 ];
 
+// Routes under locale-prefixed and unprefixed paths that must never be cached.
+const privateRoutePatterns = [
+  'dashboard',
+  'admin',
+  'auth',
+  'account',
+  'checkout',
+  'membership/verify',
+  'fundraisers/my-campaigns'
+];
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@kentslsc/shared'],
   images: {
     formats: ['image/avif', 'image/webp'],
-    // Keep CDN caches honest: edge caches in front of this app have cached
-    // truncated optimizer responses when allowed to (public max-age). Zero TTL
-    // forces revalidation on every request; the unified server buffers
-    // /_next/image responses anyway (see server.js).
-    minimumCacheTTL: 0,
+    // Cache optimized images in the CDN/edge for an hour. The optimizer
+    // response is keyed by the full request URL, so a stale entry after a
+    // deployment only means a missed resize optimization, never wrong HTML.
+    minimumCacheTTL: 3600,
     remotePatterns
   },
   webpack: (config, { dev }) => {
@@ -149,11 +180,29 @@ const nextConfig = {
     return config;
   },
   async headers() {
+    const localePattern = '(en|si|ta)';
+    // NOTE: entries are applied in order and later entries win for duplicate
+    // header keys, so the public catch-all comes FIRST and the private
+    // no-store rules after it override cache headers on auth/account routes.
     return [
       {
-        source: '/(.*)',
-        headers: securityHeaders
-      }
+        source: '/:path*',
+        headers: [...securityHeaders, ...publicCacheHeaders]
+      },
+      {
+        source: '/api/:path*',
+        headers: [...securityHeaders, ...privateCacheHeaders]
+      },
+      ...privateRoutePatterns.flatMap((route) => [
+        {
+          source: `/${localePattern}/${route}/:path*`,
+          headers: [...securityHeaders, ...privateCacheHeaders]
+        },
+        {
+          source: `/${route}/:path*`,
+          headers: [...securityHeaders, ...privateCacheHeaders]
+        }
+      ])
     ];
   },
   async rewrites() {

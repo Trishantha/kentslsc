@@ -22,6 +22,7 @@ import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, 
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 
@@ -35,6 +36,7 @@ export class EventsController {
 
   @Get()
   @Public()
+  @PublicCache()
   list(
     @Query('page') page: string,
     @Query('limit') limit: string,

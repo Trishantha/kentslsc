@@ -55,52 +55,25 @@ export class WebhookProcessor {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      const metadata = session.metadata ?? {};
-      let fulfilled = false;
-
-      if (metadata.source === 'membership') {
-        await this.membershipsService.handleCheckoutSessionCompleted(session);
-        fulfilled = true;
-      } else if (metadata.type === 'event_ticket') {
-        await this.eventsService.handleCheckoutCompleted(session);
-        fulfilled = true;
-      } else if (metadata.type === 'donation') {
-        await this.fundraisingService.handleCheckoutCompleted(session);
-        fulfilled = true;
-      } else if (metadata.type === 'directory_promotion') {
-        await this.directoryService.handlePromotionCompleted(metadata, 'stripe', {
-          providerCheckoutId: session.id,
-          providerPaymentId:
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
-          amountPence: session.amount_total ?? undefined,
-          currency: session.currency ?? 'gbp',
-          payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
-          payerName: session.customer_details?.name ?? null,
-          payerPhone: session.customer_details?.phone ?? null,
-          purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
-        });
-      } else if (metadata.type === 'job_publish') {
-        await this.directoryService.handleJobPublishCompleted(metadata, {
-          providerCheckoutId: session.id,
-          providerPaymentId:
-            typeof session.payment_intent === 'string'
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
-          amountPence: session.amount_total ?? undefined,
-          currency: session.currency ?? 'gbp',
-          payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
-          payerName: session.customer_details?.name ?? null,
-          payerPhone: session.customer_details?.phone ?? null,
-          purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
-        });
-      }
+      const fulfilled = await this.fulfilCheckoutSession(session);
 
       // Overwrite the estimated processing fee with Stripe's actual fee and net
       // settlement so the revenue report matches Stripe's payout reporting.
       await this.paymentsService.syncStripeFeesFromSession(session);
       return fulfilled;
+    } else if (event.type === 'payment_intent.succeeded') {
+      // Embedded checkouts (custom Payment Element) settle PaymentIntents
+      // directly instead of going through a Checkout Session.
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const session = await this.buildPseudoSessionFromPaymentIntent(paymentIntent.id);
+      if (!session) return false;
+      const fulfilled = await this.fulfilCheckoutSession(session);
+      await this.paymentsService.syncStripeFeesFromSession(session);
+      return fulfilled;
+    } else if (event.type === 'payment_intent.payment_failed') {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      this.logger.warn(`PaymentIntent ${paymentIntent.id} failed: ${paymentIntent.last_payment_error?.message ?? 'unknown error'}`);
+      return true;
     } else if (event.type === 'customer.subscription.updated') {
       await this.membershipsService.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
     } else if (event.type === 'customer.subscription.deleted') {
@@ -109,6 +82,99 @@ export class WebhookProcessor {
       await this.membershipsService.handleInvoicePaid(event.data.object as Stripe.Invoice);
     }
     return false;
+  }
+
+  /**
+   * Route a completed checkout (or PaymentIntent-backed pseudo-checkout) to the
+   * domain fulfilment handler based on its metadata.
+   */
+  private async fulfilCheckoutSession(session: Stripe.Checkout.Session): Promise<boolean> {
+    const metadata = session.metadata ?? {};
+    let fulfilled = false;
+
+    if (metadata.source === 'membership') {
+      await this.membershipsService.handleCheckoutSessionCompleted(session);
+      fulfilled = true;
+    } else if (metadata.type === 'event_ticket') {
+      await this.eventsService.handleCheckoutCompleted(session);
+      fulfilled = true;
+    } else if (metadata.type === 'donation') {
+      await this.fundraisingService.handleCheckoutCompleted(session);
+      fulfilled = true;
+    } else if (metadata.type === 'directory_promotion') {
+      await this.directoryService.handlePromotionCompleted(metadata, 'stripe', {
+        providerCheckoutId: session.id,
+        providerPaymentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
+        amountPence: session.amount_total ?? undefined,
+        currency: session.currency ?? 'gbp',
+        payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
+        payerName: session.customer_details?.name ?? null,
+        payerPhone: session.customer_details?.phone ?? null,
+        purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
+      });
+    } else if (metadata.type === 'job_publish') {
+      await this.directoryService.handleJobPublishCompleted(metadata, {
+        providerCheckoutId: session.id,
+        providerPaymentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
+        amountPence: session.amount_total ?? undefined,
+        currency: session.currency ?? 'gbp',
+        payerEmail: session.customer_email ?? session.customer_details?.email ?? null,
+        payerName: session.customer_details?.name ?? null,
+        payerPhone: session.customer_details?.phone ?? null,
+        purchasedAt: session.created ? new Date(session.created * 1000) : new Date()
+      });
+    }
+
+    return fulfilled;
+  }
+
+  /**
+   * Map a succeeded PaymentIntent onto a Checkout-Session-shaped object so the
+   * existing domain fulfilment handlers (which key off session metadata and
+   * ids) work unchanged for Payment Element checkouts. The PaymentIntent is
+   * re-retrieved with its charge expanded because webhook payloads do not
+   * include billing details. Returns null unless the intent has succeeded.
+   */
+  async buildPseudoSessionFromPaymentIntent(
+    paymentIntentId: string
+  ): Promise<Stripe.Checkout.Session | null> {
+    const paymentIntent = await this.paymentsService
+      .getClient()
+      .paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] });
+
+    if (paymentIntent.status !== 'succeeded') return null;
+
+    const charge =
+      typeof paymentIntent.latest_charge === 'string'
+        ? null
+        : paymentIntent.latest_charge;
+
+    return {
+      id: paymentIntent.id,
+      object: 'checkout.session',
+      metadata: paymentIntent.metadata ?? {},
+      status: 'complete',
+      payment_status: 'paid',
+      amount_total: paymentIntent.amount,
+      amount_subtotal: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      payment_intent: paymentIntent.id,
+      customer_email: charge?.billing_details?.email ?? paymentIntent.receipt_email,
+      customer_details: {
+        email: charge?.billing_details?.email ?? paymentIntent.receipt_email ?? null,
+        name: charge?.billing_details?.name ?? null,
+        phone: charge?.billing_details?.phone ?? null,
+        address: null,
+        tax_exempt: 'none'
+      },
+      created: paymentIntent.created
+    } as Stripe.Checkout.Session;
   }
 
   /**

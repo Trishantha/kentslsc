@@ -46,6 +46,27 @@ export class AuthBootstrapService implements OnModuleInit {
       return;
     }
 
+    // One-time guard: every completed emergency reset writes an AuthEvent with
+    // source 'auth-bootstrap-emergency'. If one exists, refuse to reset again —
+    // leaving these variables configured would silently re-open the backdoor on
+    // every restart, which is worse than requiring manual recovery.
+    const priorReset = await this.prisma.authEvent.findFirst({
+      where: {
+        type: { in: [AuthEventType.PASSWORD_CHANGED, AuthEventType.ADMIN_USER_CREATED] },
+        metadata: { path: ['source'], equals: 'auth-bootstrap-emergency' }
+      },
+      select: { createdAt: true }
+    });
+    if (priorReset) {
+      this.logger.error(
+        `Emergency admin recovery was already used on ${priorReset.createdAt.toISOString()} and is one-time. ` +
+          'ADMIN_EMERGENCY_RESET_ENABLED is still "true": remove ADMIN_EMERGENCY_PASSWORD and ' +
+          'ADMIN_EMERGENCY_RESET_ENABLED from the environment now. If admin access was lost again, ' +
+          'recover manually via database/CLI rather than relying on this backdoor.'
+      );
+      return;
+    }
+
     const email = (this.config.get<string>('ADMIN_EMERGENCY_EMAIL') ?? 'admin@kentslsc.org').toLowerCase().trim();
     const passwordHash = await hashPassword(emergencyPassword);
 

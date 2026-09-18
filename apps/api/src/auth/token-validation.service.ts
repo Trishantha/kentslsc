@@ -12,6 +12,12 @@ import type { AuthenticatedUser } from '../common/types/authenticated-user.js';
 @Injectable()
 export class TokenValidationService {
   private readonly logger = new Logger(TokenValidationService.name);
+  // Short-lived in-memory cache of validated tokens, mirroring the TTL pattern
+  // in MembershipFeaturesService. The key includes the session id and token id
+  // so a revoked session or rotated token stops validating within the TTL
+  // window instead of living for the cache's full lifetime.
+  private readonly cacheTtlMs = 30_000;
+  private readonly validationCache = new Map<string, { user: AuthenticatedUser; expiresAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,6 +32,13 @@ export class TokenValidationService {
     const actualType = payload.typ ?? 'access';
     if (actualType !== expectedType) {
       throw new UnauthorizedException('Invalid token type');
+    }
+
+    const cacheKey = `${payload.sub}:${payload.sid ?? ''}:${payload.jti ?? ''}`;
+    const now = Date.now();
+    const cached = this.validationCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.user;
     }
 
     const user = await this.prisma.user.findUnique({
@@ -62,7 +75,7 @@ export class TokenValidationService {
     // immediately without requiring a token refresh.
     const permissions = await this.permissionsService.getUserPermissions(user.id);
 
-    return {
+    const authenticated = {
       sub: user.id,
       email: user.email,
       // Read from the row, not the token, so a role change takes effect on the
@@ -74,5 +87,8 @@ export class TokenValidationService {
       emailVerified: user.emailVerifiedAt !== null,
       permissions: permissions as Permission[]
     };
+
+    this.validationCache.set(cacheKey, { user: authenticated, expiresAt: Date.now() + this.cacheTtlMs });
+    return authenticated;
   }
 }

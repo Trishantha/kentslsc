@@ -18,6 +18,7 @@ export default function DashboardPage() {
 
   const membershipParam = searchParams.get('membership');
   const sessionIdParam = searchParams.get('session_id');
+  const confirmTokenParam = searchParams.get('confirm_token');
   const providerParam = searchParams.get('provider') ?? (sessionIdParam ? inferPaymentProvider(sessionIdParam) : 'stripe');
   const isReturningFromCheckout = membershipParam === 'success';
 
@@ -36,8 +37,8 @@ export default function DashboardPage() {
   });
 
   const confirmMembershipPayment = useMutation({
-    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
-      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+    mutationFn: async ({ sessionId, provider, confirmToken }: { sessionId: string; provider: string; confirmToken?: string | null }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider, confirmToken });
       return res.data;
     },
     // The confirmation endpoint is idempotent and retry-safe, so a transient
@@ -66,8 +67,8 @@ export default function DashboardPage() {
     if (confirmedSessionRef.current === sessionIdParam) return;
 
     confirmedSessionRef.current = sessionIdParam;
-    confirmMutate({ sessionId: sessionIdParam, provider: providerParam });
-  }, [isReturningFromCheckout, sessionIdParam, providerParam, confirmMutate]);
+    confirmMutate({ sessionId: sessionIdParam, provider: providerParam, confirmToken: confirmTokenParam });
+  }, [isReturningFromCheckout, sessionIdParam, providerParam, confirmTokenParam, confirmMutate]);
 
   const isAwaitingPaymentConfirmation = isReturningFromCheckout && !membership?.paidAt;
 

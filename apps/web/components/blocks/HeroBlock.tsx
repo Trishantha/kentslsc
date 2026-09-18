@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { SmartLink } from '@/components/ui/SmartLink';
-import { motion } from 'framer-motion';
 import type { HeroBlock } from '@kentslsc/shared';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import type { OverlayStyle } from '@/components/ui/VideoOverlay';
@@ -45,6 +45,8 @@ export default function HeroBlockComponent({ block }: Props) {
             muted
             loop
             playsInline
+            preload="metadata"
+            poster={imageUrl ?? undefined}
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
             style={{ backgroundColor: 'transparent' }}
@@ -60,9 +62,14 @@ export default function HeroBlockComponent({ block }: Props) {
         </>
       ) : imageUrl ? (
         <>
-          <div
-            className="pointer-events-none absolute inset-0 -z-10 bg-cover bg-center"
-            style={{ backgroundImage: `url(${imageUrl})` }}
+          {/* Hero image is the LCP: prioritize it via the image optimizer. */}
+          <Image
+            src={imageUrl}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="pointer-events-none absolute inset-0 -z-10 object-cover"
           />
           <VideoOverlay style={overlayStyle as OverlayStyle} opacity={overlayOpacity} />
         </>
@@ -70,38 +77,28 @@ export default function HeroBlockComponent({ block }: Props) {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-slate-900" />
       )}
       <div className="relative z-10 mx-auto max-w-5xl text-center text-slate-100">
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-5xl font-extrabold leading-tight tracking-tight drop-shadow-lg md:text-7xl"
+        <h1
+          className="animate-fade-in-up-lg text-5xl font-extrabold leading-tight tracking-tight drop-shadow-lg md:text-7xl"
         >
           {title}
-        </motion.h1>
+        </h1>
         {subtitle && (
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="mx-auto mt-6 max-w-2xl text-lg text-slate-200 drop-shadow"
+          <p
+            className="animate-fade-in-up-lg mx-auto mt-6 max-w-2xl text-lg text-slate-200 drop-shadow"
+            style={{ animationDelay: '0.1s' }}
           >
             {subtitle}
-          </motion.p>
+          </p>
         )}
         {buttonText && buttonUrl && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mt-8"
+          <div
+            className="animate-fade-in-up-lg mt-8"
+            style={{ animationDelay: '0.2s' }}
           >
             <SmartLink href={buttonUrl} className="btn-primary">
               {buttonText}
             </SmartLink>
-          </motion.div>
+          </div>
         )}
       </div>
     </section>

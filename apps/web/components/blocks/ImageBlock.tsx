@@ -1,7 +1,8 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import Image from 'next/image';
 import type { ImageBlock } from '@kentslsc/shared';
+import { FadeIn } from '@/components/ui/FadeIn';
 
 interface Props {
   block: ImageBlock;
@@ -14,19 +15,22 @@ export default function ImageBlockComponent({ block }: Props) {
 
   return (
     <section className="px-4 py-8 md:px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="mx-auto max-w-5xl"
-      >
+      <FadeIn className="mx-auto max-w-5xl">
         <div className="glass-card overflow-hidden p-0">
-          <img src={imageUrl} alt={alt || ''} className="h-auto w-full object-contain" />
+          <div className="relative aspect-video w-full">
+            <Image
+              src={imageUrl}
+              alt={alt || ''}
+              fill
+              sizes="(max-width: 64rem) 100vw, 64rem"
+              className="object-contain"
+            />
+          </div>
         </div>
         {caption && (
           <p className="mt-3 text-center text-sm text-slate-500">{caption}</p>
         )}
-      </motion.div>
+      </FadeIn>
     </section>
   );
 }

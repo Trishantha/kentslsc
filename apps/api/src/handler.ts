@@ -4,6 +4,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import express from 'express';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
@@ -46,6 +47,9 @@ export async function createApiApp() {
   }
 
   app.use(helmet());
+  // Compress responses only; request bodies (including Stripe webhook raw
+  // bodies captured via rawBody: above) pass through untouched.
+  app.use(compression());
   app.use(cookieParser());
 
   // Allow the configured frontend origin plus its www/non-www twin. Visitors

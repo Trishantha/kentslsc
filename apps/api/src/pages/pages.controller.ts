@@ -4,6 +4,7 @@ import { PagesService } from './pages.service.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Permission } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
+import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 import { CreatePageDto } from './dto/create-page.dto.js';
 import { UpdatePageDto } from './dto/update-page.dto.js';
 
@@ -13,18 +14,21 @@ export class PagesController {
   constructor(private readonly pagesService: PagesService) {}
 
   @Public()
+  @PublicCache()
   @Get()
   listPublished() {
     return this.pagesService.listPublished();
   }
 
   @Public()
+  @PublicCache()
   @Get('home')
   getHomePage() {
     return this.pagesService.findHomePage();
   }
 
   @Public()
+  @PublicCache()
   @Get(':slug')
   getBySlug(@Param('slug') slug: string) {
     return this.pagesService.findBySlug(slug);

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import crypto from 'crypto';
 import { GoCardlessService } from './gocardless.service.js';
+import { verifyConfirmToken } from './utils/confirm-token.js';
 
 const mockGoCardlessClient = {
   customers: {
@@ -306,13 +307,14 @@ describe('GoCardlessService', () => {
     it('creates the flow against the billing request with redirect and exit URIs', async () => {
       await service.createBillingRequestFlow(buildFlowInput());
 
-      expect(mockGoCardlessClient.billingRequestFlows.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          links: { billing_request: 'BR123' },
-          redirect_uri: 'https://example.com/pay/return',
-          exit_uri: 'https://example.com/pay/exit'
-        })
-      );
+      const flowRequest = mockGoCardlessClient.billingRequestFlows.create.mock.calls[0]![0] as any;
+      expect(flowRequest.links).toEqual({ billing_request: 'BR123' });
+      expect(flowRequest.exit_uri).toBe('https://example.com/pay/exit');
+      // The redirect URI carries the signed confirmation token for the
+      // confirm-session backstop, keyed to the billing request id.
+      const redirectUri = new URL(flowRequest.redirect_uri);
+      expect(redirectUri.origin + redirectUri.pathname).toBe('https://example.com/pay/return');
+      expect(verifyConfirmToken('BR123', redirectUri.searchParams.get('confirm_token'))).toBe(true);
     });
 
     it('prefills payer details when a customer id is provided', async () => {

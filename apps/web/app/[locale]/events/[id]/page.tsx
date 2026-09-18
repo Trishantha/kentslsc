@@ -4,6 +4,9 @@ import EventDetailContent, { type Event } from './EventDetailContent';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { summarizeRichText, stripRichText } from '@/lib/rich-text';
 import { getFrontendUrl } from '@/lib/env';
+import { ServerMessagesProvider } from '@/components/i18n/ServerMessagesProvider';
+
+const EVENT_DETAIL_MESSAGE_NAMESPACES = ['eventDetail', 'common'];
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
@@ -43,9 +46,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EventDetailPage({ params }: Props) {
   const { locale, id } = await params;
   const event = await fetchEvent(id);
+  const wrap = (children: React.ReactNode) => (
+    <ServerMessagesProvider namespaces={EVENT_DETAIL_MESSAGE_NAMESPACES}>
+      {children}
+    </ServerMessagesProvider>
+  );
 
   if (!event) {
-    return <EventDetailContent id={id} />;
+    return wrap(<EventDetailContent id={id} />);
   }
 
   const baseUrl = getFrontendUrl();
@@ -79,7 +87,7 @@ export default async function EventDetailPage({ params }: Props) {
     url: `${baseUrl}/events/${event.id}`
   };
 
-  return (
+  return wrap(
     <>
       <JsonLd data={eventSchema} />
       <EventDetailContent id={id} event={event} shareUrl={shareUrl} />

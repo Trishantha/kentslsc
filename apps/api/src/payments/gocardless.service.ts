@@ -12,6 +12,11 @@ import type {
   Refund as GCRefund
 } from 'gocardless-nodejs';
 import { PrismaService } from '../core/prisma/prisma.service.js';
+import {
+  CONFIRM_TOKEN_PLACEHOLDER,
+  createConfirmToken,
+  withConfirmTokenPlaceholder
+} from './utils/confirm-token.js';
 
 export type GoCardlessPlanType = 'one_off' | 'subscription' | 'instalments';
 export type GoCardlessPaymentScheme = 'bacs' | 'faster_payments';
@@ -325,8 +330,12 @@ export class GoCardlessService {
         // The billing request id only exists once GoCardless has created it, so
         // callers embed the `{BILLING_REQUEST_ID}` placeholder and it is
         // substituted here — the GoCardless equivalent of Stripe's
-        // `{CHECKOUT_SESSION_ID}` in success URLs.
-        redirect_uri: input.redirectUri.replace('{BILLING_REQUEST_ID}', billingRequest.id),
+        // `{CHECKOUT_SESSION_ID}` in success URLs. `{CONFIRM_TOKEN}` is our own
+        // placeholder, signed with the billing request id, so the payer's return
+        // URL can authorize the confirm-session backstop.
+        redirect_uri: withConfirmTokenPlaceholder(input.redirectUri)
+          .replace('{BILLING_REQUEST_ID}', billingRequest.id)
+          .replace(CONFIRM_TOKEN_PLACEHOLDER, createConfirmToken(billingRequest.id)),
         exit_uri: input.exitUri,
         ...(prefilledCustomer ? { prefilled_customer: prefilledCustomer } : {})
       });

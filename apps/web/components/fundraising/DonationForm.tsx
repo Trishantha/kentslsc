@@ -87,7 +87,7 @@ export function DonationForm({ fundraiserId }: Props) {
         return;
       }
       if (res.data.clientSecret && res.data.sessionId) {
-        router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
+        router.push(`/checkout?payment_intent=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
         return;
       }
       if (res.data.url) {

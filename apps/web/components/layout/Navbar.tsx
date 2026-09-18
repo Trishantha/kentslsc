@@ -5,7 +5,6 @@ import { Link, usePathname } from '@/i18n/routing';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
@@ -179,16 +178,13 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
         {/* Mobile layouts with cross-fade */}
         <div className="relative h-full w-full md:hidden">
           {/* Mobile hero logo */}
-          <motion.div
-            initial={false}
-            animate={
+          <div
+            className={cn(
+              'absolute inset-x-0 top-0 flex justify-center transition-all duration-300 ease-in-out',
               compact
-                ? { opacity: 0, scale: 0.8, y: -20 }
-                : { opacity: 1, scale: 1, y: 0 }
-            }
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="absolute inset-x-0 top-0 flex justify-center"
-            style={{ pointerEvents: compact ? 'none' : 'auto' }}
+                ? 'pointer-events-none -translate-y-5 scale-[0.8] opacity-0'
+                : 'translate-y-0 scale-100 opacity-100'
+            )}
           >
             <Link
               href="/"
@@ -202,15 +198,16 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
                 className="rounded-full object-contain transition-all duration-300"
               />
             </Link>
-          </motion.div>
+          </div>
 
           {/* Mobile normal header */}
-          <motion.div
-            initial={false}
-            animate={compact ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="absolute inset-x-0 top-0 flex h-full items-center justify-between text-slate-800 dark:text-slate-200"
-            style={{ pointerEvents: compact ? 'auto' : 'none' }}
+          <div
+            className={cn(
+              'absolute inset-x-0 top-0 flex h-full items-center justify-between text-slate-800 transition-all duration-300 ease-in-out dark:text-slate-200',
+              compact
+                ? 'pointer-events-auto translate-y-0 opacity-100'
+                : 'pointer-events-none -translate-y-2.5 opacity-0'
+            )}
           >
             <Link href="/" className="relative flex items-center gap-3">
               <span className="relative flex h-11 w-11 items-start justify-start overflow-visible">
@@ -239,7 +236,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
                 <Menu className="h-6 w-6" />
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </nav>
     </header>

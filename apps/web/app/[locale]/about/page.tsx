@@ -1,4 +1,5 @@
 import { fetchApiWithOriginFallback } from '@/lib/server-fetch';
+import { ServerMessagesProvider } from '@/components/i18n/ServerMessagesProvider';
 import AboutPageContent, { type CommitteeMember } from './AboutPageContent';
 
 const defaultCommitteeItems: CommitteeMember[] = [
@@ -22,5 +23,9 @@ async function fetchCommittee(): Promise<CommitteeMember[]> {
 
 export default async function AboutPage() {
   const committeeItems = await fetchCommittee();
-  return <AboutPageContent committeeItems={committeeItems} />;
+  return (
+    <ServerMessagesProvider namespaces={['about']} >
+      <AboutPageContent committeeItems={committeeItems} />
+    </ServerMessagesProvider>
+  );
 }

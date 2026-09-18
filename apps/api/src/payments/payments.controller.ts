@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
 import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
@@ -53,11 +54,22 @@ export class PaymentsController {
   @Public()
   @OptionalAuthRoute()
   @ApiBearerAuth()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async getCheckoutSession(
     @Param('sessionId') sessionId: string,
     @CurrentUser() user?: TokenPayload
   ) {
     return this.paymentsService.getCheckoutSession(sessionId, user?.sub);
+  }
+
+  @Get('payment-intent/:paymentIntentId')
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async getPaymentIntent(
+    @Param('paymentIntentId') paymentIntentId: string,
+    @Query('client_secret') clientSecret?: string
+  ) {
+    return this.paymentsService.getPaymentIntentDetail(paymentIntentId, clientSecret);
   }
 
   @Put('settings')

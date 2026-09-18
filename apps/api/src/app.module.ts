@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { fileURLToPath } from 'url';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -42,6 +42,7 @@ import { EmailVerifiedGuard } from './common/guards/email-verified.guard.js';
 import { CsrfModule } from './csrf/csrf.module.js';
 import { CsrfGuard } from './csrf/csrf.guard.js';
 import { AppThrottlerGuard } from './common/guards/throttler.guard.js';
+import { PublicCacheInterceptor } from './common/interceptors/public-cache.interceptor.js';
 import { HealthModule } from './health/health.module.js';
 import { QueueModule } from './queue/queue.module.js';
 
@@ -109,7 +110,8 @@ import { QueueModule } from './queue/queue.module.js';
     { provide: APP_GUARD, useClass: EmailVerifiedGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
-    { provide: APP_GUARD, useClass: FeatureGuard }
+    { provide: APP_GUARD, useClass: FeatureGuard },
+    { provide: APP_INTERCEPTOR, useClass: PublicCacheInterceptor }
   ]
 })
 export class AppModule {}

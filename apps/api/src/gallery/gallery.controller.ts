@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common'
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GalleryService } from './gallery.service.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Permission } from '@kentslsc/shared';
 import { CreateGalleryDto } from './dto/create-gallery.dto.js';
@@ -14,12 +15,14 @@ export class GalleryController {
 
   @Get()
   @Public()
+  @PublicCache()
   list() {
     return this.galleryService.listPublished();
   }
 
   @Get(':slug')
   @Public()
+  @PublicCache()
   findOne(@Param('slug') slug: string) {
     return this.galleryService.findBySlug(slug);
   }

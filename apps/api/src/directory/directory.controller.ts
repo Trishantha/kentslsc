@@ -26,6 +26,7 @@ import { CreateJobAdDto } from './dto/create-job.dto.js';
 import { UpdateJobAdDto } from './dto/update-job.dto.js';
 import { CheckoutPaymentSchemeDto } from './dto/checkout-payment-scheme.dto.js';
 import { Public } from '../common/decorators/public.decorator.js';
+import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 
 @ApiTags('Directory')
 @Controller('directory')
@@ -37,16 +38,26 @@ export class DirectoryController {
 
   @Get('businesses')
   @Public()
+  @PublicCache()
   listBusinesses(
     @Query('search') search?: string,
     @Query('category') category?: string,
-    @Query('promoted') promoted?: string
+    @Query('promoted') promoted?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.directoryService.findBusinesses(search, category, promoted === 'true');
+    return this.directoryService.findBusinesses(
+      search,
+      category,
+      promoted === 'true',
+      Number(page) || 1,
+      Number(limit) || 50
+    );
   }
 
   @Get('businesses/:id')
   @Public()
+  @PublicCache()
   getBusiness(@Param('id') id: string) {
     return this.directoryService.findBusinessById(id);
   }

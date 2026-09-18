@@ -29,6 +29,7 @@ describe('AuthBootstrapService', () => {
               update: jest.fn(() => Promise.resolve(mockUser)) as any
             },
             authEvent: {
+              findFirst: jest.fn(() => Promise.resolve(null)) as any,
               create: jest.fn(() => Promise.resolve({ id: 'event-1' })) as any
             },
             $transaction: jest.fn((ops: any[]) => Promise.all(ops)) as any
@@ -160,5 +161,27 @@ describe('AuthBootstrapService', () => {
     await service.onModuleInit();
 
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to reset again once the emergency recovery has been used', async () => {
+    jest
+      .spyOn(config, 'get')
+      .mockImplementation((key: string) =>
+        key === 'ADMIN_EMERGENCY_PASSWORD'
+          ? 'Emergency123!'
+          : key === 'ADMIN_EMERGENCY_RESET_ENABLED'
+            ? 'true'
+            : undefined
+      );
+    (prisma.authEvent.findFirst as jest.MockedFunction<any>).mockResolvedValue({
+      createdAt: new Date('2026-01-01')
+    });
+    (prisma.user.findUnique as jest.MockedFunction<any>).mockResolvedValue(mockUser);
+
+    await service.onModuleInit();
+
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 });

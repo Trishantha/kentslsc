@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
-import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import {
   Calendar,
@@ -21,49 +19,39 @@ import {
   MapPin,
   Clock
 } from 'lucide-react';
-import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useInView } from '@/hooks/useInView';
+import { FadeIn } from '@/components/ui/FadeIn';
 import { summarizeRichText } from '@/lib/rich-text';
 import VideoOverlay from '@/components/ui/VideoOverlay';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import type { HeroConfig } from '@/lib/hero-config';
+import type {
+  BlockBusinessItem,
+  BlockEventItem,
+  BlockForumCategory,
+  BlockFundraiserItem
+} from '@/lib/server-blocks';
 import { getVideoMimeType, formatDate, formatCurrency } from '@/lib/utils';
 import type { MixedBlogListItem } from '@kentslsc/shared';
 
-interface EventItem {
-  id: string;
-  title: string;
-  description?: string | null;
-  location?: string | null;
-  startDatetime: string;
-  endDatetime: string;
-  imageUrl?: string | null;
-  ticketPrice: number | string;
-  isFree: boolean;
+interface EventItem extends BlockEventItem {
+  endDatetime?: string;
 }
 
-interface FundraiserItem {
-  id: string;
-  title: string;
-  description?: string | null;
-  targetAmount: number;
-  raisedAmount: number;
-  imageUrl?: string | null;
-}
+interface FundraiserItem extends BlockFundraiserItem {}
 
-interface BusinessItem {
-  id: string;
-  businessName: string;
-  description?: string | null;
-  logoUrl?: string | null;
-  category?: string | null;
-  isPromoted?: boolean;
-}
+interface BusinessItem extends BlockBusinessItem {}
 
+type ForumCategory = BlockForumCategory;
 
-interface ForumCategory {
-  id: string;
-  name: string;
-  description?: string | null;
+interface HomePageContentProps {
+  hero: HeroConfig;
+  events: { events: EventItem[]; isPast: boolean };
+  fundraisers: FundraiserItem[];
+  businesses: BusinessItem[];
+  blogPosts: MixedBlogListItem[];
+  forumCategories: ForumCategory[];
 }
 
 function initials(name: string) {
@@ -76,107 +64,33 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 }
-  }
-};
-
-const item = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0 }
-};
-
-interface HeroConfig {
-  mediaType: 'image' | 'video';
-  imageUrl: string | null;
-  videoUrl: string | null;
-  overlayStyle: 'none' | 'dots' | 'noise' | 'scanlines' | 'vignette';
-  overlayOpacity: number;
-  videoOverlayOpacity: number;
-  videoPlaybackRate: number;
+function ProgressBar({ progress }: { progress: number }) {
+  const { ref, inView } = useInView<HTMLDivElement>();
+  return (
+    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+      <div
+        ref={ref}
+        className="h-full rounded-full bg-gradient-to-r from-rose-500 to-neon-gold transition-[width] duration-1000 ease-out"
+        style={{ width: inView ? `${progress}%` : '0%' }}
+      />
+    </div>
+  );
 }
 
-const DEFAULT_HERO: HeroConfig = {
-  mediaType: 'video',
-  imageUrl: '',
-  videoUrl: '/videos/kslsc-hero.webm',
-  overlayStyle: 'noise',
-  overlayOpacity: 75,
-  videoOverlayOpacity: 75,
-  videoPlaybackRate: 1
-};
-
-export default function HomePageContent() {
+export default function HomePageContent({
+  hero,
+  events: eventsData,
+  fundraisers,
+  businesses,
+  blogPosts,
+  forumCategories
+}: HomePageContentProps) {
   const t = useTranslations('home');
   const tCommon = useTranslations('common');
   const { data: user } = useAuth();
 
-  const { data: heroConfig } = useQuery<HeroConfig>({
-    queryKey: ['hero-config'],
-    queryFn: async () => {
-      const { data } = await api.get('/hero-config');
-      return data;
-    },
-    retry: false
-  });
-  const hero = heroConfig ?? DEFAULT_HERO;
-
-  const { data: eventsData, isLoading: eventsLoading } = useQuery<{
-    events: EventItem[];
-    isPast: boolean;
-  }>({
-    queryKey: ['home', 'events', user?.id ?? 'anonymous'],
-    queryFn: async () => {
-      const { data: upcoming } = await api.get('/events', {
-        params: { upcoming: true, limit: 3 }
-      });
-      const upcomingItems = upcoming?.data ?? [];
-      if (upcomingItems.length > 0) {
-        return { events: upcomingItems, isPast: false };
-      }
-      const { data: past } = await api.get('/events', {
-        params: { upcoming: false, limit: 3 }
-      });
-      return { events: past?.data ?? [], isPast: true };
-    }
-  });
-  const upcomingEvents = eventsData?.events ?? [];
-  const showingPastEvents = eventsData?.isPast ?? false;
-
-  const { data: fundraisers = [], isLoading: fundraisersLoading } = useQuery<FundraiserItem[]>({
-    queryKey: ['fundraisers'],
-    queryFn: async () => {
-      const { data } = await api.get('/fundraisers');
-      return data?.items ?? [];
-    }
-  });
-
-  const { data: businesses = [], isLoading: businessesLoading } = useQuery<BusinessItem[]>({
-    queryKey: ['directory', 'businesses', 'local'],
-    queryFn: async () => {
-      const { data } = await api.get('/directory/businesses');
-      return data ?? [];
-    }
-  });
-
-  const { data: blogPosts = [], isLoading: blogLoading } = useQuery<MixedBlogListItem[]>({
-    queryKey: ['blog', 'latest'],
-    queryFn: async () => {
-      const { data } = await api.get('/blog');
-      return data ?? [];
-    }
-  });
-
-  const { data: forumCategories = [], isLoading: categoriesLoading } = useQuery<ForumCategory[]>({
-    queryKey: ['forum', 'categories'],
-    queryFn: async () => {
-      const { data } = await api.get('/forum/categories');
-      return data ?? [];
-    }
-  });
+  const upcomingEvents = eventsData.events;
+  const showingPastEvents = eventsData.isPast;
 
   const [blogIndex, setBlogIndex] = useState(0);
   const blogsPerPage = 3;
@@ -199,20 +113,17 @@ export default function HomePageContent() {
     <div className="relative overflow-hidden">
       {/* Animated background blobs */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-neon-blue/30 blur-3xl"
+        <div
+          className="animate-blob absolute -left-20 top-20 h-72 w-72 rounded-full bg-neon-blue/30 blur-3xl"
+          style={{ animationDuration: '8s' }}
         />
-        <motion.div
-          animate={{ x: [0, -20, 0], y: [0, 30, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute bottom-20 right-0 h-96 w-96 rounded-full bg-neon-gold/30 blur-3xl"
+        <div
+          className="animate-blob absolute bottom-20 right-0 h-96 w-96 rounded-full bg-neon-gold/30 blur-3xl"
+          style={{ animationDuration: '10s' }}
         />
-        <motion.div
-          animate={{ x: [0, 20, 0], y: [0, 20, 0] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute left-1/3 top-1/2 h-64 w-64 rounded-full bg-neon-purple/30 blur-3xl"
+        <div
+          className="animate-blob absolute left-1/3 top-1/2 h-64 w-64 rounded-full bg-neon-purple/30 blur-3xl"
+          style={{ animationDuration: '12s' }}
         />
       </div>
 
@@ -252,38 +163,29 @@ export default function HomePageContent() {
           <div className="pointer-events-none absolute inset-0 -z-10 bg-slate-900" />
         )}
         <div className="relative z-10 mx-auto max-w-5xl text-center text-slate-100">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-4 py-1.5 text-sm font-medium text-neon-blue backdrop-blur-sm"
+          <div
+            className="animate-fade-in-up-lg inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-4 py-1.5 text-sm font-medium text-neon-blue backdrop-blur-sm"
           >
             <Sparkles className="h-4 w-4" />
             {t('welcomeTag')}
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="mt-4 text-4xl font-extrabold leading-tight tracking-tight drop-shadow-lg md:mt-6 md:text-7xl"
+          </div>
+          <h1
+            className="animate-fade-in-up-lg mt-4 text-4xl font-extrabold leading-tight tracking-tight drop-shadow-lg md:mt-6 md:text-7xl"
+            style={{ animationDelay: '0.1s' }}
           >
             Kent{' '}
             <span className="gradient-text-animated whitespace-nowrap">Sri Lankan</span>
             <br /> Social Club
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mx-auto mt-3 max-w-2xl px-4 text-xs font-light leading-relaxed text-slate-200 drop-shadow sm:text-sm md:text-base"
+          </h1>
+          <p
+            className="animate-fade-in-up-lg mx-auto mt-3 max-w-2xl px-4 text-xs font-light leading-relaxed text-slate-200 drop-shadow sm:text-sm md:text-base"
+            style={{ animationDelay: '0.2s' }}
           >
             {t('subtitle')}
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="mt-5 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"
+          </p>
+          <div
+            className="animate-fade-in-up-lg mt-5 flex w-full flex-col items-center justify-center gap-3 px-4 sm:flex-row"
+            style={{ animationDelay: '0.3s' }}
           >
             {!user && (
               <Link
@@ -299,36 +201,27 @@ export default function HomePageContent() {
             >
               {t('exploreEvents')}
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       <section className="px-4 py-16 md:px-6">
         <div className="mx-auto max-w-7xl">
-          <motion.h2
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="section-title text-center"
-          >
-            {t('discoverTitle')}
-          </motion.h2>
+          <FadeIn>
+            <h2 className="section-title text-center">{t('discoverTitle')}</h2>
+          </FadeIn>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, idx) => (
               <Link key={feature.title} href={feature.href}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.05 }}
-                  whileHover={{ y: -8, boxShadow: '0 0 30px rgba(0, 184, 148, 0.25)' }}
-                  className="glass-card group relative h-full overflow-hidden p-6"
+                <FadeIn
+                  delay={idx * 0.05}
+                  className="glass-card group relative h-full overflow-hidden p-6 transition-all hover:-translate-y-2 hover:shadow-[0_0_30px_rgba(0,184,148,0.25)]"
                 >
                   <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-neon-blue/10 blur-2xl transition-colors group-hover:bg-neon-blue/20" />
                   <feature.icon className="relative h-8 w-8 text-neon-blue transition-transform group-hover:scale-110" />
                   <h3 className="relative mt-4 text-xl font-bold">{feature.title}</h3>
                   <p className="relative mt-2 text-sm text-slate-700 dark:text-slate-400">{feature.desc}</p>
-                </motion.div>
+                </FadeIn>
               </Link>
             ))}
           </div>
@@ -340,15 +233,10 @@ export default function HomePageContent() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-3 py-1 text-xs font-semibold text-neon-blue"
-              >
+              <FadeIn className="inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-3 py-1 text-xs font-semibold text-neon-blue">
                 <Calendar className="h-3.5 w-3.5" />
                 {showingPastEvents ? t('pastEvents') : t('upcomingEvents')}
-              </motion.div>
+              </FadeIn>
               <h2 className="section-title mt-3">
                 {showingPastEvents ? t('pastEventsTitle') : t('upcomingEventsTitle')}
               </h2>
@@ -361,30 +249,14 @@ export default function HomePageContent() {
             </Link>
           </div>
 
-          {eventsLoading ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="glass-card h-80 animate-pulse" />
-              ))}
-            </div>
-          ) : upcomingEvents.length === 0 ? (
+          {upcomingEvents.length === 0 ? (
             <p className="text-slate-600 dark:text-slate-400">{t('noUpcomingEvents')}</p>
           ) : (
-            <motion.div
-              variants={container}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              {upcomingEvents.map((evt) => (
-                <motion.div key={evt.id} variants={item}>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {upcomingEvents.map((evt, idx) => (
+                <FadeIn key={evt.id} delay={idx * 0.08}>
                   <Link href={`/events/${evt.id}`}>
-                    <motion.div
-                      whileHover={{ y: -10 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                      className="glass-card group relative overflow-hidden"
-                    >
+                    <div className="glass-card group relative overflow-hidden transition-transform duration-300 hover:-translate-y-2">
                       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-neon-blue/50 via-slate-900 to-neon-gold/50">
                         {evt.imageUrl ? (
                           <img
@@ -427,11 +299,11 @@ export default function HomePageContent() {
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   </Link>
-                </motion.div>
+                </FadeIn>
               ))}
-            </motion.div>
+            </div>
           )}
 
           <div className="mt-6 sm:hidden">
@@ -448,15 +320,10 @@ export default function HomePageContent() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-500"
-              >
+              <FadeIn className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-500">
                 <Heart className="h-3.5 w-3.5" />
                 {t('activeFundraisersTag')}
-              </motion.div>
+              </FadeIn>
               <h2 className="section-title mt-3">{t('fundraisersTitle')}</h2>
               <p className="mt-2 max-w-2xl text-slate-700 dark:text-slate-400">{t('fundraisersDesc')}</p>
             </div>
@@ -465,32 +332,16 @@ export default function HomePageContent() {
             </Link>
           </div>
 
-          {fundraisersLoading ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="glass-card h-80 animate-pulse" />
-              ))}
-            </div>
-          ) : fundraisers.length === 0 ? (
+          {fundraisers.length === 0 ? (
             <p className="text-slate-600 dark:text-slate-400">{t('noActiveFundraisers')}</p>
           ) : (
-            <motion.div
-              variants={container}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-            >
-              {fundraisers.map((f) => {
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {fundraisers.map((f, idx) => {
                 const progress = f.targetAmount > 0 ? Math.min((f.raisedAmount / f.targetAmount) * 100, 100) : 0;
                 return (
-                  <motion.div key={f.id} variants={item}>
+                  <FadeIn key={f.id} delay={idx * 0.08}>
                     <Link href={`/fundraisers/${f.id}`}>
-                      <motion.div
-                        whileHover={{ y: -8 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                        className="glass-card group flex h-full flex-col overflow-hidden"
-                      >
+                      <div className="glass-card group flex h-full flex-col overflow-hidden transition-transform duration-300 hover:-translate-y-2">
                         <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-rose-500/50 via-slate-900 to-neon-blue/50">
                           {f.imageUrl ? (
                             <img
@@ -511,15 +362,7 @@ export default function HomePageContent() {
                             {f.description ?? ''}
                           </p>
                           <div className="mt-4">
-                            <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                whileInView={{ width: `${progress}%` }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 1, ease: 'easeOut' }}
-                                className="h-full rounded-full bg-gradient-to-r from-rose-500 to-neon-gold"
-                              />
-                            </div>
+                            <ProgressBar progress={progress} />
                             <div className="mt-2 flex justify-between text-sm">
                               <span className="font-medium text-rose-500">{t('raised', { amount: formatCurrency(f.raisedAmount) })}</span>
                               <span className="text-slate-600 dark:text-slate-400">{t('goal', { amount: formatCurrency(f.targetAmount) })}</span>
@@ -532,12 +375,12 @@ export default function HomePageContent() {
                             </span>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     </Link>
-                  </motion.div>
+                  </FadeIn>
                 );
               })}
-            </motion.div>
+            </div>
           )}
 
           <div className="mt-6 sm:hidden">
@@ -554,15 +397,10 @@ export default function HomePageContent() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="inline-flex items-center gap-2 rounded-full border border-neon-gold/30 bg-neon-gold/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-neon-gold"
-              >
+              <FadeIn className="inline-flex items-center gap-2 rounded-full border border-neon-gold/30 bg-neon-gold/10 px-3 py-1 text-xs font-semibold text-amber-700 dark:text-neon-gold">
                 <Store className="h-3.5 w-3.5" />
                 {t('localBusinessesTag')}
-              </motion.div>
+              </FadeIn>
               <h2 className="section-title mt-3">{t('localBusinessesTitle')}</h2>
               <p className="mt-2 max-w-2xl text-slate-700 dark:text-slate-400">{t('localBusinessesDesc')}</p>
             </div>
@@ -572,15 +410,7 @@ export default function HomePageContent() {
           </div>
         </div>
 
-        {businessesLoading ? (
-          <div className="mx-auto max-w-7xl">
-            <div className="flex gap-6">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-24 w-24 flex-shrink-0 animate-pulse rounded-2xl bg-white/10" />
-              ))}
-            </div>
-          </div>
-        ) : businesses.length === 0 ? (
+        {businesses.length === 0 ? (
           <div className="mx-auto max-w-7xl">
             <p className="text-slate-600 dark:text-slate-400">{t('noBusinesses')}</p>
           </div>
@@ -658,20 +488,13 @@ export default function HomePageContent() {
             </div>
           </div>
 
-          {blogLoading ? (
-            <div className="grid gap-6 md:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="glass-card h-64 animate-pulse p-0" />
-              ))}
-            </div>
-          ) : blogPosts.length === 0 ? (
+          {visibleBlogPosts.length === 0 ? (
             <p className="text-slate-600 dark:text-slate-400">{t('noBlogPosts')}</p>
           ) : (
             <div className="overflow-hidden">
-              <motion.div
-                className="flex gap-6"
-                animate={{ x: `-${blogIndex * (100 / blogsPerPage)}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              <div
+                className="flex gap-6 transition-transform duration-500 ease-out"
+                style={{ transform: `translateX(-${blogIndex * (100 / blogsPerPage)}%)` }}
               >
                 {visibleBlogPosts.map((post) => {
                   const isFacebook = post.type === 'facebook';
@@ -690,10 +513,7 @@ export default function HomePageContent() {
                       className="w-full flex-shrink-0 md:w-[calc(33.333%-1rem)]"
                     >
                       <LinkComponent {...linkProps}>
-                        <motion.div
-                          whileHover={{ y: -6 }}
-                          className="glass-card group h-full overflow-hidden p-0"
-                        >
+                        <div className="glass-card group h-full overflow-hidden p-0 transition-transform duration-300 hover:-translate-y-1.5">
                           <div className="relative aspect-video overflow-hidden">
                             <div
                               className={`h-full w-full bg-gradient-to-br transition-transform duration-700 group-hover:scale-110 ${isFacebook ? 'from-blue-600/40 to-blue-400/40' : 'from-neon-purple/40 to-neon-blue/40'}`}
@@ -716,12 +536,12 @@ export default function HomePageContent() {
                               <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt, { weekday: 'short' })}</p>
                             )}
                           </div>
-                        </motion.div>
+                        </div>
                       </LinkComponent>
                     </div>
                   );
                 })}
-              </motion.div>
+              </div>
             </div>
           )}
 
@@ -763,15 +583,10 @@ export default function HomePageContent() {
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <motion.div
-                initial={{ opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-3 py-1 text-xs font-semibold text-neon-blue"
-              >
+              <FadeIn className="inline-flex items-center gap-2 rounded-full border border-neon-blue/30 bg-neon-blue/10 px-3 py-1 text-xs font-semibold text-neon-blue">
                 <MessageCircle className="h-3.5 w-3.5" />
                 {t('startConversationTag')}
-              </motion.div>
+              </FadeIn>
               <h2 className="section-title mt-3">{t('startConversationTitle')}</h2>
               <p className="mt-2 max-w-2xl text-slate-700 dark:text-slate-400">{t('startConversationDesc')}</p>
             </div>
@@ -780,30 +595,14 @@ export default function HomePageContent() {
             </Link>
           </div>
 
-          {categoriesLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="glass-card h-32 animate-pulse" />
-              ))}
-            </div>
-          ) : forumCategories.length === 0 ? (
+          {forumCategories.length === 0 ? (
             <p className="text-slate-600 dark:text-slate-400">{t('noCategories')}</p>
           ) : (
-            <motion.div
-              variants={container}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-            >
-              {forumCategories.map((category) => (
-                <motion.div key={category.id} variants={item}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {forumCategories.map((category, idx) => (
+                <FadeIn key={category.id} delay={idx * 0.08}>
                   <Link href={`/forum/categories/${category.id}`}>
-                    <motion.div
-                      whileHover={{ y: -6, scale: 1.02 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                      className="glass-card group relative overflow-hidden p-5"
-                    >
+                    <div className="glass-card group relative overflow-hidden p-5 transition-transform duration-300 hover:-translate-y-1 hover:scale-[1.02]">
                       <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-neon-blue/10 blur-xl transition-colors group-hover:bg-neon-blue/20" />
                       <div className="relative flex items-start justify-between">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neon-blue/10 text-neon-blue">
@@ -815,11 +614,11 @@ export default function HomePageContent() {
                       {category.description && (
                         <p className="relative mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{category.description}</p>
                       )}
-                    </motion.div>
+                    </div>
                   </Link>
-                </motion.div>
+                </FadeIn>
               ))}
-            </motion.div>
+            </div>
           )}
 
           <div className="mt-6 sm:hidden">

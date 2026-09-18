@@ -6,11 +6,26 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const v8 = require('v8');
+const zlib = require('zlib');
 
 const rootDir = __dirname;
 const apiDir = path.join(rootDir, 'apps', 'api');
 const webDir = path.join(rootDir, 'apps', 'web');
 const nodeCommand = process.execPath;
+
+// Reuse TCP connections to the local upstreams instead of paying a fresh
+// connect per proxied request. The lsnode (LiteSpeed) shim problems documented
+// below affect the public inbound req/res sockets, not these outbound
+// localhost/unix-socket connections, so pooling is safe here.
+const httpKeepAliveAgent = new http.Agent({ keepAlive: true, maxSockets: 100 });
+const httpsKeepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 100 });
+
+// Env/config notes (see also the flag definitions next to the code they gate):
+//   STREAM_PROXY_RESPONSES=true — proxyRequest streams upstream responses
+//     instead of buffering them. DEFAULT IS BUFFERED: under lsnode (LiteSpeed)
+//     the public listener's req/res shim intermittently truncates streamed
+//     pipe() responses to 0 bytes. Only enable this on runtimes with a plain
+//     Node inbound socket (Docker, VPS, `node server.js` without lsnode).
 
 // Shared-hosting process/thread limits are tight. Force conservative defaults for
 // libraries that spawn helper threads/processes, unless the operator overrides them.
@@ -387,6 +402,14 @@ if (webMode === 'in-process') {
 
 // How long the public proxy waits for an upstream response (ms).
 const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);
+
+// Proxy response delivery mode. Buffered (the default): proxyRequest collects
+// the upstream body and writes it in a single res.end(), because lsnode's
+// public-listener shim truncates streamed responses (see the note at the top
+// of this file). STREAM_PROXY_RESPONSES=true opts into true streaming
+// (pipe-style, lower TTFB) for runtimes where the inbound socket is a plain
+// Node socket rather than the lsnode shim.
+const streamProxyResponses = process.env.STREAM_PROXY_RESPONSES === 'true';
 
 // Memory ceilings for child processes. Keep these conservative for shared hosting.
 const apiMemoryLimitMb = Number(process.env.API_MEMORY_LIMIT_MB || 1024);
@@ -892,19 +915,24 @@ function proxyRequest(req, res, targetBaseUrl) {
     console.error(`Failed to proxy ${req.url || '/'} -> ${targetBaseUrl}: ${message}`);
   };
 
+  // A client-supplied Connection header (e.g. "close") must not reach the
+  // upstream, or it would tear down the pooled keep-alive socket.
+  const proxyHeaders = {
+    ...req.headers,
+    host: forwardedHost,
+    'x-forwarded-host': forwardedHost,
+    'x-forwarded-proto': forwardedProto,
+    'x-forwarded-port': forwardedPort
+  };
+  delete proxyHeaders.connection;
+
   const requestOptions = isUnixSocket
     ? {
         socketPath,
         method: req.method,
         path: requestPath,
-        headers: {
-          ...req.headers,
-          host: forwardedHost,
-          'x-forwarded-host': forwardedHost,
-          'x-forwarded-proto': forwardedProto,
-          'x-forwarded-port': forwardedPort,
-          connection: 'close'
-        }
+        agent: httpKeepAliveAgent,
+        headers: proxyHeaders
       }
     : {
         protocol: client === https ? 'https:' : 'http:',
@@ -912,14 +940,8 @@ function proxyRequest(req, res, targetBaseUrl) {
         port: target.port || (client === https ? 443 : 80),
         method: req.method,
         path: requestPath,
-        headers: {
-          ...req.headers,
-          host: forwardedHost,
-          'x-forwarded-host': forwardedHost,
-          'x-forwarded-proto': forwardedProto,
-          'x-forwarded-port': forwardedPort,
-          connection: 'close'
-        }
+        agent: client === https ? httpsKeepAliveAgent : httpKeepAliveAgent,
+        headers: proxyHeaders
       };
 
   const request = client.request(
@@ -942,11 +964,57 @@ function proxyRequest(req, res, targetBaseUrl) {
         );
       }
 
+      if (streamProxyResponses) {
+        // STREAM_PROXY_RESPONSES=true: forward the upstream response as it
+        // arrives instead of buffering it. Lowers TTFB (first byte ships as
+        // soon as the upstream produces it) at the cost of holding no cap on
+        // memory. Only safe where the inbound req/res are plain Node sockets —
+        // lsnode's shim truncates streamed responses, which is why buffered
+        // mode is the default.
+        const streamHeaders = { ...headers };
+        delete streamHeaders['transfer-encoding'];
+        delete streamHeaders['connection'];
+        // Content-Length (when the upstream sent one) passes through
+        // untouched: pipe() delivers exactly the upstream bytes, and when the
+        // upstream was chunked Node falls back to chunked encoding here. HEAD
+        // responses carry no body, so the pipe is a no-op and the upstream's
+        // Content-Length header stays correct. Content-Encoding (e.g. gzip)
+        // also passes through; the body is forwarded compressed, never
+        // decompressed/re-encoded.
+        res.writeHead(proxyRes.statusCode || 502, streamHeaders);
+        proxyRes.pipe(res);
+
+        proxyRes.on('error', (error) => {
+          console.error(`Upstream stream error for ${req.url || '/'}: ${error.message}`);
+          try {
+            if (!res.writableEnded) res.end();
+          } catch {
+            // connection already torn down
+          }
+        });
+
+        proxyRes.on('aborted', () => {
+          try {
+            if (!res.writableEnded) res.end();
+          } catch {
+            // connection already torn down
+          }
+        });
+
+        // If the client disconnects mid-stream, stop pulling from the
+        // upstream so it is not read into a dead socket.
+        res.on('close', () => {
+          if (!res.writableEnded) request.destroy();
+        });
+        return;
+      }
+
       // Under lsnode (LiteSpeed) the public listener's req/res objects are
       // shimmed and streamed pipe() responses are intermittently truncated to
       // 0 bytes (observed as random empty 200s for API calls, logins, and
       // page loads). Buffer the upstream body and write it in a single
       // res.end() to avoid that shim bug (same approach as serveNextImage).
+      // This is the default; STREAM_PROXY_RESPONSES=true opts into streaming.
       // Responses over the cap fall back to streaming.
       const chunks = [];
       let buffered = 0;
@@ -1132,6 +1200,29 @@ function getStaticMimeType(filePath) {
   return types[ext] || 'application/octet-stream';
 }
 
+const GZIP_STATIC_EXTENSIONS = new Set(['.css', '.js', '.mjs', '.json', '.svg', '.html', '.map']);
+// `/_next/static` assets are content-hashed, so their gzipped form is immutable
+// too — cache it in memory instead of recompressing on every request.
+const gzipStaticCache = new Map();
+const GZIP_STATIC_CACHE_MAX = 500;
+
+function gzipStaticBuffer(filePath, data) {
+  const cached = gzipStaticCache.get(filePath);
+  if (cached) return cached;
+  const gzipped = zlib.gzipSync(data);
+  if (gzipStaticCache.size >= GZIP_STATIC_CACHE_MAX) {
+    gzipStaticCache.clear();
+  }
+  gzipStaticCache.set(filePath, gzipped);
+  return gzipped;
+}
+
+function clientAcceptsGzip(req) {
+  const acceptEncoding = req.headers['accept-encoding'];
+  const value = Array.isArray(acceptEncoding) ? acceptEncoding.join(',') : acceptEncoding || '';
+  return value.split(',').some((entry) => entry.trim().split(';')[0].toLowerCase() === 'gzip');
+}
+
 /**
  * Serve Next.js static assets directly from the filesystem when possible.
  *
@@ -1194,10 +1285,21 @@ function serveNextStaticFile(req, res, fallback) {
     }
 
     const contentType = getStaticMimeType(filePath);
-    res.writeHead(200, {
+    const headers = {
       'Content-Type': contentType,
       'Cache-Control': 'public, max-age=31536000, immutable'
-    });
+    };
+    const ext = path.extname(filePath).toLowerCase();
+    if (GZIP_STATIC_EXTENSIONS.has(ext)) {
+      headers['Vary'] = 'Accept-Encoding';
+      if (clientAcceptsGzip(req)) {
+        headers['Content-Encoding'] = 'gzip';
+        res.writeHead(200, headers);
+        res.end(gzipStaticBuffer(filePath, data));
+        return;
+      }
+    }
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
@@ -1217,6 +1319,10 @@ function serveNextStaticFile(req, res, fallback) {
  */
 function serveNextImage(req, res) {
   const target = new URL(internalWebUrl);
+  // A client-supplied Connection header (e.g. "close") must not reach the
+  // upstream, or it would tear down the pooled keep-alive socket.
+  const imageHeaders = { ...req.headers, host: target.host };
+  delete imageHeaders.connection;
   const upstream = http.request(
     {
       protocol: target.protocol,
@@ -1224,7 +1330,8 @@ function serveNextImage(req, res) {
       port: target.port,
       method: req.method,
       path: normalizeRequestPath(req.url || '/'),
-      headers: { ...req.headers, host: target.host, connection: 'close' }
+      agent: httpKeepAliveAgent,
+      headers: imageHeaders
     },
     (upstreamRes) => {
       const chunks = [];
@@ -1353,9 +1460,11 @@ function startProxyServer() {
         return;
       }
 
-      // Once the API is up, the readiness endpoint reflects real dependency health
-      // (database, email, payments, storage). Rewrite the path and proxy to the API.
-      req.url = '/api/health/ready';
+      // Once the API is up, report liveness only: the /ready endpoint runs a
+      // SELECT 1 against the remote database, which load-balancer probes would
+      // hammer on every interval. Liveness (/live) checks only process memory,
+      // keeping probes cheap while real readiness stays available for deploys.
+      req.url = '/api/health/live';
       const toApi = true;
       if (apiServer) {
         apiServer.emit('request', req, res);

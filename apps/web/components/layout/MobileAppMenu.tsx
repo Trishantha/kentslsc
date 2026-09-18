@@ -3,7 +3,6 @@
 import NextLink from 'next/link';
 import { Link, usePathname } from '@/i18n/routing';
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import {
   X,
@@ -144,26 +143,24 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
   }, [isOpen]);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-sm md:hidden"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-slate-100 pb-[env(safe-area-inset-bottom)] shadow-2xl dark:bg-slate-900"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('mainMenuLabel')}
-          >
+    <div
+      className={cn(
+        'fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-sm transition-opacity duration-300 md:hidden',
+        isOpen ? 'opacity-100' : 'pointer-events-none invisible opacity-0'
+      )}
+      onClick={onClose}
+      aria-hidden={!isOpen}
+    >
+      <div
+        className={cn(
+          'absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-slate-100 pb-[env(safe-area-inset-bottom)] shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900',
+          isOpen ? 'animate-sheet-slide-up' : 'translate-y-full'
+        )}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('mainMenuLabel')}
+      >
             {/* Drag handle */}
             <div className="flex flex-shrink-0 justify-center pt-3 pb-1">
               <div className="h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
@@ -311,9 +308,7 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
                 </button>
               )}
             </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </div>
+        </div>
   );
 }

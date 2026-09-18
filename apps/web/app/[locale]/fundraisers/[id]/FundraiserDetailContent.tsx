@@ -52,8 +52,8 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   const canceled = searchParams?.get('canceled');
 
   const confirmDonation = useMutation({
-    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
-      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+    mutationFn: async ({ sessionId, provider, confirmToken }: { sessionId: string; provider: string; confirmToken?: string | null }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider, confirmToken });
       return res.data;
     },
     // The billing request may not be fulfilled yet right after redirect; retry
@@ -70,8 +70,9 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
   useEffect(() => {
     const sessionId = searchParams?.get('session_id');
     const provider = searchParams?.get('provider') ?? (sessionId ? inferPaymentProvider(sessionId) : 'stripe');
+    const confirmToken = searchParams?.get('confirm_token');
     if (success && sessionId && !confirmDonation.isPending) {
-      confirmDonation.mutate({ sessionId, provider });
+      confirmDonation.mutate({ sessionId, provider, confirmToken });
     }
   }, [searchParams, success, confirmDonation]);
 

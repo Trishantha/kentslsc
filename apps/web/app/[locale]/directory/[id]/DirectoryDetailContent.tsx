@@ -127,8 +127,8 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
     paymentMethod ?? (availableMethods ? defaultPaymentMethod(availableMethods) : 'card');
 
   const confirmDirectoryPayment = useMutation({
-    mutationFn: async ({ sessionId, provider }: { sessionId: string; provider: string }) => {
-      const res = await api.post('/payments/confirm-session', { sessionId, provider });
+    mutationFn: async ({ sessionId, provider, confirmToken }: { sessionId: string; provider: string; confirmToken?: string | null }) => {
+      const res = await api.post('/payments/confirm-session', { sessionId, provider, confirmToken });
       return res.data;
     },
     onSuccess: () => {
@@ -139,10 +139,11 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
   useEffect(() => {
     const sessionId = searchParams?.get('session_id');
     const provider = searchParams?.get('provider') ?? (sessionId ? inferPaymentProvider(sessionId) : 'stripe');
+    const confirmToken = searchParams?.get('confirm_token');
     const promoted = searchParams?.get('promoted');
     const jobPublished = searchParams?.get('jobPublished');
     if (sessionId && !confirmDirectoryPayment.isPending && (promoted === 'success' || jobPublished === 'success')) {
-      confirmDirectoryPayment.mutate({ sessionId, provider });
+      confirmDirectoryPayment.mutate({ sessionId, provider, confirmToken });
     }
   }, [searchParams, confirmDirectoryPayment]);
 
@@ -241,7 +242,7 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
         return;
       }
       if (res.data.clientSecret && res.data.sessionId) {
-        router.push(`/checkout?session_id=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
+        router.push(`/checkout?payment_intent=${res.data.sessionId}&client_secret=${encodeURIComponent(res.data.clientSecret)}`);
         return;
       }
       if (res.data.url) {

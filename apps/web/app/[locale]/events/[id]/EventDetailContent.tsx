@@ -92,7 +92,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
       } else if (data.provider === 'gocardless' && data.url) {
         window.location.assign(data.url);
       } else if (data.clientSecret && data.sessionId) {
-        router.push(`/checkout?session_id=${data.sessionId}&client_secret=${encodeURIComponent(data.clientSecret)}`);
+        router.push(`/checkout?payment_intent=${data.sessionId}&client_secret=${encodeURIComponent(data.clientSecret)}`);
       } else if (data.url) {
         window.location.href = data.url;
       }

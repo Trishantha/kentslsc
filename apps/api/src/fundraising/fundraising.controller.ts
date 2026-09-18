@@ -26,6 +26,7 @@ import { CreateDonationDto } from './dto/create-donation.dto.js';
 import { CreateFundraiserUpdateDto } from './dto/create-fundraiser-update.dto.js';
 import type Stripe from 'stripe';
 import { Public } from '../common/decorators/public.decorator.js';
+import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 
 @ApiTags('Fundraising')
 @Controller('fundraisers')
@@ -37,6 +38,7 @@ export class FundraisingController {
 
   @Get()
   @Public()
+  @PublicCache()
   list(
     @Query('category') category?: string,
     @Query('page') page?: string,
@@ -53,12 +55,14 @@ export class FundraisingController {
 
   @Get(':id')
   @Public()
+  @PublicCache()
   findOne(@Param('id') id: string) {
     return this.fundraisingService.findById(id);
   }
 
   @Get(':id/donations')
   @Public()
+  @PublicCache()
   getDonations(
     @Param('id') id: string,
     @Query('sort') sort?: string,
@@ -71,6 +75,7 @@ export class FundraisingController {
 
   @Get(':id/updates')
   @Public()
+  @PublicCache()
   getUpdates(@Param('id') id: string) {
     return this.fundraisingService.getUpdates(id);
   }

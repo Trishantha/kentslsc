@@ -5,6 +5,9 @@ import JsonLd from '@/components/JsonLd';
 import BlogPostContent, { type BlogPost } from './BlogPostContent';
 import { stripRichText, summarizeRichText } from '@/lib/rich-text';
 import { getFrontendUrl } from '@/lib/env';
+import { ServerMessagesProvider } from '@/components/i18n/ServerMessagesProvider';
+
+const BLOG_DETAIL_MESSAGE_NAMESPACES = ['blogDetail', 'common'];
 
 interface Props {
   params: Promise<{ locale: string; slug: string }>;
@@ -77,9 +80,9 @@ export default async function BlogPostPage({ params }: Props) {
   };
 
   return (
-    <>
+    <ServerMessagesProvider namespaces={BLOG_DETAIL_MESSAGE_NAMESPACES}>
       <JsonLd data={articleSchema} />
       <BlogPostContent post={post} shareUrl={shareUrl} />
-    </>
+    </ServerMessagesProvider>
   );
 }

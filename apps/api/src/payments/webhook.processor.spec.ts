@@ -147,6 +147,88 @@ describe('WebhookProcessor', () => {
     expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'failed', 'Event sold out');
   });
 
+  describe('PaymentIntent events', () => {
+    const paymentIntentsRetrieve = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
+    beforeEach(() => {
+      paymentIntentsRetrieve.mockReset();
+      (paymentsService as any).getClient = () => ({
+        paymentIntents: { retrieve: paymentIntentsRetrieve }
+      });
+    });
+
+    function buildPaymentIntentJob(paymentIntentId: string, type: string): any {
+      return {
+        ledgerId: 'ledger-1',
+        provider: 'stripe' as const,
+        eventType: type,
+        payload: {
+          id: 'evt_test_pi_1',
+          type,
+          data: { object: { id: paymentIntentId } }
+        } as unknown as Stripe.Event
+      };
+    }
+
+    it('dispatches succeeded payment intents via a pseudo-session', async () => {
+      paymentIntentsRetrieve.mockResolvedValue({
+        id: 'pi_test_123',
+        status: 'succeeded',
+        amount: 2500,
+        currency: 'gbp',
+        created: Math.floor(Date.now() / 1000),
+        metadata: { type: 'donation', fundraiserId: 'fr-1', amount: '2500' },
+        latest_charge: {
+          billing_details: { email: 'donor@example.com', name: 'Donor', phone: null }
+        }
+      });
+      fundraisingService.handleCheckoutCompleted.mockResolvedValue({} as any);
+
+      await processor.process(buildPaymentIntentJob('pi_test_123', 'payment_intent.succeeded'));
+
+      expect(paymentIntentsRetrieve).toHaveBeenCalledWith('pi_test_123', { expand: ['latest_charge'] });
+      expect(fundraisingService.handleCheckoutCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'pi_test_123',
+          object: 'checkout.session',
+          status: 'complete',
+          payment_status: 'paid',
+          amount_total: 2500,
+          payment_intent: 'pi_test_123',
+          metadata: expect.objectContaining({ type: 'donation', fundraiserId: 'fr-1' }),
+          customer_details: expect.objectContaining({ email: 'donor@example.com', name: 'Donor' })
+        })
+      );
+      expect(paymentsService.syncStripeFeesFromSession).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'pi_test_123' })
+      );
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+
+    it('runs no fulfilment when the payment intent has not succeeded', async () => {
+      paymentIntentsRetrieve.mockResolvedValue({
+        id: 'pi_test_123',
+        status: 'processing',
+        metadata: { type: 'donation', fundraiserId: 'fr-1' }
+      });
+
+      await processor.process(buildPaymentIntentJob('pi_test_123', 'payment_intent.succeeded'));
+
+      expect(fundraisingService.handleCheckoutCompleted).not.toHaveBeenCalled();
+      expect(paymentsService.syncStripeFeesFromSession).not.toHaveBeenCalled();
+    });
+
+    it('marks failed payment intents processed without fulfilment', async () => {
+      await processor.process(
+        buildPaymentIntentJob('pi_test_123', 'payment_intent.payment_failed')
+      );
+
+      expect(eventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+      expect(fundraisingService.handleCheckoutCompleted).not.toHaveBeenCalled();
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
+    });
+  });
+
   describe('GoCardless events', () => {
     function buildGoCardlessJob(event: {
       action: string;

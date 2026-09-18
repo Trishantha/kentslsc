@@ -5,10 +5,10 @@ import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Link } from '@/i18n/routing';
+import { FadeIn } from '@/components/ui/FadeIn';
 import { contactMessageSchema, type ContactMessageInput } from '@kentslsc/shared';
 import type { ContactBlock } from '@kentslsc/shared';
 
@@ -64,12 +64,7 @@ export default function ContactBlockComponent({ block }: Props) {
 
   return (
     <section className="px-4 py-16 md:px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        className="mx-auto max-w-3xl"
-      >
+      <FadeIn className="mx-auto max-w-3xl">
         {title && <h2 className="section-title text-center">{title}</h2>}
         {content && <p className="mt-4 text-center text-slate-700 dark:text-slate-400">{content}</p>}
 
@@ -168,7 +163,7 @@ export default function ContactBlockComponent({ block }: Props) {
             </button>
           </form>
         )}
-      </motion.div>
+      </FadeIn>
     </section>
   );
 }
