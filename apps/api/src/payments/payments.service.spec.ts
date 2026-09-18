@@ -484,6 +484,35 @@ describe('PaymentsService', () => {
       );
     });
 
+    it('passes explicit payment method types through to the embedded PaymentIntent', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'pi_donation1',
+        client_secret: 'pi_donation1_secret',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        paymentIntents: { create: createMock }
+      };
+
+      await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Donation to Test',
+        successUrl: 'https://example.com/success?session_id={CHECKOUT_SESSION_ID}',
+        cancelUrl: 'https://example.com/cancel',
+        uiMode: 'embedded',
+        paymentMethodTypes: ['card', 'bacs_debit', 'pay_by_bank'],
+        metadata: { type: 'donation' }
+      });
+
+      const intentParams = createMock.mock.calls[0]?.[0];
+      if (!intentParams) throw new Error('Expected payment intent params');
+      expect(intentParams.payment_method_types).toEqual(['card', 'bacs_debit', 'pay_by_bank']);
+    });
+
     it('still creates a Checkout Session for subscription checkouts', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
 

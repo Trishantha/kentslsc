@@ -353,6 +353,10 @@ export class FundraisingService {
       successUrl: `${baseUrl}/fundraisers/${fundraiserId}?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
       cancelUrl: `${baseUrl}/fundraisers/${fundraiserId}?canceled=1`,
       uiMode: 'embedded_page',
+      // Direct Debit and bank transfer are donation-friendly options the club
+      // enabled in Stripe; other embedded flows (tickets, membership, etc.)
+      // stay card-only.
+      paymentMethodTypes: ['card', 'bacs_debit', 'pay_by_bank'],
       metadata: {
         type: 'donation',
         fundraiserId,

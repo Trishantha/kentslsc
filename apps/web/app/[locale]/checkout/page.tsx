@@ -64,6 +64,7 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
   const elements = useElements();
   const [email, setEmail] = useState(detail.customerEmail ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [expressAvailable, setExpressAvailable] = useState(false);
 
@@ -82,10 +83,15 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
 
     setIsPaying(true);
     setError(null);
+    setPendingMessage(null);
 
     try {
-      const { error: confirmError } = await stripe.confirmPayment({
+      // if_required: redirect-based methods (3DS cards) still navigate to
+      // return_url; inline methods (Bacs Direct Debit, Pay by Bank) resolve
+      // with the PaymentIntent so we can handle their non-redirect states.
+      const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
         elements,
+        redirect: 'if_required',
         confirmParams: {
           return_url: detail.returnUrl ?? window.location.href,
           ...(email.trim()
@@ -97,8 +103,27 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
       if (confirmError) {
         setError(confirmError.message ?? 'Payment failed. Please try again.');
         setIsPaying(false);
+        return;
       }
-      // On success Stripe redirects to return_url; no further handling needed.
+
+      // Non-redirect methods resolve here instead of navigating to return_url:
+      // Bacs Direct Debit returns `processing` (first debit clears in a few
+      // working days) and Pay by Bank returns `requires_action`, with the
+      // Payment Element displaying the transfer instructions inline.
+      if (paymentIntent) {
+        if (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing') {
+          window.location.assign(detail.returnUrl ?? window.location.href);
+          return;
+        }
+        if (paymentIntent.status === 'requires_action') {
+          setPendingMessage(
+            'Follow the payment instructions above to complete your payment. We will confirm it automatically once the funds reach us.'
+          );
+        }
+        setIsPaying(false);
+      }
+      // Redirect-based methods (cards with 3DS, wallets) have already sent
+      // the browser to return_url at this point.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
       setIsPaying(false);
@@ -142,8 +167,9 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
         </div>
       )}
       <form onSubmit={handleSubmit}>
-        {/* Intents are created card-only by the API, so the element renders a
-            single compact card form (no method list, no redirect notice). */}
+        {/* The API creates intents with an explicit method list per flow
+            (card everywhere; fundraising adds Bacs Direct Debit and Pay by
+            Bank), so no dashboard-auto-enabled methods appear here. */}
         <PaymentElement />
 
         {emailRequired && (
@@ -166,6 +192,12 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
         {error && (
           <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
             {error}
+          </div>
+        )}
+
+        {pendingMessage && (
+          <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            {pendingMessage}
           </div>
         )}
 
