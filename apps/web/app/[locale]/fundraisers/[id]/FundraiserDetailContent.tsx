@@ -90,7 +90,16 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
     () => (fundraiser.photos ? [...fundraiser.photos].sort((a, b) => a.sortOrder - b.sortOrder) : []),
     [fundraiser.photos]
   );
-  const { open, Lightbox } = usePhotoLightbox(sortedPhotos);
+  // The poster opens the lightbox at index 0; gallery photos follow it.
+  const lightboxPhotos = useMemo(
+    () => [
+      ...(fundraiser.imageUrl ? [{ id: 'poster', url: fundraiser.imageUrl, caption: fundraiser.title }] : []),
+      ...sortedPhotos
+    ],
+    [fundraiser.imageUrl, fundraiser.title, sortedPhotos]
+  );
+  const { open, Lightbox } = usePhotoLightbox(lightboxPhotos);
+  const galleryOffset = fundraiser.imageUrl ? 1 : 0;
 
   return (
     <div className="px-4 py-12 md:px-6">
@@ -118,11 +127,18 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
           {/* Left: campaign content */}
           <div className="lg:col-span-2">
             {fundraiser.imageUrl ? (
-              <img
-                src={fundraiser.imageUrl}
-                alt={fundraiser.title}
-                className="mb-6 h-72 w-full rounded-2xl object-contain shadow"
-              />
+              <button
+                type="button"
+                onClick={() => open(0)}
+                className="group relative mb-6 block h-72 w-full cursor-zoom-in overflow-hidden rounded-2xl shadow focus:outline-none focus:ring-2 focus:ring-neon-blue"
+                aria-label={t('viewPoster')}
+              >
+                <img
+                  src={fundraiser.imageUrl}
+                  alt={fundraiser.title}
+                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                />
+              </button>
             ) : (
               <div className="mb-6 h-72 w-full rounded-2xl bg-gradient-to-br from-neon-blue/30 to-neon-gold/30" />
             )}
@@ -159,7 +175,7 @@ export default function FundraiserDetailContent({ fundraiser, shareUrl }: Props)
                     <button
                       key={photo.id}
                       type="button"
-                      onClick={() => open(index)}
+                      onClick={() => open(index + galleryOffset)}
                       className="group relative aspect-square overflow-hidden rounded-xl border border-slate-100 text-left dark:border-slate-700"
                     >
                       <img
