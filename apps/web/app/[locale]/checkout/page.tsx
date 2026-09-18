@@ -142,7 +142,9 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
         </div>
       )}
       <form onSubmit={handleSubmit}>
-        <PaymentElement options={{ paymentMethodOrder: ['card'] }} />
+        {/* Intents are created card-only by the API, so the element renders a
+            single compact card form (no method list, no redirect notice). */}
+        <PaymentElement />
 
         {emailRequired && (
           <div className="mt-4">

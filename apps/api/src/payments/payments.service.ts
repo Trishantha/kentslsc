@@ -1412,7 +1412,13 @@ export class PaymentsService {
       amount: feeResult.gross,
       currency,
       description: input.description,
-      automatic_payment_methods: { enabled: true },
+      // Card only. automatic_payment_methods would enable every method
+      // configured on the account, which makes the PaymentElement render a
+      // vertical method list and Stripe's "you will be redirected" notice
+      // (unavoidable for redirect-based methods and impossible to hide).
+      // A single card method gives one compact form; wallets (Apple/Google
+      // Pay) still work through the ExpressCheckoutElement.
+      payment_method_types: ['card'],
       ...(input.customer
         ? { customer: input.customer }
         : input.customerEmail

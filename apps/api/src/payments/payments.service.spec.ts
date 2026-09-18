@@ -474,7 +474,7 @@ describe('PaymentsService', () => {
       const intentParams = createMock.mock.calls[0]?.[0];
       if (!intentParams) throw new Error('Expected payment intent params');
       expect(intentParams.amount).toBe(1035);
-      expect(intentParams.automatic_payment_methods).toEqual({ enabled: true });
+      expect(intentParams.payment_method_types).toEqual(['card']);
       expect(intentParams.metadata.type).toBe('donation');
       expect(intentParams.metadata.netAmount).toBe('1000');
       expect(intentParams.metadata.processingFee).toBe('35');
