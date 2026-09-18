@@ -292,7 +292,7 @@ describe('StripeWebhookController', () => {
 
     it('confirms a succeeded PaymentIntent via a synthetic payment_intent.succeeded event', async () => {
       webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => ({
-        id: 'pi_test_123',
+        id: 'pi_AbC123xYz789',
         status: 'complete',
         payment_status: 'paid',
         metadata: { type: 'donation', fundraiserId: 'fr-1' }
@@ -300,18 +300,18 @@ describe('StripeWebhookController', () => {
       webhookProcessor.process.mockResolvedValue(true);
 
       const result = await controller.confirmSession({
-        sessionId: 'pi_test_123',
+        sessionId: 'pi_AbC123xYz789',
         provider: 'stripe',
-        confirmToken: createConfirmToken('pi_test_123')
+        confirmToken: createConfirmToken('pi_AbC123xYz789')
       });
 
       expect(paymentsService.getFullCheckoutSession).not.toHaveBeenCalled();
-      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).toHaveBeenCalledWith('pi_test_123');
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).toHaveBeenCalledWith('pi_AbC123xYz789');
       expect(webhookEvents.record).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: 'stripe',
           eventType: 'payment_intent.succeeded',
-          externalId: 'confirm:pi_test_123',
+          externalId: 'confirm:pi_AbC123xYz789',
           status: 'received'
         })
       );
@@ -334,9 +334,9 @@ describe('StripeWebhookController', () => {
       } as any);
 
       const result = await controller.confirmSession({
-        sessionId: 'pi_test_123',
+        sessionId: 'pi_AbC123xYz789',
         provider: 'stripe',
-        confirmToken: createConfirmToken('pi_test_123')
+        confirmToken: createConfirmToken('pi_AbC123xYz789')
       });
 
       expect(result).toEqual({ received: false, status: 'requires_payment_method' });
@@ -350,9 +350,28 @@ describe('StripeWebhookController', () => {
       expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
     });
 
+    it('accepts real-shaped PaymentIntent ids (pi_ + base62, no env segment)', async () => {
+      const realId = 'pi_3UH0hnQwLAF1PT3J0GGlroti';
+      webhookProcessor.buildPseudoSessionFromPaymentIntent = jest.fn(async () => null) as any;
+      paymentsService.getClient.mockReturnValue({
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({ status: 'requires_payment_method' }))
+        }
+      } as any);
+
+      const result = await controller.confirmSession({
+        sessionId: realId,
+        provider: 'stripe',
+        confirmToken: createConfirmToken(realId)
+      });
+
+      expect(result).toEqual({ received: false, status: 'requires_payment_method' });
+      expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).toHaveBeenCalledWith(realId);
+    });
+
     it('rejects a PaymentIntent confirmation without a valid confirmation token', async () => {
       await expect(
-        controller.confirmSession({ sessionId: 'pi_test_123', provider: 'stripe', confirmToken: 'bogus' })
+        controller.confirmSession({ sessionId: 'pi_AbC123xYz789', provider: 'stripe', confirmToken: 'bogus' })
       ).rejects.toThrow('Missing or invalid confirmation token');
       expect(webhookProcessor.buildPseudoSessionFromPaymentIntent).not.toHaveBeenCalled();
     });

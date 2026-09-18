@@ -121,8 +121,10 @@ export class StripeWebhookController {
     }
 
     // Validate identifier formats before any provider API call so garbage ids
-    // cost nothing.
-    if (provider === 'stripe' && !/^(pi|cs)_(live|test)_[A-Za-z0-9]+$/.test(sessionId)) {
+    // cost nothing. Real PaymentIntent ids are `pi_` + base62 with no env
+    // segment (e.g. pi_3UH0hn...); Checkout Session ids carry one
+    // (cs_test_... / cs_live_...).
+    if (provider === 'stripe' && !/^(pi_[A-Za-z0-9]+|cs_(live|test)_[A-Za-z0-9]+)$/.test(sessionId)) {
       throw new BadRequestException('Invalid Stripe checkout id');
     }
     if (provider === 'gocardless' && !/^BR[0-9A-Z]{14}$/i.test(sessionId)) {
