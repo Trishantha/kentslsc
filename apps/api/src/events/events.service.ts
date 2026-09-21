@@ -416,6 +416,25 @@ export class EventsService {
     return { tickets };
   }
 
+  /**
+   * Manually set a ticket's status (admin). Used to mark tickets as used or
+   * expired for events that have already happened, or to correct mistakes.
+   */
+  async updateTicketStatus(eventId: string, ticketId: string, status: TicketStatus) {
+    await this.findById(eventId);
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: ticketId, eventId, deletedAt: null }
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status },
+      include: {
+        user: { select: { id: true, name: true, email: true } }
+      }
+    });
+  }
+
   async getRemainingCapacity(eventId: string) {
     const event = await this.findByIdWithTicketCount(eventId);
     if (!event.maxTickets) return null;

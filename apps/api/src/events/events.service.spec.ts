@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { EventsService } from './events.service.js';
+import { NotFoundException } from '@nestjs/common';
 import { TicketStatus, PaymentStatus, PaymentSourceType } from '@kentslsc/database';
 import type Stripe from 'stripe';
 
@@ -659,7 +660,7 @@ describe('EventsService', () => {
 
     it('issues tickets when confirming a PaymentIntent-backed embedded checkout', async () => {
       const paymentIntentId = 'pi_3UHtest123';
-      const paymentIntentsRetrieve = jest.fn().mockResolvedValue({
+      const paymentIntentsRetrieve = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
         id: paymentIntentId,
         status: 'succeeded',
         amount: 2050,
@@ -704,7 +705,7 @@ describe('EventsService', () => {
       const paymentIntentId = 'pi_3UHpending';
       (mockPaymentsService as any).getClient = () => ({
         paymentIntents: {
-          retrieve: jest.fn().mockResolvedValue({
+          retrieve: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             id: paymentIntentId,
             status: 'processing',
             metadata: { type: 'event_ticket' }
@@ -780,7 +781,7 @@ describe('EventsService', () => {
       const paymentIntentId = 'pi_3UHmanual';
       (mockPaymentsService as any).getClient = () => ({
         paymentIntents: {
-          retrieve: jest.fn().mockResolvedValue({
+          retrieve: jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             id: paymentIntentId,
             status: 'succeeded',
             amount: 2050,
@@ -896,6 +897,35 @@ describe('EventsService', () => {
           orderBy: { serialNumber: 'asc' }
         })
       );
+    });
+  });
+
+  describe('updateTicketStatus', () => {
+    it('updates the ticket status and returns it with the attendee', async () => {
+      const ticket = createMockTicket({ id: 'ticket-1' });
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.ticket.findFirst.mockResolvedValue(ticket);
+      mockPrisma.ticket.update.mockResolvedValue({ ...ticket, status: TicketStatus.EXPIRED });
+
+      const result = await service.updateTicketStatus(mockEvent.id, ticket.id, TicketStatus.EXPIRED);
+
+      expect(mockPrisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: ticket.id },
+          data: { status: TicketStatus.EXPIRED }
+        })
+      );
+      expect(result.status).toBe(TicketStatus.EXPIRED);
+    });
+
+    it('throws when the ticket does not belong to the event', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateTicketStatus(mockEvent.id, 'missing-ticket', TicketStatus.USED)
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockPrisma.ticket.update).not.toHaveBeenCalled();
     });
   });
 

@@ -18,7 +18,7 @@ import type { Request, Response } from 'express';
 import type Stripe from 'stripe';
 import { EventsService } from './events.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
-import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, RecordExternalTicketClickDto } from './dto/index.js';
+import { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, ValidateTicketDto, GenerateTicketsDto, ConfirmCheckoutDto, IssueTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, RecordExternalTicketClickDto, UpdateTicketStatusDto } from './dto/index.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Public } from '../common/decorators/public.decorator.js';
@@ -168,6 +168,17 @@ export class EventsController {
       dto.provider,
       dto.quantity ?? 1
     );
+  }
+
+  @Patch(':id/tickets/:ticketId/status')
+  @RequirePermission(Permission.MANAGE_TICKETS)
+  @ApiBearerAuth()
+  updateTicketStatus(
+    @Param('id') eventId: string,
+    @Param('ticketId') ticketId: string,
+    @Body() dto: UpdateTicketStatusDto
+  ) {
+    return this.eventsService.updateTicketStatus(eventId, ticketId, dto.status);
   }
 
   @Post(':id/external-ticket-click')

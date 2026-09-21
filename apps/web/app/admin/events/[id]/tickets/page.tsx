@@ -55,6 +55,16 @@ export default function EventTicketsPage() {
     }
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) => {
+      const res = await api.patch(`/events/${eventId}/tickets/${ticketId}/status`, { status });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'event', eventId, 'tickets'] });
+    }
+  });
+
   const filteredTickets = ticketsResponse?.tickets.filter((t) => {
     const term = search.toLowerCase();
     return (
@@ -202,25 +212,41 @@ export default function EventTicketsPage() {
                       <p className="text-xs text-slate-500">{ticket.user.email}</p>
                     </td>
                     <td className="py-3">
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
-                          ticket.status === 'VALID'
-                            ? 'bg-green-500/10 text-green-400'
-                            : ticket.status === 'USED'
-                            ? 'bg-amber-500/10 text-amber-400'
-                            : 'bg-red-500/10 text-red-400'
-                        )}
-                      >
-                        {ticket.status === 'VALID' ? (
-                          <TicketCheck className="h-3 w-3" />
-                        ) : ticket.status === 'USED' ? (
-                          <QrCode className="h-3 w-3" />
-                        ) : (
-                          <TicketX className="h-3 w-3" />
-                        )}
-                        {ticket.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+                            ticket.status === 'VALID'
+                              ? 'bg-green-500/10 text-green-400'
+                              : ticket.status === 'USED'
+                              ? 'bg-amber-500/10 text-amber-400'
+                              : 'bg-red-500/10 text-red-400'
+                          )}
+                        >
+                          {ticket.status === 'VALID' ? (
+                            <TicketCheck className="h-3 w-3" />
+                          ) : ticket.status === 'USED' ? (
+                            <QrCode className="h-3 w-3" />
+                          ) : (
+                            <TicketX className="h-3 w-3" />
+                          )}
+                          {ticket.status}
+                        </span>
+                        <select
+                          value={ticket.status}
+                          disabled={statusMutation.isPending}
+                          onChange={(e) =>
+                            statusMutation.mutate({ ticketId: ticket.id, status: e.target.value })
+                          }
+                          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs outline-none focus:border-neon-blue disabled:opacity-50"
+                          aria-label={`Change status for ticket ${ticket.ticketNumber ?? ticket.id}`}
+                        >
+                          <option value="VALID">Valid</option>
+                          <option value="USED">Used</option>
+                          <option value="EXPIRED">Expired</option>
+                          <option value="CANCELLED">Cancelled</option>
+                        </select>
+                      </div>
                     </td>
                     <td className="py-3 text-slate-500">
                       {formatDateTime(ticket.purchaseDatetime)}
