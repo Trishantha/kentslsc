@@ -15,7 +15,8 @@ import {
   EventCategory,
   Prisma,
   PaymentStatus,
-  PaymentSourceType
+  PaymentSourceType,
+  type Payment
 } from '@kentslsc/database';
 
 interface PayerAddress {
@@ -918,6 +919,46 @@ export class EventsService {
     return tickets;
   }
 
+  /**
+   * Issue the tickets belonging to a completed ticket payment that has none.
+   *
+   * This is the fulfilment safety net for payments that were captured on the
+   * provider side but never fulfilled locally — e.g. the Stripe webhook was
+   * dropped and the payer closed the browser before the confirmation call.
+   * The Payment row (recorded at checkout or by the reconciliation sync)
+   * carries everything needed: user, event and quantity.
+   */
+  async fulfilTicketsForPayment(payment: Payment) {
+    const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
+    const userId = payment.userId ?? (typeof metadata.userId === 'string' ? metadata.userId : null);
+    const eventId = payment.eventId ?? (typeof metadata.eventId === 'string' ? metadata.eventId : null);
+    if (!userId || !eventId) return null;
+
+    const quantity = Number(metadata.quantity ?? 1);
+    if (!Number.isInteger(quantity) || quantity < 1) return null;
+
+    const origin = this.configService.get('FRONTEND_URL', { infer: true });
+
+    return this.createTickets(userId, eventId, quantity, origin, {
+      existingPaymentId: payment.id,
+      channel: payment.paymentChannel === 'gocardless' ? 'gocardless' : 'stripe',
+      method: payment.paymentMethod ?? null,
+      currency: payment.currency ?? 'GBP',
+      grossAmount: Math.round(Number(payment.grossAmount) * 100),
+      processingFee: Math.round(Number(payment.processingFee) * 100),
+      netAmount: Math.round(Number(payment.netAmount) * 100),
+      providerCheckoutId: payment.providerCheckoutId ?? null,
+      providerPaymentId: payment.providerPaymentId ?? null,
+      purchasedAt: payment.purchasedAt ?? payment.createdAt,
+      payerEmail: payment.payerEmail,
+      payerName: payment.payerName,
+      payerPhone: payment.payerPhone,
+      paymentStatus: PaymentStatus.COMPLETED,
+      sourceType: PaymentSourceType.TICKET,
+      notes: 'Auto-issued by ticket payment reconciliation'
+    });
+  }
+
   async getUserTickets(userId: string) {
     return this.prisma.ticket.findMany({
       where: { userId, deletedAt: null },
@@ -1020,6 +1061,7 @@ export class EventsService {
     if (ticket.event.endDatetime < new Date()) throw new BadRequestException('Event has ended');
     if (ticket.status === TicketStatus.USED) throw new BadRequestException('Ticket already used');
     if (ticket.status === TicketStatus.CANCELLED) throw new BadRequestException('Ticket cancelled');
+    if (ticket.status === TicketStatus.EXPIRED) throw new BadRequestException('Ticket expired');
 
     const updated = await this.prisma.ticket.update({
       where: { id: ticket.id },
@@ -1052,6 +1094,14 @@ export class EventsService {
     }
 
     if (provider === 'stripe') {
+      // Embedded Payment Element checkouts have no Checkout Session; the id is
+      // a PaymentIntent and must be resolved through the intent instead.
+      if (sessionId.startsWith('pi_')) {
+        const session = await this.buildPseudoSessionFromPaymentIntentId(sessionId);
+        const tickets = await this.handleCheckoutCompleted(session);
+        return { tickets: tickets ?? [], created: true };
+      }
+
       const session = await this.paymentsService.getCheckoutSession(sessionId, currentUserId);
       if (session.status !== 'complete' || session.paymentStatus !== 'paid') {
         throw new BadRequestException(
@@ -1077,6 +1127,49 @@ export class EventsService {
 
     // PayPal confirmation would need an order-lookup helper; for now return early.
     throw new BadRequestException('PayPal confirmation is not yet supported');
+  }
+
+  /**
+   * Map a succeeded Stripe PaymentIntent (embedded Payment Element checkout)
+   * onto a Checkout-Session-shaped object so the fulfilment handlers work
+   * unchanged. Mirrors WebhookProcessor.buildPseudoSessionFromPaymentIntent.
+   */
+  private async buildPseudoSessionFromPaymentIntentId(
+    paymentIntentId: string
+  ): Promise<Stripe.Checkout.Session> {
+    const paymentIntent = await this.paymentsService
+      .getClient()
+      .paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] });
+
+    if (paymentIntent.status !== 'succeeded') {
+      throw new BadRequestException(
+        `Payment is not complete (status: ${paymentIntent.status ?? 'unknown'})`
+      );
+    }
+
+    const charge =
+      typeof paymentIntent.latest_charge === 'string' ? null : paymentIntent.latest_charge;
+
+    return {
+      id: paymentIntent.id,
+      object: 'checkout.session',
+      metadata: paymentIntent.metadata ?? {},
+      status: 'complete',
+      payment_status: 'paid',
+      amount_total: paymentIntent.amount,
+      amount_subtotal: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      payment_intent: paymentIntent.id,
+      customer_email: charge?.billing_details?.email ?? paymentIntent.receipt_email,
+      customer_details: {
+        email: charge?.billing_details?.email ?? paymentIntent.receipt_email ?? null,
+        name: charge?.billing_details?.name ?? null,
+        phone: charge?.billing_details?.phone ?? null,
+        address: null,
+        tax_exempt: 'none'
+      },
+      created: paymentIntent.created
+    } as Stripe.Checkout.Session;
   }
 
   /**
@@ -1107,8 +1200,39 @@ export class EventsService {
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
 
     if (provider === 'stripe') {
-      const session = await this.paymentsService.getCheckoutSession(sessionId);
-      const metadata = session.metadata ?? {};
+      let metadata: Record<string, string>;
+      let amountTotal: number;
+      let currency: string;
+      let paymentIntentId: string | null;
+      let payerEmail: string | null;
+
+      if (sessionId.startsWith('pi_')) {
+        // Embedded Payment Element checkout: resolve the PaymentIntent directly.
+        const session = await this.buildPseudoSessionFromPaymentIntentId(sessionId);
+        metadata = session.metadata ?? {};
+        amountTotal = session.amount_total ?? 0;
+        currency = session.currency ?? 'gbp';
+        paymentIntentId = session.payment_intent as string | null;
+        payerEmail = session.customer_details?.email ?? session.customer_email ?? null;
+      } else {
+        // Hosted checkout: full session lookup (metadata is not owner-filtered
+        // here because admins legitimately issue tickets to other users).
+        const session = await this.paymentsService.getFullCheckoutSession(sessionId);
+        if (session.status !== 'complete' || session.payment_status !== 'paid') {
+          throw new BadRequestException(
+            `Checkout session is not complete (status: ${session.status}, payment_status: ${session.payment_status})`
+          );
+        }
+        metadata = session.metadata ?? {};
+        amountTotal = session.amount_total ?? 0;
+        currency = session.currency ?? 'gbp';
+        paymentIntentId =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null;
+        payerEmail = session.customer_details?.email ?? session.customer_email ?? null;
+      }
+
       const eventIdFromSession = metadata.eventId;
       const userIdFromSession = metadata.userId;
       const quantityFromSession = Number(metadata.quantity || quantity);
@@ -1120,22 +1244,31 @@ export class EventsService {
         throw new BadRequestException('Session does not match the requested event');
       }
 
+      // Reuse the existing Payment ledger row when one was already recorded for
+      // this checkout (e.g. by the Stripe reconciliation sync), otherwise the
+      // payment would be double-counted in the reports.
+      const existingPayment = await this.prisma.payment.findFirst({
+        where: { providerCheckoutId: sessionId, deletedAt: null },
+        orderBy: { createdAt: 'desc' }
+      });
+
       const tickets = await this.createTickets(
         userIdFromSession,
         eventIdFromSession,
         quantityFromSession,
         origin,
         {
+          ...(existingPayment ? { existingPaymentId: existingPayment.id } : {}),
           channel: 'stripe',
-          method: 'card',
-          currency: (session.currency ?? 'gbp').toUpperCase(),
-          grossAmount: session.amountTotal,
+          method: existingPayment?.paymentMethod ?? 'card',
+          currency: currency.toUpperCase(),
+          grossAmount: amountTotal,
           processingFee: 0,
-          netAmount: session.amountTotal,
+          netAmount: amountTotal,
           providerCheckoutId: sessionId,
-          providerPaymentId: session.paymentIntentId ?? null,
+          providerPaymentId: paymentIntentId,
           purchasedAt: new Date(),
-          payerEmail: session.customerEmail ?? null,
+          payerEmail,
           payerName: null,
           payerPhone: null,
           payerAddress: null,

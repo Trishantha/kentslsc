@@ -21,7 +21,7 @@ export interface TicketListItemProps {
   ticket: {
     id: string;
     qrCodeValue: string;
-    status: 'VALID' | 'USED' | 'CANCELLED';
+    status: 'VALID' | 'USED' | 'CANCELLED' | 'EXPIRED';
     purchaseDatetime: string;
     ticketNumber?: string | null;
     serialNumber?: number | null;

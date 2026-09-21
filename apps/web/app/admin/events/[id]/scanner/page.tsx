@@ -23,7 +23,7 @@ import type { AdminEvent } from '../../page';
 interface TicketPreview {
   id: string;
   qrCodeValue: string;
-  status: 'VALID' | 'USED' | 'CANCELLED';
+  status: 'VALID' | 'USED' | 'CANCELLED' | 'EXPIRED';
   eventExpired: boolean;
   purchaseDatetime: string;
   event: {

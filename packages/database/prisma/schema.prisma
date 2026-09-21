@@ -33,6 +33,7 @@ enum TicketStatus {
   VALID
   USED
   CANCELLED
+  EXPIRED
 }
 
 enum PaymentStatus {

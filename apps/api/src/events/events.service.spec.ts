@@ -73,6 +73,7 @@ describe('EventsService', () => {
     payment: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn()
     },
@@ -656,23 +657,187 @@ describe('EventsService', () => {
       );
     });
 
-    it('throws when the Stripe session is complete but payment is not paid', async () => {
-      const sessionId = 'cs_test_unpaid';
-      mockPaymentsService.getCheckoutSession.mockResolvedValue({
-        id: sessionId,
-        status: 'complete',
-        paymentStatus: 'unpaid',
-        amountTotal: 2000,
+    it('issues tickets when confirming a PaymentIntent-backed embedded checkout', async () => {
+      const paymentIntentId = 'pi_3UHtest123';
+      const paymentIntentsRetrieve = jest.fn().mockResolvedValue({
+        id: paymentIntentId,
+        status: 'succeeded',
+        amount: 2050,
         currency: 'gbp',
-        metadata: null,
-        customerEmail: null,
-        paymentIntentId: null
+        created: Math.floor(Date.now() / 1000),
+        metadata: {
+          type: 'event_ticket',
+          eventId: mockEvent.id,
+          userId: mockUser.id,
+          quantity: '2'
+        },
+        receipt_email: mockUser.email,
+        latest_charge: {
+          billing_details: { email: mockUser.email, name: mockUser.name, phone: null }
+        }
+      });
+      (mockPaymentsService as any).getClient = () => ({
+        paymentIntents: { retrieve: paymentIntentsRetrieve }
       });
 
-      await expect(service.confirmCheckoutSession(sessionId, 'stripe', mockUser.id)).rejects.toThrow(
-        'Checkout session is not complete'
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findMany.mockResolvedValue([]);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      mockPrisma.payment.update.mockResolvedValue({ id: 'payment-1' });
+      mockPrisma.ticket.create
+        .mockResolvedValueOnce(createMockTicket({ id: 'pi-confirmed-1', stripeSessionId: paymentIntentId }))
+        .mockResolvedValueOnce(createMockTicket({ id: 'pi-confirmed-2', stripeSessionId: paymentIntentId }));
+
+      const result = await service.confirmCheckoutSession(paymentIntentId, 'stripe', mockUser.id);
+
+      expect(paymentIntentsRetrieve).toHaveBeenCalledWith(paymentIntentId, { expand: ['latest_charge'] });
+      expect(mockPaymentsService.getCheckoutSession).not.toHaveBeenCalled();
+      expect(result.created).toBe(true);
+      expect(result.tickets).toHaveLength(2);
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
+    });
+
+    it('throws when the PaymentIntent has not succeeded', async () => {
+      const paymentIntentId = 'pi_3UHpending';
+      (mockPaymentsService as any).getClient = () => ({
+        paymentIntents: {
+          retrieve: jest.fn().mockResolvedValue({
+            id: paymentIntentId,
+            status: 'processing',
+            metadata: { type: 'event_ticket' }
+          })
+        }
+      });
+      mockPrisma.ticket.findMany.mockResolvedValue([]);
+
+      await expect(service.confirmCheckoutSession(paymentIntentId, 'stripe', mockUser.id)).rejects.toThrow(
+        'Payment is not complete'
       );
       expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fulfilTicketsForPayment', () => {
+    const completedTicketPayment = {
+      id: 'payment-orphan',
+      userId: mockUser.id,
+      eventId: mockEvent.id,
+      paymentChannel: 'stripe',
+      paymentMethod: 'card',
+      paymentStatus: PaymentStatus.COMPLETED,
+      sourceType: PaymentSourceType.TICKET,
+      providerCheckoutId: 'pi_3UHorphan',
+      providerPaymentId: 'pi_3UHorphan',
+      currency: 'GBP',
+      grossAmount: 20.5,
+      processingFee: 0.5,
+      netAmount: 20,
+      payerEmail: mockUser.email,
+      payerName: mockUser.name,
+      payerPhone: null,
+      purchasedAt: new Date(),
+      createdAt: new Date(),
+      metadata: { quantity: 2 }
+    };
+
+    it('issues tickets against the existing completed payment without creating a duplicate', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.findUnique.mockResolvedValue(completedTicketPayment);
+      mockPrisma.payment.update.mockResolvedValue(completedTicketPayment);
+      mockPrisma.ticket.create
+        .mockResolvedValueOnce(createMockTicket({ id: 'backfill-1', paymentId: 'payment-orphan', stripeSessionId: 'pi_3UHorphan' }))
+        .mockResolvedValueOnce(createMockTicket({ id: 'backfill-2', paymentId: 'payment-orphan', stripeSessionId: 'pi_3UHorphan' }));
+
+      const tickets = await service.fulfilTicketsForPayment(completedTicketPayment as any);
+
+      expect(tickets).toHaveLength(2);
+      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
+      expect(mockPrisma.ticket.create).toHaveBeenCalledTimes(2);
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
+    });
+
+    it('returns null when the payment is missing user or event information', async () => {
+      const result = await service.fulfilTicketsForPayment({
+        ...completedTicketPayment,
+        userId: null,
+        eventId: null,
+        metadata: {}
+      } as any);
+
+      expect(result).toBeNull();
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('issueTicketsFromExistingSession', () => {
+    it('issues tickets for a PaymentIntent id and reuses the existing payment row', async () => {
+      const paymentIntentId = 'pi_3UHmanual';
+      (mockPaymentsService as any).getClient = () => ({
+        paymentIntents: {
+          retrieve: jest.fn().mockResolvedValue({
+            id: paymentIntentId,
+            status: 'succeeded',
+            amount: 2050,
+            currency: 'gbp',
+            created: Math.floor(Date.now() / 1000),
+            metadata: {
+              type: 'event_ticket',
+              eventId: mockEvent.id,
+              userId: mockUser.id,
+              quantity: '2'
+            },
+            receipt_email: mockUser.email,
+            latest_charge: {
+              billing_details: { email: mockUser.email, name: mockUser.name, phone: null }
+            }
+          })
+        }
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findMany.mockResolvedValue([]);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.findFirst.mockResolvedValue({
+        id: 'payment-synced',
+        paymentStatus: PaymentStatus.COMPLETED,
+        paymentChannel: 'stripe',
+        sourceType: PaymentSourceType.TICKET,
+        userId: mockUser.id,
+        eventId: mockEvent.id
+      });
+      mockPrisma.payment.findUnique.mockResolvedValue({
+        id: 'payment-synced',
+        paymentStatus: PaymentStatus.COMPLETED,
+        paymentChannel: 'stripe',
+        sourceType: PaymentSourceType.TICKET,
+        userId: mockUser.id,
+        eventId: mockEvent.id
+      });
+      mockPrisma.payment.update.mockResolvedValue({ id: 'payment-synced' });
+      mockPrisma.ticket.create
+        .mockResolvedValueOnce(createMockTicket({ id: 'manual-1', stripeSessionId: paymentIntentId }))
+        .mockResolvedValueOnce(createMockTicket({ id: 'manual-2', stripeSessionId: paymentIntentId }));
+
+      const result = await service.issueTicketsFromExistingSession(
+        'admin-1',
+        mockEvent.id,
+        paymentIntentId,
+        'stripe'
+      );
+
+      expect(result.created).toBe(true);
+      expect(result.tickets).toHaveLength(2);
+      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
+      expect(mockPaymentsService.getCheckoutSession).not.toHaveBeenCalled();
+      expect(mockEmailQueueService.addSendTicketEmailJob).toHaveBeenCalled();
     });
   });
 

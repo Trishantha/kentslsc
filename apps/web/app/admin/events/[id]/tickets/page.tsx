@@ -14,7 +14,7 @@ interface TicketRow {
   qrCodeValue: string;
   serialNumber: number | null;
   ticketNumber: string | null;
-  status: 'VALID' | 'USED' | 'CANCELLED';
+  status: 'VALID' | 'USED' | 'CANCELLED' | 'EXPIRED';
   purchaseDatetime: string;
   user: { id: string; name: string; email: string };
 }
