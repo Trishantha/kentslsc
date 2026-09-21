@@ -3,31 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/api build && corepack pnpm --filter @kentslsc/web build && node scripts/write-build-info.js",
-    "deploy:hostinger:frontend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/shared build && corepack pnpm --filter @kentslsc/web build && node scripts/write-build-info.js apps/web/.next",
-    "deploy:hostinger:backend": "corepack pnpm install --frozen-lockfile && corepack pnpm clean && corepack pnpm --filter @kentslsc/database build && corepack pnpm --filter @kentslsc/api build && node scripts/write-build-info.js apps/api/dist",
-    "build:clean": "corepack pnpm clean && corepack pnpm build",
+    "build": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/api build && pnpm --filter @kentslsc/web build",
+    "deploy:hostinger:frontend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/shared build && pnpm --filter @kentslsc/web build",
+    "deploy:hostinger:backend": "corepack enable && corepack prepare pnpm@11.21.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @kentslsc/database build && pnpm --filter @kentslsc/api build",
+    "build:clean": "pnpm clean && pnpm build",
     "start": "node server.js",
-    "dev": "node server.js",
-    "dev:clean": "corepack pnpm clean && corepack pnpm dev",
+      "dev": "node server.js",
+    "dev:clean": "pnpm clean && pnpm dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "typecheck": "turbo run typecheck",
     "clean": "rm -rf .turbo apps/*/.turbo packages/*/.turbo apps/web/.next apps/api/dist packages/*/dist",
-    "db:generate": "corepack pnpm --filter database generate",
-    "db:migrate": "corepack pnpm --filter database migrate",
-    "db:seed": "corepack pnpm --filter database seed",
-    "db:studio": "corepack pnpm --filter database studio",
-    "reconcile:payments": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/reconcile-payments.ts",
-    "backfill:membership-payment-status": "corepack pnpm --filter @kentslsc/database exec tsx ../../apps/api/scripts/backfill-membership-payment-status.ts"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.112.3"
+    "db:generate": "pnpm --filter database generate",
+    "db:migrate": "pnpm --filter database migrate",
+    "db:seed": "pnpm --filter database seed",
+    "db:studio": "pnpm --filter database studio"
   },
   "devDependencies": {
-    "turbo": "^2.10.11",
-    "typescript": "^5.9.3"
+    "turbo": "^2.10.9"
   },
   "packageManager": "pnpm@11.21.0",
   "engines": {

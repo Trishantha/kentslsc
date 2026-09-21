@@ -7,6 +7,7 @@
     "blog": "Blog",
     "about": "About",
     "contact": "Contact",
+    "emergency": "Emergency",
     "privacy": "Privacy Policy",
     "forum": "Forum",
     "membership": "Membership",
@@ -323,6 +324,109 @@
     "privacyConsentLabel": "I have read and agree to the",
     "privacyLinkText": "Privacy Policy",
     "privacyConsentError": "You must accept the Privacy Policy to send a message."
+  },
+  "emergency": {
+    "title": "Emergency Contacts",
+    "subtitle": "Important numbers for emergencies, health support and counselling — in the UK and in Sri Lanka. Save this page so you can find it quickly when it matters.",
+    "bannerTitle": "In immediate danger?",
+    "bannerText": "In the UK, call 999 now for police, fire or ambulance. Every card below can be tapped to call directly from your phone.",
+    "disclaimer": "Kent SLSC is not an emergency service and cannot respond to emergencies. Please always contact the official services listed above. Numbers are checked regularly, but if one does not work, dial the relevant national emergency number (999 in the UK, 119 in Sri Lanka).",
+    "sections": {
+      "ukServices": {
+        "title": "UK Emergency Services",
+        "subtitle": "For life-threatening emergencies and urgent help anywhere in the United Kingdom."
+      },
+      "ukMentalHealth": {
+        "title": "Mental Health & Counselling",
+        "subtitle": "Free, confidential support lines available around the clock, whenever you need someone to talk to."
+      },
+      "sriLanka": {
+        "title": "Sri Lanka",
+        "subtitle": "National helplines in Sri Lanka — useful for family and friends back home."
+      }
+    },
+    "contacts": {
+      "uk999": {
+        "name": "Police, Fire & Ambulance",
+        "description": "The main emergency number in the UK. Use for any life-threatening emergency."
+      },
+      "uk101": {
+        "name": "Police (Non-Emergency)",
+        "description": "Report a crime that is not in progress, or speak to your local police."
+      },
+      "uk111": {
+        "name": "NHS 111",
+        "description": "Urgent medical advice when it is not a 999 emergency, available 24/7."
+      },
+      "uk112": {
+        "name": "Emergency (Alternate)",
+        "description": "Works UK-wide and across Europe, including from mobiles with no signal on your own network."
+      },
+      "uk105": {
+        "name": "Power Cuts",
+        "description": "Report a power cut or get updates from your local electricity network."
+      },
+      "samaritans": {
+        "name": "Samaritans",
+        "description": "24/7 emotional support for anyone struggling to cope. Free to call."
+      },
+      "shout": {
+        "name": "Shout",
+        "description": "24/7 crisis text line. Text SHOUT to 85258 from any UK mobile."
+      },
+      "saneline": {
+        "name": "SANEline",
+        "description": "Out-of-hours mental health helpline for anyone affected by mental illness."
+      },
+      "nhsMentalHealth": {
+        "name": "NHS Mental Health Crisis",
+        "description": "Call 111 and select option 2 to reach your local NHS urgent mental health helpline."
+      },
+      "slPolice": {
+        "name": "Police Emergency",
+        "description": "National police emergency line for crimes and immediate danger."
+      },
+      "slAmbulance": {
+        "name": "Ambulance (Suwa Seriya)",
+        "description": "Free government ambulance service, available 24/7 island-wide."
+      },
+      "slFire": {
+        "name": "Fire & Rescue",
+        "description": "Fire brigade and rescue emergencies."
+      },
+      "slDisaster": {
+        "name": "Disaster Management",
+        "description": "Disaster Management Centre hotline for floods, landslides and other disasters."
+      },
+      "slMentalHealth": {
+        "name": "Mental Health Helpline",
+        "description": "National Institute of Mental Health helpline for emotional support and crisis help."
+      },
+      "slChild": {
+        "name": "Child Protection",
+        "description": "National Child Protection Authority helpline for children at risk."
+      },
+      "slWomen": {
+        "name": "Women in Need",
+        "description": "Support for women facing violence or abuse, available in Sinhala and Tamil."
+      },
+      "slTourist": {
+        "name": "Tourist Police",
+        "description": "Police assistance for tourists, including complaints and emergencies."
+      },
+      "slGovInfo": {
+        "name": "Government Info Centre",
+        "description": "General government information and public service guidance."
+      },
+      "slSumithrayo": {
+        "name": "Sumithrayo",
+        "description": "Confidential befriending service for anyone lonely, distressed or in emotional crisis."
+      },
+      "slCccline": {
+        "name": "CCCline 1333",
+        "description": "Free 24/7 emotional support and suicide prevention helpline in Sinhala and Tamil."
+      }
+    }
   },
   "privacy": {
     "metaTitle": "Privacy Policy | Kent Sri Lankan Social Club",

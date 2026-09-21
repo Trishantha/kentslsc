@@ -31,6 +31,7 @@ export function Footer() {
               <li><Link href="/events">{nav('events')}</Link></li>
               <li><Link href="/directory">{nav('directory')}</Link></li>
               <li><Link href="/membership">{nav('membership')}</Link></li>
+              <li><Link href="/emergency">{nav('emergency')}</Link></li>
               <li><Link href="/contact">{nav('contact')}</Link></li>
               <li><Link href="/privacy-policy">Privacy Policy</Link></li>
               <li><Link href="/terms-and-conditions">Terms &amp; Conditions</Link></li>

@@ -36,6 +36,7 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
     { href: '/fundraisers', label: t('fundraising') },
     { href: '/blog', label: t('blog') },
     { href: '/about', label: t('about') },
+    { href: '/emergency', label: t('emergency') },
     { href: '/contact', label: t('contact') }
   ] as const;
 

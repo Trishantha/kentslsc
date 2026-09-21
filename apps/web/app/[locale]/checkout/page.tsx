@@ -150,21 +150,22 @@ function CheckoutForm({ detail }: { detail: PaymentIntentDetail }) {
 
   return (
     <div>
+      {/* Always mounted: the element renders nothing when no wallet is
+          available, and hiding it behind expressAvailable would prevent
+          onReady from ever firing (so the buttons would never appear). */}
+      <ExpressCheckoutElement
+        options={{ paymentMethodOrder: ['apple_pay', 'google_pay'] }}
+        onReady={({ availablePaymentMethods }) =>
+          setExpressAvailable(Boolean(availablePaymentMethods))
+        }
+        onConfirm={handleExpressConfirm}
+        onCancel={() => setIsPaying(false)}
+      />
       {expressAvailable && (
-        <div className="mb-2">
-          <ExpressCheckoutElement
-            options={{ paymentMethodOrder: ['apple_pay', 'google_pay'] }}
-            onReady={({ availablePaymentMethods }) =>
-              setExpressAvailable(Boolean(availablePaymentMethods))
-            }
-            onConfirm={handleExpressConfirm}
-            onCancel={() => setIsPaying(false)}
-          />
-          <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-500">
-            <span className="h-px flex-1 bg-white/10" />
-            or pay with card
-            <span className="h-px flex-1 bg-white/10" />
-          </div>
+        <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-500">
+          <span className="h-px flex-1 bg-white/10" />
+          or pay with card
+          <span className="h-px flex-1 bg-white/10" />
         </div>
       )}
       <form onSubmit={handleSubmit}>

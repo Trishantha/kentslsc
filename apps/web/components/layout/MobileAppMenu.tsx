@@ -17,7 +17,8 @@ import {
   LayoutDashboard,
   ChevronRight,
   Shield,
-  UserPlus
+  UserPlus,
+  Siren
 } from 'lucide-react';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -123,6 +124,7 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
   ];
 
   const secondaryMenuItems: MenuItem[] = [
+    { href: '/emergency', label: nav('emergency'), icon: Siren },
     { href: '/fundraisers', label: nav('fundraising'), icon: Heart },
     { href: '/blog', label: nav('blog'), icon: Newspaper },
     { href: '/about', label: t('aboutUs'), icon: Info },
