@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { RefundsService } from './refunds.service.js';
-import { PaymentStatus, TicketStatus } from '@kentslsc/database';
+import { PaymentStatus } from '@kentslsc/database';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 jest.mock('gocardless-nodejs', () => ({
@@ -14,6 +14,7 @@ function buildPayment(overrides: any = {}) {
     paymentStatus: PaymentStatus.COMPLETED,
     paymentChannel: 'stripe',
     providerPaymentId: 'pi_123',
+    providerCheckoutId: 'cs_test_123',
     currency: 'GBP',
     grossAmount: 10,
     refundedAmount: null,
@@ -30,16 +31,14 @@ describe('RefundsService', () => {
     payment: {
       findUnique: jest.fn(),
       update: jest.fn()
-    },
-    ticket: {
-      updateMany: jest.fn()
     }
   } as any;
 
   const paymentsService = {
     refundStripePaymentIntent: jest.fn(),
     refundPayPalCapture: jest.fn(),
-    getStripePaymentIntentIdFromSession: jest.fn()
+    getStripePaymentIntentIdFromSession: jest.fn(),
+    cancelTicketsForRefund: jest.fn(async () => 0)
   } as any;
 
   const emailService = {
@@ -75,20 +74,13 @@ describe('RefundsService', () => {
     const payment = buildPayment();
     prisma.payment.findUnique.mockResolvedValue(payment);
     paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_123' });
-    prisma.ticket.updateMany.mockResolvedValue({ count: 2 });
+    paymentsService.cancelTicketsForRefund.mockResolvedValue(2);
     prisma.payment.update.mockResolvedValue({ ...payment, paymentStatus: PaymentStatus.REFUNDED });
 
     const result = await service.refundPayment('pay-1', { reason: 'Requested by customer' });
 
     expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith('pi_123', 1000, 'Requested by customer');
-    expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
-      where: {
-        paymentId: 'pay-1',
-        status: { not: TicketStatus.CANCELLED },
-        deletedAt: null
-      },
-      data: { status: TicketStatus.CANCELLED }
-    });
+    expect(paymentsService.cancelTicketsForRefund).toHaveBeenCalledWith('pay-1', 'cs_test_123');
     expect(prisma.payment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'pay-1' },
@@ -112,7 +104,7 @@ describe('RefundsService', () => {
   it('records a partial refund, leaves payment partially refunded and still cancels tickets', async () => {
     prisma.payment.findUnique.mockResolvedValue(buildPayment());
     paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_partial' });
-    prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
+    paymentsService.cancelTicketsForRefund.mockResolvedValue(1);
     prisma.payment.update.mockResolvedValue({
       ...buildPayment(),
       paymentStatus: PaymentStatus.PARTIALLY_REFUNDED,
@@ -124,12 +116,7 @@ describe('RefundsService', () => {
     expect(result.isFullyRefunded).toBe(false);
     expect(result.refundedAmount).toBe(5);
     expect(paymentsService.refundStripePaymentIntent).toHaveBeenCalledWith('pi_123', 500, undefined);
-    expect(prisma.ticket.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ paymentId: 'pay-1' }),
-        data: { status: TicketStatus.CANCELLED }
-      })
-    );
+    expect(paymentsService.cancelTicketsForRefund).toHaveBeenCalledWith('pay-1', 'cs_test_123');
     expect(emailService.sendTicketRefundConfirmation).toHaveBeenCalledWith(
       'payer@example.com',
       'Summer Event',
@@ -142,7 +129,7 @@ describe('RefundsService', () => {
   it('does not send a refund email when no tickets are linked to the payment', async () => {
     prisma.payment.findUnique.mockResolvedValue(buildPayment());
     paymentsService.refundStripePaymentIntent.mockResolvedValue({ providerRefundId: 're_123' });
-    prisma.ticket.updateMany.mockResolvedValue({ count: 0 });
+    paymentsService.cancelTicketsForRefund.mockResolvedValue(0);
     prisma.payment.update.mockResolvedValue({ ...buildPayment(), paymentStatus: PaymentStatus.REFUNDED });
 
     await service.refundPayment('pay-1', {});

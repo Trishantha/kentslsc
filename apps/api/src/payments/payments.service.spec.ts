@@ -22,6 +22,9 @@ describe('PaymentsService', () => {
     user: {
       findUnique: jest.fn(),
       update: jest.fn()
+    },
+    ticket: {
+      updateMany: jest.fn(async () => ({ count: 0 }))
     }
   };
 
@@ -1269,6 +1272,90 @@ describe('PaymentsService', () => {
           })
         })
       );
+    });
+
+    it('cancels tickets when a Stripe refund is detected during sync', async () => {
+      const prismaWithExistingPayment = {
+        ...mockPrisma,
+        payment: {
+          findFirst: jest.fn(() =>
+            Promise.resolve({
+              id: 'pay-existing',
+              providerPaymentId: 'pi_test_123',
+              paymentStatus: 'COMPLETED',
+              refundedAmount: null,
+              grossAmount: 10.35
+            })
+          ) as any,
+          update: jest.fn(() => Promise.resolve({ id: 'pay-existing' })) as any
+        }
+      };
+
+      const service = new PaymentsService(mockConfig as any, prismaWithExistingPayment as any);
+      (service as any).stripe = {
+        checkout: {
+          sessions: {
+            list: jest.fn(async () => ({
+              data: [
+                {
+                  id: 'cs_test_123',
+                  payment_status: 'paid',
+                  status: 'complete',
+                  amount_total: 1035,
+                  currency: 'gbp',
+                  created: Math.floor(Date.now() / 1000),
+                  metadata: { type: 'event_ticket' },
+                  payment_intent: 'pi_test_123',
+                  payment_method_types: ['card'],
+                  customer_details: null
+                }
+              ],
+              has_more: false
+            }))
+          }
+        },
+        paymentIntents: {
+          retrieve: jest.fn(async () => ({
+            id: 'pi_test_123',
+            latest_charge: {
+              id: 'ch_test_123',
+              balance_transaction: { id: 'bt_test_123', fee: 30, net: 1005 }
+            }
+          })),
+          list: jest.fn(async () => ({ data: [], has_more: false }))
+        },
+        refunds: {
+          list: jest.fn(async () => ({ data: [{ amount: 1035 }] }))
+        }
+      };
+
+      await service.syncStripeRevenue();
+
+      expect(prismaWithExistingPayment.ticket.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [{ paymentId: 'pay-existing' }, { stripeSessionId: 'cs_test_123' }]
+          }),
+          data: { status: 'CANCELLED' }
+        })
+      );
+    });
+
+    it('cancelTicketsForRefund matches tickets linked by session id alone', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      mockPrisma.ticket.updateMany.mockResolvedValueOnce({ count: 2 });
+
+      const count = await service.cancelTicketsForRefund('pay-1', 'cs_test_123');
+
+      expect(count).toBe(2);
+      expect(mockPrisma.ticket.updateMany).toHaveBeenCalledWith({
+        where: {
+          deletedAt: null,
+          status: { not: 'CANCELLED' },
+          OR: [{ paymentId: 'pay-1' }, { stripeSessionId: 'cs_test_123' }]
+        },
+        data: { status: 'CANCELLED' }
+      });
     });
 
     it('skips unpaid sessions and reports errors without failing', async () => {

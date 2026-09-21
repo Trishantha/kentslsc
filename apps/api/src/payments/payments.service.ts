@@ -11,7 +11,7 @@ import {
   type ProcessingFeeResult
 } from '@kentslsc/shared';
 import { PrismaService } from '../core/prisma/prisma.service.js';
-import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
+import { PaymentSourceType, PaymentStatus, TicketStatus } from '@kentslsc/database';
 import type { Prisma } from '@kentslsc/database';
 import type { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 import { resolveInvoicePaymentIntentId } from './utils/stripe-compat.js';
@@ -527,6 +527,32 @@ export class PaymentsService {
   }
 
   /**
+   * Cancel tickets tied to a refunded payment so they cannot be used at the
+   * door. Tickets have been linked to payments both by payment id and by
+   * provider checkout/session id over time, so match either. Returns the
+   * number of tickets cancelled.
+   */
+  async cancelTicketsForRefund(paymentId: string, providerCheckoutId: string | null): Promise<number> {
+    const result = await this.prisma.ticket.updateMany({
+      where: {
+        deletedAt: null,
+        status: { not: TicketStatus.CANCELLED },
+        OR: [
+          { paymentId },
+          ...(providerCheckoutId ? [{ stripeSessionId: providerCheckoutId }] : [])
+        ]
+      },
+      data: { status: TicketStatus.CANCELLED }
+    });
+    if (result.count > 0) {
+      this.logger.log(
+        `Cancelled ${result.count} ticket(s) linked to refunded payment ${paymentId}`
+      );
+    }
+    return result.count;
+  }
+
+  /**
    * Apply a GoCardless refund (from a `refunds.created` webhook) to the local
    * Payment ledger row. GoCardless refund amounts are strings in minor units.
    */
@@ -551,7 +577,7 @@ export class PaymentsService {
     const isFullyRefunded = newRefundedAmount >= Number(payment.grossAmount) - 0.001;
     const refundedAt = refund.created_at ? new Date(refund.created_at) : new Date();
 
-    return this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
         paymentStatus: isFullyRefunded ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED,
@@ -560,6 +586,10 @@ export class PaymentsService {
         refundedAt
       }
     });
+
+    await this.cancelTicketsForRefund(payment.id, payment.providerCheckoutId ?? null);
+
+    return updated;
   }
 
   /**
@@ -952,6 +982,9 @@ export class PaymentsService {
         } else if (payment.paymentStatus !== PaymentStatus.REFUNDED) {
           updateData.paymentStatus = PaymentStatus.PARTIALLY_REFUNDED;
         }
+        // A refund processed in the Stripe dashboard (or before the tickets
+        // were linked) still leaves usable tickets behind — cancel them.
+        await this.cancelTicketsForRefund(payment.id, session.id);
       }
     }
 
@@ -1000,6 +1033,9 @@ export class PaymentsService {
         } else if (payment.paymentStatus !== PaymentStatus.REFUNDED) {
           updateData.paymentStatus = PaymentStatus.PARTIALLY_REFUNDED;
         }
+        // Embedded-checkout (Payment Element) payments key both the row and
+        // the tickets to the PaymentIntent id; cancel any live tickets.
+        await this.cancelTicketsForRefund(payment.id, paymentIntentId);
       }
     }
 

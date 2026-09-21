@@ -3,7 +3,7 @@ import { PrismaService } from '../core/prisma/prisma.service.js';
 import { PaymentsService } from './payments.service.js';
 import { GoCardlessService } from './gocardless.service.js';
 import { EmailService } from '../email/email.service.js';
-import { PaymentStatus, TicketStatus } from '@kentslsc/database';
+import { PaymentStatus } from '@kentslsc/database';
 
 export interface RefundPaymentInput {
   amount?: number;
@@ -108,20 +108,18 @@ export class RefundsService {
     const isFullyRefunded = newRefundedAmount >= Number(payment.grossAmount) - 0.001;
 
     // Cancel any tickets linked to this payment so they cannot be used.
-    const cancelledTickets = await this.prisma.ticket.updateMany({
-      where: {
-        paymentId: payment.id,
-        status: { not: TicketStatus.CANCELLED },
-        deletedAt: null
-      },
-      data: { status: TicketStatus.CANCELLED }
-    });
+    // Matches by payment id or provider checkout/session id because tickets
+    // have been linked both ways over time.
+    const cancelledCount = await this.paymentsService.cancelTicketsForRefund(
+      payment.id,
+      payment.providerCheckoutId ?? null
+    );
 
     let refundNotes = payment.notes
       ? `${payment.notes}\nRefund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`
       : `Refund ${isFullyRefunded ? 'full' : 'partial'}: ${requestedAmount.toFixed(2)} ${payment.currency}`;
-    if (cancelledTickets.count > 0) {
-      refundNotes += `\nTickets cancelled: ${cancelledTickets.count}`;
+    if (cancelledCount > 0) {
+      refundNotes += `\nTickets cancelled: ${cancelledCount}`;
 
       if (payment.payerEmail && payment.event?.title) {
         this.emailService
