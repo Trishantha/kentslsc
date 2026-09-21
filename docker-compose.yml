@@ -1,4 +1,28 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kentslsc
+      POSTGRES_PASSWORD: kentslsc
+      POSTGRES_DB: kentslsc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kentslsc -d kentslsc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -6,11 +30,37 @@ services:
     ports:
       - "3000:3000"
       - "3001:3001"
+    env_file:
+      - .env
     environment:
-      NODE_ENV: production
+      # This compose file is for local development. Production deployments must not
+      # point FRONTEND_URL at localhost; the API explicitly rejects localhost
+      # origins in production to prevent broken callbacks and insecure setup.
+      # The unified server forces production mode for its child processes and the
+      # API rejects localhost FRONTEND_URL values, so this codespace's forwarded
+      # origin is used here instead of localhost.
+      NODE_ENV: development
       PORT: 3000
-      API_PORT: 3001
-      FRONTEND_URL: http://localhost:3000
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      API_PROXY_TARGET: http://localhost:3001
+      DATABASE_URL: postgresql://kentslsc:kentslsc@postgres:5432/kentslsc
+      REDIS_URL: redis://redis:6379
+      QUEUE_ENABLED: "true"
+      FRONTEND_URL: https://laughing-waffle-rpw6wv5vq7qfw5g-3000.app.github.dev
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      # API runs as a separate child process so a crash or memory spike on that
+      # side does not take down the web. The web runs in-process: Next 16's
+      # `next start` handles middleware rewrites (next-intl locale rewriting) as
+      # external HTTP fetches, which breaks the locale rewrite and produces
+      # redirect loops (307 to self) and 500s when x-forwarded-proto is https.
+      # The in-process handler resolves the same rewrite internally, which the
+      # server-handler smoke tests verify (/ 200, /en 307 -> /, /auth/login 200).
+      API_MODE: unix
+      WEB_MODE: in-process
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:
