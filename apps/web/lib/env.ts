@@ -17,8 +17,10 @@ export function readEnv(key: string): string | undefined {
  */
 export function getFrontendUrl(): string {
   return (
-    readEnv('FRONTEND_URL') ??
-    readEnv('NEXT_PUBLIC_FRONTEND_URL') ??
-    'http://localhost:3000'
+    (
+      readEnv('FRONTEND_URL') ??
+      readEnv('NEXT_PUBLIC_FRONTEND_URL') ??
+      'http://localhost:3000'
+    ).replace(/\/+$/, '')
   );
 }
