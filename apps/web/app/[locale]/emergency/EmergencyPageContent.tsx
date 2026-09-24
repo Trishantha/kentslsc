@@ -11,12 +11,10 @@ import {
   Handshake,
   MessageCircle,
   Brain,
-  Globe,
-  Flame,
-  CloudLightning,
+  ShieldAlert,
   Baby,
-  Landmark,
-  LifeBuoy
+  Smile,
+  HeartHandshake
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -74,25 +72,18 @@ const sections: Section[] = [
     ]
   },
   {
-    id: 'sriLanka',
-    icon: Globe,
+    id: 'ukSupport',
+    icon: HeartHandshake,
     theme: {
-      iconBg: 'bg-neon-gold/10 text-neon-gold',
-      numberText: 'text-amber-600 dark:text-neon-gold',
-      chip: 'border-neon-gold/40 bg-neon-gold/10 text-amber-800 dark:text-neon-gold'
+      iconBg: 'bg-teal-500/10 text-teal-500',
+      numberText: 'text-teal-600 dark:text-teal-400',
+      chip: 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-400'
     },
     contacts: [
-      { id: 'slPolice', icon: Shield, number: '119', tel: '119' },
-      { id: 'slAmbulance', icon: Stethoscope, number: '1990', tel: '1990' },
-      { id: 'slFire', icon: Flame, number: '110', tel: '110' },
-      { id: 'slDisaster', icon: CloudLightning, number: '117', tel: '117' },
-      { id: 'slMentalHealth', icon: Brain, number: '1926', tel: '1926' },
-      { id: 'slChild', icon: Baby, number: '1929', tel: '1929' },
-      { id: 'slWomen', icon: Handshake, number: '1938', tel: '1938' },
-      { id: 'slTourist', icon: LifeBuoy, number: '1912', tel: '1912' },
-      { id: 'slGovInfo', icon: Landmark, number: '1919', tel: '1919' },
-      { id: 'slSumithrayo', icon: HeartPulse, number: '+94 11 269 6666', tel: '+94112696666' },
-      { id: 'slCccline', icon: MessageCircle, number: '1333', tel: '+941333' }
+      { id: 'domesticAbuse', icon: ShieldAlert, number: '0808 2000 247', tel: '08082000247' },
+      { id: 'nspcc', icon: Baby, number: '0808 800 5000', tel: '08088005000' },
+      { id: 'childline', icon: Smile, number: '0800 1111', tel: '08001111' },
+      { id: 'silverLine', icon: HeartHandshake, number: '0800 4 70 80 90', tel: '08004708090' }
     ]
   }
 ];
@@ -117,7 +108,7 @@ export default function EmergencyPageContent() {
     <div className="relative overflow-hidden px-4 py-16 md:px-6">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-40">
         <div className="absolute -right-20 top-0 h-96 w-96 rounded-full bg-red-500/10 blur-3xl" />
-        <div className="absolute bottom-40 -left-20 h-80 w-80 rounded-full bg-neon-gold/10 blur-3xl" />
+        <div className="absolute bottom-40 -left-20 h-80 w-80 rounded-full bg-teal-500/10 blur-3xl" />
         <div className="absolute left-1/2 top-1/3 h-64 w-64 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
       </div>
 
