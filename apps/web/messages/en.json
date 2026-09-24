@@ -343,6 +343,28 @@
       "ukSupport": {
         "title": "More UK Helplines",
         "subtitle": "Free, confidential support for other needs — domestic abuse, child protection and older people's wellbeing."
+      },
+      "sriLankaMission": {
+        "title": "Sri Lankan High Commission & Consulate",
+        "subtitle": "Sri Lanka's diplomatic missions in the UK — for passports, visas, registrations and consular assistance."
+      }
+    },
+    "missions": {
+      "london": {
+        "name": "High Commission of Sri Lanka — London",
+        "address": "13 Hyde Park Gardens, London W2 2LU",
+        "hours": "Monday–Friday",
+        "hoursNote": "Most consular services (passports, certificates, registrations) are strictly by prior appointment — book online at hclappointments.embassyonline.lk before visiting. Emergency passports and life certificates can be done as walk-ins.",
+        "email": "mail@slhc-london.co.uk",
+        "website": "srilankahc.uk"
+      },
+      "edinburgh": {
+        "name": "Honorary Consulate of Sri Lanka — Edinburgh",
+        "address": "38 Minto Street, Edinburgh EH9 2BS",
+        "hours": "Phone before visiting",
+        "hoursNote": "Honorary consulates operate limited hours — phone ahead to arrange a visit.",
+        "email": "",
+        "website": ""
       }
     },
     "contacts": {

@@ -14,7 +14,12 @@ import {
   ShieldAlert,
   Baby,
   Smile,
-  HeartHandshake
+  HeartHandshake,
+  Landmark,
+  MapPin,
+  Clock,
+  Mail,
+  Globe
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -100,6 +105,42 @@ const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   show: { opacity: 1, y: 0 }
 };
+
+interface Mission {
+  id: string;
+  icon: React.ElementType;
+  phoneDisplay: string;
+  tel: string;
+  mapsUrl: string;
+  theme: SectionTheme;
+}
+
+const missions: Mission[] = [
+  {
+    id: 'london',
+    icon: Landmark,
+    phoneDisplay: '020 7262 1841',
+    tel: '+442072621841',
+    mapsUrl: 'https://maps.google.com/?q=13+Hyde+Park+Gardens+London+W2+2LU',
+    theme: {
+      iconBg: 'bg-neon-gold/10 text-neon-gold',
+      numberText: 'text-amber-600 dark:text-neon-gold',
+      chip: 'border-neon-gold/40 bg-neon-gold/10 text-amber-800 dark:text-neon-gold'
+    }
+  },
+  {
+    id: 'edinburgh',
+    icon: MapPin,
+    phoneDisplay: '0131 242 1383',
+    tel: '+441312421383',
+    mapsUrl: 'https://maps.google.com/?q=38+Minto+Street+Edinburgh+EH9+2BS',
+    theme: {
+      iconBg: 'bg-sky-500/10 text-sky-500',
+      numberText: 'text-sky-600 dark:text-sky-400',
+      chip: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400'
+    }
+  }
+];
 
 export default function EmergencyPageContent() {
   const t = useTranslations('emergency');
@@ -191,6 +232,94 @@ export default function EmergencyPageContent() {
             </motion.div>
           </div>
         ))}
+
+        <div className="mt-16">
+          <div className="text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-neon-gold/10 text-neon-gold">
+              <Landmark className="h-7 w-7" />
+            </div>
+            <h2 className="mt-4 text-2xl font-bold md:text-3xl">
+              {t('sections.sriLankaMission.title')}
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
+              {t('sections.sriLankaMission.subtitle')}
+            </p>
+          </div>
+
+          <motion.div
+            variants={container}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            className="mt-8 grid gap-4 md:grid-cols-2"
+          >
+            {missions.map((mission) => (
+              <motion.div key={mission.id} variants={fadeUp}>
+                <div className="glass-card flex h-full flex-col p-6">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${mission.theme.iconBg}`}
+                    >
+                      <mission.icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold leading-snug">{t(`missions.${mission.id}.name`)}</h3>
+                  </div>
+
+                  <div className="mt-4 space-y-3 text-sm">
+                    <a
+                      href={mission.mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 text-slate-600 transition-colors hover:text-amber-600 dark:text-slate-400 dark:hover:text-neon-gold"
+                    >
+                      <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <span>{t(`missions.${mission.id}.address`)}</span>
+                    </a>
+                    <a
+                      href={`tel:${mission.tel}`}
+                      className="flex items-center gap-2 font-semibold transition-colors hover:text-amber-600 dark:hover:text-neon-gold"
+                    >
+                      <Phone className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-neon-gold" />
+                      {mission.phoneDisplay}
+                    </a>
+                    {t.has(`missions.${mission.id}.email`) &&
+                      t(`missions.${mission.id}.email`) !== '' && (
+                        <a
+                          href={`mailto:${t(`missions.${mission.id}.email`)}`}
+                          className="flex items-center gap-2 text-slate-600 transition-colors hover:text-amber-600 dark:text-slate-400 dark:hover:text-neon-gold"
+                        >
+                          <Mail className="h-4 w-4 flex-shrink-0" />
+                          {t(`missions.${mission.id}.email`)}
+                        </a>
+                      )}
+                    {t.has(`missions.${mission.id}.website`) &&
+                      t(`missions.${mission.id}.website`) !== '' && (
+                        <a
+                          href={`https://${t(`missions.${mission.id}.website`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-slate-600 transition-colors hover:text-amber-600 dark:text-slate-400 dark:hover:text-neon-gold"
+                        >
+                          <Globe className="h-4 w-4 flex-shrink-0" />
+                          {t(`missions.${mission.id}.website`)}
+                        </a>
+                      )}
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Clock className="h-4 w-4 text-amber-600 dark:text-neon-gold" />
+                      {t(`missions.${mission.id}.hours`)}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                      {t(`missions.${mission.id}.hoursNote`)}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
 
         <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-slate-500 dark:text-slate-400">
           {t('disclaimer')}
