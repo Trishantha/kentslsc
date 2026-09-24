@@ -6,28 +6,30 @@ import { getFrontendUrl } from '@/lib/env';
 interface SitePage {
   slug: string;
   isHome: boolean;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface BlogPost {
   type?: string;
   slug: string;
-  updatedAt: string;
+  updatedAt?: string;
+  publishedAt?: string;
+  createdAt?: string;
 }
 
 interface Event {
   id: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface Business {
   id: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface Fundraiser {
   id: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface ForumCategory {
@@ -58,6 +60,18 @@ function withLocales(baseUrl: string, path: string): string[] {
   return routing.locales.map((locale) =>
     locale === routing.defaultLocale ? `${baseUrl}${path}` : `${baseUrl}/${locale}${path}`
   );
+}
+
+// API payloads do not always carry updatedAt (e.g. blog posts expose
+// publishedAt/createdAt instead). An unparseable date must never reach the
+// sitemap XML, or serialization throws and the whole route 500s.
+function lastModified(...values: Array<string | undefined | null>): Date {
+  for (const value of values) {
+    if (!value) continue;
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return new Date();
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -105,7 +119,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     pageItems.filter((p) => !('isHome' in p && p.isHome)).flatMap((p) =>
       withLocales(baseUrl, `/${(p as SitePage).slug}`).map((url) => ({
         url,
-        lastModified: new Date((p as SitePage).updatedAt),
+        lastModified: lastModified((p as SitePage).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.7
       }))
@@ -117,7 +131,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .flatMap((p) =>
         withLocales(baseUrl, `/blog/${p.slug}`).map((url) => ({
           url,
-          lastModified: new Date(p.updatedAt),
+          lastModified: lastModified(p.updatedAt, p.publishedAt, p.createdAt),
           changeFrequency: 'weekly' as const,
           priority: 0.7
         }))
@@ -127,7 +141,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     eventItems.flatMap((e) =>
       withLocales(baseUrl, `/events/${(e as Event).id}`).map((url) => ({
         url,
-        lastModified: new Date((e as Event).updatedAt),
+        lastModified: lastModified((e as Event).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.8
       }))
@@ -137,7 +151,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     businessItems.flatMap((b) =>
       withLocales(baseUrl, `/directory/${(b as Business).id}`).map((url) => ({
         url,
-        lastModified: new Date((b as Business).updatedAt),
+        lastModified: lastModified((b as Business).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.7
       }))
@@ -147,7 +161,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     fundraiserItems.flatMap((f) =>
       withLocales(baseUrl, `/fundraisers/${(f as Fundraiser).id}`).map((url) => ({
         url,
-        lastModified: new Date((f as Fundraiser).updatedAt),
+        lastModified: lastModified((f as Fundraiser).updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.8
       }))
