@@ -55,7 +55,9 @@ function asArray<T>(value: T[] | { data?: T[] } | { items?: T[] } | null | undef
 export const revalidate = 86400;
 
 function withLocales(baseUrl: string, path: string): string[] {
-  return routing.locales.map((locale) => `${baseUrl}/${locale}${path}`);
+  return routing.locales.map((locale) =>
+    locale === routing.defaultLocale ? `${baseUrl}${path}` : `${baseUrl}/${locale}${path}`
+  );
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
