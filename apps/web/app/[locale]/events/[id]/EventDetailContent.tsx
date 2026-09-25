@@ -160,7 +160,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   }, [subtotal, isFree, paymentSettings, effectiveMethod]);
 
   const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
-  const isExternal = !!event?.externalTicketingUrl && !isEnrollment;
+  const isExternal = !!event?.externalTicketingUrl;
 
   const posterPhotos = useMemo(
     () => (event?.posterImages ?? []).map((p, i) => ({ id: `poster-${i}`, url: p.url, caption: p.caption })),
@@ -341,7 +341,9 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
               </div>
 
               <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-white/5 p-4 dark:bg-black/20">
-                {isExternal ? (
+                {isExternal && isEnrollment ? (
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{t('enrollmentExternalNote')}</p>
+                ) : isExternal ? (
                   <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
                 ) : isEnrollment ? (
                   <>
@@ -429,7 +431,22 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   />
                 )}
 
-                {isEnrollment ? (
+                {isExternal ? (
+                  <button
+                    onClick={handleBuy}
+                    disabled={externalTicketClick.isPending}
+                    className="btn-primary w-full"
+                  >
+                    {externalTicketClick.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : isEnrollment ? (
+                      <GraduationCap className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Ticket className="mr-2 h-4 w-4" />
+                    )}
+                    {isEnrollment ? t('getEnrollExternal') : t('getTicketsExternal')}
+                  </button>
+                ) : isEnrollment ? (
                   user ? (
                     <button
                       onClick={handleBuy}
@@ -448,19 +465,6 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                       <GraduationCap className="mr-2 h-4 w-4" /> {t('loginToEnroll')}
                     </button>
                   )
-                ) : isExternal ? (
-                  <button
-                    onClick={handleBuy}
-                    disabled={externalTicketClick.isPending}
-                    className="btn-primary w-full"
-                  >
-                    {externalTicketClick.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Ticket className="mr-2 h-4 w-4" />
-                    )}
-                    {t('getTicketsExternal')}
-                  </button>
                 ) : user ? (
                   <button
                     onClick={handleBuy}

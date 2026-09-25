@@ -20,6 +20,7 @@ const eventSchema = z.object({
   endDatetime: z.string().min(1),
   ticketPrice: z.coerce.number().min(0).default(0),
   isFree: z.boolean().default(false),
+  limited: z.boolean().default(false),
   maxTickets: z.coerce.number().int().min(1).optional(),
   category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   registrationMode: z.nativeEnum(EventRegistrationMode).default(EventRegistrationMode.TICKETED),
@@ -40,17 +41,21 @@ export default function NewEventPage() {
       isFree: false,
       isPublished: false,
       category: EventCategory.OTHER,
-      registrationMode: EventRegistrationMode.TICKETED
+      registrationMode: EventRegistrationMode.TICKETED,
+      limited: false
     }
   });
   const isFree = watch('isFree');
   const isEnrollment = watch('registrationMode') === EventRegistrationMode.ENROLLMENT;
+  const limited = watch('limited');
 
   const createMutation = useMutation({
-    mutationFn: async (values: EventForm) => {
+    mutationFn: async (formValues: EventForm) => {
+      const { limited: isLimited, maxTickets, ...rest } = formValues;
       const res = await api.post('/events', {
-        ...values,
-        ...(isEnrollment ? { isFree: true, ticketPrice: 0, externalTicketingUrl: '' } : {})
+        ...rest,
+        maxTickets: isLimited ? (maxTickets ?? undefined) : undefined,
+        ...(isEnrollment ? { isFree: true, ticketPrice: 0 } : {})
       });
       return res.data;
     },
@@ -140,24 +145,28 @@ export default function NewEventPage() {
               Free event
             </label>
           )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {!isEnrollment && (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Ticket price (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  disabled={isFree}
-                  {...register('ticketPrice')}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
-                />
-              </div>
-            )}
+          {!isEnrollment && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Ticket price (£)</label>
+              <input
+                type="number"
+                step="0.01"
+                disabled={isFree}
+                {...register('ticketPrice')}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
+              />
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register('limited')} className="rounded border-white/10 bg-white/5" />
+            Limited capacity
+          </label>
+          {limited && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">{isEnrollment ? 'Max participants' : 'Max tickets'}</label>
               <input type="number" {...register('maxTickets')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
             </div>
-          </div>
+          )}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
             <select {...register('category')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue">
@@ -175,20 +184,24 @@ export default function NewEventPage() {
             onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
             hideUrlInput
           />
-          {!isEnrollment && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">External ticketing URL</label>
-              <input
-                {...register('externalTicketingUrl')}
-                placeholder="https://example.com/tickets"
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
-              />
-              {errors.externalTicketingUrl && (
-                <p className="mt-1 text-xs text-red-400">{errors.externalTicketingUrl.message}</p>
-              )}
-              <p className="mt-1 text-xs text-slate-500">If set, visitors are redirected here to buy tickets instead of using the built-in checkout.</p>
-            </div>
-          )}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+              {isEnrollment ? 'External registration URL' : 'External ticketing URL'}
+            </label>
+            <input
+              {...register('externalTicketingUrl')}
+              placeholder={isEnrollment ? 'https://example.com/register' : 'https://example.com/tickets'}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+            />
+            {errors.externalTicketingUrl && (
+              <p className="mt-1 text-xs text-red-400">{errors.externalTicketingUrl.message}</p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              {isEnrollment
+                ? 'If set, visitors are redirected here to enroll instead of registering on this site.'
+                : 'If set, visitors are redirected here to buy tickets instead of using the built-in checkout.'}
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" {...register('isPublished')} className="rounded border-white/10 bg-white/5" />
             Published

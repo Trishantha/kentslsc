@@ -218,6 +218,21 @@ describe('EventsService', () => {
       expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
     });
 
+    it('rejects built-in enrollment when an external registration link is set', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        registrationMode: 'ENROLLMENT',
+        isFree: true,
+        ticketPrice: 0,
+        externalTicketingUrl: 'https://forms.example.com/workshop'
+      });
+
+      await expect(
+        service.createCheckoutSession(mockUser.id, { eventId: mockEvent.id, quantity: 1 })
+      ).rejects.toThrow('Registration for this event is handled through an external platform');
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
+
     it('creates a Stripe checkout for paid tickets', async () => {
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
       mockPrisma.ticket.count.mockResolvedValue(0);

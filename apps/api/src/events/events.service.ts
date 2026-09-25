@@ -201,7 +201,7 @@ export class EventsService {
         category: dto.category ?? EventCategory.OTHER,
         registrationMode: dto.registrationMode ?? EventRegistrationMode.TICKETED,
         imageUrl: dto.imageUrl,
-        externalTicketingUrl: isEnrollment ? null : dto.externalTicketingUrl || null,
+        externalTicketingUrl: dto.externalTicketingUrl || null,
         isPublished: dto.isPublished ?? false
       }
     });
@@ -232,10 +232,11 @@ export class EventsService {
         ...(dto.maxTickets !== undefined && { maxTickets: dto.maxTickets }),
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.registrationMode !== undefined && { registrationMode: dto.registrationMode }),
-        // Enrollment-based events are always free and never use external ticketing.
-        ...(isEnrollment && { ticketPrice: 0, isFree: true, externalTicketingUrl: null }),
+        // Enrollment-based events are always free but may still link out to an
+        // external registration page.
+        ...(isEnrollment && { ticketPrice: 0, isFree: true }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
-        ...(dto.externalTicketingUrl !== undefined && !isEnrollment && {
+        ...(dto.externalTicketingUrl !== undefined && {
           externalTicketingUrl: dto.externalTicketingUrl || null
         }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished })
@@ -458,7 +459,11 @@ export class EventsService {
     if (!event.isPublished) throw new ForbiddenException('Event is not published');
     if (event.startDatetime < new Date()) throw new BadRequestException('Event has already started');
     if (event.externalTicketingUrl) {
-      throw new BadRequestException('Tickets for this event are sold through an external platform');
+      throw new BadRequestException(
+        event.registrationMode === EventRegistrationMode.ENROLLMENT
+          ? 'Registration for this event is handled through an external platform'
+          : 'Tickets for this event are sold through an external platform'
+      );
     }
 
     const remaining = await this.getRemainingCapacity(dto.eventId);

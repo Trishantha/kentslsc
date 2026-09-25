@@ -22,6 +22,7 @@ const eventSchema = z.object({
   endDatetime: z.string().min(1),
   ticketPrice: z.coerce.number().min(0).default(0),
   isFree: z.boolean().default(false),
+  limited: z.boolean().default(false),
   maxTickets: z.coerce.number().int().min(1).optional(),
   category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
   registrationMode: z.nativeEnum(EventRegistrationMode).default(EventRegistrationMode.TICKETED),
@@ -50,6 +51,7 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
       endDatetime: new Date(event.endDatetime).toISOString().slice(0, 16),
       ticketPrice: event.isFree ? 0 : Number(event.ticketPrice),
       isFree: event.isFree,
+      limited: event.maxTickets != null,
       maxTickets: event.maxTickets ?? undefined,
       category: event.category ?? EventCategory.OTHER,
       registrationMode: event.registrationMode ?? EventRegistrationMode.TICKETED,
@@ -60,6 +62,7 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
   });
   const isFree = watch('isFree');
   const isEnrollment = watch('registrationMode') === EventRegistrationMode.ENROLLMENT;
+  const limited = watch('limited');
 
   useEffect(() => {
     reset({
@@ -70,6 +73,7 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
       endDatetime: new Date(event.endDatetime).toISOString().slice(0, 16),
       ticketPrice: event.isFree ? 0 : Number(event.ticketPrice),
       isFree: event.isFree,
+      limited: event.maxTickets != null,
       maxTickets: event.maxTickets ?? undefined,
       category: event.category ?? EventCategory.OTHER,
       registrationMode: event.registrationMode ?? EventRegistrationMode.TICKETED,
@@ -80,7 +84,7 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
   }, [event, reset]);
 
   const updateMutation = useMutation({
-    mutationFn: async (values: EventForm) => {
+    mutationFn: async (values: Omit<EventForm, 'maxTickets' | 'limited'> & { maxTickets?: number | null }) => {
       const res = await api.put(`/events/${eventId}`, values);
       return res.data;
     },
@@ -124,10 +128,15 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
   });
 
   return (
-    <form onSubmit={handleSubmit((values) => updateMutation.mutate({
-      ...values,
-      ...(isEnrollment ? { isFree: true, ticketPrice: 0, externalTicketingUrl: '' } : {})
-    }))} className="glass-card space-y-4 p-6">
+    <form onSubmit={handleSubmit((formValues) => {
+      const { limited: isLimited, maxTickets, ...rest } = formValues;
+      updateMutation.mutate({
+        ...rest,
+        // Unchecking "limited" clears the capacity cap; the API stores null for unlimited.
+        maxTickets: (isLimited ? (maxTickets ?? undefined) : null) as number | null,
+        ...(isEnrollment ? { isFree: true, ticketPrice: 0 } : {})
+      });
+    })} className="glass-card space-y-4 p-6">
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Title</label>
         <input {...register('title')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
@@ -191,24 +200,28 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
           Free event
         </label>
       )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {!isEnrollment && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Ticket price (£)</label>
-            <input
-              type="number"
-              step="0.01"
-              disabled={isFree}
-              {...register('ticketPrice')}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
-            />
-          </div>
-        )}
+      {!isEnrollment && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Ticket price (£)</label>
+          <input
+            type="number"
+            step="0.01"
+            disabled={isFree}
+            {...register('ticketPrice')}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue disabled:opacity-50"
+          />
+        </div>
+      )}
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" {...register('limited')} className="rounded border-white/10 bg-white/5" />
+        Limited capacity
+      </label>
+      {limited && (
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">{isEnrollment ? 'Max participants' : 'Max tickets'}</label>
           <input type="number" {...register('maxTickets')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue" />
         </div>
-      </div>
+      )}
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Category</label>
         <select {...register('category')} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue">
@@ -226,20 +239,24 @@ export function BasicEventForm({ event, eventId }: BasicEventFormProps) {
         onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
         hideUrlInput
       />
-      {!isEnrollment && (
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">External ticketing URL</label>
-          <input
-            {...register('externalTicketingUrl')}
-            placeholder="https://example.com/tickets"
-            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
-          />
-          {errors.externalTicketingUrl && (
-            <p className="mt-1 text-xs text-red-400">{errors.externalTicketingUrl.message}</p>
-          )}
-          <p className="mt-1 text-xs text-slate-500">If set, visitors are redirected here to buy tickets instead of using the built-in checkout.</p>
-        </div>
-      )}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">
+          {isEnrollment ? 'External registration URL' : 'External ticketing URL'}
+        </label>
+        <input
+          {...register('externalTicketingUrl')}
+          placeholder={isEnrollment ? 'https://example.com/register' : 'https://example.com/tickets'}
+          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-neon-blue"
+        />
+        {errors.externalTicketingUrl && (
+          <p className="mt-1 text-xs text-red-400">{errors.externalTicketingUrl.message}</p>
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          {isEnrollment
+            ? 'If set, visitors are redirected here to enroll instead of registering on this site.'
+            : 'If set, visitors are redirected here to buy tickets instead of using the built-in checkout.'}
+        </p>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" {...register('isPublished')} className="rounded border-white/10 bg-white/5" />
         Published

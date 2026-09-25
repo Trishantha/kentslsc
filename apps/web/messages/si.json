@@ -601,6 +601,8 @@
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
     "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
+    "enrollmentExternalNote": "Registration for this workshop is handled through an external link. You will be redirected to enroll.",
+    "getEnrollExternal": "ලියාපදිංචි වන්න",
     "enrollNow": "දැන් ලියාපදිංචි වන්න",
     "loginToEnroll": "ලියාපදිංචි වීමට ලොග් වන්න",
     "enrollSuccess": "ඔබ ලියාපදිංචි වුණා! ඔබේ ටිකට් වෙත හරවා යවමින්...",
