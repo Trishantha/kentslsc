@@ -6,7 +6,7 @@ import { GoCardlessService } from '../payments/gocardless.service.js';
 import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailQueueService } from '../email/email-queue.service.js';
 import type Stripe from 'stripe';
-import type { PaymentMethodOption } from '@kentslsc/shared';
+import { EventRegistrationMode, type PaymentMethodOption } from '@kentslsc/shared';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
@@ -187,6 +187,7 @@ export class EventsService {
   }
 
   async create(dto: CreateEventDto) {
+    const isEnrollment = dto.registrationMode === EventRegistrationMode.ENROLLMENT;
     return this.prisma.event.create({
       data: {
         title: dto.title,
@@ -194,12 +195,13 @@ export class EventsService {
         location: dto.location,
         startDatetime: new Date(dto.startDatetime),
         endDatetime: new Date(dto.endDatetime),
-        ticketPrice: dto.isFree ? 0 : dto.ticketPrice,
-        isFree: dto.isFree ?? false,
+        ticketPrice: dto.isFree || isEnrollment ? 0 : dto.ticketPrice,
+        isFree: dto.isFree ?? isEnrollment,
         maxTickets: dto.maxTickets,
         category: dto.category ?? EventCategory.OTHER,
+        registrationMode: dto.registrationMode ?? EventRegistrationMode.TICKETED,
         imageUrl: dto.imageUrl,
-        externalTicketingUrl: dto.externalTicketingUrl || null,
+        externalTicketingUrl: isEnrollment ? null : dto.externalTicketingUrl || null,
         isPublished: dto.isPublished ?? false
       }
     });
@@ -216,6 +218,7 @@ export class EventsService {
         );
       }
     }
+    const isEnrollment = dto.registrationMode === EventRegistrationMode.ENROLLMENT;
     return this.prisma.event.update({
       where: { id },
       data: {
@@ -228,8 +231,11 @@ export class EventsService {
         ...(dto.ticketPrice !== undefined && { ticketPrice: dto.isFree ? 0 : dto.ticketPrice }),
         ...(dto.maxTickets !== undefined && { maxTickets: dto.maxTickets }),
         ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.registrationMode !== undefined && { registrationMode: dto.registrationMode }),
+        // Enrollment-based events are always free and never use external ticketing.
+        ...(isEnrollment && { ticketPrice: 0, isFree: true, externalTicketingUrl: null }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
-        ...(dto.externalTicketingUrl !== undefined && {
+        ...(dto.externalTicketingUrl !== undefined && !isEnrollment && {
           externalTicketingUrl: dto.externalTicketingUrl || null
         }),
         ...(dto.isPublished !== undefined && { isPublished: dto.isPublished })
@@ -460,10 +466,41 @@ export class EventsService {
       throw new BadRequestException(`Only ${remaining} tickets remaining`);
     }
 
+    const origin = this.configService.get('FRONTEND_URL', { infer: true });
+
+    if (event.registrationMode === EventRegistrationMode.ENROLLMENT) {
+      const existing = await this.prisma.ticket.findFirst({
+        where: {
+          eventId: event.id,
+          userId,
+          status: { not: TicketStatus.CANCELLED },
+          deletedAt: null
+        }
+      });
+      if (existing) {
+        throw new BadRequestException('You are already enrolled in this event');
+      }
+      const tickets = await this.createTickets(
+        userId,
+        dto.eventId,
+        1,
+        origin,
+        {
+          channel: 'free',
+          currency: 'GBP',
+          grossAmount: 0,
+          processingFee: 0,
+          netAmount: 0,
+          sourceType: PaymentSourceType.MANUAL,
+          notes: 'Enrollment'
+        }
+      );
+      return { free: true, tickets };
+    }
+
     const isFree = event.isFree || Number(event.ticketPrice) === 0;
     const unitAmount = Math.round(Number(event.ticketPrice) * 100);
     const totalAmount = unitAmount * dto.quantity;
-    const origin = this.configService.get('FRONTEND_URL', { infer: true });
 
     if (isFree || totalAmount === 0) {
       // Free event: create tickets immediately without Stripe

@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SiteSettingsController } from './site-settings.controller.js';
 import { SiteSettingsService } from './site-settings.service.js';
 import { UpdateSiteSettingsDto } from './dto/update-site-settings.dto.js';
+import { UpdateSiteSeoSettingsDto } from './dto/update-site-seo-settings.dto.js';
 
 const mockSettings = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -17,18 +18,22 @@ const mockSettings = {
   linkedin: '',
   tiktok: '',
   showPageLoader: true,
+  metaTitle: '',
+  metaDescription: '',
+  metaKeywords: '',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
 };
 
 describe('SiteSettingsController', () => {
   let controller: SiteSettingsController;
-  let service: Pick<SiteSettingsService, 'get' | 'update'>;
+  let service: Pick<SiteSettingsService, 'get' | 'update' | 'updateSeo'>;
 
   beforeEach(() => {
     service = {
       get: jest.fn(() => Promise.resolve(mockSettings)) as any,
-      update: jest.fn(() => Promise.resolve(mockSettings)) as any
+      update: jest.fn(() => Promise.resolve(mockSettings)) as any,
+      updateSeo: jest.fn(() => Promise.resolve(mockSettings)) as any
     };
     controller = new SiteSettingsController(service as SiteSettingsService);
   });
@@ -60,5 +65,20 @@ describe('SiteSettingsController', () => {
     expect(dto).toMatchObject(payload);
     await controller.update(dto);
     expect(service.update).toHaveBeenCalledWith(expect.objectContaining(payload));
+  });
+
+  it('passes SEO fields through the ValidationPipe to the service', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+    const payload = {
+      metaTitle: 'Kent Sri Lankan Social Club',
+      metaDescription: 'A community platform for the Kent Sri Lankan Social Club.',
+      metaKeywords: 'kent, sri lankan, social club'
+    };
+
+    const dto = (await pipe.transform(payload, { type: 'body', metatype: UpdateSiteSeoSettingsDto })) as UpdateSiteSeoSettingsDto;
+
+    expect(dto).toMatchObject(payload);
+    await controller.updateSeo(dto);
+    expect(service.updateSeo).toHaveBeenCalledWith(expect.objectContaining(payload));
   });
 });

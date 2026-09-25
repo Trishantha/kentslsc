@@ -7,7 +7,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Globe, Mail, Phone, MessageCircle, MapPin, ToggleLeft } from 'lucide-react';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
-import { siteSettingsSchema, type SiteSettings, type SiteSettingsInput } from '@kentslsc/shared';
+import { siteSettingsSchema, Permission, type SiteSettings, type SiteSettingsInput } from '@kentslsc/shared';
+import { useAuth } from '@/hooks/useAuth';
+import { SeoSettingsForm } from './SeoSettingsForm';
 
 const inputClass =
   'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue';
@@ -26,6 +28,9 @@ const socialFields: { id: keyof SiteSettingsInput; label: string; icon: React.El
 export default function AdminSiteSettingsPage() {
   const queryClient = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canManageSeo =
+    user?.role === 'ADMIN' || (user?.permissions ?? []).includes(Permission.MANAGE_SEO);
 
   const { data, isLoading } = useQuery<SiteSettings>({
     queryKey: ['site-settings'],
@@ -105,15 +110,16 @@ export default function AdminSiteSettingsPage() {
         Update club contact details and social media links. Changes are reflected automatically across the public website.
       </p>
 
-      <form
-        onSubmit={handleSubmit((values) => mutation.mutate(values))}
-        className="mt-8 grid gap-6 lg:grid-cols-2"
-      >
-        <div className="glass-card space-y-5 p-6">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <MapPin className="h-5 w-5 text-neon-blue" />
-            Contact details
-          </h2>
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <form
+          onSubmit={handleSubmit((values) => mutation.mutate(values))}
+          className="contents"
+        >
+          <div className="glass-card space-y-5 p-6">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <MapPin className="h-5 w-5 text-neon-blue" />
+              Contact details
+            </h2>
 
           <div>
             <label className={labelClass}>Email address</label>
@@ -224,18 +230,21 @@ export default function AdminSiteSettingsPage() {
           </div>
         )}
 
-        <div className="lg:col-span-2">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            <Save className="h-4 w-4" />
-            Save settings
-          </button>
-        </div>
-      </form>
+          <div className="lg:col-span-2">
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Save className="h-4 w-4" />
+              Save settings
+            </button>
+          </div>
+        </form>
+
+        {canManageSeo && data && <SeoSettingsForm settings={data} />}
+      </div>
     </div>
   );
 }

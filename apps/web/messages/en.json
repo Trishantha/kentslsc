@@ -508,7 +508,8 @@
     "soldOut": "Sold out",
     "remaining": "{count} left",
     "startingFrom": "Tickets starting from {price}",
-    "externalTickets": "External tickets"
+    "externalTickets": "External tickets",
+    "enroll": "Enroll"
   },
   "directory": {
     "title": "Business Directory",
@@ -599,6 +600,11 @@
     "loginToBuy": "Log in to buy tickets",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
+    "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
+    "enrollNow": "Enroll now",
+    "loginToEnroll": "Log in to enroll",
+    "enrollSuccess": "You're enrolled! Redirecting to your tickets...",
+    "enrollFull": "Enrollment full",
     "addToCalendar": "Add to calendar",
     "downloadIcs": "Download .ics",
     "shareTitle": "Share this event",

@@ -81,6 +81,7 @@ const PUBLIC_ALLOWLIST = new Set([
   'memberships/memberships.controller.ts::getFeatures',
   'memberships/memberships.controller.ts::getTypes',
   'memberships/memberships.controller.ts::verify',
+  'menus/menus.controller.ts::getPublic',
   'pages/pages.controller.ts::getBySlug',
   'pages/pages.controller.ts::getHomePage',
   'pages/pages.controller.ts::listPublished',

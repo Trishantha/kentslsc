@@ -14,7 +14,7 @@ describe('PaymentReportsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PaymentReportsService(prisma);
+    service = new PaymentReportsService(prisma, {} as any);
   });
 
   function buildPayment(overrides: any = {}) {

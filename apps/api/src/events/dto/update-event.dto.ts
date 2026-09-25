@@ -9,7 +9,7 @@ import {
   Min
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { EventCategory } from '@kentslsc/shared';
+import { EventCategory, EventRegistrationMode } from '@kentslsc/shared';
 
 export class UpdateEventDto {
   @IsOptional()
@@ -48,6 +48,10 @@ export class UpdateEventDto {
   @IsOptional()
   @IsEnum(EventCategory)
   declare category?: EventCategory;
+
+  @IsOptional()
+  @IsEnum(EventRegistrationMode)
+  declare registrationMode?: EventRegistrationMode;
 
   @IsOptional()
   @IsUrl()

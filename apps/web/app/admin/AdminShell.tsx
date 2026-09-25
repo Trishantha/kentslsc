@@ -33,7 +33,9 @@ import {
   ChevronRight,
   ScanLine,
   History,
-  Download
+  Download,
+  ListTree,
+  Wallet
 } from 'lucide-react';
 import { AdminMobileMenu } from '@/components/layout/AdminMobileMenu';
 import { AdminHeader } from './AdminHeader';
@@ -225,14 +227,16 @@ const navGroups: NavGroup[] = [
     icon: CreditCard,
     items: [
       { href: '/admin/payments', label: 'Payment Settings', icon: CreditCard, permission: Permission.MANAGE_PAYMENTS, prefetch: prefetchPayments },
-      { href: '/admin/payments/reports', label: 'Revenue Report', icon: Download, permission: Permission.MANAGE_PAYMENTS }
+      { href: '/admin/payments/reports', label: 'Revenue Report', icon: Download, permission: Permission.MANAGE_PAYMENTS },
+      { href: '/admin/payments/reports/payouts', label: 'Payout Reconciliation', icon: Wallet, permission: Permission.MANAGE_PAYMENTS }
     ]
   },
   {
     label: 'Settings',
     icon: Settings,
     items: [
-      { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe, permission: Permission.MANAGE_SITE_SETTINGS },
+      { href: '/admin/site-settings', label: 'Social & Contact', icon: Globe, permission: [Permission.MANAGE_SITE_SETTINGS, Permission.MANAGE_SEO] },
+      { href: '/admin/menus', label: 'Menus', icon: ListTree, permission: Permission.MANAGE_NAVIGATION },
       { href: '/admin/gdpr', label: 'GDPR & Privacy', icon: ShieldCheck, permission: Permission.MANAGE_GDPR_SETTINGS },
       { href: '/admin/policy-documents', label: 'Policy Documents', icon: ShieldCheck, permission: Permission.MANAGE_POLICY_DOCUMENTS },
       { href: '/admin/committee', label: 'Committee', icon: Users, permission: Permission.MANAGE_COMMITTEE }

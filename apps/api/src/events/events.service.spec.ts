@@ -170,6 +170,54 @@ describe('EventsService', () => {
       expect(mockPrisma.payment.create).toHaveBeenCalled();
     });
 
+    it('enrolls the user in an enrollment-mode workshop without payment', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        registrationMode: 'ENROLLMENT',
+        isFree: true,
+        ticketPrice: 0,
+        externalTicketingUrl: null,
+        _count: { tickets: 0 }
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.ticket.findFirst.mockResolvedValue(null);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'payment-enroll' });
+      mockPrisma.ticket.create.mockResolvedValue(createMockTicket({ id: 'enroll-1', paymentId: 'payment-enroll' }));
+
+      const result = await service.createCheckoutSession(mockUser.id, {
+        eventId: mockEvent.id,
+        quantity: 5
+      });
+
+      if (!result.free) throw new Error('expected free checkout');
+      // Enrollment always issues exactly one place, regardless of requested quantity.
+      expect(result.tickets).toHaveLength(1);
+      expect(mockPaymentsService.createCheckout).not.toHaveBeenCalled();
+      expect(mockPrisma.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ notes: 'Enrollment' })
+        })
+      );
+    });
+
+    it('rejects a duplicate enrollment for the same user', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        registrationMode: 'ENROLLMENT',
+        isFree: true,
+        ticketPrice: 0,
+        externalTicketingUrl: null,
+        _count: { tickets: 1 }
+      });
+      mockPrisma.ticket.findFirst.mockResolvedValue(createMockTicket({ id: 'enroll-1' }));
+
+      await expect(
+        service.createCheckoutSession(mockUser.id, { eventId: mockEvent.id, quantity: 1 })
+      ).rejects.toThrow('already enrolled');
+      expect(mockPrisma.ticket.create).not.toHaveBeenCalled();
+    });
+
     it('creates a Stripe checkout for paid tickets', async () => {
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
       mockPrisma.ticket.count.mockResolvedValue(0);

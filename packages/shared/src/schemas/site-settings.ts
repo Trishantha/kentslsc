@@ -16,9 +16,20 @@ export const siteSettingsSchema = z.object({
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
 
+export const siteSeoSettingsSchema = z.object({
+  metaTitle: z.string().max(70).optional().or(z.literal('')),
+  metaDescription: z.string().max(160).optional().or(z.literal('')),
+  metaKeywords: z.string().optional().or(z.literal(''))
+});
+
+export type SiteSeoSettingsInput = z.infer<typeof siteSeoSettingsSchema>;
+
 /** Site settings as returned by the API (input fields plus resource metadata). */
 export interface SiteSettings extends SiteSettingsInput {
   id: string;
   createdAt: string;
   updatedAt: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
 }

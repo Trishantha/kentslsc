@@ -508,7 +508,8 @@
     "soldOut": "Sold out",
     "remaining": "{count} left",
     "startingFrom": "Tickets starting from {price}",
-    "externalTickets": "External tickets"
+    "externalTickets": "External tickets",
+    "enroll": "ලියාපදිංචි වන්න"
   },
   "directory": {
     "title": "ව්යාපාර නාමාවලිය",
@@ -599,6 +600,11 @@
     "loginToBuy": "ටිකට් මිලදී ගැනීමට ලොග් වන්න",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
+    "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
+    "enrollNow": "දැන් ලියාපදිංචි වන්න",
+    "loginToEnroll": "ලියාපදිංචි වීමට ලොග් වන්න",
+    "enrollSuccess": "ඔබ ලියාපදිංචි වුණා! ඔබේ ටිකට් වෙත හරවා යවමින්...",
+    "enrollFull": "ලියාපදිංචිය පිරී ඇත",
     "addToCalendar": "Add to calendar",
     "downloadIcs": "Download .ics",
     "shareTitle": "Share this event",

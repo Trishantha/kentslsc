@@ -508,7 +508,8 @@
     "soldOut": "Sold out",
     "remaining": "{count} left",
     "startingFrom": "Tickets starting from {price}",
-    "externalTickets": "External tickets"
+    "externalTickets": "External tickets",
+    "enroll": "பதிவு செய்யுங்கள்"
   },
   "directory": {
     "title": "வணிக அடைவு",
@@ -599,6 +600,11 @@
     "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
+    "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
+    "enrollNow": "இப்போது பதிவு செய்யுங்கள்",
+    "loginToEnroll": "பதிவு செய்ய உள்நுழைக",
+    "enrollSuccess": "நீங்கள் பதிவு செய்யப்பட்டுள்ளீர்கள்! உங்கள் டிக்கெட்டுகளுக்கு அழைத்துச் செல்லப்படுகிறீர்கள்...",
+    "enrollFull": "பதிவு நிறைந்துவிட்டது",
     "addToCalendar": "Add to calendar",
     "downloadIcs": "Download .ics",
     "shareTitle": "Share this event",

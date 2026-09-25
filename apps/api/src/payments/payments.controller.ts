@@ -10,6 +10,7 @@ import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import { PaymentsService } from './payments.service.js';
 import { RefundsService } from './refunds.service.js';
 import { PaymentReportsService } from './reports.service.js';
+import { PayoutSyncService } from './payout-sync.service.js';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto.js';
 import { RefundPaymentDto } from './dto/refund-payment.dto.js';
 
@@ -19,7 +20,8 @@ export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly refundsService: RefundsService,
-    private readonly reportsService: PaymentReportsService
+    private readonly reportsService: PaymentReportsService,
+    private readonly payoutSyncService: PayoutSyncService
   ) {}
 
   private parseReportDate(value?: string, endOfDay = false): Date | undefined {
@@ -148,6 +150,50 @@ export class PaymentsController {
     return this.paymentsService.syncStripeRevenue({
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined
+    });
+  }
+
+  @Get('reports/payouts')
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
+  @ApiBearerAuth()
+  async payoutReconciliation(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('status') status?: string,
+    @Query('matchStatus') matchStatus?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.reportsService.getPayoutReconciliation({
+      from: this.parseReportDate(from),
+      to: this.parseReportDate(to, true),
+      status,
+      matchStatus: matchStatus as 'matched' | 'unmatched' | 'partial' | undefined,
+      page: Number(page) || 1,
+      limit: Number(limit) || 50
+    });
+  }
+
+  @Get('reports/payouts/:payoutId')
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
+  @ApiBearerAuth()
+  async payoutDetail(@Param('payoutId') payoutId: string) {
+    return this.reportsService.getPayoutDetail(payoutId);
+  }
+
+  @Get('reports/balance')
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
+  @ApiBearerAuth()
+  async balanceSummary() {
+    return this.reportsService.getBalanceSummary();
+  }
+
+  @Post('reports/sync-payouts')
+  @RequirePermission(Permission.MANAGE_PAYMENTS)
+  @ApiBearerAuth()
+  async syncPayouts(@Body('from') from?: string) {
+    return this.payoutSyncService.syncPayouts({
+      from: from ? new Date(from) : undefined
     });
   }
 }

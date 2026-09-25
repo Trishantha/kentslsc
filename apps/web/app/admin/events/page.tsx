@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AdminListLayout } from '@/components/admin/AdminListLayout';
 import { EventsList } from './EventsList';
-import { EventCategory } from '@kentslsc/shared';
+import { EventCategory, EventRegistrationMode } from '@kentslsc/shared';
 
 export interface AdminEvent {
   id: string;
@@ -19,6 +19,7 @@ export interface AdminEvent {
   isFree: boolean;
   maxTickets: number | null;
   category: EventCategory;
+  registrationMode?: EventRegistrationMode;
   imageUrl: string | null;
   posterImageUrl: string | null;
   posterImages: unknown;

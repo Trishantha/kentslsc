@@ -28,6 +28,7 @@ interface Event {
   soldCount?: number;
   remainingCount?: number | null;
   externalTicketingUrl?: string | null;
+  registrationMode?: 'TICKETED' | 'ENROLLMENT';
 }
 
 interface EventsResponse {
@@ -282,6 +283,7 @@ export default function EventsPage() {
               startingFromLabel={(price) => t('startingFrom', { price })}
               freeLabel={tCommon('free')}
               externalLabel={t('externalTickets')}
+              enrollLabel={t('enroll')}
             />
           )}
 
@@ -326,6 +328,7 @@ export default function EventsPage() {
               startingFromLabel={(price) => t('startingFrom', { price })}
               freeLabel={tCommon('free')}
               externalLabel={t('externalTickets')}
+              enrollLabel={t('enroll')}
             />
           ) : (
             <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -352,6 +355,7 @@ export default function EventsPage() {
                   startingFromLabel={(price) => t('startingFrom', { price })}
                   freeLabel={tCommon('free')}
                   externalLabel={t('externalTickets')}
+                  enrollLabel={t('enroll')}
                   shareText={tDetail('shareText', { title: event.title })}
                 />
               ))}

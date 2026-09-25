@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Calendar, Clock, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft } from 'lucide-react';
+import { Calendar, Clock, MapPin, Loader2, Minus, Plus, Ticket, ArrowLeft, GraduationCap } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ export interface Event {
   tickets?: { id: string }[];
   _count?: { tickets: number };
   externalTicketingUrl?: string | null;
+  registrationMode?: 'TICKETED' | 'ENROLLMENT';
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +73,8 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
     enabled: !!id
   });
 
+  const isEnrollment = event?.registrationMode === 'ENROLLMENT';
+
   const purchase = useMutation({
     mutationFn: async () => {
       if (!event) throw new Error('Event not loaded');
@@ -79,7 +82,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
         `/events/${event.id}/tickets/purchase`,
         {
           eventId: event.id,
-          quantity,
+          quantity: isEnrollment ? 1 : quantity,
           ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
         }
       );
@@ -87,7 +90,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
     },
     onSuccess: (data) => {
       if (data.free) {
-        setMessage({ type: 'success', text: t('reserveSuccess') });
+        setMessage({ type: 'success', text: t(isEnrollment ? 'enrollSuccess' : 'reserveSuccess') });
         setTimeout(() => router.push('/dashboard/tickets'), 1500);
       } else if (data.provider === 'gocardless' && data.url) {
         window.location.assign(data.url);
@@ -157,7 +160,7 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   }, [subtotal, isFree, paymentSettings, effectiveMethod]);
 
   const total = feeBreakdown ? feeBreakdown.gross / 100 : subtotal;
-  const isExternal = !!event?.externalTicketingUrl;
+  const isExternal = !!event?.externalTicketingUrl && !isEnrollment;
 
   const posterPhotos = useMemo(
     () => (event?.posterImages ?? []).map((p, i) => ({ id: `poster-${i}`, url: p.url, caption: p.caption })),
@@ -340,6 +343,15 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
               <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-white/5 p-4 dark:bg-black/20">
                 {isExternal ? (
                   <p className="text-sm text-slate-600 dark:text-slate-400">{t('externalTicketsNote')}</p>
+                ) : isEnrollment ? (
+                  <>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('enrollmentNote')}</p>
+                    {remaining !== null && (
+                      <span className={cn('text-sm', remaining <= 5 ? 'text-red-500' : 'text-slate-500')}>
+                        {t('remaining', { count: remaining })}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
@@ -417,7 +429,26 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   />
                 )}
 
-                {isExternal ? (
+                {isEnrollment ? (
+                  user ? (
+                    <button
+                      onClick={handleBuy}
+                      disabled={purchase.isPending || !hasCapacity}
+                      className="btn-primary w-full"
+                    >
+                      {purchase.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <GraduationCap className="mr-2 h-4 w-4" />
+                      )}
+                      {hasCapacity ? t('enrollNow') : t('enrollFull')}
+                    </button>
+                  ) : (
+                    <button onClick={handleBuy} className="btn-primary w-full">
+                      <GraduationCap className="mr-2 h-4 w-4" /> {t('loginToEnroll')}
+                    </button>
+                  )
+                ) : isExternal ? (
                   <button
                     onClick={handleBuy}
                     disabled={externalTicketClick.isPending}

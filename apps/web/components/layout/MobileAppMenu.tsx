@@ -2,27 +2,24 @@
 
 import NextLink from 'next/link';
 import { Link, usePathname } from '@/i18n/routing';
-import { useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   X,
   User,
   LogOut,
   MessageSquare,
-  Heart,
-  Newspaper,
-  Info,
-  Mail,
   CreditCard,
   LayoutDashboard,
   ChevronRight,
-  Shield,
-  UserPlus,
-  Siren
+  ChevronDown,
+  Link2
 } from 'lucide-react';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { MembershipFeature } from '@kentslsc/shared';
+import type { MenuItemNode } from '@kentslsc/shared';
+import { useMenu, getMenuLabel } from '@/hooks/useMenu';
 import { cn, formatDate } from '@/lib/utils';
 
 interface MobileAppMenuProps {
@@ -92,6 +89,139 @@ function MenuCard({
   return content;
 }
 
+function NavRow({
+  href,
+  label,
+  onClose,
+  active,
+  indent
+}: {
+  href: string;
+  label: string;
+  onClose: () => void;
+  active: boolean;
+  indent?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClose}
+      className={cn(
+        'flex items-center gap-4 px-4 py-3.5 transition-colors active:bg-white/10',
+        indent && 'pl-10',
+        active ? 'text-neon-blue' : 'text-slate-700 dark:text-slate-200'
+      )}
+    >
+      <Link2 className="h-5 w-5 flex-shrink-0" />
+      <span className="flex-1 font-medium">{label}</span>
+      <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+    </Link>
+  );
+}
+
+function SecondaryNavItems({ onClose }: { onClose: () => void }) {
+  const locale = useLocale();
+  const pathname = usePathname();
+  const nav = useTranslations('nav');
+  const t = useTranslations('mobileMenu');
+  const { data: menu } = useMenu();
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+
+  // Hardcoded copy of the previous default links, used when the menu
+  // endpoint is unreachable or has no items.
+  const fallbackItems: MenuItemNode[] = [
+    { href: '/emergency', label: nav('emergency') },
+    { href: '/fundraisers', label: nav('fundraising') },
+    { href: '/blog', label: nav('blog') },
+    { href: '/about', label: t('aboutUs') },
+    { href: '/contact', label: nav('contact') },
+    { href: '/privacy', label: nav('privacy') },
+    { href: '/auth/login', label: t('joinTheClub') }
+  ].map((link, index) => ({
+    id: `fallback-${index}`,
+    parentId: null,
+    labelEn: link.label,
+    labelSi: null,
+    labelTa: null,
+    linkType: 'path' as const,
+    path: link.href,
+    pageId: null,
+    href: link.href,
+    sortOrder: index,
+    isVisible: true,
+    children: []
+  }));
+
+  const items = menu && menu.length > 0 ? menu : fallbackItems;
+
+  const isActive = (href: string) =>
+    pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
+
+  const toggleOpen = (id: string) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+
+  return (
+    <div className="mt-3 divide-y divide-slate-200 rounded-2xl border border-slate-300 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
+      {items.map((item) => {
+        if (item.children.length === 0) {
+          return (
+            <NavRow
+              key={item.id}
+              href={item.href ?? '/'}
+              label={getMenuLabel(item, locale)}
+              onClose={onClose}
+              active={isActive(item.href ?? '/')}
+            />
+          );
+        }
+        const open = openIds.has(item.id);
+        return (
+          <div key={item.id}>
+            <button
+              type="button"
+              onClick={() => toggleOpen(item.id)}
+              className="flex w-full items-center gap-4 px-4 py-3.5 text-slate-700 transition-colors active:bg-white/10 dark:text-slate-200"
+            >
+              <Link2 className="h-5 w-5 flex-shrink-0" />
+              <span className="flex-1 text-left font-medium">
+                {getMenuLabel(item, locale)}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 flex-shrink-0 text-slate-400 transition-transform',
+                  !open && '-rotate-90'
+                )}
+              />
+            </button>
+            {open && (
+              <div className="divide-y divide-slate-200 dark:divide-white/10">
+                {item.children.map((child) => (
+                  <NavRow
+                    key={child.id}
+                    href={child.href ?? '/'}
+                    label={getMenuLabel(child, locale)}
+                    onClose={onClose}
+                    active={isActive(child.href ?? '/')}
+                    indent
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
   const t = useTranslations('mobileMenu');
   const nav = useTranslations('nav');
@@ -121,16 +251,6 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
       feature: MembershipFeature.FORUM_READ,
       external: true
     }
-  ];
-
-  const secondaryMenuItems: MenuItem[] = [
-    { href: '/emergency', label: nav('emergency'), icon: Siren },
-    { href: '/fundraisers', label: nav('fundraising'), icon: Heart },
-    { href: '/blog', label: nav('blog'), icon: Newspaper },
-    { href: '/about', label: t('aboutUs'), icon: Info },
-    { href: '/contact', label: nav('contact'), icon: Mail },
-    { href: '/privacy', label: nav('privacy'), icon: Shield },
-    { href: '/auth/login', label: t('joinTheClub'), icon: UserPlus }
   ];
 
   useEffect(() => {
@@ -253,33 +373,11 @@ export function MobileAppMenu({ isOpen, onClose }: MobileAppMenuProps) {
                   ))}
               </div>
 
-              {/* Secondary links */}
+              {/* Secondary links (admin-managed navigation) */}
               <h3 className="mt-6 px-1 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                 {t('more')}
               </h3>
-              <div className="mt-3 rounded-2xl border border-slate-300 bg-white dark:border-white/10 dark:bg-white/5">
-                {secondaryMenuItems.map((item, index) => {
-                  const Icon = item.icon;
-                  const LinkComponent = item.external ? NextLink : Link;
-                  const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
-                  return (
-                    <LinkComponent
-                      key={item.href}
-                      href={item.href}
-                      onClick={onClose}
-                      className={cn(
-                        'flex items-center gap-4 px-4 py-3.5 transition-colors active:bg-white/10',
-                        index !== secondaryMenuItems.length - 1 && 'border-b border-slate-200 dark:border-white/10',
-                        isActive ? 'text-neon-blue' : 'text-slate-700 dark:text-slate-200'
-                      )}
-                    >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
-                      <span className="flex-1 font-medium">{item.label}</span>
-                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                    </LinkComponent>
-                  );
-                })}
-              </div>
+              <SecondaryNavItems onClose={onClose} />
 
               {/* Admin link */}
               {(user?.role === 'ADMIN' || (user?.permissions?.length ?? 0) > 0) && (

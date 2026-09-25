@@ -69,4 +69,25 @@ export class SiteSettingsService {
       }
     });
   }
+
+  async updateSeo(data: {
+    metaTitle?: string;
+    metaDescription?: string;
+    metaKeywords?: string;
+  }) {
+    const existing = await this.get();
+    if (!('id' in existing)) {
+      throw new ServiceUnavailableException(
+        'Site settings cannot be updated while the database is unavailable.'
+      );
+    }
+    return this.prisma.siteSettings.update({
+      where: { id: existing.id },
+      data: {
+        ...(data.metaTitle !== undefined && { metaTitle: data.metaTitle || null }),
+        ...(data.metaDescription !== undefined && { metaDescription: data.metaDescription || null }),
+        ...(data.metaKeywords !== undefined && { metaKeywords: data.metaKeywords || null })
+      }
+    });
+  }
 }

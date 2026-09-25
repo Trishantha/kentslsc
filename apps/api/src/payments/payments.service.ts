@@ -157,6 +157,18 @@ export class PaymentsService {
     return !!this.stripe;
   }
 
+  /**
+   * Lazily initialise the Stripe client from the effective settings and return
+   * it. Shared by services outside payments (e.g. payout reconciliation) that
+   * call Stripe APIs the PaymentsService does not wrap.
+   */
+  async getStripeClient(): Promise<Stripe> {
+    const effective = await this.getEffectiveSettings();
+    this.ensureStripeClient(effective.stripeSecretKey);
+    this.ensureEnabled();
+    return this.stripe!;
+  }
+
   async createCheckoutSession(params: Stripe.Checkout.SessionCreateParams) {
     this.ensureEnabled();
     return this.stripe!.checkout.sessions.create(params);

@@ -6,6 +6,7 @@ import { GoCardlessService } from './gocardless.service.js';
 import { PaymentsController } from './payments.controller.js';
 import { RefundsService } from './refunds.service.js';
 import { PaymentReportsService } from './reports.service.js';
+import { PayoutSyncService } from './payout-sync.service.js';
 
 const PAYMENTS_SERVICE = 'PAYMENTS_SERVICE';
 
@@ -16,9 +17,10 @@ const PAYMENTS_SERVICE = 'PAYMENTS_SERVICE';
     GoCardlessService,
     RefundsService,
     PaymentReportsService,
+    PayoutSyncService,
     { provide: PAYMENTS_SERVICE, useClass: PaymentsService }
   ],
   controllers: [PaymentsController],
-  exports: [PaymentsService, GoCardlessService, RefundsService, PaymentReportsService, PAYMENTS_SERVICE]
+  exports: [PaymentsService, GoCardlessService, RefundsService, PaymentReportsService, PayoutSyncService, PAYMENTS_SERVICE]
 })
 export class PaymentsModule {}

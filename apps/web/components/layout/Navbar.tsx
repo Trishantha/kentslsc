@@ -4,18 +4,72 @@ import NextLink from 'next/link';
 import { Link, usePathname } from '@/i18n/routing';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { Menu } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { ChevronDown, Menu } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import NeonLava from '@/components/ui/NeonLava';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { MembershipFeature } from '@kentslsc/shared';
+import type { MenuItemNode } from '@kentslsc/shared';
 import { useAuth, useSignOut } from '@/hooks/useAuth';
+import { useMenu, getMenuLabel } from '@/hooks/useMenu';
 import { cn } from '@/lib/utils';
 
 interface NavbarProps {
   onMenuOpen: () => void;
+}
+
+function NavDropdown({
+  item,
+  compact,
+  pathname
+}: {
+  item: MenuItemNode;
+  compact: boolean;
+  pathname: string | null;
+}) {
+  const locale = useLocale();
+  const [open, setOpen] = useState(false);
+
+  const triggerClass = cn(
+    'flex items-center gap-1 whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+    compact ? 'text-slate-700 dark:text-slate-300' : 'text-white drop-shadow-md'
+  );
+  const linkClass = (active: boolean) =>
+    cn(
+      'block px-4 py-2.5 text-sm transition-colors first:rounded-t-xl last:rounded-b-xl',
+      active
+        ? 'font-semibold text-neon-blue'
+        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'
+    );
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button type="button" className={triggerClass} onClick={() => setOpen((v) => !v)}>
+        {getMenuLabel(item, locale)}
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white pt-1 shadow-xl dark:border-white/10 dark:bg-slate-900">
+          {item.children.map((child) => {
+            const href = child.href ?? '/';
+            const active =
+              pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
+            return (
+              <Link key={child.id} href={href} className={linkClass(active)}>
+                {getMenuLabel(child, locale)}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Navbar({ onMenuOpen }: NavbarProps) {
@@ -26,10 +80,14 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
   const compact = scrolled || isAdmin || pathname !== '/';
   const { data: user } = useAuth();
   const signOut = useSignOut();
+  const locale = useLocale();
+  const { data: menu } = useMenu();
   const canAccessAdmin =
     user && (user.role === 'ADMIN' || user.permissions.length > 0);
 
-  const publicNavLinks = [
+  // Hardcoded copy of the default navigation, used as a fallback when the
+  // menu endpoint is unreachable or has no items, so the site never loses nav.
+  const fallbackNavLinks: MenuItemNode[] = [
     { href: '/', label: t('home') },
     { href: '/events', label: t('events') },
     { href: '/directory', label: t('directory') },
@@ -38,7 +96,22 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
     { href: '/about', label: t('about') },
     { href: '/emergency', label: t('emergency') },
     { href: '/contact', label: t('contact') }
-  ] as const;
+  ].map((link, index) => ({
+    id: `fallback-${index}`,
+    parentId: null,
+    labelEn: link.label,
+    labelSi: null,
+    labelTa: null,
+    linkType: 'path' as const,
+    path: link.href,
+    pageId: null,
+    href: link.href,
+    sortOrder: index,
+    isVisible: true,
+    children: []
+  }));
+
+  const navItems = menu && menu.length > 0 ? menu : fallbackNavLinks;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -88,20 +161,24 @@ export function Navbar({ onMenuOpen }: NavbarProps) {
 
         {/* Desktop links / auth */}
         <div className="hidden items-center gap-8 md:flex">
-          {publicNavLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
-                compact
-                  ? 'text-slate-700 dark:text-slate-300'
-                  : 'text-white drop-shadow-md'
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navItems.map((item) =>
+            item.children.length > 0 ? (
+              <NavDropdown key={item.id} item={item} compact={compact} pathname={pathname} />
+            ) : (
+              <Link
+                key={item.id}
+                href={item.href ?? '/'}
+                className={cn(
+                  'whitespace-nowrap text-xs font-medium transition-colors hover:text-neon-blue hover:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                  compact
+                    ? 'text-slate-700 dark:text-slate-300'
+                    : 'text-white drop-shadow-md'
+                )}
+              >
+                {getMenuLabel(item, locale)}
+              </Link>
+            )
+          )}
           <FeatureGate feature={MembershipFeature.FORUM_READ}>
             <NextLink
               href="/forum"

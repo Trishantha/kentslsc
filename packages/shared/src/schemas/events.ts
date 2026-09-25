@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EventCategory } from '../enums.js';
+import { EventCategory, EventRegistrationMode } from '../enums.js';
 
 export const eventSchema = z.object({
   title: z.string().min(1),
@@ -11,6 +11,7 @@ export const eventSchema = z.object({
   isFree: z.boolean().default(false),
   maxTickets: z.number().int().min(1).optional(),
   category: z.nativeEnum(EventCategory).default(EventCategory.OTHER),
+  registrationMode: z.nativeEnum(EventRegistrationMode).default(EventRegistrationMode.TICKETED),
   imageUrl: z.string().url().optional(),
   externalTicketingUrl: z.string().url().optional().or(z.literal('')),
   isPublished: z.boolean().default(false)

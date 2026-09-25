@@ -18,6 +18,7 @@ interface MonthEvent {
   category?: EventCategory;
   remainingCount?: number | null;
   externalTicketingUrl?: string | null;
+  registrationMode?: 'TICKETED' | 'ENROLLMENT';
 }
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
   startingFromLabel: (price: string) => string;
   freeLabel: string;
   externalLabel: string;
+  enrollLabel: string;
 }
 
 function getMonthKey(date: Date) {
@@ -110,7 +112,8 @@ export default function EventMonthView({
   viewDetailsLabel,
   startingFromLabel,
   freeLabel,
-  externalLabel
+  externalLabel,
+  enrollLabel
 }: Props) {
   const [origin, setOrigin] = useState(shareBaseUrl);
 
@@ -204,6 +207,7 @@ export default function EventMonthView({
                   startingFromLabel={startingFromLabel}
                   freeLabel={freeLabel}
                   externalLabel={externalLabel}
+                  enrollLabel={enrollLabel}
                   shareText={`Join us for "${event.title}" on Kent SLSC`}
                 />
               ))}

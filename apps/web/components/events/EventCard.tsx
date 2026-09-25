@@ -20,6 +20,7 @@ interface EventCardEvent {
   imageUrl?: string;
   category?: EventCategory;
   externalTicketingUrl?: string | null;
+  registrationMode?: 'TICKETED' | 'ENROLLMENT';
 }
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
   startingFromLabel: (price: string) => string;
   freeLabel: string;
   externalLabel: string;
+  enrollLabel: string;
   shareText?: string;
 }
 
@@ -41,6 +43,7 @@ export default function EventCard({
   startingFromLabel,
   freeLabel,
   externalLabel,
+  enrollLabel,
   shareText = `Join us for "${event.title}" on Kent SLSC`
 }: Props) {
   const router = useRouter();
@@ -129,11 +132,13 @@ export default function EventCard({
           )}
 
           <div className="mt-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
-            {event.externalTicketingUrl
-              ? externalLabel
-              : event.isFree || Number(event.ticketPrice) === 0
-                ? freeLabel
-                : startingFromLabel(formatCurrency(event.ticketPrice))}
+            {event.registrationMode === 'ENROLLMENT'
+              ? enrollLabel
+              : event.externalTicketingUrl
+                ? externalLabel
+                : event.isFree || Number(event.ticketPrice) === 0
+                  ? freeLabel
+                  : startingFromLabel(formatCurrency(event.ticketPrice))}
           </div>
         </div>
 

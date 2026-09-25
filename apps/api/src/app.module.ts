@@ -26,6 +26,7 @@ import { StripeWebhookModule } from './payments/stripe-webhook.module.js';
 import { EmailModule } from './email/email.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { PagesModule } from './pages/pages.module.js';
+import { MenusModule } from './menus/menus.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { HeroConfigModule } from './hero-config/hero-config.module.js';
 import { CommitteeModule } from './committee/committee.module.js';
@@ -85,6 +86,7 @@ import { QueueModule } from './queue/queue.module.js';
     EmailModule,
     AdminModule,
     PagesModule,
+    MenusModule,
     UploadsModule,
     HeroConfigModule,
     CommitteeModule,

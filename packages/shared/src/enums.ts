@@ -76,6 +76,16 @@ export enum EventCategory {
   OTHER = 'OTHER'
 }
 
+export enum EventRegistrationMode {
+  TICKETED = 'TICKETED',
+  ENROLLMENT = 'ENROLLMENT'
+}
+
+export const eventRegistrationModeLabels: Record<EventRegistrationMode, string> = {
+  [EventRegistrationMode.TICKETED]: 'Ticketed event',
+  [EventRegistrationMode.ENROLLMENT]: 'Workshop — enrollment (free)'
+};
+
 export enum MembershipFeature {
   DIRECTORY_READ = 'DIRECTORY_READ',
   DIRECTORY_LISTING = 'DIRECTORY_LISTING',
@@ -107,8 +117,10 @@ export enum Permission {
   MANAGE_FORUM = 'MANAGE_FORUM',
   MANAGE_CONTACT_MESSAGES = 'MANAGE_CONTACT_MESSAGES',
   MANAGE_SITE_SETTINGS = 'MANAGE_SITE_SETTINGS',
+  MANAGE_SEO = 'MANAGE_SEO',
   MANAGE_HERO = 'MANAGE_HERO',
   MANAGE_PAGES = 'MANAGE_PAGES',
+  MANAGE_NAVIGATION = 'MANAGE_NAVIGATION',
   MANAGE_PAYMENTS = 'MANAGE_PAYMENTS',
   MANAGE_GDPR_SETTINGS = 'MANAGE_GDPR_SETTINGS',
   MANAGE_POLICY_DOCUMENTS = 'MANAGE_POLICY_DOCUMENTS',
@@ -188,6 +200,11 @@ export const permissionLabels: Record<
     description: 'Update social links, contact details and global site settings.',
     section: 'Settings'
   },
+  [Permission.MANAGE_SEO]: {
+    label: 'SEO & Meta',
+    description: 'Edit the default meta title, meta description and meta keywords used site-wide.',
+    section: 'Settings'
+  },
   [Permission.MANAGE_HERO]: {
     label: 'Hero',
     description: 'Update the homepage hero media and overlay.',
@@ -206,6 +223,11 @@ export const permissionLabels: Record<
   [Permission.MANAGE_PAGES]: {
     label: 'Pages',
     description: 'Create and edit CMS pages.',
+    section: 'Settings'
+  },
+  [Permission.MANAGE_NAVIGATION]: {
+    label: 'Navigation Menus',
+    description: 'Edit the public site navigation: menu items, submenus and ordering.',
     section: 'Settings'
   },
   [Permission.MANAGE_PAYMENTS]: {

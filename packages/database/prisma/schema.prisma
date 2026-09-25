@@ -90,6 +90,11 @@ enum EventCategory {
   OTHER
 }
 
+enum EventRegistrationMode {
+  TICKETED
+  ENROLLMENT
+}
+
 enum AuthEventType {
   LOGIN_SUCCESS
   LOGIN_FAILURE
@@ -122,8 +127,10 @@ enum Permission {
   MANAGE_FORUM
   MANAGE_CONTACT_MESSAGES
   MANAGE_SITE_SETTINGS
+  MANAGE_SEO
   MANAGE_HERO
   MANAGE_PAGES
+  MANAGE_NAVIGATION
   MANAGE_PAYMENTS
   MANAGE_COMMITTEE
   VIEW_ADMIN_DASHBOARD
@@ -421,6 +428,7 @@ model Event {
   isFeatured    Boolean       @default(false) @map("is_featured")
   featuredUntil DateTime?     @map("featured_until")
   isPublished   Boolean       @default(false) @map("is_published")
+  registrationMode EventRegistrationMode @default(TICKETED) @map("registration_mode")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
   deletedAt     DateTime?      @map("deleted_at")
@@ -928,10 +936,34 @@ model SitePage {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  menuItems MenuItem[]
+
   @@index([slug])
   @@index([isHome])
   @@index([isPublished])
   @@map("site_pages")
+}
+
+model MenuItem {
+  id        String     @id @default(uuid())
+  parentId  String?    @map("parent_id")
+  parent    MenuItem?  @relation("MenuChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  MenuItem[] @relation("MenuChildren")
+  labelEn   String     @map("label_en")
+  labelSi   String?    @map("label_si")
+  labelTa   String?    @map("label_ta")
+  linkType  String     @default("path") @map("link_type")
+  path      String?
+  pageId    String?    @map("page_id")
+  page      SitePage?  @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  sortOrder Int        @default(0) @map("sort_order")
+  isVisible Boolean    @default(true) @map("is_visible")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@index([parentId])
+  @@index([sortOrder])
+  @@map("menu_items")
 }
 
 model SiteSettings {
@@ -947,6 +979,9 @@ model SiteSettings {
   linkedin       String?
   tiktok         String?
   showPageLoader Boolean? @default(true) @map("show_page_loader")
+  metaTitle       String?  @map("meta_title")
+  metaDescription String?  @map("meta_description")
+  metaKeywords    String?  @map("meta_keywords")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -1024,6 +1059,49 @@ model WebhookEvent {
   @@unique([provider, externalId])
   @@index([status, createdAt])
   @@map("webhook_events")
+}
+
+model StripePayout {
+  id          String   @id @default(uuid())
+  payoutId    String   @unique @map("payout_id")
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  currency    String   @default("GBP")
+  status      String
+  arrivalDate DateTime @map("arrival_date")
+  method      String
+  type        String
+  description String?
+  raw         Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([arrivalDate])
+  @@index([status])
+  @@map("stripe_payouts")
+}
+
+model StripeBalanceTransaction {
+  id                  String    @id @default(uuid())
+  transactionId       String    @unique @map("transaction_id")
+  type                String
+  amount              Decimal   @default(0) @db.Decimal(12, 2)
+  fee                 Decimal   @default(0) @db.Decimal(12, 2)
+  net                 Decimal   @default(0) @db.Decimal(12, 2)
+  currency            String    @default("GBP")
+  availableOn         DateTime  @map("available_on")
+  created             DateTime
+  description         String?
+  payoutId            String?   @map("payout_id")
+  sourceId            String?   @map("source_id")
+  sourcePaymentIntentId String? @map("source_payment_intent_id")
+  raw                 Json?     @db.JsonB
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([payoutId])
+  @@index([sourcePaymentIntentId])
+  @@index([availableOn])
+  @@map("stripe_balance_transactions")
 }
 
 model CommitteeMember {

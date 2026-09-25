@@ -4,20 +4,38 @@ import './globals.css';
 import { Providers } from './providers';
 import JsonLd from '@/components/JsonLd';
 import { getFrontendUrl } from '@/lib/env';
+import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
+import type { SiteSettings } from '@kentslsc/shared';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const russoOne = Russo_One({ weight: '400', subsets: ['latin'], variable: '--font-futuristic' });
 
+const DEFAULT_TITLE = 'Kent Sri Lankan Social Club';
+const DEFAULT_DESCRIPTION = 'A futuristic community platform for the Kent Sri Lankan Social Club.';
+
+async function fetchSiteSettings(): Promise<SiteSettings | null> {
+  return fetchWithOriginFallback<SiteSettings>('/api/site-settings');
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const baseUrl = getFrontendUrl();
+  const settings = await fetchSiteSettings();
+
+  const title = settings?.metaTitle?.trim() || DEFAULT_TITLE;
+  const description = settings?.metaDescription?.trim() || DEFAULT_DESCRIPTION;
+  const keywords = settings?.metaKeywords
+    ?.split(',')
+    .map((keyword) => keyword.trim())
+    .filter(Boolean);
 
   return {
     metadataBase: new URL(baseUrl),
     title: {
-      default: 'Kent Sri Lankan Social Club',
+      default: title,
       template: '%s | Kent Sri Lankan Social Club'
     },
-    description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+    description,
+    ...(keywords && keywords.length > 0 && { keywords }),
     icons: {
       icon: '/logo-v2.png',
       apple: '/logo-v2.png'
@@ -26,14 +44,14 @@ export async function generateMetadata(): Promise<Metadata> {
       type: 'website',
       locale: 'en_GB',
       siteName: 'Kent Sri Lankan Social Club',
-      title: 'Kent Sri Lankan Social Club',
-      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+      title,
+      description,
       images: ['/opengraph-image']
     },
     twitter: {
       card: 'summary_large_image',
-      title: 'Kent Sri Lankan Social Club',
-      description: 'A futuristic community platform for the Kent Sri Lankan Social Club.',
+      title,
+      description,
       images: ['/opengraph-image']
     },
     alternates: {

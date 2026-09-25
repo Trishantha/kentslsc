@@ -2,6 +2,7 @@ import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SiteSettingsService } from './site-settings.service.js';
 import { UpdateSiteSettingsDto } from './dto/update-site-settings.dto.js';
+import { UpdateSiteSeoSettingsDto } from './dto/update-site-seo-settings.dto.js';
 import { RequirePermission } from '../common/decorators/require-permission.decorator.js';
 import { Permission } from '@kentslsc/shared';
 import { Public } from '../common/decorators/public.decorator.js';
@@ -24,5 +25,12 @@ export class SiteSettingsController {
   @ApiBearerAuth()
   update(@Body() dto: UpdateSiteSettingsDto) {
     return this.siteSettingsService.update(dto);
+  }
+
+  @Put('seo')
+  @RequirePermission(Permission.MANAGE_SEO)
+  @ApiBearerAuth()
+  updateSeo(@Body() dto: UpdateSiteSeoSettingsDto) {
+    return this.siteSettingsService.updateSeo(dto);
   }
 }
