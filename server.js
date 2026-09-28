@@ -494,13 +494,34 @@ async function spawnWithRetry(command, args, options, { label, maxAttempts = 5 }
   return spawnSync(command, args, options);
 }
 
-function spawnProcess(command, args, envOverrides = {}, cwd = rootDir) {
+function spawnProcess(command, args, envOverrides = {}, cwd = rootDir, logPrefix = '') {
+  // Pipe (not inherit) the child's stdio and forward it line-by-line through
+  // the parent's console. Under lsnode, child output with stdio:'inherit' does
+  // not reliably reach the captured deployment log, which leaves a hung child
+  // completely invisible. Forwarding guarantees every boot message is logged.
   const child = spawn(command, args, {
     cwd,
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     shell: false,
     env: { ...process.env, ...envOverrides }
   });
+
+  const forwardStream = (stream) => {
+    let buffer = '';
+    stream.on('data', (chunk) => {
+      buffer += chunk.toString();
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIndex).replace(/\r$/, '');
+        buffer = buffer.slice(newlineIndex + 1);
+        if (line) {
+          console.log(`${logPrefix}${line}`);
+        }
+      }
+    });
+  };
+  forwardStream(child.stdout);
+  forwardStream(child.stderr);
 
   child.on('error', (error) => {
     console.error(`Failed to start ${command}:`, error);
@@ -1145,8 +1166,10 @@ async function waitForSocket(socketPath, serviceName, timeoutMs = 120000) {
 }
 
 async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
-  const deadline = Date.now() + timeoutMs;
+  const start = Date.now();
+  const deadline = start + timeoutMs;
   const target = new URL(baseUrl);
+  let nextHeartbeat = 30000;
 
   while (Date.now() < deadline) {
     const isReady = await new Promise((resolve) => {
@@ -1174,6 +1197,18 @@ async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
     if (isReady) {
       console.log(`${serviceName} is accepting connections at ${baseUrl}`);
       return;
+    }
+
+    const elapsed = Date.now() - start;
+    if (elapsed >= nextHeartbeat) {
+      nextHeartbeat += 30000;
+      const childState =
+        serviceName === 'API service' && apiProcess
+          ? ` (api child pid ${apiProcess.pid}, ${apiProcess.killed ? 'killed' : 'still running'})`
+          : serviceName === 'Web service' && webProcess
+            ? ` (web child pid ${webProcess.pid}, ${webProcess.killed ? 'killed' : 'still running'})`
+            : '';
+      console.log(`Waiting for ${serviceName} at ${baseUrl}... (${elapsed}ms elapsed)${childState}`);
     }
 
     await delay(500);
@@ -1779,7 +1814,8 @@ async function startApiAsChild(socketPath) {
     FRONTEND_URL: frontendUrl
   };
 
-  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
+  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir, '[api] ');
+  console.log(`API child spawned (pid ${apiProcess.pid})`);
 
   apiProcess.on('exit', (code, signal) => {
     const details = ['API process exited'];
@@ -1811,7 +1847,8 @@ async function startApiTcpChild() {
     FRONTEND_URL: frontendUrl
   };
 
-  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir);
+  apiProcess = spawnProcess(nodeCommand, ['dist/main.js'], apiEnv, apiDir, '[api] ');
+  console.log(`API child spawned (pid ${apiProcess.pid})`);
 
   apiProcess.on('exit', (code, signal) => {
     const details = ['API process exited'];
@@ -1853,8 +1890,10 @@ async function startWebChild() {
     nodeCommand,
     ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(internalWebPort)],
     webEnv,
-    webDir
+    webDir,
+    '[web] '
   );
+  console.log(`Web child spawned (pid ${webProcess.pid})`);
 
   webProcess.on('exit', (code, signal) => {
     const details = ['Web process exited'];
