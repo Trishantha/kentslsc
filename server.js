@@ -408,8 +408,16 @@ function discoverRoutableIPv4() {
 const routableWebHost =
   process.env.INTERNAL_WEB_HOST || (runningUnderLsnode ? discoverRoutableIPv4() : null);
 const webBindHost = process.env.WEB_BIND_HOST || (routableWebHost ? '0.0.0.0' : '127.0.0.1');
+const webSocketPath = process.env.WEB_SOCKET_PATH || '/tmp/kslsc-web.sock';
+// How the parent reaches the web child. When the sandbox exposes a routable
+// interface, bind 0.0.0.0 and use that IP. Otherwise — the observed hbuilds
+// setup, where the parent sees only loopback — fall back to a Unix domain
+// socket: socket files are shared between processes (the API child proves it
+// on every boot) and apps/web/unix-server.js serves Next.js over one, which
+// plain `next start` cannot do.
+const webTransport = process.env.WEB_TRANSPORT || (routableWebHost ? 'tcp' : runningUnderLsnode ? 'unix' : 'tcp');
 function internalWebOrigin(port) {
-  return `http://${routableWebHost || '127.0.0.1'}:${port}`;
+  return webTransport === 'unix' ? `unix:${webSocketPath}` : `http://${routableWebHost || '127.0.0.1'}:${port}`;
 }
 
 // Internal API origin the unified proxy and (in child mode) the web child use.
@@ -563,6 +571,19 @@ function removeApiSocket() {
   }
 }
 
+function removeWebSocket() {
+  if (webTransport !== 'unix') {
+    return;
+  }
+  try {
+    if (fs.existsSync(webSocketPath)) {
+      fs.unlinkSync(webSocketPath);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function stopChildProcesses() {
   [apiProcess, webProcess].forEach((child) => {
     if (child && !child.killed) {
@@ -596,6 +617,7 @@ function beginShutdown(exitCode, reason) {
   }
   stopChildProcesses();
   removeApiSocket();
+  removeWebSocket();
 
   setTimeout(() => process.exit(exitCode), 250).unref();
 }
@@ -1403,21 +1425,36 @@ function serveNextStaticFile(req, res, fallback) {
  *    Browsers revalidate; the Next child answers from its local optimizer cache.
  */
 function serveNextImage(req, res) {
-  const target = new URL(internalWebUrl);
+  const isUnixSocket = internalWebUrl.startsWith('unix:');
+  const socketPath = isUnixSocket ? internalWebUrl.slice(5) : undefined;
+  const target = isUnixSocket ? null : new URL(internalWebUrl);
   // A client-supplied Connection header (e.g. "close") must not reach the
-  // upstream, or it would tear down the pooled keep-alive socket.
-  const imageHeaders = { ...req.headers, host: target.host };
+  // upstream, or it would tear down the pooled keep-alive socket. The original
+  // Host header passes through as-is (the public host), which is what the
+  // Next.js image optimizer uses to build absolute URLs.
+  const imageHeaders = { ...req.headers };
+  if (target) {
+    imageHeaders.host = target.host;
+  }
   delete imageHeaders.connection;
   const upstream = http.request(
-    {
-      protocol: target.protocol,
-      hostname: target.hostname,
-      port: target.port,
-      method: req.method,
-      path: normalizeRequestPath(req.url || '/'),
-      agent: httpKeepAliveAgent,
-      headers: imageHeaders
-    },
+    isUnixSocket
+      ? {
+          socketPath,
+          method: req.method,
+          path: normalizeRequestPath(req.url || '/'),
+          agent: httpKeepAliveAgent,
+          headers: imageHeaders
+        }
+      : {
+          protocol: target.protocol,
+          hostname: target.hostname,
+          port: target.port,
+          method: req.method,
+          path: normalizeRequestPath(req.url || '/'),
+          agent: httpKeepAliveAgent,
+          headers: imageHeaders
+        },
     (upstreamRes) => {
       const chunks = [];
       upstreamRes.on('data', (chunk) => chunks.push(chunk));
@@ -1940,20 +1977,26 @@ async function startWebChild() {
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
-  if (routableWebHost) {
+  if (webTransport === 'tcp' && routableWebHost) {
     console.log(
       `Web child binding ${webBindHost}:${internalWebPort}; ` +
         `parent will reach it at http://${routableWebHost}:${internalWebPort} (sandbox loopback isolation)`
     );
+  } else if (webTransport === 'unix') {
+    console.log(`Web child serving Next.js on Unix socket ${webSocketPath} (sandbox loopback isolation)`);
   }
 
-  webProcess = spawnProcess(
-    nodeCommand,
-    ['node_modules/next/dist/bin/next', 'start', '--hostname', webBindHost, '--port', String(internalWebPort)],
-    webEnv,
-    webDir,
-    '[web] '
-  );
+  const webArgs =
+    webTransport === 'unix'
+      ? [path.join(webDir, 'unix-server.js')]
+      : ['node_modules/next/dist/bin/next', 'start', '--hostname', webBindHost, '--port', String(internalWebPort)];
+
+  if (webTransport === 'unix') {
+    // Clean up any stale socket file from a previous run.
+    removeWebSocket();
+  }
+
+  webProcess = spawnProcess(nodeCommand, webArgs, webEnv, webDir, '[web] ');
   console.log(`Web child spawned (pid ${webProcess.pid})`);
 
   webProcess.on('exit', (code, signal) => {
@@ -1971,7 +2014,11 @@ async function startWebChild() {
     }
   });
 
-  await waitForService(internalWebUrl, 'Web service', webReadyTimeoutMs);
+  if (webTransport === 'unix') {
+    await waitForSocket(webSocketPath, 'Web service', webReadyTimeoutMs);
+  } else {
+    await waitForService(internalWebUrl, 'Web service', webReadyTimeoutMs);
+  }
 }
 
 // The Hostinger/hbuilds pipeline starts a new app process without stopping the
