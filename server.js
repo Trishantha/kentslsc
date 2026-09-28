@@ -380,12 +380,14 @@ const runningUnderLsnode =
 const webMode = process.env.WEB_MODE || (runningUnderLsnode ? 'child' : 'in-process');
 // The web child reaches the API through INTERNAL_API_URL. lsnode only feeds the
 // parent's public listener through its LiteSpeed socket, so 127.0.0.1:<PORT> in
-// the parent is not a real TCP port and the child cannot dial it. A child
-// process binds real TCP (the web child proves it), so when the web app runs as
-// a child the API runs as a real-TCP child too, and both the proxy and the web
-// child target that origin. API_MODE still overrides ('in-process' | 'unix' |
-// 'tcp').
-const apiMode = process.env.API_MODE || (webMode === 'child' ? 'tcp' : 'in-process');
+// the parent is not a real TCP port and the child cannot dial it. Worse, the
+// sandbox isolates loopback per process and exposes no routable IPv4, so no TCP
+// path exists between parent and children at all — but unix domain sockets are
+// shared, so under lsnode the API runs as a unix-socket child (like the web
+// child, which is served over /tmp/kslsc-web.sock). API_MODE still overrides
+// ('in-process' | 'unix' | 'tcp').
+const apiMode =
+  process.env.API_MODE || (webMode === 'child' ? (runningUnderLsnode ? 'unix' : 'tcp') : 'in-process');
 const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 let internalApiPort = preferredInternalApiPort;
 let internalApiUrl = `http://127.0.0.1:${internalApiPort}`;

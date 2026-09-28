@@ -46,11 +46,19 @@ outside Next's `workStore` context and crashes with
 middleware rewrite involved.
 
 To avoid this, `server.js` detects lsnode (via `LSNODE_STARTUP_FILE` or an
-`lsnode.js` argv) and runs the web app as a plain `node next start` child
-process on an internal `127.0.0.1` port, proxying web traffic to it. The
-API stays in-process. Outside lsnode (Docker, plain `node server.js`) the
-web app runs in-process as before. Set `WEB_MODE=in-process` or
-`WEB_MODE=child` to override the detection.
+`lsnode.js` argv) and runs both halves as child processes, proxying traffic
+to them. Outside lsnode (Docker, plain `node server.js`) the web app runs
+in-process as before. Set `WEB_MODE=in-process` or `WEB_MODE=child` to
+override the detection.
+
+The hbuilds sandbox isolates loopback **per process** and exposes no routable
+IPv4, so there is no TCP path between the parent and its children at all — a
+child bound to `127.0.0.1` logs `Ready`, yet the parent gets `ECONNREFUSED`.
+Unix domain sockets are shared between processes, so under lsnode both
+children serve over unix sockets: the API on `/tmp/kslsc-api.sock` and the
+web app (via `apps/web/unix-server.js`, a minimal Next server) on
+`/tmp/kslsc-web.sock`. `WEB_TRANSPORT=tcp|unix` and `WEB_SOCKET_PATH` can
+override the choice, mainly for local testing.
 
 ### Locale routing
 
@@ -106,6 +114,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 Notes:
 
 - `FRONTEND_URL` drives metadata, sitemap, robots, and canonical URLs.
+- No `API_MODE`, `WEB_MODE`, `WEB_TRANSPORT`, or `*_SOCKET_PATH` variables
+  are needed on current builds — lsnode detection configures the child
+  processes (both on unix sockets) automatically. Older guides telling you
+  to set `API_MODE=unix` still work; the setting is just redundant now.
 - Browser requests to `/api/*` are routed to the in-process API by the
   unified proxy, so httpOnly session cookies stay same-origin. Do **not**
   set `NEXT_PUBLIC_API_URL`; that would make the browser call the API
@@ -174,6 +186,17 @@ set `API_READY_TIMEOUT_MS=300000` and `WEB_READY_TIMEOUT_MS=300000` in the app
 environment — cold boots on throttled shared hosts can exceed the 120s
 default — and keep `connection_limit`/`connect_timeout` on `DATABASE_URL` so a
 stuck pooler connection fails fast instead of hanging bootstrap.
+
+### Logs show `Web service did not become ready ... ECONNREFUSED` (127.0.0.1 / ::1 / localhost)
+
+The hbuilds sandbox isolates loopback per process and has no routable IPv4,
+so a TCP-bound web child can never be reached from the parent. Current builds
+detect this and serve the web child over a unix socket instead — the startup
+log should show `Web child serving Next.js on Unix socket /tmp/kslsc-web.sock`
+and `Upstreams are ready; proxy is now accepting traffic`. If you instead see
+the ECONNREFUSED error, the build predates the fix (or `WEB_MODE` /
+`WEB_TRANSPORT` is forcing the TCP path) — redeploy and make sure no
+`WEB_MODE` variable is set in the app environment.
 
 ### Contact form returns "We are unable to save your message right now" (HTTP 503)
 
