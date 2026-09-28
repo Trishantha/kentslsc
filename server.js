@@ -2,6 +2,7 @@
 const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const net = require('net');
+const os = require('os');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -389,6 +390,28 @@ const apiSocketPath = process.env.API_SOCKET_PATH || '/tmp/kslsc-api.sock';
 let internalApiPort = preferredInternalApiPort;
 let internalApiUrl = `http://127.0.0.1:${internalApiPort}`;
 
+// Hostinger's hbuilds sandbox isolates loopback per process: a child bound to
+// 127.0.0.1 accepts connections, yet the parent gets ECONNREFUSED on every
+// loopback variant (127.0.0.1, ::1, localhost) even though the child logged
+// "Ready". Outbound NAT works, so under lsnode bind loopback-facing children to
+// 0.0.0.0 and reach them via the container's routable IPv4 instead.
+function discoverRoutableIPv4() {
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) {
+        return entry.address;
+      }
+    }
+  }
+  return null;
+}
+const routableWebHost =
+  process.env.INTERNAL_WEB_HOST || (runningUnderLsnode ? discoverRoutableIPv4() : null);
+const webBindHost = process.env.WEB_BIND_HOST || (routableWebHost ? '0.0.0.0' : '127.0.0.1');
+function internalWebOrigin(port) {
+  return `http://${routableWebHost || '127.0.0.1'}:${port}`;
+}
+
 // Internal API origin the unified proxy and (in child mode) the web child use.
 // In webMode === 'in-process' the Next.js runtime lives in this process and
 // server-to-API calls go through the local listener; the in-process API is
@@ -447,7 +470,7 @@ const frontendOrigin =
 const frontendUrl = frontendOrigin.toString();
 
 let internalWebPort = preferredInternalWebPort;
-let internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+let internalWebUrl = internalWebOrigin(preferredInternalWebPort);
 
 let apiProcess;
 let webProcess;
@@ -1891,14 +1914,24 @@ async function startApiTcpChild() {
 }
 
 async function startWebChild() {
-  const apiOriginForChild =
-    apiMode === 'tcp' ? internalApiUrl : `http://127.0.0.1:${publicPort}`;
+  let apiOriginForChild;
+  if (apiMode === 'tcp') {
+    apiOriginForChild = internalApiUrl;
+  } else if (runningUnderLsnode && !isLocalHostname(frontendOrigin.hostname)) {
+    // In the hbuilds sandbox the child cannot reach the parent's public listener
+    // over loopback (per-process isolation). Route server-to-API calls through
+    // the public origin instead — the same path external clients use
+    // (LiteSpeed -> proxy -> API unix socket).
+    apiOriginForChild = frontendUrl;
+  } else {
+    apiOriginForChild = `http://127.0.0.1:${publicPort}`;
+  }
 
   const webEnv = {
     NODE_ENV: 'production',
     NODE_OPTIONS: `--max-old-space-size=${webMemoryLimitMb}`,
     PORT: internalWebPort,
-    HOSTNAME: '127.0.0.1',
+    HOSTNAME: webBindHost,
     FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_FRONTEND_URL: frontendUrl,
     NEXT_PUBLIC_SOCKET_URL: publicApiUrl || frontendUrl,
@@ -1907,9 +1940,16 @@ async function startWebChild() {
     ...(publicApiUrl ? { NEXT_PUBLIC_API_URL: publicApiUrl } : {})
   };
 
+  if (routableWebHost) {
+    console.log(
+      `Web child binding ${webBindHost}:${internalWebPort}; ` +
+        `parent will reach it at http://${routableWebHost}:${internalWebPort} (sandbox loopback isolation)`
+    );
+  }
+
   webProcess = spawnProcess(
     nodeCommand,
-    ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(internalWebPort)],
+    ['node_modules/next/dist/bin/next', 'start', '--hostname', webBindHost, '--port', String(internalWebPort)],
     webEnv,
     webDir,
     '[web] '
@@ -1989,7 +2029,7 @@ function terminateStaleSiblingWorkers() {
 }
 
 async function startServices() {  internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
-  internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+  internalWebUrl = internalWebOrigin(internalWebPort);
 
   console.log(`Starting unified app on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${publicPort}`);
   console.log(`API mode: ${apiMode}`);
@@ -2030,7 +2070,7 @@ async function startServices() {  internalWebPort = await findAvailableLocalPort
     await startInProcessWeb();
   } else if (webMode === 'child') {
     internalWebPort = await findAvailableLocalPort(preferredInternalWebPort);
-    internalWebUrl = `http://127.0.0.1:${internalWebPort}`;
+    internalWebUrl = internalWebOrigin(internalWebPort);
     await startWebChild();
   } else {
     throw new Error(`Unsupported WEB_MODE: ${webMode}. Use 'in-process' or 'child'.`);
