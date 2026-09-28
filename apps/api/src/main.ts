@@ -45,10 +45,16 @@ async function bootstrap() {
     return;
   }
 
-  const port = configService.get<number>('PORT') ?? 4000;
+  const rawPort = configService.get<number>('PORT') ?? 4000;
+  // Coerce to a real number: a string port makes Node treat the value as a
+  // pipe path instead of a TCP port, silently leaving no TCP listener behind.
+  const port = typeof rawPort === 'string' ? Number(rawPort) : rawPort;
   const host = configService.get<string>('HOST') ?? '127.0.0.1';
   await app.listen(port, host);
-  logger.log(`API running on http://localhost:${port}/api`);
+  const address = app.getHttpServer().address();
+  const boundTo =
+    address && typeof address === 'object' ? `${address.address}:${address.port}` : String(address);
+  logger.log(`API running on http://localhost:${port}/api (bound to ${boundTo}, host=${host})`);
 }
 
 if (process.env.UNIFIED_MODE !== 'true') {

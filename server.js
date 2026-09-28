@@ -1169,29 +1169,47 @@ async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
   const start = Date.now();
   const deadline = start + timeoutMs;
   const target = new URL(baseUrl);
+  const targetPort = Number(target.port || (target.protocol === 'https:' ? 443 : 80));
+  // The child may bind IPv4 or IPv6 loopback depending on how the platform
+  // resolves localhost, so probe every loopback variant before failing.
+  const probeHosts = [...new Set([target.hostname, '127.0.0.1', '::1', 'localhost'])];
   let nextHeartbeat = 30000;
+  let firstErrorCode = '';
 
   while (Date.now() < deadline) {
     const isReady = await new Promise((resolve) => {
-      const socket = net.connect(
-        {
-          host: target.hostname,
-          port: Number(target.port || (target.protocol === 'https:' ? 443 : 80))
-        },
-        () => {
+      let hostIndex = 0;
+
+      const tryNextHost = () => {
+        if (hostIndex >= probeHosts.length) {
+          resolve(false);
+          return;
+        }
+
+        const probeHost = probeHosts[hostIndex];
+        hostIndex += 1;
+        const socket = net.connect({ host: probeHost, port: targetPort }, () => {
           socket.end();
           resolve(true);
-        }
-      );
+        });
 
-      socket.setTimeout(2000);
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve(false);
-      });
-      socket.on('error', () => {
-        resolve(false);
-      });
+        socket.setTimeout(2000);
+        socket.on('timeout', () => {
+          socket.destroy();
+          tryNextHost();
+        });
+        socket.on('error', (error) => {
+          if (!firstErrorCode) {
+            firstErrorCode = error.code || String(error);
+            console.log(
+              `${serviceName} not reachable yet (first error: ${firstErrorCode} against ${probeHost}:${targetPort})`
+            );
+          }
+          tryNextHost();
+        });
+      };
+
+      tryNextHost();
     });
 
     if (isReady) {
@@ -1214,7 +1232,10 @@ async function waitForService(baseUrl, serviceName, timeoutMs = 120000) {
     await delay(500);
   }
 
-  throw new Error(`${serviceName} did not become ready at ${baseUrl} within ${timeoutMs}ms`);
+  throw new Error(
+    `${serviceName} did not become ready at ${baseUrl} within ${timeoutMs}ms` +
+      (firstErrorCode ? ` (last connect error: ${firstErrorCode}; probed hosts: ${probeHosts.join(', ')})` : '')
+  );
 }
 
 function getStaticMimeType(filePath) {
