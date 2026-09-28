@@ -403,6 +403,12 @@ if (webMode === 'in-process') {
 // How long the public proxy waits for an upstream response (ms).
 const proxyRequestTimeoutMs = Number(process.env.PROXY_REQUEST_TIMEOUT_MS || 30000);
 
+// How long startup waits for the API/web children to accept connections (ms).
+// On throttled shared hosts a cold boot can exceed the 120s default; raising
+// these only affects startup, not request handling.
+const apiReadyTimeoutMs = Number(process.env.API_READY_TIMEOUT_MS || 120000);
+const webReadyTimeoutMs = Number(process.env.WEB_READY_TIMEOUT_MS || 120000);
+
 // Proxy response delivery mode. Buffered (the default): proxyRequest collects
 // the upstream body and writes it in a single res.end(), because lsnode's
 // public-listener shim truncates streamed responses (see the note at the top
@@ -1822,7 +1828,7 @@ async function startApiTcpChild() {
     }
   });
 
-  await waitForService(`${internalApiUrl}/api/health`, 'API service');
+  await waitForService(`${internalApiUrl}/api/health`, 'API service', apiReadyTimeoutMs);
   console.log(`Internal API target: ${internalApiUrl}`);
 }
 
@@ -1865,7 +1871,7 @@ async function startWebChild() {
     }
   });
 
-  await waitForService(internalWebUrl, 'Web service');
+  await waitForService(internalWebUrl, 'Web service', webReadyTimeoutMs);
 }
 
 // The Hostinger/hbuilds pipeline starts a new app process without stopping the
@@ -2040,6 +2046,12 @@ if (process.env.NODE_ENV !== 'test') {
       if (error && error.stack) {
         console.error(error.stack);
       }
+      // Without this, every child spawned before the failure keeps running:
+      // it holds its port and its database connections, so each failed cycle
+      // makes the next startup slower (observed as a restart death spiral on
+      // shared hosts with hard process/connection caps).
+      stopChildProcesses();
+      removeApiSocket();
       process.exit(1);
     }
   })();

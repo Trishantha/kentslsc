@@ -152,6 +152,29 @@ applied automatically until you baseline:
 3. Restart. As a temporary workaround you can set `SKIP_MIGRATIONS=true`,
    but future migrations will not apply automatically.
 
+### Deployment logs show `P1001: Can't reach database server` for `db.<ref>.supabase.co`
+
+Supabase direct connections are IPv6-only unless the project has the paid IPv4
+add-on, and Hostinger shared hosting is IPv4-only — so the direct host
+eventually stops being reachable (Supabase removes the IPv4 DNS record in
+deprecation waves; DNS caching makes it fail as `P1000` first, then `P1001`).
+Fix: switch `DATABASE_URL` to the **session pooler** (Supabase dashboard →
+Settings → Database → Connection string → Session pooler):
+`postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?connection_limit=5&connect_timeout=15`
+Do NOT use port 6543 (transaction pooler) — it is incompatible with the
+startup `prisma migrate deploy`.
+
+### Logs show `API service did not become ready ... within 120000ms`, repeatedly
+
+Each failed cycle used to leak the API child process (fixed: children are now
+killed on startup failure), and the zombies hold database connections and CPU,
+making every restart slower. If this persists on an older build: fully **Stop**
+the app in hPanel (not Restart), wait a minute, then Start. On current builds,
+set `API_READY_TIMEOUT_MS=300000` and `WEB_READY_TIMEOUT_MS=300000` in the app
+environment — cold boots on throttled shared hosts can exceed the 120s
+default — and keep `connection_limit`/`connect_timeout` on `DATABASE_URL` so a
+stuck pooler connection fails fast instead of hanging bootstrap.
+
 ### Contact form returns "We are unable to save your message right now" (HTTP 503)
 
 Usually a missing migration: the `contact_messages` table needs the
