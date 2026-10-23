@@ -57,6 +57,8 @@ import {
   CreateCommitteeMemberDto,
   UpdateCommitteeMemberDto
 } from '../committee/dto/index.js';
+import { TicketPaymentReconciliationService } from '../events/ticket-payment-reconciliation.service.js';
+import { ReconcileTicketPaymentsDto } from './dto/reconcile-ticket-payments.dto.js';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -67,7 +69,8 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly adminUsers: AdminUsersService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly ticketReconciliation: TicketPaymentReconciliationService
   ) {}
 
   private context(req: Request): RequestContext {
@@ -408,6 +411,15 @@ export class AdminController {
   @RequirePermission(Permission.MANAGE_EVENTS)
   unfeatureEvent(@Param('id') id: string) {
     return this.adminService.unfeatureEvent(id);
+  }
+
+  @Post('reconcile-ticket-payments')
+  @RequirePermission(Permission.MANAGE_TICKETS)
+  reconcileTicketPayments(@Body() dto: ReconcileTicketPaymentsDto) {
+    return this.ticketReconciliation.sweepStripeTicketIntents({
+      lookbackHours: dto.lookbackHours ?? 24,
+      onlyUpcomingEvents: dto.onlyUpcomingEvents ?? true
+    });
   }
 
   // ---------------------------------------------------------------------------

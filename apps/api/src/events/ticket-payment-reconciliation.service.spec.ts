@@ -17,6 +17,9 @@ describe('TicketPaymentReconciliationService', () => {
     },
     ticket: {
       count: jest.fn()
+    },
+    event: {
+      findUnique: jest.fn()
     }
   };
 
@@ -122,7 +125,7 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 1, fulfilled: 1, skipped: 0 });
+      expect(result).toEqual({ found: 1, fulfilled: 1, skipped: 0, skippedReasons: {} });
       expect(search).toHaveBeenCalledWith(
         expect.objectContaining({
           query: expect.stringContaining("metadata['type']:'event_ticket' AND status:'succeeded' AND created>")
@@ -145,7 +148,7 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1 });
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { alreadyFulfilled: 1 } });
       expect(retrieve).not.toHaveBeenCalled();
       expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
     });
@@ -157,7 +160,7 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1 });
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { alreadyFulfilled: 1 } });
       expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
     });
 
@@ -166,7 +169,7 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1 });
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { missingMetadata: 1 } });
       expect(retrieve).not.toHaveBeenCalled();
       expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
     });
@@ -176,7 +179,7 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 0, fulfilled: 0, skipped: 0 });
+      expect(result).toEqual({ found: 0, fulfilled: 0, skipped: 0, skippedReasons: {} });
       expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
     });
 
@@ -191,8 +194,128 @@ describe('TicketPaymentReconciliationService', () => {
 
       const result = await service.reconcileStripeTicketIntents();
 
-      expect(result).toEqual({ found: 2, fulfilled: 1, skipped: 0 });
+      expect(result).toEqual({ found: 2, fulfilled: 1, skipped: 0, skippedReasons: {} });
       expect(mockEventsService.handleCheckoutCompleted).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('sweepStripeTicketIntents', () => {
+    function mockStripe(data: unknown[], nextPage: string | null = null) {
+      search.mockResolvedValue({ data, next_page: nextPage });
+      mockPaymentsService.getStripeClient.mockResolvedValue({
+        paymentIntents: { search, retrieve }
+      });
+    }
+
+    function mockFulfilmentReady() {
+      retrieve.mockResolvedValue(ticketIntent({ latest_charge: null }));
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.count.mockResolvedValue(0);
+    }
+
+    it('uses the requested lookback window in the Stripe query', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockEventsService.handleCheckoutCompleted.mockResolvedValue([{ id: 'ticket-1' }]);
+
+      await service.sweepStripeTicketIntents({ lookbackHours: 720, onlyUpcomingEvents: false });
+
+      const query = (search.mock.calls[0]?.[0] as { query: string }).query;
+      const createdAfter = Number(/created>(\d+)/.exec(query)?.[1]);
+      expect(createdAfter).toBeGreaterThan(Math.floor(Date.now() / 1000) - 720 * 60 * 60 - 5);
+      expect(createdAfter).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) - 720 * 60 * 60 + 1);
+    });
+
+    it('clamps the lookback window to 90 days', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockEventsService.handleCheckoutCompleted.mockResolvedValue([{ id: 'ticket-1' }]);
+
+      await service.sweepStripeTicketIntents({ lookbackHours: 10000, onlyUpcomingEvents: false });
+
+      const query = (search.mock.calls[0]?.[0] as { query: string }).query;
+      const createdAfter = Number(/created>(\d+)/.exec(query)?.[1]);
+      expect(createdAfter).toBeGreaterThan(Math.floor(Date.now() / 1000) - 2160 * 60 * 60 - 5);
+      expect(createdAfter).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) - 2160 * 60 * 60 + 1);
+    });
+
+    it('skips refunded charges without fulfilling', async () => {
+      mockStripe([ticketIntent()]);
+      retrieve.mockResolvedValue(
+        ticketIntent({ latest_charge: { refunded: true, amount_refunded: 2500 } })
+      );
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.payment.count.mockResolvedValue(0);
+
+      const result = await service.sweepStripeTicketIntents({ lookbackHours: 24 });
+
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { refunded: 1 } });
+      expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+    });
+
+    it('fulfils for past events when onlyUpcomingEvents is false', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockEventsService.handleCheckoutCompleted.mockResolvedValue([{ id: 'ticket-1' }]);
+
+      const result = await service.sweepStripeTicketIntents({
+        lookbackHours: 24,
+        onlyUpcomingEvents: false
+      });
+
+      expect(result.fulfilled).toBe(1);
+      expect(mockPrisma.event.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('skips intents for events that have ended when onlyUpcomingEvents is true', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockPrisma.event.findUnique.mockResolvedValue({
+        endDatetime: new Date(Date.now() - 60 * 60 * 1000),
+        deletedAt: null
+      });
+
+      const result = await service.sweepStripeTicketIntents({
+        lookbackHours: 24,
+        onlyUpcomingEvents: true
+      });
+
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { eventEnded: 1 } });
+      expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+    });
+
+    it('fulfils intents for events that have not ended when onlyUpcomingEvents is true', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockPrisma.event.findUnique.mockResolvedValue({
+        endDatetime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        deletedAt: null
+      });
+      mockEventsService.handleCheckoutCompleted.mockResolvedValue([{ id: 'ticket-1' }]);
+
+      const result = await service.sweepStripeTicketIntents({
+        lookbackHours: 24,
+        onlyUpcomingEvents: true
+      });
+
+      expect(result.fulfilled).toBe(1);
+      expect(mockPrisma.event.findUnique).toHaveBeenCalledWith({
+        where: { id: 'event-1' },
+        select: { endDatetime: true, deletedAt: true }
+      });
+    });
+
+    it('treats a missing event row as ended', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+
+      const result = await service.sweepStripeTicketIntents({
+        lookbackHours: 24,
+        onlyUpcomingEvents: true
+      });
+
+      expect(result).toEqual({ found: 1, fulfilled: 0, skipped: 1, skippedReasons: { eventEnded: 1 } });
     });
   });
 });

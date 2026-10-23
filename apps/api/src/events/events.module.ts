@@ -12,6 +12,6 @@ import { AuthorizationModule } from '../authorization/authorization.module.js';
   imports: [PrismaModule, PaymentsModule, EmailModule, AuthorizationModule],
   providers: [EventsService, TicketExpiryService, TicketPaymentReconciliationService],
   controllers: [EventsController, TicketsController],
-  exports: [EventsService]
+  exports: [EventsService, TicketPaymentReconciliationService]
 })
 export class EventsModule {}

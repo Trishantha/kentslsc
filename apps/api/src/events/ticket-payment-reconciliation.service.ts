@@ -13,7 +13,20 @@ import { REDIS_CONNECTION } from '../queue/queue.constants.js';
 const RECONCILE_LOOKBACK_DAYS = 90;
 const RECONCILE_BATCH_SIZE = 100;
 const STRIPE_SWEEP_LOOKBACK_HOURS = 24;
+const STRIPE_SWEEP_MAX_LOOKBACK_HOURS = RECONCILE_LOOKBACK_DAYS * 24;
 const STRIPE_SWEEP_PAGE_SIZE = 100;
+
+export interface StripeTicketSweepOptions {
+  lookbackHours: number;
+  onlyUpcomingEvents?: boolean;
+}
+
+export interface StripeTicketSweepResult {
+  found: number;
+  fulfilled: number;
+  skipped: number;
+  skippedReasons: Partial<Record<'alreadyFulfilled' | 'missingMetadata' | 'eventEnded' | 'refunded', number>>;
+}
 
 /**
  * Safety net for ticket payments that were captured but never fulfilled, for
@@ -106,18 +119,34 @@ export class TicketPaymentReconciliationService {
   }
 
   @Cron(CronExpression.EVERY_HOUR)
-  async reconcileStripeTicketIntents(): Promise<{ found: number; fulfilled: number; skipped: number }> {
+  async reconcileStripeTicketIntents(): Promise<StripeTicketSweepResult> {
     const lockKey = 'kentslsc:automation:stripe-ticket-intent-sweep';
     const lockToken = await this.acquireLock(lockKey, 55 * 60_000);
-    if (!lockToken) return { found: 0, fulfilled: 0, skipped: 0 };
+    if (!lockToken) return { found: 0, fulfilled: 0, skipped: 0, skippedReasons: {} };
+
+    try {
+      return await this.sweepStripeTicketIntents({ lookbackHours: STRIPE_SWEEP_LOOKBACK_HOURS });
+    } finally {
+      await this.releaseLock(lockKey, lockToken);
+    }
+  }
+
+  async sweepStripeTicketIntents(options: StripeTicketSweepOptions): Promise<StripeTicketSweepResult> {
+    const lookbackHours = Math.min(Math.max(options.lookbackHours, 1), STRIPE_SWEEP_MAX_LOOKBACK_HOURS);
+    const onlyUpcomingEvents = options.onlyUpcomingEvents ?? false;
 
     let found = 0;
     let fulfilled = 0;
     let skipped = 0;
+    const skippedReasons: StripeTicketSweepResult['skippedReasons'] = {};
+    const skip = (reason: 'alreadyFulfilled' | 'missingMetadata' | 'eventEnded' | 'refunded') => {
+      skipped++;
+      skippedReasons[reason] = (skippedReasons[reason] ?? 0) + 1;
+    };
 
     try {
       const stripe = await this.paymentsService.getStripeClient();
-      const createdAfter = Math.floor(Date.now() / 1000) - STRIPE_SWEEP_LOOKBACK_HOURS * 60 * 60;
+      const createdAfter = Math.floor(Date.now() / 1000) - lookbackHours * 60 * 60;
       let nextPage: string | undefined;
 
       while (true) {
@@ -133,7 +162,7 @@ export class TicketPaymentReconciliationService {
           try {
             const metadata = paymentIntent.metadata ?? {};
             if (!metadata.eventId || !metadata.userId) {
-              skipped++;
+              skip('missingMetadata');
               this.logger.warn(
                 `Stripe ticket intent ${paymentIntent.id} is missing eventId/userId metadata; skipping.`
               );
@@ -141,7 +170,7 @@ export class TicketPaymentReconciliationService {
             }
 
             if (await this.intentAlreadyFulfilled(paymentIntent.id)) {
-              skipped++;
+              skip('alreadyFulfilled');
               continue;
             }
 
@@ -150,6 +179,27 @@ export class TicketPaymentReconciliationService {
             const intent = await stripe.paymentIntents.retrieve(paymentIntent.id, {
               expand: ['latest_charge']
             });
+
+            const charge = typeof intent.latest_charge === 'string' ? null : intent.latest_charge;
+            if (charge?.refunded || (charge?.amount_refunded ?? 0) > 0) {
+              skip('refunded');
+              this.logger.warn(
+                `Stripe ticket intent ${paymentIntent.id} was refunded; skipping.`
+              );
+              continue;
+            }
+
+            if (onlyUpcomingEvents) {
+              const event = await this.prisma.event.findUnique({
+                where: { id: metadata.eventId },
+                select: { endDatetime: true, deletedAt: true }
+              });
+              if (!event || event.deletedAt || event.endDatetime.getTime() < Date.now()) {
+                skip('eventEnded');
+                continue;
+              }
+            }
+
             const tickets = await this.eventsService.handleCheckoutCompleted(
               buildPseudoCheckoutSession(intent)
             );
@@ -171,12 +221,10 @@ export class TicketPaymentReconciliationService {
       }
     } catch (err) {
       this.logger.warn(`Stripe ticket intent sweep failed: ${(err as Error).message}`);
-    } finally {
-      await this.releaseLock(lockKey, lockToken);
     }
 
     this.logger.log(`Stripe ticket intent sweep: found ${found}, fulfilled ${fulfilled}, skipped ${skipped}`);
-    return { found, fulfilled, skipped };
+    return { found, fulfilled, skipped, skippedReasons };
   }
 
   private async intentAlreadyFulfilled(intentId: string): Promise<boolean> {
