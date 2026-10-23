@@ -5,6 +5,8 @@ import { sha256 } from '../common/utils/crypto.js';
 
 type WebhookStatus = 'received' | 'processed' | 'ignored' | 'failed';
 
+const STALE_RECEIVED_THRESHOLD_MS = 10 * 60 * 1000;
+
 interface RecordWebhookInput {
   provider: string;
   eventType: string;
@@ -98,11 +100,18 @@ export class WebhookEventService {
   }
 
   /**
-   * Failed events that still have their payload stored and can be replayed.
+   * Failed events plus events stuck in `received` long enough that the queue
+   * job is presumed lost (e.g. the process died between ledgering and
+   * enqueueing). Both can be replayed.
    */
-  async listFailed(limit = 50) {
+  async listReplayable(limit = 50) {
     return this.prisma.webhookEvent.findMany({
-      where: { status: 'failed' },
+      where: {
+        OR: [
+          { status: 'failed' },
+          { status: 'received', createdAt: { lt: new Date(Date.now() - STALE_RECEIVED_THRESHOLD_MS) } }
+        ]
+      },
       orderBy: { createdAt: 'asc' },
       take: limit
     });

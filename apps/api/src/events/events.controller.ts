@@ -213,8 +213,14 @@ export class EventsController {
       const event = await this.paymentsService.constructEvent(rawBody, signature);
       if (event.type === 'checkout.session.completed') {
         await this.eventsService.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        return res.json({ received: true });
       }
-      return res.json({ received: true });
+      return res
+        .status(501)
+        .send(
+          `Webhook error: event type ${event.type} is not handled by this endpoint. ` +
+            'Point the Stripe dashboard webhook at /api/payments/webhook instead.'
+        );
     } catch (err) {
       return res.status(400).send(`Webhook error: ${(err as Error).message}`);
     }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type Stripe from 'stripe';
 import { PaymentsService } from './payments.service.js';
 import { GoCardlessService, unpackBillingRequestMetadata } from './gocardless.service.js';
+import { buildPseudoCheckoutSession } from './utils/pseudo-checkout-session.js';
 import { EventsService } from '../events/events.service.js';
 import { MembershipsService } from '../memberships/memberships.service.js';
 import { FundraisingService } from '../fundraising/fundraising.service.js';
@@ -34,7 +35,7 @@ export class WebhookProcessor {
     try {
       if (data.provider === 'stripe') {
         const fulfilled = await this.processStripeEvent(data);
-        await this.webhookEvents.markStatus(data.ledgerId, 'processed');
+        await this.webhookEvents.markStatus(data.ledgerId, fulfilled ? 'processed' : 'ignored');
         return fulfilled;
       } else if (data.provider === 'gocardless') {
         const status = await this.processGoCardlessEvent(data);
@@ -150,31 +151,7 @@ export class WebhookProcessor {
 
     if (paymentIntent.status !== 'succeeded') return null;
 
-    const charge =
-      typeof paymentIntent.latest_charge === 'string'
-        ? null
-        : paymentIntent.latest_charge;
-
-    return {
-      id: paymentIntent.id,
-      object: 'checkout.session',
-      metadata: paymentIntent.metadata ?? {},
-      status: 'complete',
-      payment_status: 'paid',
-      amount_total: paymentIntent.amount,
-      amount_subtotal: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      payment_intent: paymentIntent.id,
-      customer_email: charge?.billing_details?.email ?? paymentIntent.receipt_email,
-      customer_details: {
-        email: charge?.billing_details?.email ?? paymentIntent.receipt_email ?? null,
-        name: charge?.billing_details?.name ?? null,
-        phone: charge?.billing_details?.phone ?? null,
-        address: null,
-        tax_exempt: 'none'
-      },
-      created: paymentIntent.created
-    } as Stripe.Checkout.Session;
+    return buildPseudoCheckoutSession(paymentIntent);
   }
 
   /**

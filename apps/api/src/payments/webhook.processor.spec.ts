@@ -133,6 +133,24 @@ describe('WebhookProcessor', () => {
     expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'processed');
   });
 
+  it('marks the ledger ignored when a checkout session has no fulfilment metadata', async () => {
+    const job = buildJob('checkout.session.completed', { unrelated: 'value' });
+
+    await processor.process(job);
+
+    expect(eventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+    expect(membershipsService.handleCheckoutSessionCompleted).not.toHaveBeenCalled();
+    expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'ignored');
+  });
+
+  it('marks the ledger ignored for unhandled event types', async () => {
+    const job = buildJob('charge.refunded', {});
+
+    await processor.process(job);
+
+    expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'ignored');
+  });
+
   it('marks the ledger failed when processing throws', async () => {
     const job = buildJob('checkout.session.completed', {
       type: 'event_ticket',
@@ -216,6 +234,7 @@ describe('WebhookProcessor', () => {
 
       expect(fundraisingService.handleCheckoutCompleted).not.toHaveBeenCalled();
       expect(paymentsService.syncStripeFeesFromSession).not.toHaveBeenCalled();
+      expect(webhookEvents.markStatus).toHaveBeenCalledWith('ledger-1', 'ignored');
     });
 
     it('marks failed payment intents processed without fulfilment', async () => {

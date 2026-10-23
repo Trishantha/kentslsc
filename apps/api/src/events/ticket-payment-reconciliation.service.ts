@@ -3,12 +3,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import crypto from 'crypto';
 import type Redis from 'ioredis';
+import type Stripe from 'stripe';
 import { PrismaService } from '../core/prisma/prisma.service.js';
 import { EventsService } from './events.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
+import { buildPseudoCheckoutSession } from '../payments/utils/pseudo-checkout-session.js';
 import { REDIS_CONNECTION } from '../queue/queue.constants.js';
 
 const RECONCILE_LOOKBACK_DAYS = 90;
 const RECONCILE_BATCH_SIZE = 100;
+const STRIPE_SWEEP_LOOKBACK_HOURS = 24;
+const STRIPE_SWEEP_PAGE_SIZE = 100;
 
 /**
  * Safety net for ticket payments that were captured but never fulfilled, for
@@ -18,6 +23,10 @@ const RECONCILE_BATCH_SIZE = 100;
  * The job scans recent completed ticket payments and issues the tickets for
  * any that have none. Issuance is idempotent (guarded by payment id and
  * provider checkout id), so replaying is safe.
+ *
+ * A companion sweep asks Stripe directly for recently succeeded event-ticket
+ * PaymentIntents, covering the case where no local Payment row exists yet
+ * because the Payment Element flow only creates it during ticket fulfilment.
  */
 @Injectable()
 export class TicketPaymentReconciliationService {
@@ -26,6 +35,7 @@ export class TicketPaymentReconciliationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService,
+    private readonly paymentsService: PaymentsService,
     @Inject(REDIS_CONNECTION) @Optional() private readonly redis?: Redis
   ) {}
 
@@ -93,6 +103,93 @@ export class TicketPaymentReconciliationService {
     } finally {
       await this.releaseLock(lockKey, lockToken);
     }
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async reconcileStripeTicketIntents(): Promise<{ found: number; fulfilled: number; skipped: number }> {
+    const lockKey = 'kentslsc:automation:stripe-ticket-intent-sweep';
+    const lockToken = await this.acquireLock(lockKey, 55 * 60_000);
+    if (!lockToken) return { found: 0, fulfilled: 0, skipped: 0 };
+
+    let found = 0;
+    let fulfilled = 0;
+    let skipped = 0;
+
+    try {
+      const stripe = await this.paymentsService.getStripeClient();
+      const createdAfter = Math.floor(Date.now() / 1000) - STRIPE_SWEEP_LOOKBACK_HOURS * 60 * 60;
+      let nextPage: string | undefined;
+
+      while (true) {
+        const result: Stripe.ApiSearchResult<Stripe.PaymentIntent> = await stripe.paymentIntents.search({
+          query: `metadata['type']:'event_ticket' AND status:'succeeded' AND created>${createdAfter}`,
+          limit: STRIPE_SWEEP_PAGE_SIZE,
+          ...(nextPage ? { page: nextPage } : {})
+        });
+        if (result.data.length === 0) break;
+
+        for (const paymentIntent of result.data) {
+          found++;
+          try {
+            const metadata = paymentIntent.metadata ?? {};
+            if (!metadata.eventId || !metadata.userId) {
+              skipped++;
+              this.logger.warn(
+                `Stripe ticket intent ${paymentIntent.id} is missing eventId/userId metadata; skipping.`
+              );
+              continue;
+            }
+
+            if (await this.intentAlreadyFulfilled(paymentIntent.id)) {
+              skipped++;
+              continue;
+            }
+
+            // Search results do not expand the charge, which carries the payer
+            // details handleCheckoutCompleted records on the tickets.
+            const intent = await stripe.paymentIntents.retrieve(paymentIntent.id, {
+              expand: ['latest_charge']
+            });
+            const tickets = await this.eventsService.handleCheckoutCompleted(
+              buildPseudoCheckoutSession(intent)
+            );
+            if (tickets && tickets.length > 0) {
+              fulfilled++;
+              this.logger.log(
+                `Fulfilled ${tickets.length} ticket(s) for Stripe intent ${paymentIntent.id} missed by webhooks`
+              );
+            }
+          } catch (err) {
+            this.logger.warn(
+              `Could not reconcile Stripe ticket intent ${paymentIntent.id}: ${(err as Error).message}`
+            );
+          }
+        }
+
+        nextPage = result.next_page ?? undefined;
+        if (!nextPage) break;
+      }
+    } catch (err) {
+      this.logger.warn(`Stripe ticket intent sweep failed: ${(err as Error).message}`);
+    } finally {
+      await this.releaseLock(lockKey, lockToken);
+    }
+
+    this.logger.log(`Stripe ticket intent sweep: found ${found}, fulfilled ${fulfilled}, skipped ${skipped}`);
+    return { found, fulfilled, skipped };
+  }
+
+  private async intentAlreadyFulfilled(intentId: string): Promise<boolean> {
+    const [ticketCount, paymentCount] = await Promise.all([
+      this.prisma.ticket.count({ where: { deletedAt: null, stripeSessionId: intentId } }),
+      this.prisma.payment.count({
+        where: {
+          deletedAt: null,
+          OR: [{ providerCheckoutId: intentId }, { providerPaymentId: intentId }]
+        }
+      })
+    ]);
+    return ticketCount > 0 || paymentCount > 0;
   }
 
   private async acquireLock(key: string, ttl: number): Promise<string | null> {

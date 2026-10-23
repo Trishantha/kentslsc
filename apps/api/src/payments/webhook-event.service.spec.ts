@@ -11,7 +11,8 @@ describe('WebhookEventService', () => {
       webhookEvent: {
         findUnique: jest.fn(),
         create: jest.fn(),
-        update: jest.fn()
+        update: jest.fn(),
+        findMany: jest.fn()
       }
     } as unknown as jest.Mocked<PrismaService>;
     service = new WebhookEventService(prisma);
@@ -158,5 +159,22 @@ describe('WebhookEventService', () => {
         })
       })
     );
+  });
+
+  it('lists failed events and stale received events for replay', async () => {
+    prisma.webhookEvent.findMany.mockResolvedValue([] as any[]);
+
+    await service.listReplayable(20);
+
+    const call = prisma.webhookEvent.findMany.mock.calls[0]?.[0] as
+      | { where: { OR: Array<{ status: string; createdAt?: { lt: Date } }>; }; take: number }
+      | undefined;
+    expect(call?.take).toBe(20);
+    expect(call?.where.OR).toEqual([
+      { status: 'failed' },
+      { status: 'received', createdAt: { lt: expect.any(Date) } }
+    ]);
+    const staleBefore = call?.where.OR[1]?.createdAt?.lt?.getTime() ?? 0;
+    expect(Date.now() - staleBefore).toBeGreaterThanOrEqual(10 * 60 * 1000);
   });
 });

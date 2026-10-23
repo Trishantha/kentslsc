@@ -103,9 +103,9 @@ describe('StripeWebhookController', () => {
     paymentsService.constructEvent.mockResolvedValue(event);
 
     const res = mockResponse();
-    await controller.handleWebhook('sig', Buffer.from('payload'), res as unknown as Response);
+    await controller.handleWebhook('sig', Buffer.from(JSON.stringify(event)), res as unknown as Response);
 
-    expect(paymentsService.constructEvent).toHaveBeenCalledWith(Buffer.from('payload'), 'sig');
+    expect(paymentsService.constructEvent).toHaveBeenCalledWith(Buffer.from(JSON.stringify(event)), 'sig');
     expect(webhookEvents.record).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: 'stripe',
@@ -138,15 +138,22 @@ describe('StripeWebhookController', () => {
     expect(res.json).toHaveBeenCalledWith({ received: true, duplicate: true });
   });
 
-  it('returns 400 when signature verification fails', async () => {
-    paymentsService.constructEvent.mockRejectedValue(new Error('Invalid signature'));
+  it('returns 400 and marks the ledger failed when signature verification fails', async () => {
+    paymentsService.constructEvent.mockRejectedValue(new Error('Stripe webhook secret is not configured.'));
 
     const res = mockResponse();
     await controller.handleWebhook('bad-sig', Buffer.from('payload'), res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.send).toHaveBeenCalledWith('Webhook error: Invalid signature');
-    expect(webhookEvents.record).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalledWith('Webhook error: Stripe webhook secret is not configured.');
+    expect(webhookEvents.record).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'stripe', eventType: 'unknown', externalId: null, status: 'received' })
+    );
+    expect(webhookEvents.markStatus).toHaveBeenCalledWith(
+      'ledger-1',
+      'failed',
+      'Stripe webhook secret is not configured.'
+    );
   });
 
   it('returns 500 and marks the ledger failed when enqueueing fails', async () => {

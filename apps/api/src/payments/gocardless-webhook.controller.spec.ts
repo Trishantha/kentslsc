@@ -57,7 +57,7 @@ describe('GoCardlessWebhookController', () => {
   const webhookEvents = {
     record: jest.fn(),
     markStatus: jest.fn(),
-    listFailed: jest.fn()
+    listReplayable: jest.fn()
   } as unknown as jest.Mocked<WebhookEventService>;
 
   const webhookQueue = {
@@ -182,7 +182,7 @@ describe('GoCardlessWebhookController', () => {
 
   describe('replayFailedWebhooks', () => {
     it('re-queues failed events with payloads and resets their status', async () => {
-      webhookEvents.listFailed.mockResolvedValue([
+      webhookEvents.listReplayable.mockResolvedValue([
         {
           id: 'ledger-1',
           provider: 'gocardless',
@@ -208,7 +208,7 @@ describe('GoCardlessWebhookController', () => {
     });
 
     it('keeps the failed status when re-enqueueing throws', async () => {
-      webhookEvents.listFailed.mockResolvedValue([
+      webhookEvents.listReplayable.mockResolvedValue([
         { id: 'ledger-1', provider: 'gocardless', eventType: 'payments.confirmed', payload: { id: 'EV1' } }
       ] as any[]);
       webhookQueue.addWebhookJob.mockRejectedValue(new Error('Redis unreachable'));

@@ -45,22 +45,35 @@ export class StripeWebhookController {
     @RawBody() rawBody: Buffer,
     @Res() res: Response
   ) {
+    // Ledger the raw payload before verifying the signature so a missing or
+    // mismatched webhook secret leaves a trace instead of a silent 400.
+    let unverified: { id?: unknown; type?: unknown } | undefined;
+    try {
+      unverified = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      unverified = undefined;
+    }
+
+    const { event: ledgerEvent, isDuplicate } = await this.webhookEvents.record({
+      provider: 'stripe',
+      eventType: typeof unverified?.type === 'string' ? unverified.type : 'unknown',
+      externalId: typeof unverified?.id === 'string' ? unverified.id : null,
+      payload: rawBody,
+      status: 'received'
+    });
+
     let event: Stripe.Event | undefined;
 
     try {
       event = await this.paymentsService.constructEvent(rawBody, signature);
     } catch (err) {
-      this.logger.warn(`Stripe webhook signature verification failed: ${(err as Error).message}`);
-      return res.status(400).send(`Webhook error: ${(err as Error).message}`);
+      const message = (err as Error).message;
+      this.logger.warn(`Stripe webhook signature verification failed: ${message}`);
+      if (!isDuplicate) {
+        await this.webhookEvents.markStatus(ledgerEvent.id, 'failed', message);
+      }
+      return res.status(400).send(`Webhook error: ${message}`);
     }
-
-    const { event: ledgerEvent, isDuplicate } = await this.webhookEvents.record({
-      provider: 'stripe',
-      eventType: event.type,
-      externalId: event.id,
-      payload: rawBody,
-      status: 'received'
-    });
 
     if (isDuplicate) {
       this.logger.debug(`Duplicate Stripe event ${event.id} ignored.`);

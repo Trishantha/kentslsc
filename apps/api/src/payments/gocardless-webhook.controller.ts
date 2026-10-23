@@ -139,20 +139,22 @@ export class GoCardlessWebhookController {
 
   /**
    * Admin recovery: re-queue ledger rows left in `failed` status (e.g. enqueue
-   * failures, or events that failed processing before a fix was deployed).
-   * Events recorded before payloads were stored in the ledger cannot be
-   * replayed and are reported as skipped. Processing is idempotent.
+   * failures, or events that failed processing before a fix was deployed) and
+   * rows stuck in `received` for longer than the staleness threshold (the
+   * queue job was lost after ledgering). Events recorded before payloads were
+   * stored in the ledger cannot be replayed and are reported as skipped.
+   * Processing is idempotent.
    */
   @Post('webhooks/replay-failed')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   async replayFailedWebhooks(@Body() body?: { limit?: number }) {
     const limit = Math.min(Math.max(body?.limit ?? 50, 1), 200);
-    const failed = await this.webhookEvents.listFailed(limit);
+    const replayable = await this.webhookEvents.listReplayable(limit);
     let requeued = 0;
     const skipped: string[] = [];
 
-    for (const row of failed) {
+    for (const row of replayable) {
       const provider = row.provider as WebhookJobData['provider'];
       if (!row.payload || !['stripe', 'gocardless', 'paypal'].includes(provider)) {
         skipped.push(row.id);
