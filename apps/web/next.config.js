@@ -165,6 +165,12 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@kentslsc/shared'],
+  experimental: {
+    // Cap build-phase workers (page data collection). The Hostinger hbuilds
+    // sandbox reports many CPUs but refuses new threads past a low limit, so
+    // the default CPU-count-based worker pool aborts with EAGAIN.
+    cpus: Number(process.env.NEXT_BUILD_CPUS ?? 4)
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     // Cache optimized images in the CDN/edge for an hour. The optimizer
