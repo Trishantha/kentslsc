@@ -40,7 +40,7 @@ function getDateKey(date: Date) {
 }
 
 function formatFullDate(date: Date) {
-  return formatDate(date, { weekday: 'long', month: 'long' });
+  return formatDate(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function AgendaEventCard({ event }: { event: MonthEvent }) {

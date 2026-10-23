@@ -45,7 +45,7 @@ export default async function PolicyDocumentPage({ params, docType }: Props) {
         <h1 className="section-title">{doc.title}</h1>
         <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">
           Last updated:{' '}
-          {formatDate(doc.updatedAt, { month: 'long' })}
+          {formatDate(doc.updatedAt)}
         </p>
 
         <div className="mt-10 glass-card p-6 md:p-10">

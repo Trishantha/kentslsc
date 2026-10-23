@@ -283,7 +283,7 @@ export default function HomePageContent({
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
                           <span className="inline-flex items-center gap-1.5">
                             <Clock className="h-4 w-4 text-neon-blue" />
-                            {formatDate(evt.startDatetime, { weekday: 'short' })}
+                            {formatDate(evt.startDatetime)}
                           </span>
                           {evt.location && (
                             <span className="inline-flex items-center gap-1.5">
@@ -533,7 +533,7 @@ export default function HomePageContent({
                               {summary}
                             </p>
                             {post.publishedAt && (
-                              <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt, { weekday: 'short' })}</p>
+                              <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">{formatDate(post.publishedAt)}</p>
                             )}
                           </div>
                         </div>

@@ -12,12 +12,10 @@ export function formatDate(
   if (!date) return 'TBC';
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return 'Invalid date';
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    ...options
-  }).format(d);
+  return new Intl.DateTimeFormat(
+    'en-GB',
+    options ?? { day: 'numeric', month: 'short', year: 'numeric' }
+  ).format(d);
 }
 
 /** e.g. "September 2026" */
