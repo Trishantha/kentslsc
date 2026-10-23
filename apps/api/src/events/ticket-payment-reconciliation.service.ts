@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, type OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentSourceType, PaymentStatus } from '@kentslsc/database';
 import crypto from 'crypto';
@@ -42,7 +42,7 @@ export interface StripeTicketSweepResult {
  * because the Payment Element flow only creates it during ticket fulfilment.
  */
 @Injectable()
-export class TicketPaymentReconciliationService {
+export class TicketPaymentReconciliationService implements OnModuleInit {
   private readonly logger = new Logger(TicketPaymentReconciliationService.name);
 
   constructor(
@@ -52,10 +52,22 @@ export class TicketPaymentReconciliationService {
     @Inject(REDIS_CONNECTION) @Optional() private readonly redis?: Redis
   ) {}
 
-  @Cron(CronExpression.EVERY_HOUR)
+  onModuleInit(): void {
+    this.sweepStripeTicketIntents({ lookbackHours: STRIPE_SWEEP_LOOKBACK_HOURS })
+      .then((result) => {
+        this.logger.log(
+          `Startup Stripe ticket sweep: found ${result.found}, fulfilled ${result.fulfilled}, skipped ${result.skipped}`
+        );
+      })
+      .catch((err) => {
+        this.logger.warn(`Startup Stripe ticket sweep failed: ${(err as Error).message}`);
+      });
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async reconcileUnfulfilledTicketPayments(): Promise<{ checked: number; issued: number }> {
     const lockKey = 'kentslsc:automation:ticket-payment-reconciliation';
-    const lockToken = await this.acquireLock(lockKey, 55 * 60_000);
+    const lockToken = await this.acquireLock(lockKey, 9 * 60_000);
     if (!lockToken) return { checked: 0, issued: 0 };
 
     try {
@@ -118,10 +130,10 @@ export class TicketPaymentReconciliationService {
     }
   }
 
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async reconcileStripeTicketIntents(): Promise<StripeTicketSweepResult> {
     const lockKey = 'kentslsc:automation:stripe-ticket-intent-sweep';
-    const lockToken = await this.acquireLock(lockKey, 55 * 60_000);
+    const lockToken = await this.acquireLock(lockKey, 4 * 60_000);
     if (!lockToken) return { found: 0, fulfilled: 0, skipped: 0, skippedReasons: {} };
 
     try {

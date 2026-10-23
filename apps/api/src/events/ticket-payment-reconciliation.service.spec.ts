@@ -213,6 +213,26 @@ describe('TicketPaymentReconciliationService', () => {
       mockPrisma.payment.count.mockResolvedValue(0);
     }
 
+    it('runs the startup sweep via onModuleInit without awaiting fulfilment', async () => {
+      mockStripe([ticketIntent()]);
+      mockFulfilmentReady();
+      mockEventsService.handleCheckoutCompleted.mockResolvedValue([{ id: 'ticket-1' }]);
+
+      expect(service.onModuleInit()).toBeUndefined();
+      expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(mockEventsService.handleCheckoutCompleted).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not crash boot when the startup sweep fails', async () => {
+      mockPaymentsService.getStripeClient.mockRejectedValue(new Error('Stripe is not configured'));
+
+      expect(service.onModuleInit()).toBeUndefined();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(mockEventsService.handleCheckoutCompleted).not.toHaveBeenCalled();
+    });
+
     it('uses the requested lookback window in the Stripe query', async () => {
       mockStripe([ticketIntent()]);
       mockFulfilmentReady();
