@@ -55,9 +55,13 @@ The hbuilds sandbox isolates loopback **per process** and exposes no routable
 IPv4, so there is no TCP path between the parent and its children at all — a
 child bound to `127.0.0.1` logs `Ready`, yet the parent gets `ECONNREFUSED`.
 Unix domain sockets are shared between processes, so under lsnode both
-children serve over unix sockets: the API on `/tmp/kslsc-api.sock` and the
-web app (via `apps/web/unix-server.js`, a minimal Next server) on
-`/tmp/kslsc-web.sock`. `WEB_TRANSPORT=tcp|unix` and `WEB_SOCKET_PATH` can
+children serve over unix sockets: the API on `/tmp/kslsc-api-<pid>.sock` and
+the web app (via `apps/web/unix-server.js`, a minimal Next server) on
+`/tmp/kslsc-web-<pid>.sock`. The pid suffix keeps concurrent lsnode workers
+isolated — each worker proxies only to its own children's sockets, so one
+worker's cleanup or shutdown can never break another's listeners. Explicit
+paths (`API_SOCKET_PATH`, `WEB_SOCKET_PATH`) disable the suffix, but then
+you must ensure only one worker uses them. `WEB_TRANSPORT=tcp|unix` can
 override the choice, mainly for local testing.
 
 ### Locale routing
@@ -192,7 +196,7 @@ stuck pooler connection fails fast instead of hanging bootstrap.
 The hbuilds sandbox isolates loopback per process and has no routable IPv4,
 so a TCP-bound web child can never be reached from the parent. Current builds
 detect this and serve the web child over a unix socket instead — the startup
-log should show `Web child serving Next.js on Unix socket /tmp/kslsc-web.sock`
+log should show `Web child serving Next.js on Unix socket /tmp/kslsc-web-<pid>.sock`
 and `Upstreams are ready; proxy is now accepting traffic`. If you instead see
 the ECONNREFUSED error, the build predates the fix (or `WEB_MODE` /
 `WEB_TRANSPORT` is forcing the TCP path) — redeploy and make sure no

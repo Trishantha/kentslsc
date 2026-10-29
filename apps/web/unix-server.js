@@ -19,7 +19,7 @@ const { createServer } = require('http');
 const path = require('path');
 const next = require('next');
 
-const socketPath = process.env.WEB_SOCKET_PATH || '/tmp/kslsc-web.sock';
+const socketPath = process.env.WEB_SOCKET_PATH || `/tmp/kslsc-web-${process.pid}.sock`;
 const dir = path.join(__dirname);
 // See server-handler.js: Next 16 needs hostname/port for absolute URL
 // construction at request time. Real requests arrive with the public Host and
