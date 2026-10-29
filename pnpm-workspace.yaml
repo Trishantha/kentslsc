@@ -17,14 +17,17 @@ publicHoistPattern:
 confirmModulesPurge: false
 
 overrides:
-  body-parser: ^1.20.6
+  body-parser: ^1.20.9
   deepmerge-ts: ^8.0.0
+  dompurify: ^3.4.17
   file-type: ^21.3.2
+  handlebars: ^4.7.10
   js-yaml: ^4.3.2
   lodash: ^4.17.23
+  multer: ^2.5.0
   mysql2: ^3.24.4
-  multer: ^2.4.0
   postcss: ^8.5.23
+  proxy-addr: ^2.0.8
   qs: ^6.16.0
   sharp: ^0.35.4
   fast-uri: ^3.1.6
@@ -60,4 +63,4 @@ patchedDependencies:
   gocardless-nodejs: patches/gocardless-nodejs.patch
 
 minimumReleaseAgeExclude:
-  - multer@2.4.0
+  - multer@2.5.0

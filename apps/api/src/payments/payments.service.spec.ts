@@ -519,6 +519,7 @@ describe('PaymentsService', () => {
     it('returns the PaymentIntent status for the confirmation backstop', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const retrieveMock = jest.fn(async (_id: string) => ({ status: 'processing' }));
       (service as any).stripe = {
         paymentIntents: { retrieve: retrieveMock }
@@ -675,6 +676,7 @@ describe('PaymentsService', () => {
 
     function buildService(retrieveImpl: () => Promise<unknown>) {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const retrieveMock = jest.fn((_id: string) => retrieveImpl());
       (service as any).stripe = { paymentIntents: { retrieve: retrieveMock } };
       return { service, retrieveMock };

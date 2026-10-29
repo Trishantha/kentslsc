@@ -30,10 +30,17 @@ function menuItem(overrides: Record<string, unknown> = {}) {
 
 describe('MenusService', () => {
   let service: MenusService;
+  type AnyMock = jest.Mock<(...args: unknown[]) => Promise<unknown>>;
   let prisma: {
-    menuItem: Record<string, jest.Mock>;
-    sitePage: Record<string, jest.Mock>;
-    $transaction: jest.Mock;
+    menuItem: {
+      findMany: AnyMock;
+      findUnique: AnyMock;
+      create: jest.Mock<(args: { data: Record<string, unknown> }) => Promise<unknown>>;
+      update: AnyMock;
+      delete: AnyMock;
+    };
+    sitePage: { findUnique: AnyMock };
+    $transaction: AnyMock;
   };
 
   beforeEach(() => {
