@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +24,7 @@ export function SeoSettingsForm({ settings }: { settings: SiteSettings }) {
     reset,
     watch,
     formState: { errors }
-  } = useForm<SiteSeoSettingsInput>({
+  } = useForm<z.input<typeof siteSeoSettingsSchema>, any, SiteSeoSettingsInput>({
     resolver: zodResolver(siteSeoSettingsSchema),
     defaultValues: {
       metaTitle: '',

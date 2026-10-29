@@ -12,7 +12,7 @@ export class PagesService {
   private validateBlocks(blocks: unknown[]) {
     const result = pageBlocksSchema.safeParse(blocks);
     if (!result.success) {
-      throw new BadRequestException(result.error.errors.map(e => e.message).join(', '));
+      throw new BadRequestException(result.error.issues.map(e => e.message).join(', '));
     }
     return result.data;
   }

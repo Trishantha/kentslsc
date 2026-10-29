@@ -40,7 +40,7 @@ export default function NewJobPage() {
     }
   });
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<JobForm>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof jobSchema>, any, JobForm>({
     resolver: zodResolver(jobSchema),
     defaultValues: {
       businessListingId: businesses?.[0]?.id ?? '',

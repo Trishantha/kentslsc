@@ -38,7 +38,7 @@ export class MenusService {
   async create(raw: unknown) {
     const parsed = menuItemSchema.safeParse(raw);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.errors.map((e) => e.message).join(', '));
+      throw new BadRequestException(parsed.error.issues.map((e) => e.message).join(', '));
     }
     const dto = parsed.data;
     await this.validateLink(dto.linkType, dto.path ?? null, dto.pageId ?? null);
@@ -69,7 +69,7 @@ export class MenusService {
     }
     const parsed = menuItemUpdateSchema.safeParse(raw);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.errors.map((e) => e.message).join(', '));
+      throw new BadRequestException(parsed.error.issues.map((e) => e.message).join(', '));
     }
     const dto: MenuItemUpdateInput = parsed.data;
     if (dto.parentId !== undefined && dto.parentId) {
@@ -109,7 +109,7 @@ export class MenusService {
   async reorder(raw: unknown) {
     const parsed = menuItemOrderSchema.safeParse(raw);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.errors.map((e) => e.message).join(', '));
+      throw new BadRequestException(parsed.error.issues.map((e) => e.message).join(', '));
     }
     const entries: MenuItemOrderInput = parsed.data;
     const items = await this.prisma.menuItem.findMany({ select: { id: true } });

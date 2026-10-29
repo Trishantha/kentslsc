@@ -168,7 +168,7 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
     user && business && (user.role === 'ADMIN' || user.id === business.ownerUserId);
   const isBusinessOwner = user?.role === 'BUSINESS_OWNER' || user?.role === 'ADMIN';
 
-  const updateForm = useForm<UpdateBusinessInput>({
+  const updateForm = useForm<z.input<typeof updateBusinessSchema>, any, UpdateBusinessInput>({
     resolver: zodResolver(updateBusinessSchema),
     values: business
       ? {
@@ -192,7 +192,7 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
       : undefined
   });
 
-  const jobForm = useForm<CreateJobInput>({
+  const jobForm = useForm<z.input<typeof createJobSchema>, any, CreateJobInput>({
     resolver: zodResolver(createJobSchema),
     defaultValues: { businessListingId: resolvedId }
   });

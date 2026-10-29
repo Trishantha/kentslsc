@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -28,7 +29,7 @@ export default function ContactBlockComponent({ block }: Props) {
     reset,
     watch,
     formState: { errors }
-  } = useForm<ContactMessageInput>({
+  } = useForm<z.input<typeof contactMessageSchema>, any, ContactMessageInput>({
     resolver: zodResolver(contactMessageSchema),
     defaultValues: {
       name: '',

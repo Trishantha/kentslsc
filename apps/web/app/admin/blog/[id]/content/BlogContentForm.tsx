@@ -55,7 +55,7 @@ export function BlogContentForm({ post, postId }: BlogContentFormProps) {
     }
   });
 
-  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ContentForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<z.input<typeof contentSchema>, any, ContentForm>({
     resolver: zodResolver(contentSchema),
     defaultValues: {
       title: post.title,

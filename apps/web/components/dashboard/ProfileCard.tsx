@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
@@ -21,7 +22,7 @@ export function ProfileCard() {
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting }
-  } = useForm<UpdateUserInput>({
+  } = useForm<z.input<typeof updateUserSchema>, any, UpdateUserInput>({
     resolver: zodResolver(updateUserSchema),
     values: {
       firstName: user?.firstName ?? '',

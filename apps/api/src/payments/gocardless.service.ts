@@ -76,7 +76,7 @@ export function unpackBillingRequestMetadata(metadata: unknown): Record<string, 
 
 export interface CreateGoCardlessBillingRequestFlowInput {
   plan: GoCardlessPlanType;
-  /** Total amount in pence. GoCardless amounts are strings in minor units. */
+  /** Total amount in pence. GoCardless amounts are integers in minor units. */
   amountPence: number;
   description: string;
   metadata: Record<string, string>;
@@ -252,7 +252,9 @@ export class GoCardlessService {
     input: CreateGoCardlessBillingRequestFlowInput
   ): Promise<GoCardlessBillingRequestFlowResult> {
     const client = await this.getClient();
-    const amount = String(input.amountPence);
+    // GoCardless amounts are integers in minor units (pence). The API also
+    // accepts strings, but the v9+ client types request fields as numbers.
+    const amount = input.amountPence;
 
     const request: Parameters<GoCardlessClient['billingRequests']['create']>[0] = {
       metadata: packBillingRequestMetadata(input.metadata),
@@ -286,7 +288,7 @@ export class GoCardlessService {
         request.subscription_request = {
           amount,
           currency: 'GBP',
-          interval: String(input.subscriptionInterval ?? 1),
+          interval: input.subscriptionInterval ?? 1,
           interval_unit: input.subscriptionIntervalUnit ?? 'monthly',
           name: input.description,
           metadata: packBillingRequestMetadata(input.metadata)
@@ -299,7 +301,7 @@ export class GoCardlessService {
         // Give the final instalment the remainder so the instalments always
         // sum exactly to the requested total.
         const amounts = Array.from({ length: count }, (_, index) =>
-          String(index === count - 1 ? input.amountPence - baseAmount * (count - 1) : baseAmount)
+          index === count - 1 ? input.amountPence - baseAmount * (count - 1) : baseAmount
         );
         request.instalment_schedule_request = {
           total_amount: amount,
@@ -420,8 +422,8 @@ export class GoCardlessService {
     }
 
     return client.refunds.create({
-      amount: String(amountPence ?? totalAmount),
-      total_amount_confirmation: String(totalAmount),
+      amount: amountPence ?? totalAmount,
+      total_amount_confirmation: totalAmount,
       links: { payment: paymentId }
     });
   }

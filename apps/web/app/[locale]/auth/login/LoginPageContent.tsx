@@ -1,6 +1,7 @@
 'use client';
 
 import { Link } from '@/i18n/routing';
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
@@ -16,7 +17,7 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
     setError
-  } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
+  } = useForm<z.input<typeof loginSchema>, any, LoginInput>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (data: LoginInput) => {
     try {

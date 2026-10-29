@@ -1,5 +1,5 @@
 diff --git a/esm/api/api.js b/esm/api/api.js
-index ba958128f7f282df1989a25ba34a2149cc9cf49b..a28a8fa36203ed08eca95460617ece71fa185877 100644
+index 24ef4f3..8db1222 100644
 --- a/esm/api/api.js
 +++ b/esm/api/api.js
 @@ -1,5 +1,8 @@
@@ -11,4 +11,4 @@ index ba958128f7f282df1989a25ba34a2149cc9cf49b..a28a8fa36203ed08eca95460617ece71
 +// `process` is a global, so the bare reference below still works.
  import { v4 as uuidv4 } from 'uuid';
  import * as url from 'url';
- import got from 'got';
+ import got, { HTTPError, ParseError } from 'got';

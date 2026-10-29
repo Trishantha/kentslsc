@@ -327,7 +327,7 @@ export class StripeWebhookController {
       id: pendingPayment?.providerPaymentId ?? billingRequest.links?.payment_request_payment ?? undefined,
       amount:
         pendingPayment && pendingPayment.grossAmount
-          ? String(Math.round(Number(pendingPayment.grossAmount) * 100))
+          ? Math.round(Number(pendingPayment.grossAmount) * 100)
           : billingRequest.payment_request?.amount,
       currency: (pendingPayment?.currency ?? billingRequest.payment_request?.currency ?? 'GBP') as
         | GoCardlessPaymentResource['currency'],

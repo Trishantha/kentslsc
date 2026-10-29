@@ -28,7 +28,7 @@ interface MembershipTypePricingFormProps {
 export function MembershipTypePricingForm({ membershipType }: MembershipTypePricingFormProps) {
   const queryClient = useQueryClient();
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<PricingForm>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<z.input<typeof pricingSchema>, any, PricingForm>({
     resolver: zodResolver(pricingSchema),
     defaultValues: {
       price: membershipType.price,

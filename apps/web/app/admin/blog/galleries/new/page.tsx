@@ -22,7 +22,7 @@ type GalleryForm = z.infer<typeof gallerySchema>;
 export default function NewGalleryPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<GalleryForm>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<z.input<typeof gallerySchema>, any, GalleryForm>({
     resolver: zodResolver(gallerySchema),
     defaultValues: {
       title: '',

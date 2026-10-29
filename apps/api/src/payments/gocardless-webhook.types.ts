@@ -11,9 +11,9 @@
 
 export interface GoCardlessPaymentResource {
   id?: string;
-  /** Amount in minor units, as a string. */
-  amount?: string;
-  amount_refunded?: string;
+  /** Amount in minor units. The API returns integers; tolerate strings too. */
+  amount?: string | number;
+  amount_refunded?: string | number;
   currency?: string;
   status?: string;
   charge_date?: string | null;

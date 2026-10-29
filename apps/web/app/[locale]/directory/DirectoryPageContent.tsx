@@ -95,13 +95,13 @@ export default function DirectoryPage() {
     }
   });
 
-  const businessForm = useForm<CreateBusinessInput>({
+  const businessForm = useForm<z.input<typeof createBusinessSchema>, any, CreateBusinessInput>({
     resolver: zodResolver(createBusinessSchema)
   });
   const { setValue: setBusinessValue, watch: watchBusiness } = businessForm;
   const businessErrors = businessForm.formState.errors;
 
-  const jobForm = useForm<CreateJobInput>({
+  const jobForm = useForm<z.input<typeof createJobSchema>, any, CreateJobInput>({
     resolver: zodResolver(createJobSchema)
   });
 

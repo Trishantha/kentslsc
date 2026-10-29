@@ -46,7 +46,7 @@ export function JobDetailsForm({ job, jobId }: JobDetailsFormProps) {
     }
   });
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<JobForm>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof jobSchema>, any, JobForm>({
     resolver: zodResolver(jobSchema),
     defaultValues: {
       businessListingId: job.businessListingId,

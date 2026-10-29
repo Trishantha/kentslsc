@@ -23,7 +23,7 @@ interface BlogSeoFormProps {
 
 export function BlogSeoForm({ post, postId }: BlogSeoFormProps) {
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<SeoForm>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<z.input<typeof seoSchema>, any, SeoForm>({
     resolver: zodResolver(seoSchema),
     defaultValues: { slug: post.slug, metaDescription: post.metaDescription ?? '' }
   });

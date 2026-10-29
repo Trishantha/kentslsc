@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { z } from 'zod';
 import { Link } from '@/i18n/routing';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +15,7 @@ export default function ForgotPasswordPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting }
-  } = useForm<ForgotPasswordInput>({ resolver: zodResolver(forgotPasswordSchema) });
+  } = useForm<z.input<typeof forgotPasswordSchema>, any, ForgotPasswordInput>({ resolver: zodResolver(forgotPasswordSchema) });
 
   const onSubmit = async (data: ForgotPasswordInput) => {
     // The API always answers 202 whether or not the account exists, so there is

@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
@@ -57,7 +58,7 @@ function ContactPageContent() {
     reset,
     watch,
     formState: { errors }
-  } = useForm<ContactMessageInput>({
+  } = useForm<z.input<typeof contactMessageSchema>, any, ContactMessageInput>({
     resolver: zodResolver(contactMessageSchema),
     defaultValues: {
       name: '',

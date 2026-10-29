@@ -32,7 +32,7 @@ export function FundraiserDonations({ fundraiserId }: FundraiserDonationsProps) 
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<OfflineDonationForm>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof offlineDonationSchema>, any, OfflineDonationForm>({
     resolver: zodResolver(offlineDonationSchema),
     defaultValues: { amount: 0 }
   });

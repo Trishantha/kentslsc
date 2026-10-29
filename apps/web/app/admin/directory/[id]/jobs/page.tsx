@@ -32,7 +32,7 @@ export default function DirectoryJobsPage() {
   const queryClient = useQueryClient();
 
   const { register, control, handleSubmit, reset, formState: { errors } } =
-    useForm<JobForm>({
+    useForm<z.input<typeof jobSchema>, any, JobForm>({
       resolver: zodResolver(jobSchema),
       defaultValues: {
         businessListingId: businessId,

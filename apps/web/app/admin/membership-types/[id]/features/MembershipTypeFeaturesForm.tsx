@@ -30,7 +30,7 @@ interface MembershipTypeFeaturesFormProps {
 export function MembershipTypeFeaturesForm({ membershipType }: MembershipTypeFeaturesFormProps) {
   const queryClient = useQueryClient();
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<FeaturesForm>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof featuresSchema>, any, FeaturesForm>({
     resolver: zodResolver(featuresSchema),
     defaultValues: {
       benefits: membershipType.benefits.join('\n'),
@@ -90,18 +90,21 @@ export function MembershipTypeFeaturesForm({ membershipType }: MembershipTypeFea
         <Controller
           name="features"
           control={control}
-          render={({ field }) => (
+          render={({ field }) => {
+            // Optional in the schema's input type (defaulted); fall back to [].
+            const value = field.value ?? [];
+            return (
             <div className="grid gap-2 sm:grid-cols-2">
               {featureDefinitions.map((feature) => {
-                const checked = field.value.includes(feature.value);
+                const checked = value.includes(feature.value);
                 return (
                   <button
                     key={feature.value}
                     type="button"
                     onClick={() => {
                       const next = checked
-                        ? field.value.filter((f) => f !== feature.value)
-                        : [...field.value, feature.value];
+                        ? value.filter((f) => f !== feature.value)
+                        : [...value, feature.value];
                       field.onChange(next);
                     }}
                     className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
@@ -119,7 +122,8 @@ export function MembershipTypeFeaturesForm({ membershipType }: MembershipTypeFea
                 );
               })}
             </div>
-          )}
+            );
+          }}
         />
         {errors.features && <p className="mt-1 text-xs text-red-400">{errors.features.message}</p>}
       </div>

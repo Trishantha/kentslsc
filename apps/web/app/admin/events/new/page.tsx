@@ -34,7 +34,7 @@ type EventForm = z.infer<typeof eventSchema>;
 export default function NewEventPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<EventForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<z.input<typeof eventSchema>, any, EventForm>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
       ticketPrice: 0,

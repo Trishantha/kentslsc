@@ -37,7 +37,7 @@ export function CommitteeDetailsForm({ member, memberId }: CommitteeDetailsFormP
     setValue,
     watch,
     formState: { errors }
-  } = useForm<CommitteeForm>({
+  } = useForm<z.input<typeof committeeSchema>, any, CommitteeForm>({
     resolver: zodResolver(committeeSchema),
     defaultValues: {
       name: member.name,

@@ -44,7 +44,7 @@ export default function NewBlogPostPage() {
     }
   });
 
-  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<BlogForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<z.input<typeof blogSchema>, any, BlogForm>({
     resolver: zodResolver(blogSchema),
     defaultValues: {
       title: '',

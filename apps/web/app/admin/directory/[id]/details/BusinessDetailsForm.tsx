@@ -59,7 +59,7 @@ export function BusinessDetailsForm({ business, businessId }: BusinessDetailsFor
   const router = useRouter();
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } =
-    useForm<BusinessForm>({
+    useForm<z.input<typeof businessSchema>, any, BusinessForm>({
       resolver: zodResolver(businessSchema),
       defaultValues: {
         businessName: business.businessName,

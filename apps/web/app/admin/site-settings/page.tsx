@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -46,7 +47,7 @@ export default function AdminSiteSettingsPage() {
     reset,
     control,
     formState: { errors }
-  } = useForm<SiteSettingsInput>({
+  } = useForm<z.input<typeof siteSettingsSchema>, any, SiteSettingsInput>({
     resolver: zodResolver(siteSettingsSchema),
     defaultValues: {
       email: '',

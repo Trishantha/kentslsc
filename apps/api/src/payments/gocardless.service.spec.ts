@@ -240,7 +240,7 @@ describe('GoCardlessService', () => {
         expect.objectContaining({
           metadata: { source: 'membership', data: '{"membershipId":"m-1"}' },
           payment_request: {
-            amount: '12000',
+            amount: 12000,
             currency: 'GBP',
             description: 'Membership payment',
             scheme: 'bacs'
@@ -276,9 +276,9 @@ describe('GoCardlessService', () => {
         expect.objectContaining({
           mandate_request: { scheme: 'bacs' },
           subscription_request: expect.objectContaining({
-            amount: '12000',
+            amount: 12000,
             currency: 'GBP',
-            interval: '1',
+            interval: 1,
             interval_unit: 'monthly'
           })
         })
@@ -293,10 +293,10 @@ describe('GoCardlessService', () => {
       const request = mockGoCardlessClient.billingRequests.create.mock.calls[0]![0] as any;
       expect(request.instalment_schedule_request).toEqual(
         expect.objectContaining({
-          total_amount: '10000',
+          total_amount: 10000,
           currency: 'GBP',
           instalments_with_schedule: {
-            amounts: ['3333', '3333', '3334'],
+            amounts: [3333, 3333, 3334],
             interval: 1,
             interval_unit: 'monthly'
           }
@@ -339,8 +339,8 @@ describe('GoCardlessService', () => {
       await service.refundPayment('PM123');
 
       expect(mockGoCardlessClient.refunds.create).toHaveBeenCalledWith({
-        amount: '12000',
-        total_amount_confirmation: '12000',
+        amount: 12000,
+        total_amount_confirmation: 12000,
         links: { payment: 'PM123' }
       });
     });
@@ -351,8 +351,8 @@ describe('GoCardlessService', () => {
       await service.refundPayment('PM123', 5000);
 
       expect(mockGoCardlessClient.refunds.create).toHaveBeenCalledWith({
-        amount: '5000',
-        total_amount_confirmation: '5000',
+        amount: 5000,
+        total_amount_confirmation: 5000,
         links: { payment: 'PM123' }
       });
       expect(mockGoCardlessClient.payments.find).not.toHaveBeenCalled();

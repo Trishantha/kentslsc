@@ -29,7 +29,7 @@ export function MembershipTypeDetailsForm({ membershipType }: MembershipTypeDeta
   const [isPauseModalOpen, setIsPauseModalOpen] = useState(false);
   const [targetTypeId, setTargetTypeId] = useState<string>('');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<DetailsForm>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof detailsSchema>, any, DetailsForm>({
     resolver: zodResolver(detailsSchema),
     defaultValues: {
       name: membershipType.name,

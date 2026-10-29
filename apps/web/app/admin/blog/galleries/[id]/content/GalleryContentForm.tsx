@@ -28,7 +28,7 @@ interface GalleryContentFormProps {
 export function GalleryContentForm({ gallery, galleryId }: GalleryContentFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<ContentForm>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<z.input<typeof contentSchema>, any, ContentForm>({
     resolver: zodResolver(contentSchema),
     defaultValues: {
       title: gallery.title,

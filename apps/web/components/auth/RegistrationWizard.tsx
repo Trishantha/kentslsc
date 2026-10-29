@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useClientSearchParams } from '@/hooks/useClientSearchParams';
@@ -131,7 +132,7 @@ export function RegistrationWizard() {
     setValue,
     trigger,
     formState: { errors }
-  } = useForm<RegistrationWizardInput>({
+  } = useForm<z.input<typeof registrationWizardSchema>, any, RegistrationWizardInput>({
     resolver: zodResolver(registrationWizardSchema),
     defaultValues: {
       firstName: '',

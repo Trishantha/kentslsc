@@ -39,7 +39,7 @@ export default function NewMembershipTypePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { register, control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<MembershipTypeForm>({
+  const { register, control, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<z.input<typeof membershipTypeSchema>, any, MembershipTypeForm>({
     resolver: zodResolver(membershipTypeSchema),
     defaultValues: {
       price: 0,
@@ -193,18 +193,21 @@ export default function NewMembershipTypePage() {
             <Controller
               name="features"
               control={control}
-              render={({ field }) => (
+              render={({ field }) => {
+                // Optional in the schema's input type (defaulted); fall back to [].
+                const value = field.value ?? [];
+                return (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {featureDefinitions.map((feature) => {
-                    const checked = field.value.includes(feature.value);
+                    const checked = value.includes(feature.value);
                     return (
                       <button
                         key={feature.value}
                         type="button"
                         onClick={() => {
                           const next = checked
-                            ? field.value.filter((f) => f !== feature.value)
-                            : [...field.value, feature.value];
+                            ? value.filter((f) => f !== feature.value)
+                            : [...value, feature.value];
                           field.onChange(next);
                         }}
                         className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
@@ -222,7 +225,8 @@ export default function NewMembershipTypePage() {
                     );
                   })}
                 </div>
-              )}
+                );
+              }}
             />
           </div>
 

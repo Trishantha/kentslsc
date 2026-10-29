@@ -34,7 +34,7 @@ interface FundraiserOverviewFormProps {
 export function FundraiserOverviewForm({ fundraiser, fundraiserId }: FundraiserOverviewFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FundraiserForm>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<z.input<typeof fundraiserSchema>, any, FundraiserForm>({
     resolver: zodResolver(fundraiserSchema),
     defaultValues: {
       title: fundraiser.title,

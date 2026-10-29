@@ -25,7 +25,7 @@ interface FundraiserUpdatesManagerProps {
 
 export function FundraiserUpdatesManager({ fundraiserId }: FundraiserUpdatesManagerProps) {
   const queryClient = useQueryClient();
-  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<UpdateForm>({
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<z.input<typeof updateSchema>, any, UpdateForm>({
     resolver: zodResolver(updateSchema),
     defaultValues: { title: '', content: '' }
   });

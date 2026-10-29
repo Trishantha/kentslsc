@@ -46,7 +46,7 @@ export default function NewDirectoryListingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } =
-    useForm<BusinessForm>({
+    useForm<z.input<typeof businessSchema>, any, BusinessForm>({
       resolver: zodResolver(businessSchema),
       defaultValues: {
         businessName: '',

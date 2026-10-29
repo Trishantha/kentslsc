@@ -42,7 +42,7 @@ export default function CreateFundraiserPage() {
   const today = new Date().toISOString().slice(0, 10);
   const defaultEnd = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<z.input<typeof schema>, any, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { category: 'CHARITY', startDate: today, endDate: defaultEnd }
   });
