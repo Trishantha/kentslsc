@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, ArrowRight } from 'lucide-react';
+import { Loader2, Check, ArrowRight, FileText } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -83,6 +83,17 @@ export default function MembershipPlansPage() {
     retry: false
   });
 
+  const { data: membershipPolicy } = useQuery<{ files?: { id: string; name: string; fileUrl: string }[] }>({
+    queryKey: ['policy-documents', 'MEMBERSHIP_POLICY'],
+    queryFn: async () => {
+      const res = await api.get('/policy-documents/MEMBERSHIP_POLICY');
+      return res.data;
+    },
+    retry: false
+  });
+
+  const policyFiles = membershipPolicy?.files ?? [];
+
   const applyMembership = useMutation({
     mutationFn: async (membershipTypeId: string) => {
       const payload = {
@@ -136,6 +147,39 @@ export default function MembershipPlansPage() {
         {error && (
           <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
             {error}
+          </div>
+        )}
+
+        {policyFiles.length > 0 && (
+          <div className="glass-card mt-6 p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Membership documents
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              Please read the following documents before applying for membership.
+            </p>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {policyFiles.map((file) => (
+                <li key={file.id}>
+                  <a
+                    href={file.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-neon-blue/10 px-3 py-2 text-sm font-medium text-neon-blue hover:bg-neon-blue/20"
+                  >
+                    <FileText className="h-4 w-4" />
+                    {file.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/membership-policy"
+              className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-neon-blue dark:text-slate-400"
+            >
+              Read the full Membership Policy
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         )}
 
