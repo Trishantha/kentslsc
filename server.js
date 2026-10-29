@@ -411,6 +411,12 @@ const routableWebHost =
   process.env.INTERNAL_WEB_HOST || (runningUnderLsnode ? discoverRoutableIPv4() : null);
 const webBindHost = process.env.WEB_BIND_HOST || (routableWebHost ? '0.0.0.0' : '127.0.0.1');
 const webSocketPath = process.env.WEB_SOCKET_PATH || '/tmp/kslsc-web.sock';
+// Inode of the socket file OUR child bound, recorded once the socket is up.
+// Shutdown cleanup only unlinks the path when the inode still matches, so a
+// terminating worker never deletes a socket rebound by a newer worker (which
+// previously turned every deploy/restart into an ENOENT proxy flood).
+let apiSocketInode = null;
+let webSocketInode = null;
 // How the parent reaches the web child. When the sandbox exposes a routable
 // interface, bind 0.0.0.0 and use that IP. Otherwise — the observed hbuilds
 // setup, where the parent sees only loopback — fall back to a Unix domain
@@ -563,27 +569,35 @@ function spawnProcess(command, args, envOverrides = {}, cwd = rootDir, logPrefix
   return child;
 }
 
-function removeApiSocket() {
+function removeSocketFileIfOurs(socketPath, recordedInode) {
   try {
-    if (fs.existsSync(apiSocketPath)) {
-      fs.unlinkSync(apiSocketPath);
+    if (!fs.existsSync(socketPath)) {
+      return;
     }
+    if (recordedInode !== null && fs.statSync(socketPath).ino !== recordedInode) {
+      // The path has been rebound by a newer worker; deleting the file would
+      // break their listeners. A stale file left behind is harmless — the
+      // next boot's startup cleanup removes it before binding.
+      return;
+    }
+    fs.unlinkSync(socketPath);
   } catch {
     // ignore
   }
+}
+
+function removeApiSocket() {
+  if (apiMode !== 'unix') {
+    return;
+  }
+  removeSocketFileIfOurs(apiSocketPath, apiSocketInode);
 }
 
 function removeWebSocket() {
   if (webTransport !== 'unix') {
     return;
   }
-  try {
-    if (fs.existsSync(webSocketPath)) {
-      fs.unlinkSync(webSocketPath);
-    }
-  } catch {
-    // ignore
-  }
+  removeSocketFileIfOurs(webSocketPath, webSocketInode);
 }
 
 function stopChildProcesses() {
@@ -1916,6 +1930,11 @@ async function startApiAsChild(socketPath) {
   });
 
   await waitForSocket(socketPath, 'API service');
+  try {
+    apiSocketInode = fs.statSync(socketPath).ino;
+  } catch {
+    apiSocketInode = null;
+  }
 }
 
 async function startApiTcpChild() {
@@ -2018,6 +2037,11 @@ async function startWebChild() {
 
   if (webTransport === 'unix') {
     await waitForSocket(webSocketPath, 'Web service', webReadyTimeoutMs);
+    try {
+      webSocketInode = fs.statSync(webSocketPath).ino;
+    } catch {
+      webSocketInode = null;
+    }
   } else {
     await waitForService(internalWebUrl, 'Web service', webReadyTimeoutMs);
   }
@@ -2028,13 +2052,21 @@ async function startWebChild() {
 // worker — so a stale version keeps answering a share of requests (observed as
 // intermittent empty 200s for API calls, and old-code behavior for pages).
 // Each deploy lives in its own versions/<id>/ directory; once THIS worker is
-// fully up, terminate older workers from other version directories. Same-version
-// siblings are left alone (they may be intentional extra capacity), and the age
+// fully up, terminate older workers from other version directories. The age
 // guard ensures a freshly-started sibling is never killed by a race with us.
+// Same-version siblings are normally left alone (they may be intentional
+// extra capacity) — EXCEPT in unix-socket mode: all workers share the global
+// socket paths in /tmp, so a second same-version worker's startup cleanup
+// unlinks the first worker's sockets and its shutdown deletes the rebound
+// files, producing sustained ENOENT proxy floods (observed on Hostinger).
+// In that mode exactly one worker per version may live; the higher-pid
+// (newer) worker wins, and comparing pids instead of ages keeps two
+// simultaneously-started workers from killing each other.
 function terminateStaleSiblingWorkers() {
   if (!runningUnderLsnode) {
     return;
   }
+  const sharedSocketMode = apiMode === 'unix' || webTransport === 'unix';
   const marker = `${path.sep}hbuilds${path.sep}versions${path.sep}`;
   const selfVersion = (() => {
     const idx = rootDir.indexOf(marker);
@@ -2060,6 +2092,14 @@ function terminateStaleSiblingWorkers() {
       }
       const theirVersion = args.slice(args.indexOf(marker) + marker.length).split(path.sep)[0];
       if (theirVersion === selfVersion) {
+        if (sharedSocketMode && Number(pidText) < process.pid) {
+          console.log(`Terminating same-version sibling worker (pid ${pidText}); unix sockets require a single worker per version`);
+          try {
+            process.kill(Number(pidText), 'SIGTERM');
+          } catch {
+            // already gone or not ours to kill
+          }
+        }
         continue;
       }
       if (Number(etimesText) < process.uptime() + 60) {
