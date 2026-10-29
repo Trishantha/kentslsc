@@ -1,9 +1,18 @@
 import type { Metadata } from 'next';
+import { FileText } from 'lucide-react';
 import { fetchWithOriginFallback } from '@/lib/server-api-fetch';
 import { PolicyDocumentType, policyDocumentTypeLabels } from '@kentslsc/shared';
 import { notFound } from 'next/navigation';
 import { setRequestLocale } from 'next-intl/server';
 import { formatDate } from '@/lib/utils';
+
+interface PolicyDocFile {
+  id: string;
+  name: string;
+  fileUrl: string;
+  fileSize: number | null;
+  updatedAt: string;
+}
 
 interface PolicyDoc {
   id: string;
@@ -12,6 +21,7 @@ interface PolicyDoc {
   content: string;
   isPublished: boolean;
   updatedAt: string;
+  files?: PolicyDocFile[];
 }
 
 interface Props {
@@ -47,6 +57,29 @@ export default async function PolicyDocumentPage({ params, docType }: Props) {
           Last updated:{' '}
           {formatDate(doc.updatedAt)}
         </p>
+
+        {doc.files && doc.files.length > 0 && (
+          <div className="mt-6 glass-card p-4 md:p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Documents
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {doc.files.map((file) => (
+                <li key={file.id}>
+                  <a
+                    href={file.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-neon-blue/10 px-3 py-2 text-sm font-medium text-neon-blue hover:bg-neon-blue/20"
+                  >
+                    <FileText className="h-4 w-4" />
+                    {file.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-10 glass-card p-6 md:p-10">
           <div className="prose prose-slate dark:prose-invert max-w-none">

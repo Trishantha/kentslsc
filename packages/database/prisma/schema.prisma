@@ -1132,17 +1132,35 @@ enum PolicyDocumentType {
 }
 
 model PolicyDocument {
-  id          String             @id @default(uuid())
-  type        PolicyDocumentType @unique
+  id          String                @id @default(uuid())
+  type        PolicyDocumentType    @unique
   title       String
   content     String
-  isPublished Boolean            @default(false) @map("is_published")
-  updatedBy   String?            @map("updated_by")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+  isPublished Boolean               @default(false) @map("is_published")
+  updatedBy   String?               @map("updated_by")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  files       PolicyDocumentFile[]
 
   @@index([type])
   @@map("policy_documents")
+}
+
+model PolicyDocumentFile {
+  id               String           @id @default(uuid())
+  policyDocument   PolicyDocument   @relation(fields: [policyDocumentId], references: [id], onDelete: Cascade)
+  policyDocumentId String           @map("policy_document_id")
+  name             String
+  fileUrl          String           @map("file_url")
+  filePath         String           @map("file_path")
+  fileSize         Int?             @map("file_size")
+  displayOrder     Int              @default(0) @map("display_order")
+  uploadedBy       String?          @map("uploaded_by")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([policyDocumentId])
+  @@map("policy_document_files")
 }
 
 model GdprSettings {

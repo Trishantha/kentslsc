@@ -15,7 +15,7 @@ import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { SupabaseStorageService } from '../core/supabase/supabase.service.js';
 
-type MediaKind = 'image' | 'video';
+type MediaKind = 'image' | 'video' | 'document';
 
 interface MediaTypeConfig {
   kind: MediaKind;
@@ -30,7 +30,8 @@ const MEDIA_TYPES = {
   'image/webp': { kind: 'image', extensions: ['.webp'], maxBytes: 5 * 1024 * 1024 },
   'video/mp4': { kind: 'video', extensions: ['.mp4'], maxBytes: 100 * 1024 * 1024 },
   'video/webm': { kind: 'video', extensions: ['.webm'], maxBytes: 100 * 1024 * 1024 },
-  'video/ogg': { kind: 'video', extensions: ['.ogg', '.ogv'], maxBytes: 100 * 1024 * 1024 }
+  'video/ogg': { kind: 'video', extensions: ['.ogg', '.ogv'], maxBytes: 100 * 1024 * 1024 },
+  'application/pdf': { kind: 'document', extensions: ['.pdf'], maxBytes: 15 * 1024 * 1024 }
 } satisfies Record<string, MediaTypeConfig>;
 
 const ALLOWED_IMAGE_TYPES = (Object.keys(MEDIA_TYPES) as Array<keyof typeof MEDIA_TYPES>).filter(
@@ -38,6 +39,9 @@ const ALLOWED_IMAGE_TYPES = (Object.keys(MEDIA_TYPES) as Array<keyof typeof MEDI
 );
 const ALLOWED_VIDEO_TYPES = (Object.keys(MEDIA_TYPES) as Array<keyof typeof MEDIA_TYPES>).filter(
   (m) => MEDIA_TYPES[m].kind === 'video'
+);
+const ALLOWED_DOCUMENT_TYPES = (Object.keys(MEDIA_TYPES) as Array<keyof typeof MEDIA_TYPES>).filter(
+  (m) => MEDIA_TYPES[m].kind === 'document'
 );
 const ALLOWED_MIME_TYPES = new Set(Object.keys(MEDIA_TYPES));
 
@@ -134,19 +138,33 @@ async function isValidVideo(file: Express.Multer.File): Promise<boolean> {
   return false;
 }
 
+async function isValidDocument(file: Express.Multer.File): Promise<boolean> {
+  const config = getMediaConfig(file.mimetype);
+  if (!config || config.kind !== 'document') {
+    return false;
+  }
+  const extension = extname(file.originalname).toLowerCase();
+  if (!config.extensions.includes(extension)) {
+    return false;
+  }
+  const buf = await readSignatureBytes(file, 5);
+  return buf.length === 5 && buf.toString('ascii') === '%PDF-';
+}
+
 async function validateFile(file: Express.Multer.File): Promise<MediaKind> {
   const config = getMediaConfig(file.mimetype);
   if (!config) {
     throw new BadRequestException(
       `File type ${file.mimetype} is not allowed. ` +
         `Allowed images: ${ALLOWED_IMAGE_TYPES.join(', ')}. ` +
-        `Allowed videos: ${ALLOWED_VIDEO_TYPES.join(', ')}.`
+        `Allowed videos: ${ALLOWED_VIDEO_TYPES.join(', ')}. ` +
+        `Allowed documents: ${ALLOWED_DOCUMENT_TYPES.join(', ')}.`
     );
   }
 
   if (file.size > config.maxBytes) {
     throw new BadRequestException(
-      `${config.kind === 'image' ? 'Image' : 'Video'} exceeds maximum size of ${formatMaxSize(config.maxBytes)}.`
+      `${config.kind === 'image' ? 'Image' : config.kind === 'video' ? 'Video' : 'Document'} exceeds maximum size of ${formatMaxSize(config.maxBytes)}.`
     );
   }
 
@@ -156,6 +174,10 @@ async function validateFile(file: Express.Multer.File): Promise<MediaKind> {
 
   if (config.kind === 'video' && !(await isValidVideo(file))) {
     throw new BadRequestException('Invalid or unsupported video file');
+  }
+
+  if (config.kind === 'document' && !(await isValidDocument(file))) {
+    throw new BadRequestException('Invalid or unsupported document file');
   }
 
   return config.kind;
@@ -180,7 +202,8 @@ export class UploadsController {
             new BadRequestException(
               `File type ${file.mimetype} is not allowed. ` +
                 `Allowed images: ${ALLOWED_IMAGE_TYPES.join(', ')}. ` +
-                `Allowed videos: ${ALLOWED_VIDEO_TYPES.join(', ')}.`
+                `Allowed videos: ${ALLOWED_VIDEO_TYPES.join(', ')}. ` +
+                `Allowed documents: ${ALLOWED_DOCUMENT_TYPES.join(', ')}.`
             ),
             false
           );

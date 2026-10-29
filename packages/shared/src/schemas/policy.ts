@@ -35,6 +35,28 @@ export const updatePolicyDocumentSchema = z.object({
 
 export type UpdatePolicyDocumentInput = z.infer<typeof updatePolicyDocumentSchema>;
 
+export interface PolicyDocumentFileDto {
+  id: string;
+  policyDocumentId: string;
+  name: string;
+  fileUrl: string;
+  filePath: string;
+  fileSize: number | null;
+  displayOrder: number;
+  uploadedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const attachPolicyDocumentFileSchema = z.object({
+  name: z.string().min(1).max(200),
+  fileUrl: z.string().min(1).max(1000),
+  filePath: z.string().min(1).max(1000),
+  fileSize: z.number().int().positive().optional()
+});
+
+export type AttachPolicyDocumentFileInput = z.infer<typeof attachPolicyDocumentFileSchema>;
+
 export const gdprSettingsSchema = z.object({
   cookieConsentEnabled: z.boolean().optional(),
   cookieConsentMessage: z.string().max(500).optional(),

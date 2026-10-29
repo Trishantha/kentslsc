@@ -14,6 +14,7 @@ All images and videos used by the site are uploaded to the `KentSLSC` bucket:
 - Home-page hero media (`imageUrl` / `videoUrl`)
 - Site-page OG images (`ogImageUrl`)
 - Membership cards (`membershipCardUrl`)
+- Policy document attachments (PDF files uploaded from the admin panel)
 
 ## Required environment variables
 

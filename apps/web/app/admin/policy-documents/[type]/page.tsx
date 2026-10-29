@@ -10,6 +10,7 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { Switch } from '@/components/ui/Switch';
 import { PolicyDocumentType, policyDocumentTypeLabels } from '@kentslsc/shared';
 import { formatDateTime } from '@/lib/utils';
+import { PolicyDocumentAttachments } from './PolicyDocumentAttachments';
 
 interface PolicyDoc {
   id: string;
@@ -188,6 +189,10 @@ export default function AdminPolicyDocumentEditPage() {
           </p>
         )}
       </form>
+
+      <div className="mt-8">
+        <PolicyDocumentAttachments docType={docType} />
+      </div>
     </div>
   );
 }
