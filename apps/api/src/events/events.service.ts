@@ -457,10 +457,18 @@ export class EventsService {
    * supply an email, which is attached to a placeholder guest account so
    * tickets keep their required owning user; the placeholder is adopted into a
    * real account if that email later registers.
+   *
+   * For ticket purchases, an email that already belongs to a real account
+   * attaches the purchase to that account (Eventbrite-style convenience — the
+   * buyer need not log in, and the tickets are waiting in the account next
+   * time the owner logs in). Enrollment is the exception: attaching there is
+   * refused, because an unauthenticated caller could otherwise claim someone
+   * else's place for free and block the real owner from enrolling.
    */
   private async resolveBuyer(
     userId: string | null,
-    dto: PurchaseTicketsDto
+    dto: PurchaseTicketsDto,
+    allowAccountAttach: boolean
   ): Promise<{ user: { id: string; email: string; name: string | null; guestCheckout: boolean; stripeCustomerId: string | null }; deliveryEmail: string }> {
     if (userId) {
       const user = await this.prisma.user.findUnique({
@@ -476,19 +484,21 @@ export class EventsService {
     if (!email) {
       throw new BadRequestException('Email is required to receive your tickets');
     }
-    const user = await this.getOrCreateGuestUser(email, dto.buyerName);
+    const user = await this.getOrCreateGuestUser(email, dto.buyerName, allowAccountAttach);
     return { user, deliveryEmail: email };
   }
 
   /**
-   * Find or create the placeholder account for an anonymous ticket buyer.
+   * Find or create the account that owns an anonymous ticket purchase.
    *
    * Returns the existing placeholder when the email already belongs to one.
-   * When the email belongs to a real account the purchase is refused: an
-   * unauthenticated caller must not be able to attach tickets to somebody
-   * else's account.
+   * When `allowAccountAttach` is set and the email belongs to a real account,
+   * the purchase is attached to that account in the background (the tickets
+   * simply appear there on next login). Otherwise a real-account email is
+   * refused, since an unauthenticated caller must not be able to write to
+   * somebody else's account.
    */
-  private async getOrCreateGuestUser(email: string, name?: string) {
+  private async getOrCreateGuestUser(email: string, name: string | undefined, allowAccountAttach: boolean) {
     const existing = await this.prisma.user.findUnique({
       where: { email },
       select: { id: true, email: true, name: true, guestCheckout: true, stripeCustomerId: true, deletedAt: true }
@@ -497,7 +507,7 @@ export class EventsService {
       if (existing.deletedAt) {
         throw new BadRequestException('This email address cannot be used for ticket purchases');
       }
-      if (!existing.guestCheckout) {
+      if (!existing.guestCheckout && !allowAccountAttach) {
         throw new BadRequestException('An account with this email already exists — please log in to buy tickets');
       }
       return existing;
@@ -542,7 +552,14 @@ export class EventsService {
     }
 
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
-    const { user, deliveryEmail } = await this.resolveBuyer(userId, dto);
+    // Anonymous buyers may attach to an existing account for ticket purchases,
+    // but never for enrollment (see resolveBuyer).
+    const isAnonymous = userId === null;
+    const { user, deliveryEmail } = await this.resolveBuyer(
+      userId,
+      dto,
+      event.registrationMode !== EventRegistrationMode.ENROLLMENT
+    );
 
     if (event.registrationMode === EventRegistrationMode.ENROLLMENT) {
       const existing = await this.prisma.ticket.findFirst({
@@ -612,7 +629,7 @@ export class EventsService {
         origin,
         settings.method,
         deliveryEmail,
-        user.guestCheckout
+        isAnonymous
       );
     }
 
@@ -620,7 +637,9 @@ export class EventsService {
     // Stripe collects and returns it (and locks the checkout email to the
     // address the tickets will be sent to). Attaching a customer would lock
     // the email field to the account address instead.
-    const successUrl = user.guestCheckout
+    // Anonymous buyers land on the public confirmation page even when the
+    // purchase attached to an existing account — they are not logged in.
+    const successUrl = isAnonymous
       ? `${origin}/events/${dto.eventId}/confirmation?session_id={CHECKOUT_SESSION_ID}&provider=stripe`
       : `${origin}/dashboard/tickets?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`;
 

@@ -462,8 +462,43 @@ describe('EventsService', () => {
       );
     });
 
-    it('refuses a guest purchase for an email that belongs to a real account', async () => {
+    it('attaches a guest ticket purchase to an existing account with the same email', async () => {
+      const accountUser = { ...mockUser, guestCheckout: false, stripeCustomerId: 'cus_existing' };
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+      mockPrisma.ticket.count.mockResolvedValue(0);
+      mockPrisma.user.findUnique.mockResolvedValue(accountUser);
+      mockPaymentsService.createCheckout.mockResolvedValue({
+        id: 'cs_test_attach',
+        url: 'https://checkout.stripe.com/test',
+        provider: 'stripe'
+      });
+
+      const result = await service.createCheckoutSession(null, {
+        eventId: mockEvent.id,
+        quantity: 1,
+        buyerEmail: 'test@example.com'
+      });
+
+      if (result.free) throw new Error('expected paid checkout');
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+      expect(mockPaymentsService.createCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: 'cus_test_user_1',
+          successUrl: expect.stringContaining('/events/event-1/confirmation'),
+          metadata: expect.objectContaining({ userId: mockUser.id })
+        })
+      );
+    });
+
+    it('refuses a guest enrollment for an email that belongs to a real account', async () => {
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        registrationMode: 'ENROLLMENT',
+        isFree: true,
+        ticketPrice: 0,
+        externalTicketingUrl: null,
+        _count: { tickets: 0 }
+      });
       mockPrisma.ticket.count.mockResolvedValue(0);
       mockPrisma.user.findUnique.mockResolvedValue({ ...mockUser, guestCheckout: false });
 
