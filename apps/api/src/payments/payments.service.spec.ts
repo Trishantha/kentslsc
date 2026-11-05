@@ -516,6 +516,36 @@ describe('PaymentsService', () => {
       expect(intentParams.payment_method_types).toEqual(['card', 'bacs_debit', 'pay_by_bank']);
     });
 
+    it('carries the customer email in metadata instead of receipt_email so Stripe sends no duplicate receipt', async () => {
+      const service = new PaymentsService(mockConfig as any, mockPrisma as any);
+
+      const createMock = jest.fn(async (params: any) => ({
+        id: 'pi_noreceipt',
+        client_secret: 'pi_noreceipt_secret',
+        ...params
+      }));
+
+      (service as any).stripe = {
+        paymentIntents: { create: createMock }
+      };
+
+      await service.createCheckout({
+        amount: 1000,
+        currency: 'gbp',
+        description: 'Test payment',
+        successUrl: 'https://example.com/success?session_id={CHECKOUT_SESSION_ID}',
+        cancelUrl: 'https://example.com/cancel',
+        uiMode: 'embedded',
+        customerEmail: 'payer@example.com',
+        metadata: { type: 'event_ticket' }
+      });
+
+      const intentParams = createMock.mock.calls[0]?.[0];
+      if (!intentParams) throw new Error('Expected payment intent params');
+      expect(intentParams.receipt_email).toBeUndefined();
+      expect(intentParams.metadata.buyerEmail).toBe('payer@example.com');
+    });
+
     it('returns the PaymentIntent status for the confirmation backstop', async () => {
       const service = new PaymentsService(mockConfig as any, mockPrisma as any);
 

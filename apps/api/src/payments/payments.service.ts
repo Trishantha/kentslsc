@@ -499,7 +499,8 @@ export class PaymentsService {
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
       description: paymentIntent.description ?? null,
-      customerEmail: paymentIntent.receipt_email ?? null,
+      customerEmail:
+        (metadata.buyerEmail as string | undefined) ?? paymentIntent.receipt_email ?? null,
       netAmount: Number(metadata.netAmount ?? paymentIntent.amount),
       processingFee: Number(metadata.processingFee ?? 0),
       grossAmount: Number(metadata.grossAmount ?? paymentIntent.amount),
@@ -1480,13 +1481,15 @@ export class PaymentsService {
       // list keeps the PaymentElement free of dashboard-auto-enabled methods.
       // Wallets (Apple/Google Pay) still work via the ExpressCheckoutElement.
       payment_method_types: input.paymentMethodTypes ?? ['card'],
-      // receipt_email is set even when a Stripe customer is attached, so the
-      // checkout detail endpoint can expose the payer email (the page hides
-      // its email field and Stripe pre-fills mandate details from it).
+      // No receipt_email: Stripe would email its own receipt, duplicating the
+      // club's receipt. The payer email is carried in metadata instead so the
+      // checkout detail endpoint can still expose it (the page hides its email
+      // field and Stripe pre-fills mandate details from it). Kent SLSC's own
+      // receipt email is the only receipt the payer should get.
       ...(input.customer ? { customer: input.customer } : {}),
-      ...(input.customerEmail ? { receipt_email: input.customerEmail } : {}),
       metadata: {
         ...input.metadata,
+        ...(input.customerEmail ? { buyerEmail: input.customerEmail } : {}),
         netAmount: String(feeResult.net),
         processingFee: String(feeResult.fee),
         grossAmount: String(feeResult.gross),
