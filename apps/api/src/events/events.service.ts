@@ -5,8 +5,9 @@ import type { PaymentsService } from '../payments/payments.service.js';
 import { GoCardlessService } from '../payments/gocardless.service.js';
 import type { GoCardlessPaymentResource } from '../payments/gocardless-webhook.types.js';
 import { EmailQueueService } from '../email/email-queue.service.js';
+import { generateToken, hashPassword } from '../common/utils/crypto.js';
 import type Stripe from 'stripe';
-import { EventRegistrationMode, type PaymentMethodOption } from '@kentslsc/shared';
+import { EventRegistrationMode, UserRole, type PaymentMethodOption } from '@kentslsc/shared';
 import QRCode from 'qrcode';
 import type { CreateEventDto, UpdateEventDto, PurchaseTicketsDto, UpdateEventPostersDto, UpdateEventTicketDesignDto, GenerateTicketsDto } from './dto/index.js';
 import type { EnvConfig } from '../core/config/env.validation.js';
@@ -448,8 +449,77 @@ export class EventsService {
     return event.maxTickets - event._count.tickets;
   }
 
+  /**
+   * Resolve who the purchase is for and where the tickets are emailed.
+   *
+   * Logged-in buyers use their account (optionally overriding the delivery
+   * email, e.g. when buying tickets for someone else). Anonymous buyers must
+   * supply an email, which is attached to a placeholder guest account so
+   * tickets keep their required owning user; the placeholder is adopted into a
+   * real account if that email later registers.
+   */
+  private async resolveBuyer(
+    userId: string | null,
+    dto: PurchaseTicketsDto
+  ): Promise<{ user: { id: string; email: string; name: string | null; guestCheckout: boolean; stripeCustomerId: string | null }; deliveryEmail: string }> {
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId, deletedAt: null },
+        select: { id: true, email: true, name: true, guestCheckout: true, stripeCustomerId: true }
+      });
+      if (!user) throw new NotFoundException('User not found');
+      const deliveryEmail = dto.buyerEmail?.toLowerCase().trim() || user.email;
+      return { user, deliveryEmail };
+    }
+
+    const email = dto.buyerEmail?.toLowerCase().trim();
+    if (!email) {
+      throw new BadRequestException('Email is required to receive your tickets');
+    }
+    const user = await this.getOrCreateGuestUser(email, dto.buyerName);
+    return { user, deliveryEmail: email };
+  }
+
+  /**
+   * Find or create the placeholder account for an anonymous ticket buyer.
+   *
+   * Returns the existing placeholder when the email already belongs to one.
+   * When the email belongs to a real account the purchase is refused: an
+   * unauthenticated caller must not be able to attach tickets to somebody
+   * else's account.
+   */
+  private async getOrCreateGuestUser(email: string, name?: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, guestCheckout: true, stripeCustomerId: true, deletedAt: true }
+    });
+    if (existing) {
+      if (existing.deletedAt) {
+        throw new BadRequestException('This email address cannot be used for ticket purchases');
+      }
+      if (!existing.guestCheckout) {
+        throw new BadRequestException('An account with this email already exists — please log in to buy tickets');
+      }
+      return existing;
+    }
+
+    // Random unguessable hash: the placeholder must satisfy the non-nullable
+    // column but must never be usable for an actual login.
+    const passwordHash = await hashPassword(generateToken());
+    return this.prisma.user.create({
+      data: {
+        name: name?.trim() || 'Guest',
+        email,
+        passwordHash,
+        guestCheckout: true,
+        role: UserRole.GUEST
+      },
+      select: { id: true, email: true, name: true, guestCheckout: true, stripeCustomerId: true }
+    });
+  }
+
   async createCheckoutSession(
-    userId: string,
+    userId: string | null,
     dto: PurchaseTicketsDto
   ): Promise<
     | { free: true; tickets: Awaited<ReturnType<EventsService['createTickets']>> }
@@ -472,12 +542,13 @@ export class EventsService {
     }
 
     const origin = this.configService.get('FRONTEND_URL', { infer: true });
+    const { user, deliveryEmail } = await this.resolveBuyer(userId, dto);
 
     if (event.registrationMode === EventRegistrationMode.ENROLLMENT) {
       const existing = await this.prisma.ticket.findFirst({
         where: {
           eventId: event.id,
-          userId,
+          userId: user.id,
           status: { not: TicketStatus.CANCELLED },
           deletedAt: null
         }
@@ -486,7 +557,7 @@ export class EventsService {
         throw new BadRequestException('You are already enrolled in this event');
       }
       const tickets = await this.createTickets(
-        userId,
+        user.id,
         dto.eventId,
         1,
         origin,
@@ -498,7 +569,9 @@ export class EventsService {
           netAmount: 0,
           sourceType: PaymentSourceType.MANUAL,
           notes: 'Enrollment'
-        }
+        },
+        undefined,
+        deliveryEmail
       );
       return { free: true, tickets };
     }
@@ -510,7 +583,7 @@ export class EventsService {
     if (isFree || totalAmount === 0) {
       // Free event: create tickets immediately without Stripe
       const tickets = await this.createTickets(
-        userId,
+        user.id,
         dto.eventId,
         dto.quantity,
         origin,
@@ -522,37 +595,54 @@ export class EventsService {
           netAmount: 0,
           sourceType: PaymentSourceType.MANUAL,
           notes: 'Free ticket'
-        }
+        },
+        undefined,
+        deliveryEmail
       );
       return { free: true, tickets };
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId, deletedAt: null },
-      select: { id: true, email: true, name: true }
-    });
-    if (!user) throw new NotFoundException('User not found');
-
     const settings = await this.paymentsService.resolveCheckoutMethod(dto.paymentMethod);
     if (settings.provider === 'gocardless') {
-      return this.createGoCardlessCheckoutSession(user, event, dto, totalAmount, origin, settings.method);
+      return this.createGoCardlessCheckoutSession(
+        { ...user, name: dto.buyerName?.trim() || user.name },
+        event,
+        dto,
+        totalAmount,
+        origin,
+        settings.method,
+        deliveryEmail,
+        user.guestCheckout
+      );
     }
 
-    const stripeCustomerId = await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email);
+    // Guests have no usable Stripe customer: pass their email instead so
+    // Stripe collects and returns it (and locks the checkout email to the
+    // address the tickets will be sent to). Attaching a customer would lock
+    // the email field to the account address instead.
+    const successUrl = user.guestCheckout
+      ? `${origin}/events/${dto.eventId}/confirmation?session_id={CHECKOUT_SESSION_ID}&provider=stripe`
+      : `${origin}/dashboard/tickets?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`;
 
     const checkout = await this.paymentsService.createCheckout({
       amount: totalAmount,
       currency: 'gbp',
       description: event.title,
-      customer: stripeCustomerId,
-      successUrl: `${origin}/dashboard/tickets?success=1&session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
+      ...(user.guestCheckout
+        ? { customerEmail: deliveryEmail }
+        : { customer: await this.paymentsService.getOrCreateStripeCustomer(user.id, user.email) }),
+      successUrl,
       cancelUrl: `${origin}/events/${dto.eventId}?canceled=1`,
       uiMode: 'embedded_page',
       metadata: {
         eventId: dto.eventId,
-        userId,
+        userId: user.id,
         quantity: String(dto.quantity),
-        type: 'event_ticket'
+        type: 'event_ticket',
+        // Where the tickets must be emailed; fulfilment uses it instead of the
+        // account address (guest buyer, or a logged-in buyer sending tickets
+        // to someone else).
+        ...(deliveryEmail !== user.email ? { deliveryEmail } : {})
       }
     });
 
@@ -579,13 +669,21 @@ export class EventsService {
     dto: PurchaseTicketsDto,
     totalAmount: number,
     origin: string,
-    method: PaymentMethodOption = 'direct_debit'
+    method: PaymentMethodOption = 'direct_debit',
+    deliveryEmail?: string,
+    guest = false
   ): Promise<Extract<Awaited<ReturnType<EventsService['createCheckoutSession']>>, { free: false }>> {
     const feeResult = this.paymentsService.calculateProcessingFee(totalAmount, 'gocardless');
     // An explicit Instant Bank Pay choice maps to faster_payments; otherwise
     // the legacy paymentScheme (default bacs) applies.
     const scheme = method === 'instant_bank_pay' ? 'faster_payments' : (dto.paymentScheme ?? 'bacs');
     const customerId = await this.goCardlessService.getOrCreateCustomer(user.id);
+
+    // Guest buyers land on a public confirmation page instead of the
+    // login-gated ticket dashboard.
+    const redirectUri = guest
+      ? `${origin}/events/${dto.eventId}/confirmation?session_id={BILLING_REQUEST_ID}&provider=gocardless`
+      : `${origin}/dashboard/tickets?success=1&session_id={BILLING_REQUEST_ID}&provider=gocardless`;
 
     const checkout = await this.goCardlessService.createBillingRequestFlow({
       plan: 'one_off',
@@ -600,9 +698,10 @@ export class EventsService {
         quantity: String(dto.quantity),
         netAmount: String(feeResult.net),
         processingFee: String(feeResult.fee),
-        grossAmount: String(feeResult.gross)
+        grossAmount: String(feeResult.gross),
+        ...(deliveryEmail && deliveryEmail !== user.email ? { deliveryEmail } : {})
       },
-      redirectUri: `${origin}/dashboard/tickets?success=1&session_id={BILLING_REQUEST_ID}&provider=gocardless`,
+      redirectUri,
       exitUri: `${origin}/events/${dto.eventId}?canceled=1`
     });
 
@@ -626,7 +725,8 @@ export class EventsService {
         metadata: {
           quantity: dto.quantity,
           ticketPrice: Number(event.ticketPrice),
-          sessionRef: checkout.id
+          sessionRef: checkout.id,
+          ...(deliveryEmail && deliveryEmail !== user.email ? { deliveryEmail } : {})
         } as unknown as Prisma.InputJsonValue
       }
     });
@@ -695,7 +795,9 @@ export class EventsService {
         paymentStatus: PaymentStatus.COMPLETED,
         sourceType: PaymentSourceType.TICKET,
         notes: `Ticket purchase for event via Stripe Checkout`
-      }
+      },
+      undefined,
+      session.metadata.deliveryEmail ?? undefined
     );
     return tickets;
   }
@@ -793,7 +895,10 @@ export class EventsService {
         sourceType: PaymentSourceType.TICKET,
         notes: 'Ticket purchase via GoCardless Direct Debit'
       },
-      undefined
+      undefined,
+      (metadata.deliveryEmail ??
+        (pendingPayment?.metadata as { deliveryEmail?: string } | null)?.deliveryEmail) ||
+        undefined
     );
   }
 
@@ -803,7 +908,8 @@ export class EventsService {
     quantity: number,
     origin: string,
     paymentDetails?: TicketPaymentDetails,
-    ticketPrefix?: string
+    ticketPrefix?: string,
+    deliveryEmail?: string
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
@@ -969,9 +1075,13 @@ export class EventsService {
       return created;
     });
 
-    const cardUrl = `${origin}/dashboard/tickets`;
+    // Tickets go to the delivery email (a guest's keyed-in address or a
+    // logged-in buyer's override) falling back to the account address.
+    // Guest buyers have no dashboard, so point them at the event page.
+    const recipientEmail = deliveryEmail ?? user.email;
+    const cardUrl = user.guestCheckout ? `${origin}/events/${eventId}` : `${origin}/dashboard/tickets`;
     await this.emailQueueService.addSendTicketEmailJob({
-      email: user.email,
+      email: recipientEmail,
       eventTitle: event.title,
       cardUrl,
       tickets
@@ -1017,7 +1127,10 @@ export class EventsService {
       paymentStatus: PaymentStatus.COMPLETED,
       sourceType: PaymentSourceType.TICKET,
       notes: 'Auto-issued by ticket payment reconciliation'
-    });
+    },
+    undefined,
+    typeof metadata.deliveryEmail === 'string' ? metadata.deliveryEmail : undefined
+    );
   }
 
   async getUserTickets(userId: string) {

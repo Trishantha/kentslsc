@@ -24,6 +24,8 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 import { Public } from '../common/decorators/public.decorator.js';
 import { PublicCache } from '../common/decorators/public-cache.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
+import { OptionalAuth } from '../common/decorators/optional-auth.decorator.js';
+import { OptionalAuthRoute } from '../common/decorators/optional-auth-route.decorator.js';
 import { Permission, UserRole, type TokenPayload } from '@kentslsc/shared';
 
 @ApiTags('Events')
@@ -114,15 +116,17 @@ export class EventsController {
   }
 
   @Post(':id/tickets/purchase')
+  @Public()
+  @OptionalAuthRoute()
   @ApiBearerAuth()
   async purchase(
     @Param('id') eventId: string,
     @Body() dto: PurchaseTicketsDto,
-    @CurrentUser() user: TokenPayload
+    @OptionalAuth() user?: TokenPayload
   ) {
     // Enforce route parameter matches body for consistency
     const body = { ...dto, eventId };
-    return this.eventsService.createCheckoutSession(user.sub, body);
+    return this.eventsService.createCheckoutSession(user?.sub ?? null, body);
   }
 
   @Get(':id/tickets')

@@ -141,6 +141,28 @@ describe('AuthService', () => {
         } as any)
       ).rejects.toThrow();
     });
+
+    it('adopts a guest-checkout placeholder instead of rejecting the email', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue({ ...mockUser, guestCheckout: true });
+      (prisma.user.update as any).mockResolvedValue({ ...mockUser, guestCheckout: false });
+
+      const result = await service.register({
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@kentslsc.org',
+        password: PASSWORD
+      } as any);
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockUser.id },
+          data: expect.objectContaining({ guestCheckout: false })
+        })
+      );
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(result.user.email).toBe(mockUser.email);
+      expect(sessions.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('login', () => {

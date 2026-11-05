@@ -63,6 +63,9 @@ const PUBLIC_ALLOWLIST = new Set([
   'directory/directory.controller.ts::listJobs',
   'events/events.controller.ts::findOne',
   'events/events.controller.ts::list',
+  // Guest ticket purchase: optionally authenticated, email is required for
+  // anonymous buyers so tickets can be delivered.
+  'events/events.controller.ts::purchase',
   'forum/forum.controller.ts::getCategories',
   'forum/forum.controller.ts::getCategory',
   'forum/forum.controller.ts::getPostsByTopic',

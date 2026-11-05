@@ -55,7 +55,13 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
   const tCommon = useTranslations('common');
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodOption | null>(null);
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [buyerName, setBuyerName] = useState('');
+  const [differentEmail, setDifferentEmail] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const emailPattern = /^\S+@\S+\.\S+$/;
+  const deliveryEmail = differentEmail || !user ? buyerEmail.trim() : '';
 
   const availableMethods = paymentSettings?.availableMethods;
   const showMethodChoice =
@@ -83,15 +89,23 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
         {
           eventId: event.id,
           quantity: isEnrollment ? 1 : quantity,
-          ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {})
+          ...(showMethodChoice ? { paymentMethod: effectiveMethod } : {}),
+          ...(deliveryEmail ? { buyerEmail: deliveryEmail } : {}),
+          ...(buyerName.trim() ? { buyerName: buyerName.trim() } : {})
         }
       );
       return data;
     },
     onSuccess: (data) => {
       if (data.free) {
-        setMessage({ type: 'success', text: t(isEnrollment ? 'enrollSuccess' : 'reserveSuccess') });
-        setTimeout(() => router.push('/dashboard/tickets'), 1500);
+        if (user) {
+          setMessage({ type: 'success', text: t(isEnrollment ? 'enrollSuccess' : 'reserveSuccess') });
+          setTimeout(() => router.push('/dashboard/tickets'), 1500);
+        } else {
+          // Guests have no dashboard: the tickets are emailed to the address
+          // they entered, so stay on the page and say so.
+          setMessage({ type: 'success', text: t('guestTicketsEmailed') });
+        }
       } else if (data.provider === 'gocardless' && data.url) {
         window.location.assign(data.url);
       } else if (data.clientSecret && data.sessionId) {
@@ -135,8 +149,11 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
       externalTicketClick.mutate();
       return;
     }
-    if (!user) {
-      router.push(`/auth/login?returnTo=/events/${event.id}`);
+    // Guests can buy without an account, but an email is mandatory: it is the
+    // only channel through which they receive their tickets.
+    const emailNeeded = !user || differentEmail;
+    if (emailNeeded && !emailPattern.test(buyerEmail.trim())) {
+      setMessage({ type: 'error', text: t('emailRequired') });
       return;
     }
     purchase.mutate();
@@ -409,6 +426,68 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                   </>
                 )}
 
+                {!isExternal && (
+                  <div className="space-y-3 border-t border-white/10 pt-4">
+                    {!user && (
+                      <>
+                        <div>
+                          <label htmlFor="buyer-email" className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                            {t('emailLabel')}
+                          </label>
+                          <input
+                            id="buyer-email"
+                            type="email"
+                            required
+                            value={buyerEmail}
+                            onChange={(e) => setBuyerEmail(e.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
+                            placeholder="you@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="buyer-name" className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                            {t('nameLabel')}
+                          </label>
+                          <input
+                            id="buyer-name"
+                            type="text"
+                            value={buyerName}
+                            onChange={(e) => setBuyerName(e.target.value)}
+                            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {user && (
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={differentEmail}
+                          onChange={(e) => setDifferentEmail(e.target.checked)}
+                          className="h-4 w-4 rounded border-white/20"
+                        />
+                        {t('differentEmailLabel')}
+                      </label>
+                    )}
+                    {user && differentEmail && (
+                      <div>
+                        <label htmlFor="delivery-email" className="mb-1 block text-sm text-slate-600 dark:text-slate-400">
+                          {t('emailLabel')}
+                        </label>
+                        <input
+                          id="delivery-email"
+                          type="email"
+                          required
+                          value={buyerEmail}
+                          onChange={(e) => setBuyerEmail(e.target.value)}
+                          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-neon-blue"
+                          placeholder="you@example.com"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {message && (
                   <div
                     className={cn(
@@ -447,25 +526,19 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                     {isEnrollment ? t('getEnrollExternal') : t('getTicketsExternal')}
                   </button>
                 ) : isEnrollment ? (
-                  user ? (
-                    <button
-                      onClick={handleBuy}
-                      disabled={purchase.isPending || !hasCapacity}
-                      className="btn-primary w-full"
-                    >
-                      {purchase.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <GraduationCap className="mr-2 h-4 w-4" />
-                      )}
-                      {hasCapacity ? t('enrollNow') : t('enrollFull')}
-                    </button>
-                  ) : (
-                    <button onClick={handleBuy} className="btn-primary w-full">
-                      <GraduationCap className="mr-2 h-4 w-4" /> {t('loginToEnroll')}
-                    </button>
-                  )
-                ) : user ? (
+                  <button
+                    onClick={handleBuy}
+                    disabled={purchase.isPending || !hasCapacity}
+                    className="btn-primary w-full"
+                  >
+                    {purchase.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <GraduationCap className="mr-2 h-4 w-4" />
+                    )}
+                    {hasCapacity ? t('enrollNow') : t('enrollFull')}
+                  </button>
+                ) : (
                   <button
                     onClick={handleBuy}
                     disabled={purchase.isPending || !hasCapacity || !canSelectQuantity}
@@ -477,10 +550,6 @@ export default function EventDetailContent({ id, event: initialEvent, shareUrl }
                       <Ticket className="mr-2 h-4 w-4" />
                     )}
                     {isFree ? t('reserveTickets') : t('buyFor', { amount: formatCurrency(total) })}
-                  </button>
-                ) : (
-                  <button onClick={handleBuy} className="btn-primary w-full">
-                    <Ticket className="mr-2 h-4 w-4" /> {t('loginToBuy')}
                   </button>
                 )}
               </div>

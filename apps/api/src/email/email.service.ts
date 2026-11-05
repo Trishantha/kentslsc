@@ -229,7 +229,7 @@ export class EmailService {
       html: `
         <p>Thank you for your purchase for <strong>${escapeHtml(eventTitle)}</strong>.</p>
         ${ticketItems.length ? ticketItems.join('') : '<p>Your tickets are available in your dashboard.</p>'}
-        <p><a href="${cardUrl}">View your tickets in the dashboard</a></p>
+        <p><a href="${cardUrl}">View your tickets</a></p>
         <p style="font-size: 12px; color: #64748b;">Show the QR code at the entrance. Each code can only be used once.</p>
       `
     });

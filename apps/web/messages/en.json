@@ -597,14 +597,12 @@
     "purchaseFailed": "Purchase failed",
     "reserveTickets": "Reserve tickets",
     "buyFor": "Buy for {amount}",
-    "loginToBuy": "Log in to buy tickets",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
     "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
     "enrollmentExternalNote": "Registration for this workshop is handled through an external link. You will be redirected to enroll.",
     "getEnrollExternal": "Enroll",
     "enrollNow": "Enroll now",
-    "loginToEnroll": "Log in to enroll",
     "enrollSuccess": "You're enrolled! Redirecting to your tickets...",
     "enrollFull": "Enrollment full",
     "addToCalendar": "Add to calendar",
@@ -612,7 +610,12 @@
     "shareTitle": "Share this event",
     "shareText": "Join us for \"{title}\" on Kent SLSC",
     "locationTitle": "Location",
-    "postersTitle": "Posters"
+    "postersTitle": "Posters",
+    "emailLabel": "Email for ticket delivery",
+    "nameLabel": "Your name (optional)",
+    "differentEmailLabel": "Send tickets to a different email address",
+    "emailRequired": "Please enter a valid email address so we can send you your tickets.",
+    "guestTicketsEmailed": "Your ticket(s) have been sent to your email address. Please check your inbox (and spam folder) and show the QR code(s) at the entrance."
   },
   "directoryDetail": {
     "backToDirectory": "Back to directory",

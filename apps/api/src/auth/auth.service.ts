@@ -42,24 +42,41 @@ export class AuthService {
   async register(data: RegisterDto, ctx: RequestContext = {}) {
     const email = data.email.toLowerCase().trim();
     const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    if (existing && !existing.guestCheckout) {
       throw new ConflictException('Email already registered');
     }
 
     const passwordHash = await hashPassword(data.password);
     const fullName = `${data.firstName} ${data.lastName}`.trim();
-    const user = await this.prisma.user.create({
-      data: {
-        name: fullName,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email,
-        phone: data.phone,
-        address: data.address ? (data.address as unknown as Prisma.InputJsonValue) : undefined,
-        passwordHash,
-        role: UserRole.GUEST
-      }
-    });
+    // An existing guest-checkout placeholder is adopted rather than rejected:
+    // its tickets and payments carry over into the new account.
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: fullName,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email,
+            phone: data.phone,
+            address: data.address ? (data.address as unknown as Prisma.InputJsonValue) : undefined,
+            passwordHash,
+            role: UserRole.GUEST,
+            guestCheckout: false
+          }
+        })
+      : await this.prisma.user.create({
+          data: {
+            name: fullName,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email,
+            phone: data.phone,
+            address: data.address ? (data.address as unknown as Prisma.InputJsonValue) : undefined,
+            passwordHash,
+            role: UserRole.GUEST
+          }
+        });
 
     let applicationResult:
       | { paid: true; sessionId: string; url: string; clientSecret?: string }

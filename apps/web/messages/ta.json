@@ -597,14 +597,12 @@
     "purchaseFailed": "வாங்க முடியவில்லை",
     "reserveTickets": "டிக்கெட்டுகளை முன்பதிவு செய்யுங்கள்",
     "buyFor": "{amount}க்கு வாங்கவும்",
-    "loginToBuy": "டிக்கெட்டுகளை வாங்க உள்நுழைக",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
     "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
     "enrollmentExternalNote": "Registration for this workshop is handled through an external link. You will be redirected to enroll.",
     "getEnrollExternal": "பதிவு செய்யுங்கள்",
     "enrollNow": "இப்போது பதிவு செய்யுங்கள்",
-    "loginToEnroll": "பதிவு செய்ய உள்நுழைக",
     "enrollSuccess": "நீங்கள் பதிவு செய்யப்பட்டுள்ளீர்கள்! உங்கள் டிக்கெட்டுகளுக்கு அழைத்துச் செல்லப்படுகிறீர்கள்...",
     "enrollFull": "பதிவு நிறைந்துவிட்டது",
     "addToCalendar": "Add to calendar",
@@ -612,7 +610,12 @@
     "shareTitle": "Share this event",
     "shareText": "Join us for \"{title}\" on Kent SLSC",
     "locationTitle": "Location",
-    "postersTitle": "Posters"
+    "postersTitle": "Posters",
+    "emailLabel": "டிக்கெட் வழங்க மின்னஞ்சல் முகவரி",
+    "nameLabel": "உங்கள் பெயர் (விரும்பினால்)",
+    "differentEmailLabel": "டிக்கெட்டுகளை வேறு மின்னஞ்சல் முகவரிக்கு அனுப்பவும்",
+    "emailRequired": "உங்கள் டிக்கெட்டுகளை அனுப்புவதற்கு செல்லுபடியாகும் மின்னஞ்சல் முகவரியை உள்ளிடவும்.",
+    "guestTicketsEmailed": "உங்கள் டிக்கெட்டுகள் உங்கள் மின்னஞ்சல் முகவரிக்கு அனுப்பப்பட்டுள்ளன. உங்கள் Inbox (மற்றும் spam கோப்புறை) ஐச் சரிபார்த்து, நுழைவதற்கு QR குறியீடு(களை)க் காட்டவும்."
   },
   "directoryDetail": {
     "backToDirectory": "கோப்பகத்திற்குத் திரும்பு",

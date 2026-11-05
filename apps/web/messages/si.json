@@ -597,14 +597,12 @@
     "purchaseFailed": "මිලදී ගැනීම අසාර්ථක විය",
     "reserveTickets": "ප්රවේශපත් වෙන්කරවා ගන්න",
     "buyFor": "{amount} සඳහා මිල දී ගන්න",
-    "loginToBuy": "ටිකට් මිලදී ගැනීමට ලොග් වන්න",
     "externalTicketsNote": "Tickets for this event are sold through an external platform. You will be redirected to complete your purchase.",
     "getTicketsExternal": "Get tickets",
     "enrollmentNote": "This is a free workshop. Enroll to reserve your place.",
     "enrollmentExternalNote": "Registration for this workshop is handled through an external link. You will be redirected to enroll.",
     "getEnrollExternal": "ලියාපදිංචි වන්න",
     "enrollNow": "දැන් ලියාපදිංචි වන්න",
-    "loginToEnroll": "ලියාපදිංචි වීමට ලොග් වන්න",
     "enrollSuccess": "ඔබ ලියාපදිංචි වුණා! ඔබේ ටිකට් වෙත හරවා යවමින්...",
     "enrollFull": "ලියාපදිංචිය පිරී ඇත",
     "addToCalendar": "Add to calendar",
@@ -612,7 +610,12 @@
     "shareTitle": "Share this event",
     "shareText": "Join us for \"{title}\" on Kent SLSC",
     "locationTitle": "Location",
-    "postersTitle": "Posters"
+    "postersTitle": "Posters",
+    "emailLabel": "ටිකට් ලැබීමට ඊමේල් ලිපිනය",
+    "nameLabel": "ඔබේ නම (විකල්පයි)",
+    "differentEmailLabel": "ටිකට් වෙනත් ඊමේල් ලිපිනයකට යොමු කරන්න",
+    "emailRequired": "ඔබේ ටිකට් ඔබට එවීමට හැකි වන පරිදි වලංගු ඊමේල් ලිපිනයක් ඇතුළත් කරන්න.",
+    "guestTicketsEmailed": "ඔබේ ටිකට් ඔබගේ ඊමේල් ලිපිනයට යවා ඇත. කරුණාකර ඔබේ Inbox (සහ spam ළෑඳිය) පරීක්ෂා කර, පිවිසීමේදී QR කේතය(න්) පෙන්වන්න."
   },
   "directoryDetail": {
     "backToDirectory": "නාමාවලිය වෙත ආපසු",

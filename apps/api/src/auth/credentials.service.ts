@@ -189,7 +189,9 @@ export class CredentialsService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: record.userId },
-        data: { passwordHash, passwordChangedAt: new Date() }
+        // Resetting the password claims a guest-checkout placeholder: the row
+        // becomes a normal account (its tickets and payments carry over).
+        data: { passwordHash, passwordChangedAt: new Date(), guestCheckout: false }
       }),
       this.prisma.passwordResetToken.update({
         where: { id: record.id },

@@ -162,6 +162,10 @@ model User {
   gocardlessCustomerId String? @map("gocardless_customer_id")
   // Optional back-office role that provides a default permission set.
   backOfficeRoleId String?   @map("back_office_role_id")
+  // Placeholder row created for a ticket purchase made without an account.
+  // Adopted into a real account when the email owner registers or resets
+  // their password; until then the row cannot be used to log in.
+  guestCheckout    Boolean   @default(false) @map("guest_checkout")
   // Timestamp only, deliberately no parallel boolean: two sources of truth for
   // the same fact drift. Callers derive `emailVerified` from this being non-null.
   emailVerifiedAt   DateTime? @map("email_verified_at")
