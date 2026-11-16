@@ -1,0 +1,18 @@
+diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
+index eb1c915f43b2debf5faa7ac3a73c262a161c7a4f..cbf58ac855403f38271df4f84e7ce060fed60dc9 100644
+--- a/dist/commonjs/index.js
++++ b/dist/commonjs/index.js
+@@ -1548,3 +1548,13 @@ exports.minimatch.Minimatch = Minimatch;
+ exports.minimatch.escape = escape_js_1.escape;
+ exports.minimatch.unescape = unescape_js_1.unescape;
+ //# sourceMappingURL=index.js.map
++// v3 compatibility shim (kentslsc): under the minimatch@^3 -> ^11 override
++// (CVE-2026-118764) transitive consumers written for minimatch@3 expect the
++// module itself to be callable and to expose the named helpers as properties
++// (and via interop `.default`). Re-export the minimatch function with all
++// named exports attached so those consumers keep working. Purely additive:
++// the vulnerable globparts preprocessing fixed in 11.0.1 is untouched.
++const minimatchV3Interop = exports.minimatch;
++Object.assign(minimatchV3Interop, exports);
++minimatchV3Interop.default = minimatchV3Interop;
++module.exports = minimatchV3Interop;
