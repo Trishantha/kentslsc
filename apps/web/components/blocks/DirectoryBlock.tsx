@@ -1,7 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { SmartLink } from '@/components/ui/SmartLink';
+import { LogoTile } from '@/components/ui/LogoTile';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -55,34 +55,23 @@ export default function DirectoryBlockComponent({ block, data }: Props) {
             {businesses.slice(0, limit).map((business, index) => (
               <FadeIn key={business.id} delay={index * 0.05}>
                 <SmartLink href={`/directory/${business.id}`}>
-                  <div className="glass-card flex h-full flex-col p-6">
-                    <div className="flex items-start justify-between">
-                      {business.logoUrl ? (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
-                          <Image
-                            src={business.logoUrl}
-                            alt={business.businessName}
-                            width={56}
-                            height={56}
-                            sizes="56px"
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
-                          <span className="text-sm font-bold text-amber-950">
-                            {business.businessName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      {business.isPromoted && (
-                        <span className="rounded-full bg-neon-gold/20 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-neon-gold/10 dark:text-neon-gold">
-                          Featured
+                  <div className="glass-card relative flex h-full flex-col items-center p-6 text-center">
+                    {business.isPromoted && (
+                      <span className="absolute right-4 top-4 rounded-full bg-neon-gold/20 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-neon-gold/10 dark:text-neon-gold">
+                        Featured
+                      </span>
+                    )}
+                    {business.logoUrl ? (
+                      <LogoTile src={business.logoUrl} alt={business.businessName} />
+                    ) : (
+                      <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500">
+                        <span className="text-4xl font-bold text-amber-950">
+                          {business.businessName.charAt(0).toUpperCase()}
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <h3 className="mt-4 text-lg font-bold">{business.businessName}</h3>
-                    <p className="mt-1 line-clamp-2 flex-1 text-sm text-slate-700 dark:text-slate-400">
+                    <p className="mt-1 line-clamp-2 w-full flex-1 text-sm text-slate-700 dark:text-slate-400">
                       {business.description ?? business.category ?? 'Sri Lankan business in Kent'}
                     </p>
                   </div>

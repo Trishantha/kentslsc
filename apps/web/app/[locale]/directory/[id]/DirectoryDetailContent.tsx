@@ -40,6 +40,7 @@ import {
 import { Link } from '@/i18n/routing';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { RichTextContent } from '@/components/ui/RichTextContent';
+import { LogoTile } from '@/components/ui/LogoTile';
 import { SocialLinks } from '@/components/layout/SocialLinks';
 
 const updateBusinessSchema = businessListingSchema.partial();
@@ -302,16 +303,14 @@ export default function DirectoryDetailContent({ id, business: initialBusiness }
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                 {business.logoUrl ? (
-                  <div className="shrink-0 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-white">
-                    <img
-                      src={business.logoUrl}
-                      alt={business.businessName}
-                      className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-                    />
-                  </div>
+                  <LogoTile
+                    src={business.logoUrl}
+                    alt={business.businessName}
+                    className="h-36 w-36 rounded-2xl sm:h-40 sm:w-40"
+                  />
                 ) : (
-                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500 sm:h-28 sm:w-28">
-                    <span className="text-2xl font-bold text-amber-950">
+                  <div className="flex h-36 w-36 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500 sm:h-40 sm:w-40">
+                    <span className="text-4xl font-bold text-amber-950">
                       {business.businessName.charAt(0).toUpperCase()}
                     </span>
                   </div>

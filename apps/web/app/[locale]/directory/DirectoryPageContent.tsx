@@ -19,6 +19,7 @@ import { formatDate } from '@/lib/utils';
 import { Search, MapPin, Briefcase, Plus, Crown, Loader2, Lock } from 'lucide-react';
 import { FeatureGate } from '@/components/ui/FeatureGate';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { LogoTile } from '@/components/ui/LogoTile';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { MembershipFeature } from '@kentslsc/shared';
 
@@ -175,46 +176,34 @@ export default function DirectoryPage() {
             {businesses.map((business) => (
               <Link key={business.id} href={`/directory/${business.id}`}>
                 <div
-                  className={`glass-card h-full p-6 transition hover:-translate-y-1 hover:shadow-neon ${
+                  className={`glass-card relative flex h-full flex-col items-center p-6 text-center transition hover:-translate-y-1 hover:shadow-neon ${
                     business.isPromoted ? 'border-neon-gold/40 ring-1 ring-neon-gold/30' : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      {business.logoUrl ? (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5 dark:border-white/10">
-                          <img
-                            src={business.logoUrl}
-                            alt={business.businessName}
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neon-gold to-amber-500">
-                          <span className="text-sm font-bold text-amber-950">
-                            {business.businessName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <h3 className="text-lg font-bold">{business.businessName}</h3>
-                        {business.category && (
-                          <p className="text-sm text-slate-500">
-                            {getDirectoryCategoryLabel(business.category)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {business.isPromoted && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-medium text-neon-gold">
-                        <Crown className="h-3 w-3" /> {t('promoted')}
+                  {business.isPromoted && (
+                    <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-neon-gold/10 px-2 py-1 text-xs font-medium text-neon-gold">
+                      <Crown className="h-3 w-3" /> {t('promoted')}
+                    </span>
+                  )}
+                  {business.logoUrl ? (
+                    <LogoTile src={business.logoUrl} alt={business.businessName} />
+                  ) : (
+                    <div className="flex h-40 w-40 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-gold to-amber-500">
+                      <span className="text-4xl font-bold text-amber-950">
+                        {business.businessName.charAt(0).toUpperCase()}
                       </span>
-                    )}
-                  </div>
-                  <p className="mt-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                    </div>
+                  )}
+                  <h3 className="mt-4 text-lg font-bold">{business.businessName}</h3>
+                  {business.category && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      {getDirectoryCategoryLabel(business.category)}
+                    </p>
+                  )}
+                  <p className="mt-4 line-clamp-2 w-full text-sm text-slate-600 dark:text-slate-400">
                     {business.description || t('noDescription')}
                   </p>
-                  <div className="mt-4 flex items-center gap-4 text-xs text-slate-500">
+                  <div className="mt-4 flex w-full flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
                     {business.address && (
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" /> {business.address}
